@@ -2561,6 +2561,19 @@ function showMaikonPurchase(){
 }
 
 // ─────────── FINAL DIAGNOSIS ───────────
+function _starsHtml(val, max){
+  const n = Math.min(5, Math.max(1, Math.round((val / Math.max(max, 1)) * 5)));
+  return '★'.repeat(n) + '☆'.repeat(5 - n);
+}
+function _calcPercentile(score){
+  if(score >= 60) return 8;
+  if(score >= 45) return 12;
+  if(score >= 30) return 18;
+  if(score >= 18) return 28;
+  if(score >= 10) return 42;
+  return 58;
+}
+
 function showFinalDiagnosis(){
   const style = getOwnerStyle() || { key:'balanced', title:'バランス型オーナー', desc:'状況を読みながら、偏らず判断し続けた。', icon:'⚖️' };
   const totalYears = G.year - 1 + (G.month > 1 ? 1 : 0);
@@ -2603,108 +2616,244 @@ function showFinalDiagnosis(){
   const detail = styleDetails[style.key] || styleDetails.balanced;
   const p = G.ownerProfile;
   const profileMax = Math.max(p.risk, p.people, p.community, p.finance, 1);
+  const ownerScore = G._ownerScore || 0;
+  const percentile = _calcPercentile(ownerScore);
 
-  const barColor = { risk:'#e53935', people:'#43a047', community:'#1e88e5', finance:'#fb8c00' };
-  const barLabel = { risk:'拡大志向', people:'人材育成', community:'地域共生', finance:'財務堅実' };
-  const profileBars = Object.entries(p).map(([k, v]) => `
-    <div style="margin-bottom:6px">
-      <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--muted);margin-bottom:2px">
-        <span>${barLabel[k]}</span><span>${v}pt</span>
-      </div>
-      <div style="background:var(--bg2);border-radius:4px;height:6px;overflow:hidden">
-        <div style="height:100%;width:${Math.min(100,Math.round(v/profileMax*100))}%;background:${barColor[k]};border-radius:4px;transition:width .5s"></div>
-      </div>
+  // 星評価（4指標）
+  const starRows = [
+    { label:'人とのご縁',   val: p.people    },
+    { label:'地域への貢献', val: p.community  },
+    { label:'経営判断',     val: p.risk       },
+    { label:'資金管理',     val: p.finance    },
+  ].map(r => `
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border)">
+      <span style="font-size:12px">${r.label}</span>
+      <span style="font-size:14px;color:var(--gold);letter-spacing:1px">${_starsHtml(r.val, profileMax)}</span>
     </div>`).join('');
+
+  // 舞昆おすすめ（タイプ別）
+  const maikonRec = {
+    aggressive: { name:'たもぎ茸舞昆', reason:'決断力があり、新しいものを真っ先に試すタイプ。', icon:'🍄' },
+    people:     { name:'明太子舞昆',   reason:'人との縁を大切にする、贈り物にも喜ばれる定番。', icon:'🍣' },
+    community:  { name:'帆立舞昆',     reason:'地域と共に歩むあなたに、素材の丁寧さが響くはず。', icon:'🐚' },
+    finance:    { name:'舞昆（和紙袋入り）', reason:'品質を見極める目を持つあなたへ、贈答にも使える逸品。', icon:'🎴' },
+    balanced:   { name:'舞昆（定番）', reason:'バランス感覚のあるあなたには、まず原点から。', icon:'🧃' },
+  };
+  const rec = maikonRec[style.key] || maikonRec.balanced;
 
   const body = document.getElementById('event-modal-body');
   body.innerHTML = `
     <div style="padding:4px">
-      <div style="text-align:center;margin-bottom:4px">
-        <div style="font-size:40px;margin-bottom:4px">${style.icon}</div>
-        <div style="font-size:10px;color:var(--muted);letter-spacing:.1em">経営者タイプ診断</div>
-        <div style="font-size:22px;font-weight:700;font-family:'Noto Serif JP',serif;margin:6px 0">${style.title}</div>
-        <div style="font-size:12px;color:var(--muted);line-height:1.7">${style.desc}</div>
-      </div>
 
-      <div style="background:var(--bg2);border-radius:10px;padding:12px;margin:12px 0">
-        <div style="font-size:10px;font-weight:700;color:var(--muted);margin-bottom:8px">判断の傾向</div>
-        ${profileBars}
-      </div>
-
-      <div style="background:var(--bg2);border-radius:10px;padding:12px;margin-bottom:10px">
-        <div style="font-size:10px;font-weight:700;color:var(--muted);margin-bottom:8px">あなたの強み</div>
-        ${detail.traits.map(t=>`<div style="font-size:12px;padding:4px 0;border-bottom:1px solid var(--border);line-height:1.6">✓ ${t}</div>`).join('')}
-      </div>
-
-      <div style="background:var(--bg2);border-radius:10px;padding:12px;margin-bottom:10px">
-        <div style="font-size:10px;font-weight:700;color:var(--muted);margin-bottom:6px">向いている事業</div>
-        <div style="display:flex;flex-wrap:wrap;gap:6px">
-          ${detail.suited.map(s=>`<span style="background:var(--gr3);color:#fff;border-radius:20px;padding:3px 10px;font-size:11px">${s}</span>`).join('')}
+      <!-- クリアバナー -->
+      <div style="text-align:center;background:linear-gradient(135deg,#1B5E20,#2E7D32);border-radius:14px;padding:20px 16px;margin-bottom:16px;color:#fff">
+        <div style="font-size:11px;letter-spacing:.2em;opacity:.8;margin-bottom:6px">🏆 ゲームクリア</div>
+        <div style="font-size:26px;font-weight:700;font-family:'Noto Serif JP',serif;margin-bottom:4px">${style.icon} ${style.title}</div>
+        <div style="font-size:13px;opacity:.85;margin-bottom:12px">全国上位 ${percentile}%</div>
+        <div style="background:rgba(255,255,255,.15);border-radius:10px;padding:12px 8px">
+          ${starRows}
         </div>
-        <div style="font-size:10px;color:var(--muted);margin-top:6px">モデルタイプ：${detail.modelType}</div>
       </div>
 
-      <div style="background:var(--warm);border-radius:10px;padding:12px 14px;margin-bottom:10px">
+      <!-- 縁の記録 -->
+      <div style="background:var(--warm);border-radius:10px;padding:12px 14px;margin-bottom:12px;text-align:center">
+        <div style="font-size:12px;color:var(--muted);margin-bottom:4px">舞昆を通じて</div>
+        <div style="font-size:22px;font-weight:700">${(G._totalHouseholds||0) + Object.values(G.characters||{}).filter(c=>c&&c.met).length}人</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:2px">とのご縁を築きました</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:10px;line-height:1.8;font-family:'Noto Serif JP',serif">
+          「商売は、人とのご縁。」
+        </div>
+      </div>
+
+      <!-- 成田コメント -->
+      <div style="background:var(--bg2);border-radius:10px;padding:12px 14px;margin-bottom:12px">
         <div style="font-size:10px;color:var(--muted);margin-bottom:6px">💼 成田（銀行員）より</div>
         <div style="font-size:12px;line-height:1.9;white-space:pre-line">${detail.naritaComment}</div>
       </div>
 
-      <div style="background:var(--bg2);border-radius:10px;padding:12px;margin-bottom:14px">
-        <div style="font-size:10px;font-weight:700;color:var(--muted);margin-bottom:8px">📊 ${G.year-1}年間の記録</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
-          <div style="text-align:center;background:var(--bg);border-radius:8px;padding:8px">
-            <div style="font-size:18px;font-weight:700">${G.totalDecisions||0}</div>
-            <div style="font-size:9px;color:var(--muted)">判断した回数</div>
-          </div>
-          <div style="text-align:center;background:var(--bg);border-radius:8px;padding:8px">
-            <div style="font-size:18px;font-weight:700">${G.totalHires||0}人</div>
-            <div style="font-size:9px;color:var(--muted)">採用したスタッフ</div>
-          </div>
-          <div style="text-align:center;background:var(--bg);border-radius:8px;padding:8px">
-            <div style="font-size:18px;font-weight:700">${G.graduations||0}人</div>
-            <div style="font-size:9px;color:var(--muted)">独立させた人</div>
-          </div>
-          <div style="text-align:center;background:var(--bg);border-radius:8px;padding:8px">
-            <div style="font-size:18px;font-weight:700">${G.loanCount||0}回</div>
-            <div style="font-size:9px;color:var(--muted)">融資利用</div>
-          </div>
-          <div style="text-align:center;background:var(--bg);border-radius:8px;padding:8px">
-            <div style="font-size:18px;font-weight:700">${occPct}%</div>
-            <div style="font-size:9px;color:var(--muted)">最終入居率</div>
-          </div>
-          <div style="text-align:center;background:var(--bg);border-radius:8px;padding:8px">
-            <div style="font-size:18px;font-weight:700">${fmt(G.totalRevenue||0)}</div>
-            <div style="font-size:9px;color:var(--muted)">累計売上</div>
-          </div>
-        </div>
-      </div>
-
-      <div style="background:var(--warm);border-radius:10px;padding:12px 14px;margin-bottom:14px;display:flex;gap:10px;align-items:flex-start">
-        <span style="font-size:22px;flex-shrink:0">🍚</span>
-        <div>
-          <div style="font-size:10px;color:var(--muted);margin-bottom:4px">お茶碗マン</div>
-          <div style="font-size:12px;line-height:1.9">「正解はありませんでしたね。<br><br>でも、あなたらしい経営は見えてきました。<br>それが、このゲームの答えだと思います。」</div>
+      <!-- 特典バナー -->
+      <div style="border:2px dashed var(--gold);border-radius:12px;padding:14px 16px;margin-bottom:12px;text-align:center">
+        <div style="font-size:11px;font-weight:700;color:var(--gold);letter-spacing:.1em;margin-bottom:10px">＼ゲームクリア特典／</div>
+        <div style="display:flex;flex-direction:column;gap:6px;text-align:left">
+          <div style="font-size:13px">🏠 <strong>大家適性診断書</strong>（PDF）</div>
+          <div style="font-size:13px">📖 <strong>成田の経営ノート</strong>（限定公開）</div>
         </div>
       </div>
 
       <div style="display:flex;flex-direction:column;gap:8px">
-        <button class="btn" style="width:100%;padding:14px;font-size:15px;background:linear-gradient(135deg,#2E7D32,#43a047);color:#fff;border:none;border-radius:10px;font-weight:700;letter-spacing:.03em"
-          onclick="logVisitMaikon();window.open('https://maikon.biz','_blank')">
-          🍚 実在する「舞昆」を見てみる
+        <button class="btn" style="width:100%;padding:15px;font-size:15px;background:var(--gold);color:#fff;border:none;border-radius:10px;font-weight:700"
+          onclick="showLeadCapture()">
+          特典を受け取る →
         </button>
-        <button class="btn" style="width:100%;padding:14px;font-size:14px;background:var(--gr3);color:#fff;border:none;border-radius:10px;font-weight:700" onclick="alert('準備中：事業計画ツールへ連携予定')">
-          📋 事業計画を作ってみる
-        </button>
-        <button class="btn" style="width:100%;padding:14px;font-size:14px;background:var(--gold);color:#fff;border:none;border-radius:10px;font-weight:700" onclick="alert('準備中：創業適性診断ページへ連携予定')">
-          🔍 創業適性診断を受ける
-        </button>
-        <button class="btn" style="width:100%;padding:12px;font-size:13px;background:var(--bg2);color:var(--text);border:none;border-radius:10px" onclick="document.getElementById('event-modal').style.display='none';renderTab()">
-          ゲームを続ける
+        <button class="btn" style="width:100%;padding:12px;font-size:13px;background:var(--bg2);color:var(--text);border:none;border-radius:10px"
+          onclick="document.getElementById('event-modal').style.display='none';renderTab()">
+          あとで受け取る
         </button>
       </div>
     </div>`;
   logEnding();
   document.getElementById('event-modal').style.display = 'flex';
+}
+
+// ─────────── LEAD CAPTURE ───────────
+function showLeadCapture(){
+  const style = getOwnerStyle() || { key:'balanced', title:'バランス型オーナー', icon:'⚖️' };
+  const maikonRec = {
+    aggressive: { name:'たもぎ茸舞昆', reason:'決断力のあるあなたには、旨みの強い一品を。', icon:'🍄' },
+    people:     { name:'明太子舞昆',   reason:'人を大切にするあなたに、贈り物にも喜ばれる定番。', icon:'🍣' },
+    community:  { name:'帆立舞昆',     reason:'地域と共に歩む姿勢が、この素材の丁寧さに重なります。', icon:'🐚' },
+    finance:    { name:'舞昆（和紙袋入り）', reason:'品質を見極めるあなたへ、贈答にも使える逸品。', icon:'🎴' },
+    balanced:   { name:'舞昆（定番）', reason:'まず原点から。毎朝ご飯一杯を変える味です。', icon:'🧃' },
+  };
+  const rec = maikonRec[style.key] || maikonRec.balanced;
+
+  const prof = G.profile || {};
+  const nameVal = G.playerName || '';
+  const ageVal  = prof.age  || '';
+  const jobVal  = prof.occupation || '';
+  const expVal  = prof.experience || '';
+
+  const body = document.getElementById('event-modal-body');
+  body.innerHTML = `
+    <div style="padding:4px">
+      <div style="text-align:center;margin-bottom:16px">
+        <div style="font-size:14px;font-weight:700">特典を受け取る</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:4px">送信後すぐにお届けします</div>
+      </div>
+
+      <!-- プロフィール確認 -->
+      <div style="background:var(--bg2);border-radius:10px;padding:12px;margin-bottom:14px">
+        <div style="font-size:10px;font-weight:700;color:var(--muted);margin-bottom:8px">プレイヤー情報（自動入力）</div>
+        <div style="display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:12px">
+          <span style="color:var(--muted)">名前</span><span>${nameVal || '（未入力）'}</span>
+          <span style="color:var(--muted)">年齢</span><span>${ageVal || '（未選択）'}</span>
+          <span style="color:var(--muted)">職業</span><span>${jobVal || '（未選択）'}</span>
+          <span style="color:var(--muted)">経験</span><span>${expVal || '（未選択）'}</span>
+          <span style="color:var(--muted)">タイプ</span><span>${style.icon} ${style.title}</span>
+        </div>
+      </div>
+
+      <!-- メール入力 -->
+      <div style="margin-bottom:14px">
+        <div style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:6px">メールアドレス（任意）</div>
+        <input id="lead-email" type="email" placeholder="例：your@email.com"
+          style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;background:var(--bg);color:var(--text);box-sizing:border-box">
+        <div style="font-size:10px;color:var(--muted);margin-top:4px">PDFはこちらへお送りします</div>
+      </div>
+
+      <!-- チェックボックス -->
+      <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:16px">
+        <label style="display:flex;align-items:flex-start;gap:10px;font-size:13px;cursor:pointer">
+          <input id="lead-apartment" type="checkbox" style="margin-top:2px;width:16px;height:16px;accent-color:var(--gr3)">
+          <span>🏠 大家業に興味があります</span>
+        </label>
+        <label style="display:flex;align-items:flex-start;gap:10px;font-size:13px;cursor:pointer">
+          <input id="lead-maikon" type="checkbox" style="margin-top:2px;width:16px;height:16px;accent-color:var(--gr3)">
+          <span>🍚 舞昆のお得情報を受け取りたい</span>
+        </label>
+      </div>
+
+      <!-- LINE登録 -->
+      ${LINE_URL ? `
+      <div style="background:var(--bg2);border-radius:10px;padding:12px;margin-bottom:14px">
+        <div style="font-size:11px;color:var(--muted);margin-bottom:8px">LINEで受け取る（おすすめ）</div>
+        <button class="btn" id="line-add-btn"
+          style="width:100%;padding:12px;font-size:14px;background:#06C755;color:#fff;border:none;border-radius:10px;font-weight:700"
+          onclick="window.open('${LINE_URL}','_blank');document.getElementById('line-added-row').style.display='flex'">
+          LINE友達追加
+        </button>
+        <div id="line-added-row" style="display:none;align-items:center;gap:8px;margin-top:8px">
+          <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer">
+            <input id="lead-line" type="checkbox" style="width:15px;height:15px;accent-color:#06C755">
+            友達追加しました ✓
+          </label>
+        </div>
+      </div>` : ''}
+
+      <!-- 送信ボタン -->
+      <button class="btn" style="width:100%;padding:15px;font-size:15px;background:var(--gr3);color:#fff;border:none;border-radius:10px;font-weight:700;margin-bottom:8px"
+        onclick="sendLead()">
+        送信する
+      </button>
+
+      <!-- おすすめ舞昆 -->
+      <div style="background:var(--warm);border-radius:10px;padding:12px 14px;margin-top:4px">
+        <div style="font-size:10px;color:var(--muted);margin-bottom:6px">ゲームクリア記念おすすめ</div>
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+          <span style="font-size:28px">${rec.icon}</span>
+          <div>
+            <div style="font-size:14px;font-weight:700">${rec.name}</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:2px">${rec.reason}</div>
+          </div>
+        </div>
+        <a href="https://www.maikon.biz/" target="_blank" rel="noopener"
+          onclick="logVisitMaikon()"
+          style="display:block;padding:12px;font-size:13px;font-weight:700;background:#B8860B;color:#fff;border-radius:8px;text-align:center;text-decoration:none">
+          🛒 舞昆を見てみる
+        </a>
+      </div>
+    </div>`;
+}
+
+function sendLead(){
+  const email   = (document.getElementById('lead-email')?.value || '').trim();
+  const apt     = document.getElementById('lead-apartment')?.checked || false;
+  const maikon  = document.getElementById('lead-maikon')?.checked || false;
+  const line    = document.getElementById('lead-line')?.checked || false;
+  const style   = getOwnerStyle() || { key:'balanced', title:'バランス型オーナー' };
+  const p       = G.ownerProfile || {};
+  const prof    = G.profile || {};
+  const rep     = (G.regions[0]||{}).reputation || 0;
+
+  const payload = {
+    type:             'lead',
+    playerId:         _getPlayerId(),
+    playerName:       G.playerName || '',
+    age:              prof.age || '',
+    occupation:       prof.occupation || '',
+    experience:       prof.experience || '',
+    region:           prof.region || '',
+    email:            email,
+    line:             line,
+    interestApartment: apt,
+    interestMaikon:   maikon,
+    ownerType:        style.title,
+    ownerStyleKey:    style.key,
+    ownerScore:       G._ownerScore || 0,
+    profileRisk:      p.risk      || 0,
+    profilePeople:    p.people    || 0,
+    profileCommunity: p.community || 0,
+    profileFinance:   p.finance   || 0,
+    storeBrand:       G.storeBrand || 0,
+    customerLoyalty:  G.customerLoyalty || 0,
+    communityBond:    G.communityBond || 0,
+    finalCash:        G.money || 0,
+    finalRep:         rep,
+    loanCount:        G.loanCount || 0,
+    staffCount:       G.staff.length,
+    occPct:           Math.round(occupiedRooms() / Math.max(totalRooms(), 1) * 100),
+    ending:           'good',
+  };
+
+  _post(payload);
+
+  // 送信後：お礼画面
+  const body = document.getElementById('event-modal-body');
+  body.innerHTML = `
+    <div style="padding:16px;text-align:center">
+      <div style="font-size:48px;margin-bottom:12px">✅</div>
+      <div style="font-size:16px;font-weight:700;margin-bottom:8px">送信しました！</div>
+      ${email ? `<div style="font-size:12px;color:var(--muted);margin-bottom:16px">${email} へお送りします</div>` : '<div style="font-size:12px;color:var(--muted);margin-bottom:16px">ありがとうございます。</div>'}
+      <div style="font-size:13px;line-height:1.9;margin-bottom:20px">
+        ${apt ? '🏠 大家業の資料をお送りします。<br>' : ''}
+        ${maikon ? '🍚 舞昆の最新情報をお届けします。<br>' : ''}
+        ${line ? '💚 LINEでもお待ちしています。<br>' : ''}
+      </div>
+      <button class="btn" style="width:100%;padding:12px;font-size:14px;background:var(--bg2);color:var(--text);border:none;border-radius:10px"
+        onclick="document.getElementById('event-modal').style.display='none';renderTab()">
+        ゲームに戻る
+      </button>
+    </div>`;
 }
 
 function afterMonthlyMeeting(){
@@ -9099,6 +9248,7 @@ function renderFinance(){
 // ─────────── ANALYTICS ───────────
 // GASのウェブアプリURLをここに設定（空欄ならconsole出力のみ）
 const GAS_URL = 'https://script.google.com/macros/s/AKfycbxM8XA5eI_-DMsLW8iqRnFcu5afp_5c5V7Ltz-PhX4_7pHK4_eXJLO1kgZWudUXApPH/exec';
+const LINE_URL = ''; // LINE公式アカウント友達追加URL（例: https://lin.ee/xxxxxxxx）
 
 function _getPlayerId(){
   if(!G._playerId) G._playerId = Math.random().toString(36).slice(2,10);
