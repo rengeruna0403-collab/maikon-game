@@ -197,6 +197,11 @@ body{font-family:'Noto Sans JP',sans-serif;background:var(--bg);color:var(--text
 .day-flash-overlay{position:fixed;inset:0;z-index:500;display:flex;align-items:center;justify-content:center;pointer-events:none;animation:dayFlash .8s ease forwards}
 @keyframes buyPop{0%{opacity:0;transform:translateY(0)}15%{opacity:1}70%{opacity:1}100%{opacity:0;transform:translateY(-22px)}}
 .buy-pop{position:absolute;bottom:30px;font-size:10px;font-weight:700;background:rgba(0,170,80,.92);color:#fff;padding:2px 7px;border-radius:10px;animation:buyPop 3.2s ease-out infinite;white-space:nowrap;pointer-events:none}
+@keyframes custIn{0%,13%{opacity:1}19%,100%{opacity:0}}
+@keyframes custBrowse{0%,13%{opacity:0}19%,42%{opacity:1}48%,100%{opacity:0}}
+@keyframes custPay{0%,42%{opacity:0}48%,64%{opacity:1}70%,100%{opacity:0}}
+@keyframes custLeave{0%,64%{opacity:0}70%,84%{opacity:1}90%,100%{opacity:0}}
+@keyframes speechBubble{0%,55%{opacity:0;transform:scale(.7)}60%,80%{opacity:1;transform:scale(1)}88%,100%{opacity:0;transform:scale(.7)}}
 /* ACTION GRID */
 .act-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:8px}
 .act-btn{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:10px 8px;
@@ -2773,53 +2778,88 @@ function showMaikonPurchase(){
 // ─────────── FINAL DIAGNOSIS ───────────
 function _renderStoreScene(s){
   if(!s) return '';
-  if(!s.isOpen) return '<div class="scene-box" style="height:90px;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:12px">🔒 閉店中</div>';
+  if(!s.isOpen) return '<div class="scene-box" style="height:100px;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:12px">🔒 閉店中</div>';
+
   const isNight = G.day % 6 >= 3;
   const bg = isNight
-    ? 'linear-gradient(to bottom,#1e1e3a 0%,#2a2a4a 60%,#3a2a1a 100%)'
-    : 'linear-gradient(to bottom,#FFF8E7 0%,#FFF3CC 60%,#F5E6C8 100%)';
+    ? 'linear-gradient(to bottom,#1e1e3a 0%,#28283e 70%,#2a1e12 100%)'
+    : 'linear-gradient(to bottom,#FFFBF0 0%,#FFF5D6 70%,#F5E8C0 100%)';
   const skyIcon = isNight ? '🌙' : '☀️';
-  const wallColor = isNight ? 'rgba(255,255,255,.06)' : 'rgba(0,0,0,.06)';
-  const floorColor = isNight ? 'rgba(200,150,80,.35)' : 'rgba(139,90,43,.35)';
-  const hasMidori = G.characters && G.characters.midori && G.characters.midori.relation >= 1;
-  const hasStaff = (s.staffCount||0) > 0;
-  const custCount = Math.min(3, Math.max(0, Math.round((s.customers||0) / 5)));
-  const unitP = s.unitPrice || 700;
-  // 商品棚
-  const shelfHtml = '<div style="position:absolute;top:5px;left:6px;font-size:13px;letter-spacing:3px">🟫 🟩 🎁</div>'
-    + '<div style="position:absolute;top:22px;left:0;right:0;height:3px;background:' + wallColor + ';border-top:1px solid rgba(100,60,20,.25)"></div>';
-  // お客さん（歩く）
-  const custEmojis = ['🙂','👩','🧑'];
-  const custDelays = ['0s','3.8s','7.2s'];
-  const custDurs = ['5.5s','6.2s','5s'];
-  let custHtml = '';
-  for(let i=0;i<custCount;i++){
-    custHtml += '<span class="scene-char" style="font-size:15px;bottom:20px;animation:walkRight ' + custDurs[i] + ' ' + custDelays[i] + ' linear infinite">' + custEmojis[i] + '</span>';
-  }
-  // スタッフ（レジ）
-  const staffIcon = hasMidori ? '👩' : (hasStaff ? '🧑' : '');
-  const registerHtml = staffIcon
-    ? '<span style="position:absolute;bottom:20px;right:10px;font-size:15px">' + staffIcon + '</span>'
-      + '<span style="position:absolute;bottom:20px;right:28px;font-size:10px;color:' + (isNight?'rgba(255,255,255,.5)':'rgba(0,0,0,.35)') + '">🧾</span>'
-    : '';
-  // 売上ポップアップ
-  const popPositions = ['28%','50%','18%'];
-  const popDelays = ['1s','4.5s','8s'];
-  let popHtml = '';
-  for(let i=0;i<custCount;i++){
-    popHtml += '<span class="buy-pop" style="left:' + popPositions[i] + ';animation-delay:' + popDelays[i] + '">🛍 +¥' + (unitP + i*10) + '</span>';
-  }
-  // 床・入口
-  const floorHtml = '<div style="position:absolute;bottom:0;left:0;right:0;height:20px;background:' + floorColor + ';border-radius:0 0 10px 10px;display:flex;align-items:center;padding:0 8px;gap:4px">'
-    + '<span style="font-size:9px">🚪</span>'
-    + '<span style="font-size:9px;color:rgba(255,255,255,.6)">入口</span>'
+  const floorCol = isNight ? 'rgba(180,130,70,.4)' : 'rgba(139,90,43,.35)';
+  const shelfLineCol = isNight ? 'rgba(255,255,255,.1)' : 'rgba(100,60,20,.2)';
+
+  // 商品棚（Lvで増える）
+  const lv = s.level || 1;
+  const shelfItems = lv >= 4 ? '🟫 🟩 🎁 🎍'
+    : lv >= 3 ? '🟫 🟩 🎁 🧺'
+    : lv >= 2 ? '🟫 🟩 🎁'
+    : '🟫 🟩';
+  const shelfHtml = '<div style="position:absolute;top:5px;left:8px;font-size:12px;letter-spacing:2px">' + shelfItems + '</div>'
+    + '<div style="position:absolute;top:23px;left:4px;right:45%;height:1px;background:' + shelfLineCol + ';border-top:1px solid rgba(100,60,20,.3)"></div>';
+
+  // イートインコーナー（右奥）
+  const eatinHtml = '<div style="position:absolute;top:5px;right:8px;font-size:11px;text-align:right;line-height:1.4">'
+    + '<div>🍙🍵</div>'
+    + '<div>🪑🪑</div>'
     + '</div>';
-  return '<div class="scene-box" style="height:90px;background:' + bg + '">'
-    + '<span style="position:absolute;top:4px;right:8px;font-size:12px">' + skyIcon + '</span>'
+
+  // レジ（スタッフ固定）
+  const ch = G.characters || {};
+  const hasMidori = ch.midori && ch.midori.relation >= 1;
+  const staffIcon = hasMidori ? '👩' : ((s.staffCount||0)>0 ? '🧑' : '');
+  const registerHtml = staffIcon
+    ? '<span style="position:absolute;bottom:22px;right:52px;font-size:16px">' + staffIcon + '</span>'
+      + '<span style="position:absolute;bottom:22px;right:36px;font-size:10px;opacity:.5">🧾</span>'
+    : '';
+
+  // 常連キャラ判定
+  const regulars = [];
+  if(ch.tanaka && ch.tanaka.relation >= 2) regulars.push({icon:'👴', phrase:'今日もありがとう'});
+  if(ch.takahashi && ch.takahashi.relation >= 2) regulars.push({icon:'👨‍💼', phrase:'まとめて注文します'});
+  if(ch.yamamoto && ch.yamamoto.relation >= 2) regulars.push({icon:'👩', phrase:'また来ちゃった！'});
+
+  // 今日の客キャラ（常連優先、なければ日付ローテ）
+  const defaultCusts = ['🙂','🧑','👩','👴','👶'];
+  const todayIdx = (G.day + (G.month||0)*5) % (regulars.length > 0 ? regulars.length + defaultCusts.length : defaultCusts.length);
+  const isRegular = regulars.length > 0 && todayIdx < regulars.length;
+  const custIcon = isRegular ? regulars[todayIdx].icon : defaultCusts[todayIdx % defaultCusts.length];
+  const custPhrase = isRegular ? regulars[todayIdx].phrase : '';
+
+  // 客の購入旅（4フェーズ relay）
+  const unitP = s.unitPrice || 700;
+  const hasCust = (s.customers||0) > 0 && s.menu && s.menu.length > 0;
+  const cycDur = '7s';
+  let journeyHtml = '';
+  if(hasCust){
+    // phase1: 入口→棚前
+    journeyHtml += '<span style="position:absolute;bottom:22px;left:6px;font-size:15px;animation:custIn ' + cycDur + ' 0s linear infinite">' + custIcon + '</span>';
+    // phase2: 棚前（商品手に取る）
+    journeyHtml += '<span style="position:absolute;bottom:22px;left:30%;font-size:15px;animation:custBrowse ' + cycDur + ' 0s linear infinite">🛍</span>';
+    // phase3: レジ前（支払い）
+    journeyHtml += '<span style="position:absolute;bottom:22px;right:70px;font-size:15px;animation:custPay ' + cycDur + ' 0s linear infinite">💴</span>';
+    // phase4: 出口（満足）
+    journeyHtml += '<span style="position:absolute;bottom:22px;right:8px;font-size:15px;animation:custLeave ' + cycDur + ' 0s linear infinite">😊</span>';
+    // 売上ポップアップ（phase3タイミングで出る）
+    journeyHtml += '<span class="buy-pop" style="right:65px;bottom:42px;animation-delay:3s;animation-duration:' + cycDur + '">+¥' + unitP + '</span>';
+    // 常連吹き出し
+    if(custPhrase){
+      journeyHtml += '<div style="position:absolute;bottom:42px;left:6px;background:rgba(255,255,255,.92);color:#333;font-size:9px;padding:2px 6px;border-radius:8px;white-space:nowrap;animation:speechBubble ' + cycDur + ' 0s ease-in-out infinite;pointer-events:none">'
+        + '💬 ' + custPhrase + '</div>';
+    }
+  }
+
+  // 床・入口
+  const floorHtml = '<div style="position:absolute;bottom:0;left:0;right:0;height:20px;background:' + floorCol + ';border-radius:0 0 10px 10px;display:flex;align-items:center;padding:0 8px;gap:4px">'
+    + '<span style="font-size:9px">🚪</span>'
+    + '<span style="font-size:9px;color:rgba(255,255,255,.65)">入口</span>'
+    + '<span style="font-size:9px;margin-left:auto">' + skyIcon + '</span>'
+    + '</div>';
+
+  return '<div class="scene-box" style="height:100px;background:' + bg + '">'
     + shelfHtml
-    + custHtml
+    + eatinHtml
     + registerHtml
-    + popHtml
+    + journeyHtml
     + floorHtml
     + '</div>';
 }
