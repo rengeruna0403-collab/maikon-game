@@ -1535,7 +1535,19 @@ function renderTutBanner(){
 // ─── ホーム用：ミッションリストカード ───
 function renderTutMissionCard(){
   // チュートリアル中：ステップリスト表示
-  if(G.tut.phase === 'playing' && !G.tut.stepsDone.every(d => d)){
+  if(G.tut.phase === 'playing'){
+    const doneCount = TUT_STEPS.filter((_,i) => G.tut.stepsDone[i]).length;
+    const allTutDone = doneCount >= TUT_STEPS.length;
+    // 全完了時は1行コンパクト表示
+    if(allTutDone){
+      return `<div class="card" style="border:2px solid var(--gr2);margin-bottom:10px;padding:8px 14px">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:18px">🍚</span>
+          <div style="font-size:13px;font-weight:700">今やること</div>
+          <span style="font-size:12px;color:var(--gr);font-weight:700;margin-left:auto">${doneCount}/${TUT_STEPS.length} 完了 ✓</span>
+        </div>
+      </div>`;
+    }
     const step = G.tut.step;
     const stepNums = ['①','②','③','④','⑤'];
     const items = TUT_STEPS.map((s,i)=>{
@@ -8130,34 +8142,33 @@ function renderHome(){
 
   // チュートリアル完了後：今やること＋案件ボックスをまとめて上部に
   if(G.tut.phase === 'done'){
-    const postTutBlock = renderTutMissionCard() + renderCasesBox();
-    // 以降のテンプレートで tutMissionHtml の位置に差し込み、個別の renderCasesBox は省略
     return `
       <button class="adv-btn" onclick="advanceDay()">
         🌿 翌日へ進む ——${G.year}年${G.month}月${G.day}日
       </button>
+      ${renderCasesBox()}
       ${renderCashWarningBanner()}
       ${renderTodayMood()}
-      ${postTutBlock}
+      ${renderTutMissionCard()}
       <div class="hq-vis">
         <div class="hq-year">第${G.year}年 ${G.month}月</div>
         <div class="hq-title">舞昆アパート経営</div>
         <div style="font-size:11px;opacity:.7;margin-top:3px">${ownerTitle.desc}</div>
         <div class="hq-buildings-row" style="margin-top:14px">${bldEmojis} ${stEmojis}</div>
       </div>
-      <div class="phase-banner">
+      <div class="metrics-grid">
+        <div class="metric-card"><div class="metric-v" style="color:${profit>=0?'var(--gr)':'var(--orange)'}">${profit>=0?'+':''}${fmt(profit)}</div><div class="metric-l">日次利益</div></div>
+        <div class="metric-card"><div class="metric-v">${occupiedRooms()}/${totalRooms()}</div><div class="metric-l">入居室数</div></div>
+        <div class="metric-card"><div class="metric-v">${G.stores.reduce((s,st)=>s+st.customers,0)}人</div><div class="metric-l">日次来客数</div></div>
+        <div class="metric-card"><div class="metric-v">${G.graduations}</div><div class="metric-l">独立オーナー育成数</div></div>
+      </div>
+      <div class="phase-banner" style="margin-bottom:10px">
         <div class="phase-title">現在のフェーズ</div>
         <div class="phase-name">${['','第一部：基盤づくり','第二部：地域リーダー','第三部：全国展開','第四部：IPOへ'][G.phase]}</div>
         <div class="phase-target">${['','1棟から5棟へ','5棟から20棟へ','20棟から100棟へ','株式公開を目指せ'][G.phase]}　${bCount}棟 / ${thresholds[G.phase]}棟</div>
         <div class="phase-progress" style="margin-top:8px">
           ${[1,2,3,4].map(i=>`<div class="phase-dot ${i<G.phase?'done':i===G.phase?'now':''}"></div>`).join('')}
         </div>
-      </div>
-      <div class="metrics-grid">
-        <div class="metric-card"><div class="metric-v" style="color:${profit>=0?'var(--gr)':'var(--orange)'}">${profit>=0?'+':''}${fmt(profit)}</div><div class="metric-l">日次利益</div></div>
-        <div class="metric-card"><div class="metric-v">${occupiedRooms()}/${totalRooms()}</div><div class="metric-l">入居室数</div></div>
-        <div class="metric-card"><div class="metric-v">${G.stores.reduce((s,st)=>s+st.customers,0)}人</div><div class="metric-l">日次来客数</div></div>
-        <div class="metric-card"><div class="metric-v">${G.graduations}</div><div class="metric-l">独立オーナー育成数</div></div>
       </div>
       <div class="card" style="background:var(--warm);border-color:#DDD0B0">
         <div class="card-ttl">あなたの称号</div>
@@ -8244,11 +8255,11 @@ function renderHome(){
       🌿 翌日へ進む ——${G.year}年${G.month}月${G.day}日
     </button>
 
+    ${renderCasesBox()}
+
     ${renderCashWarningBanner()}
 
     ${tutMissionHtml}
-
-    ${renderCasesBox()}
 
     <div class="hq-vis">
       <div class="hq-year">第${G.year}年 ${G.month}月</div>
@@ -8256,15 +8267,6 @@ function renderHome(){
       <div style="font-size:11px;opacity:.7;margin-top:3px">${ownerTitle.desc}</div>
       <div class="hq-buildings-row" style="margin-top:14px">
         ${bldEmojis} ${stEmojis}
-      </div>
-    </div>
-
-    <div class="phase-banner">
-      <div class="phase-title">現在のフェーズ</div>
-      <div class="phase-name">${['','第一部：基盤づくり','第二部：地域リーダー','第三部：全国展開','第四部：IPOへ'][G.phase]}</div>
-      <div class="phase-target">${['','1棟から5棟へ','5棟から20棟へ','20棟から100棟へ','株式公開を目指せ'][G.phase]}　${bCount}棟 / ${thresholds[G.phase]}棟</div>
-      <div class="phase-progress" style="margin-top:8px">
-        ${[1,2,3,4].map(i=>`<div class="phase-dot ${i<G.phase?'done':i===G.phase?'now':''}"></div>`).join('')}
       </div>
     </div>
 
@@ -8286,6 +8288,15 @@ function renderHome(){
       <div class="metric-card">
         <div class="metric-v">${G.graduations}</div>
         <div class="metric-l">独立オーナー育成数</div>
+      </div>
+    </div>
+
+    <div class="phase-banner">
+      <div class="phase-title">現在のフェーズ</div>
+      <div class="phase-name">${['','第一部：基盤づくり','第二部：地域リーダー','第三部：全国展開','第四部：IPOへ'][G.phase]}</div>
+      <div class="phase-target">${['','1棟から5棟へ','5棟から20棟へ','20棟から100棟へ','株式公開を目指せ'][G.phase]}　${bCount}棟 / ${thresholds[G.phase]}棟</div>
+      <div class="phase-progress" style="margin-top:8px">
+        ${[1,2,3,4].map(i=>`<div class="phase-dot ${i<G.phase?'done':i===G.phase?'now':''}"></div>`).join('')}
       </div>
     </div>
 
@@ -8378,7 +8389,7 @@ function renderStore(){
     ${(()=>{
       // ── 🛍 商品コーナー ──
       const PRODUCT_LINEUP = [
-        { name:'舞昆（パウチ）', icon:'🧃', desc:'家庭用・定番。パウチ+ヘッダー', gift:false },
+        { name:'舞昆', icon:'🧃', desc:'家庭用・定番', gift:false },
         { name:'舞昆（和紙袋入り）', icon:'🎴', desc:'赤富士柄・贈答・手土産向け', gift:false },
         { name:'木箱入りギフトセット', icon:'🎁', desc:'2種入り木箱・法人贈答向け', gift:true, giftMin:1 },
         { name:'季節限定セット', icon:'🌸', desc:'お中元・お歳暮など挨拶品', gift:true, giftMin:1 },
