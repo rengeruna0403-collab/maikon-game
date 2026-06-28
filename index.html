@@ -2442,6 +2442,16 @@ function showStreetScene(){
       <div style="font-size:13px;line-height:2.1">「社長。<br><br>この町、<br>舞昆のある暮らしが増えましたね。」</div>
     </div>` : '';
 
+  const nextBtn = hasMidori
+    ? `<button class="btn" style="width:100%;padding:14px;font-size:14px;background:var(--gr3);color:#fff;border:none;border-radius:10px;font-weight:700;margin-top:12px"
+        onclick="showMaikonQuestion()">
+        みどりと話す →
+      </button>`
+    : `<button class="btn" style="width:100%;padding:14px;font-size:14px;background:var(--gr3);color:#fff;border:none;border-radius:10px;font-weight:700;margin-top:12px"
+        onclick="showFinalDiagnosis()">
+        経営診断を見る →
+      </button>`;
+
   const body = document.getElementById('event-modal-body');
   body.innerHTML = `
     <div style="padding:4px">
@@ -2464,12 +2474,90 @@ function showStreetScene(){
         </div>
       </div>
 
-      <button class="btn" style="width:100%;padding:14px;font-size:14px;background:var(--gr3);color:#fff;border:none;border-radius:10px;font-weight:700;margin-top:12px"
+      ${nextBtn}
+    </div>`;
+  document.getElementById('event-modal').style.display = 'flex';
+}
+
+// ─────────── MAIKON QUESTION ───────────
+function showMaikonQuestion(){
+  const body = document.getElementById('event-modal-body');
+  body.innerHTML = `
+    <div style="padding:4px">
+      <div style="background:var(--warm);border-radius:12px;padding:16px;margin-bottom:20px;border-left:3px solid #81c784">
+        <div style="font-size:10px;color:var(--muted);margin-bottom:8px">👩 佐々木みどり</div>
+        <div style="font-size:14px;line-height:2.2;white-space:pre-line">「……そういえば、オーナー。
+
+舞昆、食べたことあります？」</div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <button class="btn" style="padding:14px 16px;font-size:13px;background:var(--bg2);border:1.5px solid var(--border);border-radius:10px;color:var(--text);font-weight:600;text-align:left"
+          onclick="showMaikonAnswer('yes')">
+          もちろん。毎日食べてるよ
+        </button>
+        <button class="btn" style="padding:14px 16px;font-size:13px;background:var(--bg2);border:1.5px solid var(--border);border-radius:10px;color:var(--text);font-weight:600;text-align:left"
+          onclick="showMaikonAnswer('no')">
+          ……まだ食べたことがない
+        </button>
+      </div>
+    </div>`;
+}
+
+function showMaikonAnswer(ans){
+  const body = document.getElementById('event-modal-body');
+  const midoriReply = ans === 'yes'
+    ? `「よかった（笑）。\n\n毎日食べてる人が売ってるから、\nみんな信頼してくれるんだと思います。」`
+    : `「えっ（笑）\n\n一年間、売ってたのに！\n\n……じゃあ、ぜひ。\n食べてみてください。きっと——\n\nあ、これだ、ってなると思います。」`;
+
+  body.innerHTML = `
+    <div style="padding:4px">
+      <div style="background:var(--warm);border-radius:12px;padding:16px;margin-bottom:20px;border-left:3px solid #81c784">
+        <div style="font-size:10px;color:var(--muted);margin-bottom:8px">👩 佐々木みどり</div>
+        <div style="font-size:14px;line-height:2.2;white-space:pre-line">${midoriReply}</div>
+      </div>
+
+      <button class="btn" style="width:100%;padding:14px;font-size:14px;background:var(--gr3);color:#fff;border:none;border-radius:10px;font-weight:700;margin-top:4px"
+        onclick="showMaikonPurchase()">
+        舞昆を見てみる →
+      </button>
+    </div>`;
+}
+
+// ─────────── MAIKON PURCHASE ───────────
+function showMaikonPurchase(){
+  const body = document.getElementById('event-modal-body');
+  body.innerHTML = `
+    <div style="padding:4px">
+      <div style="text-align:center;margin-bottom:20px">
+        <div style="font-size:48px;margin-bottom:12px">🏮</div>
+        <div style="font-size:16px;font-weight:700;margin-bottom:6px">舞昆</div>
+        <div style="font-size:12px;color:var(--muted);line-height:1.8">
+          丹波篠山の昆布と旬の食材を合わせた<br>
+          ご飯のお供。保存料不使用。
+        </div>
+      </div>
+
+      <div style="background:var(--warm);border-radius:12px;padding:16px;margin-bottom:20px">
+        <div style="font-size:12px;line-height:2;color:var(--text)">
+          ゲームの中で育てた舞昆は、<br>
+          実際に購入できます。<br><br>
+          毎朝ご飯一杯、ちゃんと食べてみませんか。
+        </div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:16px">
+        <a href="https://www.maikon.biz/" target="_blank" rel="noopener"
+          style="display:block;padding:16px;font-size:15px;font-weight:700;background:#B8860B;color:#fff;border:none;border-radius:10px;text-align:center;text-decoration:none">
+          🛒 舞昆を購入する
+        </a>
+      </div>
+
+      <button class="btn" style="width:100%;padding:12px;font-size:13px;background:var(--bg2);border:1.5px solid var(--border);border-radius:10px;color:var(--text);font-weight:600"
         onclick="showFinalDiagnosis()">
         経営診断を見る →
       </button>
     </div>`;
-  document.getElementById('event-modal').style.display = 'flex';
 }
 
 // ─────────── FINAL DIAGNOSIS ───────────
@@ -3267,9 +3355,51 @@ const CASE_POOL = [
       '田中さんから、珍しく手紙が届きました。\n\n「孫が夏休みに帰省しましてね。\n舞昆おにぎりを一緒に作ったんですよ。\n\n「おじいちゃんのお店の味だね」って言うもんで。\nこっちが照れてしまって。\n\nまた顔を出しに行きます」',
       '田中さんが少し照れた顔でやってきました。\n\n「お医者さんに「食生活が改善されてますね」って言われました。\n\n舞昆のおかげですよ。本当に。\n\n……自分で言うのも恥ずかしいんですが」',
       '田中さんが老人会のチラシを持ってきました。\n\n「老人会でね、舞昆の話をしたら\n「一度お店に行ってみたい」という人が3人も。\n\n今度まとめて連れてきますよ。\n迷惑じゃないですか？」',
+      '田中さんが、少し遠い目をして話してくれました。\n\n「炊き立てのご飯に乗せると、\n湯気と一緒に昆布の香りが立つんです。\n\nあの香りで、朝、目が覚める気がして。\n\n……一人暮らしでも、ちゃんと朝ごはんを食べようと思えるんですよ。\nそういうものって、ありがたいですね。」',
+      '田中さんが、笑いながら話してくれました。\n\n「炊飯器にご飯だけ炊いて、\n舞昆だけで夕飯の日もあります。\n\nそれで十分なんです、不思議と。\n\n妻が好きだった昆布の匂いがしてね。\n……少し思い出します。」',
     ],
     choices:[
       {label:'「待っていますよ」と伝える',cost:0,effects:{score:8,communityBond:4,storeSat:5,rep:3,profile:{people:3}},label2:'絆+・評判+',storyTag:'田中さんの近況を聞いた。元気そうで、良かった。'},
+    ]},
+
+  // ── 食の感覚・暮らしの描写イベント ──
+  { id:'taste_takahashi_morning', conditionOnly:true, repeatable:false, character:'takahashi', domain:'store', sender:'高橋亮', icon:'👔', apCost:0, expireDays:21, category:'ops',
+    title:'高橋さんからの一言',
+    body:'高橋さんが出張帰りに立ち寄ってくれました。\n\n「東京にいた頃、\n朝ごはんを食べる時間もなくて……\n\n舞昆があるだけで、\nご飯一杯ちゃんと食べられるから、\n本当に助かりました。\n\nあれから、朝ごはんを抜かなくなりました。」',
+    choices:[
+      {label:'「朝ごはん、大事にしてください」と伝える',cost:0,effects:{score:8,charLevel:'takahashi',charNote:'「朝ごはんを抜かなくなった」と話してくれた',storeBrand:3,profile:{people:2}},label2:'ご縁+',storyTag:'高橋さんが舞昆で朝食習慣が変わったと話してくれた。'},
+    ]},
+
+  { id:'taste_midori_snack', conditionOnly:true, repeatable:false, requireStaff:true, domain:'staff', sender:'みどり（スタッフ）', icon:'🌿', apCost:0, expireDays:14, category:'ops',
+    title:'みどりのひとこと',
+    body:'片付けをしていたみどりが、\nふと振り返りました。\n\n「社長、実は私……\nこの切れ端をつまみ食いするのが好きなんです（笑）\n\n昆布の旨みと、ちょっとした甘さが。\n\n娘に「また食べてる」って言われますけど、\n止まらなくて。\n\n……これって、仕事のうちですよね？（笑）」',
+    choices:[
+      {label:'「品質チェックだよ」と笑って返す',cost:0,effects:{score:8,staffSat:8,midoriTrust:5,profile:{people:3}},label2:'みどり信頼+',storyTag:'みどりのつまみ食い告白。笑い合えた。'},
+    ]},
+
+  // ── 季節のギフト案件 ──
+  { id:'gift_season_haha', repeatable:true, domain:'store', sender:'常連客', icon:'🌹', apCost:10, expireDays:14, category:'mgmt',
+    title:'母の日のギフトを探しています',
+    body:'常連のお客様が相談してくれました。\n\n「来週、母の日なんですけど……\n離れて暮らしている母に、\n舞昆を贈りたいんです。\n\n「お母さんが喜ぶもの」って考えたら\n真っ先に思い浮かんで。\n\nギフト包装、できますか？」',
+    choices:[
+      {label:'「もちろんです。メッセージカードもつけられますよ」と提案する',cost:0,effects:{score:12,rep:5,storeBrand:5,custUp:2,money:6480,profile:{people:3,community:2}},label2:'売上+・評判+・ブランド+',storyTag:'母の日ギフト。「離れていても気持ちが届く」と喜ばれた。'},
+      {label:'「和紙袋入りがおすすめです」と紹介する',cost:0,effects:{score:8,storeBrand:3,money:3240,profile:{people:2}},label2:'売上+・ブランド+',storyTag:'母の日に和紙袋入りを提案した。'},
+    ]},
+
+  { id:'gift_season_chichi', repeatable:true, domain:'store', sender:'常連客', icon:'👔', apCost:10, expireDays:14, category:'mgmt',
+    title:'父の日に舞昆を贈りたい',
+    body:'若いお客様が来店しました。\n\n「父の日に、\n実家の父に舞昆を送ろうと思って。\n\n父がお酒を飲むときに\nご飯のおかずが欲しいって言ってたから。\n\n「東京では手に入らない」って言ったら\n喜ぶかなと思って。」',
+    choices:[
+      {label:'「木箱入りギフトセットが喜ばれますよ」と提案する',cost:0,effects:{score:12,rep:4,storeBrand:6,money:8640,custUp:1,profile:{finance:2,community:2}},label2:'高単価・ブランド+',storyTag:'父の日に木箱入りギフトを提案した。「東京では手に入らない」という言葉が嬉しかった。'},
+      {label:'「まずは定番のパウチから試してみては」と提案する',cost:0,effects:{score:7,money:2160,custUp:1,profile:{people:2}},label2:'お試し購入',storyTag:'父の日のお試し購入を勧めた。'},
+    ]},
+
+  { id:'gift_season_keiro', repeatable:true, domain:'store', sender:'常連客', icon:'🍁', apCost:10, expireDays:14, category:'mgmt',
+    title:'敬老の日のご挨拶品に',
+    body:'地域の方が相談しに来ました。\n\n「今年の敬老の日に、\n老人会のみなさんへのご挨拶品を探していて。\n\n「体に優しいもの」「地元のもの」\nという条件で考えたら\n舞昆しか思い浮かばなくて。\n\n15人分、まとめてお願いできますか？」',
+    choices:[
+      {label:'「喜んで。まとめ割引もできます」と対応する',cost:0,effects:{score:15,rep:8,communityBond:6,storeBrand:5,money:32400,custUp:3,profile:{community:4,people:2}},label2:'地域評判++・まとめ売上',storyTag:'敬老の日に老人会15人分の舞昆をまとめて提供した。「地元の味」として選ばれた。'},
+      {label:'「和紙袋入りでお包みします」と提案する',cost:0,effects:{score:10,rep:5,communityBond:4,money:24300,profile:{community:3}},label2:'贈答対応',storyTag:'敬老の日のご挨拶品として和紙袋入りを提案した。'},
     ]},
 
   { id:'after_yamamoto_visit', conditionOnly:true, repeatable:true, domain:'community', sender:'山本真由美', icon:'👩', apCost:0, expireDays:30, category:'ops',
@@ -3278,6 +3408,8 @@ const CASE_POOL = [
     bodyVariants:[
       '山本さんが少し誇らしそうに話してくれました。\n\n「県外に出た子どもから連絡があって。\n\n「お母さん、舞昆送って」って。\n\n「向こうで手に入らないから」って言うんですよ。\n\nなんか、ちょっと泣きそうになって」',
       '山本さんが小学生の子どもを連れてきました。\n\n「「舞昆のお店に行きたい」って言うんです。\n\n授業で習って以来、\nうちの子が舞昆ファンになってしまって。\n\n「将来は舞昆屋さんになる」って言ってますよ（笑）」',
+      '山本さんが笑いながら話してくれました。\n\n「娘が最近、\n「舞昆ある？」って毎日聞くんです。\n\nご飯がない日でも\n舞昆だけで食べちゃうんですよ（笑）\n\nおかずを作る手間が省けていいんですけど、\n少し複雑です（笑）」',
+      '山本さんが少し声を落として言いました。\n\n「先週、夫が出張から帰ってきて。\n\n舞昆ごはんを出したら\n「これ、ご飯が止まらなくなる」って。\n\nお土産に買って帰りたいって言うんですよ。\n\n夫が食に感動するの、久しぶり見ました（笑）」',
     ],
     choices:[
       {label:'「お子さんによろしく伝えてください」と笑顔で返す',cost:0,effects:{score:8,communityBond:5,storeSat:4,profile:{people:3}},label2:'絆+',storyTag:'山本さんの子どもたちの様子を聞いた。舞昆が家族の記憶になっていた。'},
@@ -5402,6 +5534,39 @@ function generateConditionCases(){
         const base = DOMAIN_CASES.find(c => c.id === pid);
         if(base){ addCase(base); break; }
       }
+    }
+  }
+
+  // ── 食の感覚イベント・季節ギフトトリガー ──
+  const ch = G.characters || {};
+  // 高橋さんの朝食台詞（level2以上・採用30日後・未発火）
+  if(ch.takahashi && ch.takahashi.met && (ch.takahashi.level||0) >= 2 && G.staffUnlocked){
+    const midoriDays = (G.staff.find(s=>s.name==='佐々木みどり')||{}).daysWorked || 0;
+    if(midoriDays >= 30 && !G.cases.some(c=>c.id==='taste_takahashi_morning')){
+      addCase(DOMAIN_CASES.find(c=>c.id==='taste_takahashi_morning') || CASE_POOL.find(c=>c.id==='taste_takahashi_morning'));
+    }
+  }
+  // みどりのつまみ食い台詞（採用60日後・満足度70以上・未発火）
+  if(G.staffUnlocked){
+    const midori2 = G.staff.find(s=>s.name==='佐々木みどり');
+    if(midori2 && (midori2.daysWorked||0) >= 60 && (midori2.satisfaction||70) >= 70 && !G.cases.some(c=>c.id==='taste_midori_snack')){
+      addCase(CASE_POOL.find(c=>c.id==='taste_midori_snack'));
+    }
+  }
+  // 季節ギフト案件（月ベーストリガー・ギフトコーナー展開後）
+  if((G.stores[0]?.giftLevel||0) >= 1){
+    const _gMonth = G.month;
+    // 5月：母の日
+    if(_gMonth === 5 && !G.cases.some(c=>c.id==='gift_season_haha' && !c.resolved && (c.createdYear===G.year))){
+      addCase(CASE_POOL.find(c=>c.id==='gift_season_haha'));
+    }
+    // 6月：父の日
+    if(_gMonth === 6 && !G.cases.some(c=>c.id==='gift_season_chichi' && !c.resolved && (c.createdYear===G.year))){
+      addCase(CASE_POOL.find(c=>c.id==='gift_season_chichi'));
+    }
+    // 9月：敬老の日
+    if(_gMonth === 9 && !G.cases.some(c=>c.id==='gift_season_keiro' && !c.resolved && (c.createdYear===G.year))){
+      addCase(CASE_POOL.find(c=>c.id==='gift_season_keiro'));
     }
   }
 
@@ -8424,6 +8589,41 @@ function renderStore(){
           <button class="act-btn" style="width:100%;padding:9px;font-size:12px" onclick="strengthenGiftCorner(${si})">
             ✨ ギフトラインを強化する（¥80,000・法人対応UP）
           </button>`:''}
+      </div>`;
+    })()}
+
+    ${(()=>{
+      // ── 🏆 今月の人気商品 ──
+      const _s = G.stores[0];
+      if(!_s || !_s.isOpen) return '';
+      const _cust = _s.customers || 0;
+      const _gLv = _s.giftLevel || 0;
+      // 販売中商品の擬似販売数（客数から比率で算出）
+      const POPULAR = [
+        { name:'たもぎ茸舞昆', sold: Math.round(_cust * 0.38), stars:5, desc:'昆布の旨みと独特の香り。ご飯が止まらない' },
+        { name:'帆立舞昆', sold: Math.round(_cust * 0.28), stars:5, desc:'贅沢な帆立の風味。贈り物にも人気' },
+        { name:'明太子舞昆', sold: Math.round(_cust * 0.21), stars:4, desc:'ピリッとした辛みが後を引く' },
+      ];
+      if(_gLv >= 1) POPULAR.push({ name:'木箱ギフトセット', sold: Math.round(_cust * 0.13), stars:5, desc:'贈答品として選ばれています' });
+      const topItems = POPULAR.sort((a,b)=>b.sold-a.sold).slice(0,3);
+      return `<div class="card" style="border:1.5px solid #D4A843">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:10px">
+          <span style="font-size:16px">🏆</span>
+          <div class="card-ttl" style="margin-bottom:0;color:#B8860B">今月の人気商品</div>
+        </div>
+        ${topItems.map((p,i)=>`
+          <div style="display:flex;align-items:center;gap:10px;padding:9px 0;${i<topItems.length-1?'border-bottom:1px solid var(--border)':''}">
+            <div style="font-size:16px;font-weight:700;color:${i===0?'#B8860B':i===1?'#888':'#a0522d'};width:20px;flex-shrink:0">${['🥇','🥈','🥉'][i]}</div>
+            <div style="flex:1;min-width:0">
+              <div style="font-size:13px;font-weight:700">${p.name}</div>
+              <div style="font-size:10px;color:var(--muted);margin-top:1px">${p.desc}</div>
+              <div style="font-size:11px;color:#B8860B;margin-top:2px">${'★'.repeat(p.stars)}${'☆'.repeat(5-p.stars)}</div>
+            </div>
+            <div style="text-align:right;flex-shrink:0">
+              <div style="font-size:14px;font-weight:700">${p.sold}</div>
+              <div style="font-size:9px;color:var(--muted)">個/月</div>
+            </div>
+          </div>`).join('')}
       </div>`;
     })()}
 
