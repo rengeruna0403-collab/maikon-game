@@ -2713,86 +2713,61 @@ function showLeadCapture(){
   const jobVal  = prof.occupation || '';
   const expVal  = prof.experience || '';
 
+  const lineSection = LINE_URL
+    ? '<div style="background:var(--bg2);border-radius:10px;padding:12px;margin-bottom:14px">'
+      + '<div style="font-size:11px;color:var(--muted);margin-bottom:8px">LINEで受け取る（おすすめ）</div>'
+      + '<button class="btn" id="line-add-btn" style="width:100%;padding:12px;font-size:14px;background:#06C755;color:#fff;border:none;border-radius:10px;font-weight:700"'
+      + ' onclick="window.open(\'' + LINE_URL + '\',\'_blank\');document.getElementById(\'line-added-row\').style.display=\'flex\'">'
+      + 'LINE友達追加</button>'
+      + '<div id="line-added-row" style="display:none;align-items:center;gap:8px;margin-top:8px">'
+      + '<label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer">'
+      + '<input id="lead-line" type="checkbox" style="width:15px;height:15px;accent-color:#06C755"> 友達追加しました ✓</label></div></div>'
+    : '';
+
   const body = document.getElementById('event-modal-body');
-  body.innerHTML = `
-    <div style="padding:4px">
-      <div style="text-align:center;margin-bottom:16px">
-        <div style="font-size:14px;font-weight:700">特典を受け取る</div>
-        <div style="font-size:11px;color:var(--muted);margin-top:4px">送信後すぐにお届けします</div>
-      </div>
+  body.innerHTML = '<div style="padding:4px">'
+    + '<div style="text-align:center;margin-bottom:16px">'
+    + '<div style="font-size:14px;font-weight:700">特典を受け取る</div>'
+    + '<div style="font-size:11px;color:var(--muted);margin-top:4px">送信後すぐにお届けします</div></div>'
 
-      <!-- プロフィール確認 -->
-      <div style="background:var(--bg2);border-radius:10px;padding:12px;margin-bottom:14px">
-        <div style="font-size:10px;font-weight:700;color:var(--muted);margin-bottom:8px">プレイヤー情報（自動入力）</div>
-        <div style="display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:12px">
-          <span style="color:var(--muted)">名前</span><span>${nameVal || '（未入力）'}</span>
-          <span style="color:var(--muted)">年齢</span><span>${ageVal || '（未選択）'}</span>
-          <span style="color:var(--muted)">職業</span><span>${jobVal || '（未選択）'}</span>
-          <span style="color:var(--muted)">経験</span><span>${expVal || '（未選択）'}</span>
-          <span style="color:var(--muted)">タイプ</span><span>${style.icon} ${style.title}</span>
-        </div>
-      </div>
+    + '<div style="background:var(--bg2);border-radius:10px;padding:12px;margin-bottom:14px">'
+    + '<div style="font-size:10px;font-weight:700;color:var(--muted);margin-bottom:8px">プレイヤー情報（自動入力）</div>'
+    + '<div style="display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:12px">'
+    + '<span style="color:var(--muted)">名前</span><span>' + (nameVal || '（未入力）') + '</span>'
+    + '<span style="color:var(--muted)">年齢</span><span>' + (ageVal  || '（未選択）') + '</span>'
+    + '<span style="color:var(--muted)">職業</span><span>' + (jobVal  || '（未選択）') + '</span>'
+    + '<span style="color:var(--muted)">経験</span><span>' + (expVal  || '（未選択）') + '</span>'
+    + '<span style="color:var(--muted)">タイプ</span><span>' + style.icon + ' ' + style.title + '</span>'
+    + '</div></div>'
 
-      <!-- メール入力 -->
-      <div style="margin-bottom:14px">
-        <div style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:6px">メールアドレス（任意）</div>
-        <input id="lead-email" type="email" placeholder="例：your@email.com"
-          style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;background:var(--bg);color:var(--text);box-sizing:border-box">
-        <div style="font-size:10px;color:var(--muted);margin-top:4px">PDFはこちらへお送りします</div>
-      </div>
+    + '<div style="margin-bottom:14px">'
+    + '<div style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:6px">メールアドレス（任意）</div>'
+    + '<input id="lead-email" type="email" placeholder="例：your@email.com"'
+    + ' style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;background:var(--bg);color:var(--text);box-sizing:border-box">'
+    + '<div style="font-size:10px;color:var(--muted);margin-top:4px">PDFはこちらへお送りします</div></div>'
 
-      <!-- チェックボックス -->
-      <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:16px">
-        <label style="display:flex;align-items:flex-start;gap:10px;font-size:13px;cursor:pointer">
-          <input id="lead-apartment" type="checkbox" style="margin-top:2px;width:16px;height:16px;accent-color:var(--gr3)">
-          <span>🏠 大家業に興味があります</span>
-        </label>
-        <label style="display:flex;align-items:flex-start;gap:10px;font-size:13px;cursor:pointer">
-          <input id="lead-maikon" type="checkbox" style="margin-top:2px;width:16px;height:16px;accent-color:var(--gr3)">
-          <span>🍚 舞昆のお得情報を受け取りたい</span>
-        </label>
-      </div>
+    + '<div style="display:flex;flex-direction:column;gap:10px;margin-bottom:16px">'
+    + '<label style="display:flex;align-items:flex-start;gap:10px;font-size:13px;cursor:pointer">'
+    + '<input id="lead-apartment" type="checkbox" style="margin-top:2px;width:16px;height:16px;accent-color:var(--gr3)"><span>🏠 大家業に興味があります</span></label>'
+    + '<label style="display:flex;align-items:flex-start;gap:10px;font-size:13px;cursor:pointer">'
+    + '<input id="lead-maikon" type="checkbox" style="margin-top:2px;width:16px;height:16px;accent-color:var(--gr3)"><span>🍚 舞昆のお得情報を受け取りたい</span></label>'
+    + '</div>'
 
-      <!-- LINE登録 -->
-      ${LINE_URL ? `
-      <div style="background:var(--bg2);border-radius:10px;padding:12px;margin-bottom:14px">
-        <div style="font-size:11px;color:var(--muted);margin-bottom:8px">LINEで受け取る（おすすめ）</div>
-        <button class="btn" id="line-add-btn"
-          style="width:100%;padding:12px;font-size:14px;background:#06C755;color:#fff;border:none;border-radius:10px;font-weight:700"
-          onclick="window.open('${LINE_URL}','_blank');document.getElementById('line-added-row').style.display='flex'">
-          LINE友達追加
-        </button>
-        <div id="line-added-row" style="display:none;align-items:center;gap:8px;margin-top:8px">
-          <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer">
-            <input id="lead-line" type="checkbox" style="width:15px;height:15px;accent-color:#06C755">
-            友達追加しました ✓
-          </label>
-        </div>
-      </div>` : ''}
+    + lineSection
 
-      <!-- 送信ボタン -->
-      <button class="btn" style="width:100%;padding:15px;font-size:15px;background:var(--gr3);color:#fff;border:none;border-radius:10px;font-weight:700;margin-bottom:8px"
-        onclick="sendLead()">
-        送信する
-      </button>
+    + '<button class="btn" style="width:100%;padding:15px;font-size:15px;background:var(--gr3);color:#fff;border:none;border-radius:10px;font-weight:700;margin-bottom:8px"'
+    + ' onclick="sendLead()">送信する</button>'
 
-      <!-- おすすめ舞昆 -->
-      <div style="background:var(--warm);border-radius:10px;padding:12px 14px;margin-top:4px">
-        <div style="font-size:10px;color:var(--muted);margin-bottom:6px">ゲームクリア記念おすすめ</div>
-        <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
-          <span style="font-size:28px">${rec.icon}</span>
-          <div>
-            <div style="font-size:14px;font-weight:700">${rec.name}</div>
-            <div style="font-size:11px;color:var(--muted);margin-top:2px">${rec.reason}</div>
-          </div>
-        </div>
-        <a href="https://www.maikon.biz/" target="_blank" rel="noopener"
-          onclick="logVisitMaikon()"
-          style="display:block;padding:12px;font-size:13px;font-weight:700;background:#B8860B;color:#fff;border-radius:8px;text-align:center;text-decoration:none">
-          🛒 舞昆を見てみる
-        </a>
-      </div>
-    </div>`;
+    + '<div style="background:var(--warm);border-radius:10px;padding:12px 14px;margin-top:4px">'
+    + '<div style="font-size:10px;color:var(--muted);margin-bottom:6px">ゲームクリア記念おすすめ</div>'
+    + '<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">'
+    + '<span style="font-size:28px">' + rec.icon + '</span>'
+    + '<div><div style="font-size:14px;font-weight:700">' + rec.name + '</div>'
+    + '<div style="font-size:11px;color:var(--muted);margin-top:2px">' + rec.reason + '</div></div></div>'
+    + '<a href="https://www.maikon.biz/" target="_blank" rel="noopener" onclick="logVisitMaikon()"'
+    + ' style="display:block;padding:12px;font-size:13px;font-weight:700;background:#B8860B;color:#fff;border-radius:8px;text-align:center;text-decoration:none">'
+    + '🛒 舞昆を見てみる</a></div>'
+    + '</div>';
 }
 
 function sendLead(){
@@ -2838,22 +2813,22 @@ function sendLead(){
   _post(payload);
 
   // 送信後：お礼画面
+  const emailRow = email
+    ? '<div style="font-size:12px;color:var(--muted);margin-bottom:16px">' + email + ' へお送りします</div>'
+    : '<div style="font-size:12px;color:var(--muted);margin-bottom:16px">ありがとうございます。</div>';
+  const interestRows = (apt ? '🏠 大家業の資料をお送りします。<br>' : '')
+    + (maikon ? '🍚 舞昆の最新情報をお届けします。<br>' : '')
+    + (line ? '💚 LINEでもお待ちしています。<br>' : '');
   const body = document.getElementById('event-modal-body');
-  body.innerHTML = `
-    <div style="padding:16px;text-align:center">
-      <div style="font-size:48px;margin-bottom:12px">✅</div>
-      <div style="font-size:16px;font-weight:700;margin-bottom:8px">送信しました！</div>
-      ${email ? `<div style="font-size:12px;color:var(--muted);margin-bottom:16px">${email} へお送りします</div>` : '<div style="font-size:12px;color:var(--muted);margin-bottom:16px">ありがとうございます。</div>'}
-      <div style="font-size:13px;line-height:1.9;margin-bottom:20px">
-        ${apt ? '🏠 大家業の資料をお送りします。<br>' : ''}
-        ${maikon ? '🍚 舞昆の最新情報をお届けします。<br>' : ''}
-        ${line ? '💚 LINEでもお待ちしています。<br>' : ''}
-      </div>
-      <button class="btn" style="width:100%;padding:12px;font-size:14px;background:var(--bg2);color:var(--text);border:none;border-radius:10px"
-        onclick="document.getElementById('event-modal').style.display='none';renderTab()">
-        ゲームに戻る
-      </button>
-    </div>`;
+  body.innerHTML = '<div style="padding:16px;text-align:center">'
+    + '<div style="font-size:48px;margin-bottom:12px">✅</div>'
+    + '<div style="font-size:16px;font-weight:700;margin-bottom:8px">送信しました！</div>'
+    + emailRow
+    + '<div style="font-size:13px;line-height:1.9;margin-bottom:20px">' + interestRows + '</div>'
+    + '<button class="btn" style="width:100%;padding:12px;font-size:14px;background:var(--bg2);color:var(--text);border:none;border-radius:10px"'
+    + ' onclick="document.getElementById(\'event-modal\').style.display=\'none\';renderTab()">'
+    + 'ゲームに戻る</button>'
+    + '</div>';
 }
 
 function afterMonthlyMeeting(){
