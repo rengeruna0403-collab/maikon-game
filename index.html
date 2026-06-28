@@ -490,7 +490,7 @@ function getMaxLevel(s){ return getStaffTitles(s).length - 1; }
 const DEV_MODE = new URLSearchParams(location.search).get('debug') === '1';
 
 // ─────────── GAME STATE ───────────
-const G = {
+let G = {
   money: 1500000,   // 現金（キャッシュ）
   receivables: 0,   // 売掛金（月末に入金）
   day: 1, month: 4, year: 1,
