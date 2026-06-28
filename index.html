@@ -185,6 +185,16 @@ body{font-family:'Noto Sans JP',sans-serif;background:var(--bg);color:var(--text
   0%{opacity:0;transform:translateY(-8px)}
   15%{opacity:1;transform:translateY(0)}
   75%{opacity:1}100%{opacity:0}}
+/* SCENE ANIMATIONS */
+@keyframes walkRight{0%{left:-32px}100%{left:calc(100% + 8px)}}
+@keyframes walkLeft{0%{right:-32px}100%{right:calc(100% + 8px)}}
+@keyframes shopperPause{0%,40%{left:calc(30% + var(--offset,0px))}60%,100%{left:calc(60% + var(--offset,0px))}}
+@keyframes lightPulse{0%,100%{opacity:.85}50%{opacity:1}}
+@keyframes dayFlash{0%{opacity:0;transform:scale(.92)}15%{opacity:1;transform:scale(1)}80%{opacity:1}100%{opacity:0}}
+@keyframes townPop{0%{transform:scale(.8);opacity:0}100%{transform:scale(1);opacity:1}}
+.scene-box{position:relative;width:100%;height:72px;overflow:hidden;border-radius:10px;background:var(--bg2);margin-bottom:12px}
+.scene-char{position:absolute;font-size:20px;bottom:4px;animation-fill-mode:forwards}
+.day-flash-overlay{position:fixed;inset:0;z-index:500;display:flex;align-items:center;justify-content:center;pointer-events:none;animation:dayFlash .8s ease forwards}
 /* ACTION GRID */
 .act-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:8px}
 .act-btn{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:10px 8px;
@@ -535,6 +545,7 @@ let G = {
   loanCount: 0,       // 融資を受けた回数
   eventParticipation: 0, // 地域イベント参加回数
   gameEnded: false,   // エンディング済みフラグ
+  freeMode: false,    // フリーモード（メインストーリークリア後）
   // ─── 社史・統計 ───
   history: [],          // [{icon, text, year, month}] 会社年表
   _totalMaikonSold: 0,  // 累計販売食数（日次加算）
@@ -1871,14 +1882,18 @@ function advanceDay(){
     if(G.month>12){G.month=1; G.year++;}
   }
 
-  // エンディング条件チェック（3年経過 or 伝説のオーナー到達）
-  if(!G.gameEnded && G.tut.phase === 'done'){
-    const totalDaysElapsed = (G.year-1)*360 + (G.month-1)*30 + G.day;
-    if(totalDaysElapsed >= 1080 || G.ownerTitleIdx >= 5){
+  // メインストーリーエンディング（2年目3月）
+  if(!G.gameEnded && !G.freeMode && G.tut.phase === 'done'){
+    if(G.year >= 2 && G.month >= 3){
       G.gameEnded = true;
-      setTimeout(showStreetScene, 800);
+      setTimeout(showMainStoryEnding, 800);
       return;
     }
+  }
+  // フリーモード：毎年12月に年次経営診断
+  if(G.freeMode && G.month === 12 && G.day === 1 && !G._annualDiagYear || (G.freeMode && G.month === 12 && G.day === 1 && G._annualDiagYear !== G.year)){
+    G._annualDiagYear = G.year;
+    setTimeout(showAnnualDiagnosis, 800);
   }
 
   // 案件放置ペナルティ（毎日チェック）
@@ -1907,8 +1922,37 @@ function advanceDay(){
   }
 
   updateHeader();
+  showDayFlash();
   renderTab();
   saveGame();
+}
+
+function showDayFlash(){
+  if(!G.started) return;
+  const s = G.stores[0];
+  if(!s || !s.isOpen || !s.menu || !s.menu.length) return;
+  const customers = s.customers || 0;
+  const rev = Math.round(customers * (s.unitPrice||700));
+  if(rev <= 0) return;
+  const el = document.createElement('div');
+  el.className = 'day-flash-overlay';
+  el.style.background = 'rgba(0,0,0,.45)';
+  el.innerHTML = '<div style="background:rgba(20,20,20,.92);border-radius:16px;padding:18px 28px;text-align:center;color:#fff">'
+    + '<div style="font-size:12px;opacity:.7;margin-bottom:4px">' + G.month + '月' + G.day + '日</div>'
+    + '<div style="font-size:13px;margin-bottom:6px">' + _daySceneEmoji(customers) + '</div>'
+    + '<div style="font-size:18px;font-weight:700;color:#90EE90">＋' + fmt(rev) + '</div>'
+    + '<div style="font-size:11px;opacity:.6;margin-top:2px">本日の売上</div>'
+    + '</div>';
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 850);
+}
+
+function _daySceneEmoji(n){
+  if(n <= 0) return '🏪 本日休業';
+  if(n <= 3) return '🚶 🛒';
+  if(n <= 8) return '🚶 🛒 🚶';
+  if(n <= 15) return '🚶🛒🚶 🛍 🙂';
+  return '🚶🛒🙂🛍🚶 🎉';
 }
 
 function monthlyTick(){
@@ -2414,6 +2458,170 @@ function showGoEnNote(){
   modal.style.display = 'flex';
 }
 
+// ─────────── MAIN STORY ENDING（2年目3月） ───────────
+function showMainStoryEnding(){
+  const hasMidori = G.staff.some(s => s.name === '佐々木みどり');
+  const ch = G.characters || {};
+
+  // キャラクターからの言葉
+  const messages = [];
+  if(ch.narita && ch.narita.met){
+    messages.push({ icon:'💼', name:'成田（銀行員）',
+      line:'「最初は右も左も分からなかったあなたが、\nここまで経営を続けてこられました。\n\n数字よりも大事なものを、\nあなたは知っています。」' });
+  }
+  if(hasMidori){
+    messages.push({ icon:'🌿', name:'佐々木みどり',
+      line:'「ここからが本当のスタートですね。\n\nわたしも、もっと頑張ります。」' });
+  }
+  if(ch.takahashi && ch.takahashi.met){
+    messages.push({ icon:'👔', name:'高橋 亮',
+      line:'「また新しい一年、\n一緒に頑張りましょう。」' });
+  }
+  if(ch.tanaka && ch.tanaka.met){
+    messages.push({ icon:'🧓', name:'田中さん',
+      line:'「あなたのおかげで、\nこの町にいることができました。」' });
+  }
+
+  const msgHtml = messages.map(m =>
+    '<div style="background:var(--bg2);border-radius:10px;padding:12px 14px;margin-bottom:10px">'
+    + '<div style="font-size:10px;color:var(--muted);margin-bottom:6px">' + m.icon + ' ' + m.name + '</div>'
+    + '<div style="font-size:13px;line-height:2;white-space:pre-line">' + m.line + '</div>'
+    + '</div>'
+  ).join('');
+
+  const style = getOwnerStyle() || { key:'balanced', title:'バランス型オーナー', icon:'⚖️' };
+  const p = G.ownerProfile || {};
+  const profileMax = Math.max(p.risk||0, p.people||0, p.community||0, p.finance||0, 1);
+  const starRows = [
+    { label:'人とのご縁',   val: p.people    || 0 },
+    { label:'地域への貢献', val: p.community  || 0 },
+    { label:'経営判断',     val: p.risk       || 0 },
+    { label:'資金管理',     val: p.finance    || 0 },
+  ].map(r =>
+    '<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.15)">'
+    + '<span style="font-size:12px">' + r.label + '</span>'
+    + '<span style="font-size:13px;letter-spacing:1px">' + _starsHtml(r.val, profileMax) + '</span>'
+    + '</div>'
+  ).join('');
+
+  const totalGoEn = (G._totalHouseholds||0) + Object.values(G.characters||{}).filter(c=>c&&c.met).length;
+  const rep = (G.regions[0]||{}).reputation || 0;
+
+  const body = document.getElementById('event-modal-body');
+  body.innerHTML = '<div style="padding:4px">'
+
+    + '<div style="text-align:center;background:linear-gradient(135deg,#1B5E20,#388E3C);border-radius:14px;padding:20px 16px;margin-bottom:16px;color:#fff">'
+    + '<div style="font-size:11px;letter-spacing:.2em;opacity:.8;margin-bottom:6px">🌸 メインストーリークリア 🌸</div>'
+    + '<div style="font-size:22px;font-weight:700;font-family:\'Noto Serif JP\',serif;margin-bottom:4px">' + style.icon + ' ' + style.title + '</div>'
+    + '<div style="font-size:12px;opacity:.8;margin-bottom:12px">全国上位 ' + _calcPercentile(G._ownerScore||0) + '%</div>'
+    + '<div style="background:rgba(255,255,255,.12);border-radius:10px;padding:10px 8px">' + starRows + '</div>'
+    + '</div>'
+
+    + '<div style="background:var(--warm);border-radius:10px;padding:12px 16px;margin-bottom:14px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;text-align:center">'
+    + '<div><div style="font-size:18px;font-weight:700">' + totalGoEn + '人</div><div style="font-size:10px;color:var(--muted)">ご縁</div></div>'
+    + '<div><div style="font-size:18px;font-weight:700">' + rep + '</div><div style="font-size:10px;color:var(--muted)">地域評価</div></div>'
+    + '<div><div style="font-size:18px;font-weight:700">' + (G.creditScore||45) + '</div><div style="font-size:10px;color:var(--muted)">信用度</div></div>'
+    + '</div>'
+
+    + msgHtml
+
+    + '<div style="text-align:center;padding:12px 0;margin-bottom:14px">'
+    + '<div style="font-size:11px;color:var(--muted);line-height:1.9">'
+    + '舞昆を通じて<br>人と地域をつなぐ経営者になりました。'
+    + '</div></div>'
+
+    + '<button class="btn" style="width:100%;padding:15px;font-size:15px;background:var(--gold);color:#fff;border:none;border-radius:10px;font-weight:700"'
+    + ' onclick="showFreeModeTransition()">続きを見る →</button>'
+    + '</div>';
+
+  document.getElementById('event-modal').style.display = 'flex';
+  logEnding();
+}
+
+function showFreeModeTransition(){
+  const body = document.getElementById('event-modal-body');
+  body.innerHTML = '<div style="padding:4px">'
+    + '<div style="border:2px solid var(--gr3);border-radius:14px;padding:24px 20px;margin-bottom:20px;text-align:center">'
+    + '<div style="font-size:14px;font-weight:700;color:var(--gr3);letter-spacing:.05em;margin-bottom:16px">ここからはフリーモードになります</div>'
+    + '<div style="display:flex;flex-direction:column;gap:8px;text-align:left;font-size:13px;line-height:1.8">'
+    + '<div>✅ 経営はそのまま続けられます</div>'
+    + '<div>✅ 新しいイベントが発生します</div>'
+    + '<div>✅ 店舗・物件をさらに増やせます</div>'
+    + '<div>✅ 毎年12月に年次経営診断が届きます</div>'
+    + '</div>'
+    + '<div style="margin-top:14px;font-size:11px;color:var(--muted)">ゲームに終わりはありません。<br>あなた自身の経営物語を続けてください。</div>'
+    + '</div>'
+
+    + '<div style="display:flex;flex-direction:column;gap:8px">'
+    + '<button class="btn" style="width:100%;padding:15px;font-size:15px;background:var(--gr3);color:#fff;border:none;border-radius:10px;font-weight:700"'
+    + ' onclick="enterFreeMode()">続ける →</button>'
+    + '<button class="btn" style="width:100%;padding:12px;font-size:13px;background:var(--gold);color:#fff;border:none;border-radius:10px;font-weight:600"'
+    + ' onclick="document.getElementById(\'event-modal\').style.display=\'none\';showLeadCapture()">特典を受け取る 🎁</button>'
+    + '</div>'
+    + '</div>';
+}
+
+function enterFreeMode(){
+  G.freeMode = true;
+  G.gameEnded = false; // フリーモードではゲーム継続
+  document.getElementById('event-modal').style.display = 'none';
+  notify('🌸 フリーモード開始！経営を続けましょう。', 'gold');
+  saveGame();
+  renderTab();
+}
+
+// ─────────── 年次経営診断（フリーモード：毎年12月） ───────────
+function showAnnualDiagnosis(){
+  const style = getOwnerStyle() || { key:'balanced', title:'バランス型オーナー', icon:'⚖️' };
+  const rep = (G.regions[0]||{}).reputation || 0;
+  const monthlyProfit = G.totalRevenue ? Math.round(G.totalRevenue / Math.max((G.year-1)*12 + G.month, 1)) : 0;
+  const occPct = Math.round(occupiedRooms() / Math.max(totalRooms(), 1) * 100);
+
+  const body = document.getElementById('event-modal-body');
+  body.innerHTML = '<div style="padding:4px">'
+    + '<div style="text-align:center;margin-bottom:16px">'
+    + '<div style="font-size:11px;color:var(--muted);letter-spacing:.1em;margin-bottom:4px">年次経営診断</div>'
+    + '<div style="font-size:20px;font-weight:700;">' + G.year + '年度</div>'
+    + '</div>'
+
+    + '<div style="background:linear-gradient(135deg,#1B5E20,#2E7D32);border-radius:12px;padding:16px;margin-bottom:14px;color:#fff;text-align:center">'
+    + '<div style="font-size:22px;margin-bottom:4px">' + style.icon + '</div>'
+    + '<div style="font-size:16px;font-weight:700">' + style.title + '</div>'
+    + '<div style="font-size:12px;opacity:.8;margin-top:4px">今年もお疲れ様でした</div>'
+    + '</div>'
+
+    + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px">'
+    + '<div style="background:var(--bg2);border-radius:10px;padding:12px;text-align:center">'
+    + '<div style="font-size:18px;font-weight:700">' + fmt(G.money) + '</div>'
+    + '<div style="font-size:10px;color:var(--muted)">現在の資金</div></div>'
+    + '<div style="background:var(--bg2);border-radius:10px;padding:12px;text-align:center">'
+    + '<div style="font-size:18px;font-weight:700">' + rep + '</div>'
+    + '<div style="font-size:10px;color:var(--muted)">地域評価</div></div>'
+    + '<div style="background:var(--bg2);border-radius:10px;padding:12px;text-align:center">'
+    + '<div style="font-size:18px;font-weight:700">' + occPct + '%</div>'
+    + '<div style="font-size:10px;color:var(--muted)">入居率</div></div>'
+    + '<div style="background:var(--bg2);border-radius:10px;padding:12px;text-align:center">'
+    + '<div style="font-size:18px;font-weight:700">' + (G.creditScore||45) + '</div>'
+    + '<div style="font-size:10px;color:var(--muted)">信用度</div></div>'
+    + '</div>'
+
+    + '<div style="background:var(--warm);border-radius:10px;padding:12px 14px;margin-bottom:14px">'
+    + '<div style="font-size:10px;color:var(--muted);margin-bottom:6px">🎁 お歳暮シーズン</div>'
+    + '<div style="font-size:13px;line-height:1.9">ギフト需要が急増しています。<br>舞昆の贈り物、今年もいかがですか。</div>'
+    + '<a href="https://www.maikon.biz/" target="_blank" rel="noopener" onclick="logVisitMaikon()"'
+    + ' style="display:block;margin-top:10px;padding:11px;font-size:13px;font-weight:700;background:#B8860B;color:#fff;border-radius:8px;text-align:center;text-decoration:none">'
+    + '🛒 ギフト舞昆を見る</a>'
+    + '</div>'
+
+    + '<button class="btn" style="width:100%;padding:13px;font-size:14px;background:var(--bg2);color:var(--text);border:none;border-radius:10px"'
+    + ' onclick="document.getElementById(\'event-modal\').style.display=\'none\';renderTab()">'
+    + '経営を続ける</button>'
+    + '</div>';
+
+  document.getElementById('event-modal').style.display = 'flex';
+  addNews('📊 ' + G.year + '年度 年次経営診断が届きました');
+}
+
 // ─────────── STREET SCENE ENDING ───────────
 function showStreetScene(){
   const ch = G.characters;
@@ -2561,6 +2769,56 @@ function showMaikonPurchase(){
 }
 
 // ─────────── FINAL DIAGNOSIS ───────────
+function _renderStoreScene(s){
+  if(!s || !s.isOpen) return '<div class="scene-box" style="display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:12px">🔒 閉店中</div>';
+  const isDay = G.day % 2 === 0; // シンプルな昼夜切替（偶数日=昼）
+  const bg = isDay ? 'linear-gradient(to bottom,#87CEEB 0%,#FFF8DC 100%)' : 'linear-gradient(to bottom,#1a1a3e 0%,#2d2d5e 100%)';
+  const hasMidori = G.characters && G.characters.midori && G.characters.midori.relation >= 1;
+  const custCount = Math.min(4, Math.round((s.customers||0) / 5));
+  let chars = '';
+  if(hasMidori) chars += '<span class="scene-char" style="left:12px;animation:none">🙋</span>';
+  const custEmojis = ['🚶','👩','🧑','👴'];
+  const delays = ['0s','1.8s','3.5s','5.2s'];
+  const dirs = ['walkRight','walkLeft','walkRight','walkLeft'];
+  const positions = ['bottom:4px','bottom:4px','bottom:4px','bottom:4px'];
+  for(let i=0;i<custCount;i++){
+    const dur = (4 + i * 0.7).toFixed(1) + 's';
+    chars += '<span class="scene-char" style="font-size:18px;animation:' + dirs[i%2] + ' ' + dur + ' ' + delays[i] + ' ease-in-out infinite">' + custEmojis[i%custEmojis.length] + '</span>';
+  }
+  const sky = isDay ? '☀️' : '🌙';
+  return '<div class="scene-box" style="background:' + bg + '">'
+    + '<span style="position:absolute;top:4px;right:8px;font-size:14px">' + sky + '</span>'
+    + '<span style="position:absolute;bottom:0;left:0;right:0;height:16px;background:rgba(139,90,43,.5);border-radius:0 0 10px 10px"></span>'
+    + chars
+    + '</div>';
+}
+
+function _renderAptFacade(b){
+  if(!b || !b.rooms || !b.rooms.length) return '';
+  const total = b.rooms.length;
+  const floors = Math.min(4, Math.ceil(total / 3));
+  const cols = Math.ceil(total / floors);
+  let html = '<div class="scene-box" style="background:linear-gradient(to bottom,#1a1a3e,#2d2d5e);padding:8px 12px;display:flex;align-items:flex-end;gap:8px">';
+  html += '<span style="position:absolute;top:4px;right:8px;font-size:12px">🌙 ' + b.name + '</span>';
+  html += '<div style="display:flex;flex-direction:column-reverse;gap:3px;margin:0 auto">';
+  let roomIdx = 0;
+  for(let f=0;f<floors;f++){
+    html += '<div style="display:flex;gap:3px">';
+    for(let c=0;c<cols;c++){
+      const r = b.rooms[roomIdx];
+      if(!r){ html += '<div style="width:18px;height:14px"></div>'; roomIdx++; continue; }
+      const lit = !!r.tenant;
+      const col = lit ? 'rgba(255,220,100,.9)' : 'rgba(255,255,255,.12)';
+      const anim = lit ? 'animation:lightPulse ' + (2 + roomIdx*0.3).toFixed(1) + 's ease-in-out infinite' : '';
+      html += '<div style="width:18px;height:14px;background:' + col + ';border-radius:2px;' + anim + '"></div>';
+      roomIdx++;
+    }
+    html += '</div>';
+  }
+  html += '</div></div>';
+  return html;
+}
+
 function _starsHtml(val, max){
   const n = Math.min(5, Math.max(1, Math.round((val / Math.max(max, 1)) * 5)));
   return '★'.repeat(n) + '☆'.repeat(5 - n);
@@ -8626,6 +8884,7 @@ function renderStore(){
     ${renderTutBanner()}
     <div class="sel-tabs">${tabs}<button class="sel-tab" onclick="openNewStoreModal()">+ 新店舗</button></div>
     <div class="card">
+      ${_renderStoreScene(s)}
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px">
         <div>
           <div style="font-size:16px;font-weight:700">${s.name}</div>
@@ -8872,6 +9131,7 @@ function renderApt(){
     ${renderTutBanner()}
     <div class="sel-tabs">${tabs}<button class="sel-tab" onclick="openBuyBldModal()">+ 物件購入</button></div>
     <div class="card">
+      ${_renderAptFacade(b)}
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px">
         <div><div style="font-size:16px;font-weight:700">${b.name}</div>
           <div style="font-size:11px;color:var(--muted)">📍${b.region}</div></div>
@@ -9587,9 +9847,99 @@ function _renderDevDashboard(){
       <button onclick="G.fatigue=0;updateHeader();this.textContent='😊 解消 ✔'" style="font-size:11px;padding:4px 10px;background:#3a1e1e;border:1px solid #6a2e2e;border-radius:6px;color:#FF8A65;cursor:pointer">😓 疲労リセ</button>
       <button onclick="G.creditScore=Math.min(100,(G.creditScore||45)+10);updateHeader();this.textContent='🏦+10 ✔'" style="font-size:11px;padding:4px 10px;background:#1e1e3a;border:1px solid #3a3a6a;border-radius:6px;color:#90CAF9;cursor:pointer">🏦 信用+10</button>
       <button onclick="G.regions[0].reputation=Math.min(100,(G.regions[0].reputation||0)+10);this.textContent='🌸+10 ✔'" style="font-size:11px;padding:4px 10px;background:#2a1e2a;border:1px solid #5a3a5a;border-radius:6px;color:#F48FB1;cursor:pointer">🌸 評判+10</button>
-      <button onclick="advanceDay();document.querySelector('.dev-dashboard-overlay').remove();_renderDevDashboard()" style="font-size:11px;padding:4px 10px;background:#2a2a1e;border:1px solid #5a5a2e;border-radius:6px;color:#FFD700;cursor:pointer">📅 翌日へ</button>
       <button onclick="saveGame();this.textContent='💾 保存済 ✔'" style="font-size:11px;padding:4px 10px;background:#1e1e1e;border:1px solid #444;border-radius:6px;color:#aaa;cursor:pointer">💾 セーブ</button>
       <button onclick="if(confirm('リセット？'))resetGame()" style="font-size:11px;padding:4px 10px;background:#3a1a1a;border:1px solid #6a2a2a;border-radius:6px;color:#FF6B6B;cursor:pointer">🗑 リセット</button>
+    </div>
+  </div>`;
+
+  // ── 📅 日付コントロール ──
+  const dateSection = `<div style="background:#0d0d1a;border-radius:8px;padding:12px;margin-bottom:8px">
+    <div style="color:#FFD700;font-weight:700;font-size:12px;margin-bottom:8px">📅 日付コントロール</div>
+    <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px">
+      <button onclick="_devAdvanceDays(1)" style="${_devBtnStyle('#2a2a1e','#5a5a2e','#FFD700')}">翌日</button>
+      <button onclick="_devAdvanceDays(7)" style="${_devBtnStyle('#2a2a1e','#5a5a2e','#FFD700')}">+7日</button>
+      <button onclick="_devSkipToMonthEnd()" style="${_devBtnStyle('#2a2a1e','#5a5a2e','#FFD700')}">月末へ</button>
+      <button onclick="_devAdvanceDays(30)" style="${_devBtnStyle('#2a2a1e','#5a5a2e','#FFD700')}">+1ヶ月</button>
+      <button onclick="_devAdvanceDays(180)" style="${_devBtnStyle('#2a2a1e','#5a5a2e','#FFD700')}">+半年</button>
+      <button onclick="_devAdvanceDays(360)" style="${_devBtnStyle('#2a2a1e','#5a5a2e','#FFD700')}">+1年</button>
+    </div>
+    <div style="display:flex;gap:6px;align-items:center">
+      <span style="color:#888;font-size:11px">年:</span>
+      <input id="dev-jump-year" type="number" value="${G.year}" min="1" max="10" style="width:40px;padding:2px 4px;background:#1e1e2a;border:1px solid #333;color:#fff;border-radius:4px;font-size:11px">
+      <span style="color:#888;font-size:11px">月:</span>
+      <input id="dev-jump-month" type="number" value="${G.month}" min="1" max="12" style="width:36px;padding:2px 4px;background:#1e1e2a;border:1px solid #333;color:#fff;border-radius:4px;font-size:11px">
+      <button onclick="_devJumpTo(+document.getElementById('dev-jump-year').value,+document.getElementById('dev-jump-month').value)" style="${_devBtnStyle('#1e2a1e','#3a5a3a','#90EE90')}">ジャンプ</button>
+    </div>
+  </div>`;
+
+  // ── 🎯 エンディングプリセット ──
+  const endingSection = `<div style="background:#0d0d1a;border-radius:8px;padding:12px;margin-bottom:8px">
+    <div style="color:#FFD700;font-weight:700;font-size:12px;margin-bottom:8px">🎯 エンディングプリセット</div>
+    <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px">
+      <button onclick="_devPreset('fail')" style="${_devBtnStyle('#3a1a1a','#6a2a2a','#FF6B6B')}">① 失敗エンド</button>
+      <button onclick="_devPreset('normal')" style="${_devBtnStyle('#1e1e2a','#3a3a5a','#90CAF9')}">② 普通エンド</button>
+      <button onclick="_devPreset('community')" style="${_devBtnStyle('#1e2a1e','#3a5a3a','#81C784')}">③ 地域共生</button>
+      <button onclick="_devPreset('maikon')" style="${_devBtnStyle('#2a1e1e','#5a3a3a','#FF8A65')}">④ 舞昆マスター</button>
+      <button onclick="_devPreset('landlord')" style="${_devBtnStyle('#1e1e3a','#3a3a6a','#64B5F6')}">⑤ 大家マスター</button>
+      <button onclick="_devPreset('max')" style="${_devBtnStyle('#2a2a0a','#5a5a1a','#FFD700')}">⑥ 全MAX</button>
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:6px">
+      <button onclick="showMainStoryEnding()" style="${_devBtnStyle('#0d1a0d','#2a5a2a','#90EE90')}">▶ メインエンディング表示</button>
+      <button onclick="showFinalDiagnosis()" style="${_devBtnStyle('#0d1a0d','#2a5a2a','#90EE90')}">▶ クリア診断表示</button>
+      <button onclick="showLeadCapture()" style="${_devBtnStyle('#0d1a0d','#2a5a2a','#90EE90')}">▶ 特典フォーム表示</button>
+      <button onclick="showAnnualDiagnosis()" style="${_devBtnStyle('#0d1a0d','#2a5a2a','#90EE90')}">▶ 年次診断表示</button>
+    </div>
+  </div>`;
+
+  // ── 🏆 オーナータイプ設定 ──
+  const typeSection = `<div style="background:#0d0d1a;border-radius:8px;padding:12px;margin-bottom:8px">
+    <div style="color:#FFD700;font-weight:700;font-size:12px;margin-bottom:8px">🏆 オーナータイプ設定</div>
+    <div style="display:flex;flex-wrap:wrap;gap:6px">
+      <button onclick="_devSetOwnerType('community')" style="${_devBtnStyle('#1e2a1e','#3a5a3a','#81C784')}">🌸 地域共生</button>
+      <button onclick="_devSetOwnerType('people')" style="${_devBtnStyle('#1e2a1e','#3a5a3a','#A5D6A7')}">👥 人材育成</button>
+      <button onclick="_devSetOwnerType('aggressive')" style="${_devBtnStyle('#2a1e1e','#5a3a3a','#FF8A65')}">🚀 拡大志向</button>
+      <button onclick="_devSetOwnerType('finance')" style="${_devBtnStyle('#2a2a0a','#5a5a1a','#FFD700')}">💴 堅実財務</button>
+      <button onclick="_devSetOwnerType('balanced')" style="${_devBtnStyle('#1e1e2a','#3a3a5a','#90CAF9')}">⚖️ バランス</button>
+    </div>
+  </div>`;
+
+  // ── 📝 ステータスエディタ ──
+  const editorSection = `<div style="background:#0d0d1a;border-radius:8px;padding:12px;margin-bottom:8px">
+    <div style="color:#FFD700;font-weight:700;font-size:12px;margin-bottom:8px">📝 ステータスエディタ</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px">
+      ${[
+        ['dev-e-money','現金（円）',G.money],
+        ['dev-e-credit','信用度（0-100）',G.creditScore||45],
+        ['dev-e-rep','地域評価（0-100）',(G.regions[0]||{}).reputation||0],
+        ['dev-e-brand','ブランド（0-100）',G.storeBrand||0],
+        ['dev-e-bond','地域の絆（0-100）',G.communityBond||0],
+        ['dev-e-loyalty','ロイヤルティ（0-100）',G.customerLoyalty||0],
+        ['dev-e-ap','AP',G.ap||0],
+        ['dev-e-fatigue','疲労（0-120）',G.fatigue||0],
+      ].map(([id,label,val]) =>
+        '<div><div style="color:#888;font-size:10px;margin-bottom:2px">' + label + '</div>'
+        + '<input id="' + id + '" type="number" value="' + val + '" style="width:100%;padding:3px 6px;background:#1e1e2a;border:1px solid #333;color:#fff;border-radius:4px;font-size:12px;box-sizing:border-box"></div>'
+      ).join('')}
+    </div>
+    <button onclick="_devApplyEditor()" style="width:100%;padding:6px;${_devBtnStyle('#1e3a1e','#3a6a3a','#90EE90')}font-size:12px">✅ 反映する</button>
+  </div>`;
+
+  // ── 👥 イベント発火 ──
+  const allCaseIds = [
+    ['chr_tanaka_1','田中①出会い'],['chr_tanaka_2','田中②'],['chr_tanaka_3','田中③'],
+    ['chr_yamamoto_2','山本②'],['chr_yamamoto_3','山本③'],
+    ['chr_suzuki_2','鈴木②'],['chr_suzuki_3','鈴木③'],
+    ['chr_takahashi_2','高橋②'],['chr_takahashi_3','高橋③'],
+    ['midori_apply','みどり採用'],
+    ['taste_takahashi_morning','高橋 朝食台詞'],['taste_midori_snack','みどりつまみ食い'],
+    ['gift_season_haha','母の日ギフト'],['gift_season_chichi','父の日ギフト'],
+  ];
+  const eventSection = `<div style="background:#0d0d1a;border-radius:8px;padding:12px;margin-bottom:8px">
+    <div style="color:#FFD700;font-weight:700;font-size:12px;margin-bottom:8px">👥 イベント発火</div>
+    <div style="display:flex;flex-wrap:wrap;gap:5px">
+      ${allCaseIds.map(([id,label]) =>
+        '<button onclick="_devFireEvent(\'' + id + '\')" style="' + _devBtnStyle('#1a1a2a','#3a3a5a','#b0b0ff') + 'font-size:10px">' + label + '</button>'
+      ).join('')}
     </div>
   </div>`;
 
@@ -9597,14 +9947,19 @@ function _renderDevDashboard(){
     <div style="max-width:420px;margin:0 auto;background:#12121f;color:#e0e0e0;border-radius:16px;padding:16px;font-size:12px;font-family:monospace">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
         <div>
-          <div style="font-size:15px;font-weight:700;color:#90EE90">🐞 開発者ダッシュボード</div>
-          <div style="font-size:10px;color:#555;margin-top:2px">${G.year}年${G.month}月${G.day}日 ／ ${totalDays}日目</div>
+          <div style="font-size:15px;font-weight:700;color:#90EE90">🛠 開発者ダッシュボード</div>
+          <div style="font-size:10px;color:#555;margin-top:2px">${G.year}年${G.month}月${G.day}日 ／ ${totalDays}日目 ${G.freeMode?'[FREE]':''}</div>
         </div>
         <div style="display:flex;gap:6px;align-items:center">
           <button onclick="document.querySelector('.dev-dashboard-overlay').remove();_renderDevDashboard()" style="font-size:10px;padding:3px 8px;background:#1e2a1e;border:1px solid #3a5a3a;border-radius:6px;color:#90EE90;cursor:pointer">🔄 更新</button>
           <button onclick="this.closest('.dev-dashboard-overlay').remove()" style="background:none;border:none;color:#aaa;font-size:18px;cursor:pointer">✕</button>
         </div>
       </div>
+      ${endingSection}
+      ${dateSection}
+      ${editorSection}
+      ${typeSection}
+      ${eventSection}
       ${playerSection}
       ${charSection}
       ${midoriSection}
@@ -9620,6 +9975,120 @@ function _renderDevDashboard(){
   const el = document.createElement('div');
   el.innerHTML = html;
   document.body.appendChild(el.firstElementChild);
+}
+
+// ─────────── DEV HELPERS ───────────
+function _devBtnStyle(bg, border, color){
+  return 'font-size:11px;padding:4px 10px;background:' + bg + ';border:1px solid ' + border + ';border-radius:6px;color:' + color + ';cursor:pointer;';
+}
+
+const _DEV_PRESETS = {
+  fail:      { money:30000,   creditScore:20, storeBrand:5,  communityBond:5,  rep:10, ownerProfile:{risk:2,people:2,community:2,finance:2} },
+  normal:    { money:1200000, creditScore:55, storeBrand:30, communityBond:30, rep:50, ownerProfile:{risk:10,people:10,community:10,finance:10} },
+  community: { money:2000000, creditScore:72, storeBrand:50, communityBond:90, rep:88, ownerProfile:{risk:8,people:30,community:90,finance:20} },
+  maikon:    { money:2800000, creditScore:78, storeBrand:95, communityBond:60, rep:90, ownerProfile:{risk:15,people:40,community:60,finance:30} },
+  landlord:  { money:5000000, creditScore:92, storeBrand:40, communityBond:70, rep:96, ownerProfile:{risk:70,people:20,community:70,finance:85} },
+  max:       { money:9000000, creditScore:100,storeBrand:100,communityBond:100,rep:100,ownerProfile:{risk:80,people:80,community:80,finance:80} },
+};
+
+function _devPreset(key){
+  if(!DEV_MODE) return;
+  const p = _DEV_PRESETS[key];
+  if(!p) return;
+  G.money = p.money;
+  G.creditScore = p.creditScore;
+  G.storeBrand = p.storeBrand;
+  G.communityBond = p.communityBond;
+  G.customerLoyalty = Math.round((p.communityBond + p.storeBrand) / 2);
+  if(G.regions[0]) G.regions[0].reputation = p.rep;
+  G.ownerProfile = { ...p.ownerProfile };
+  G._ownerScore = Object.values(p.ownerProfile).reduce((a,b)=>a+b,0);
+  updateHeader();
+  document.querySelector('.dev-dashboard-overlay')?.remove();
+  showMainStoryEnding();
+}
+
+function _devSetOwnerType(type){
+  if(!DEV_MODE) return;
+  const types = {
+    community: {risk:8, people:30,community:90,finance:20},
+    people:    {risk:8, people:90,community:30,finance:20},
+    aggressive:{risk:90,people:20,community:30,finance:10},
+    finance:   {risk:10,people:20,community:30,finance:90},
+    balanced:  {risk:30,people:30,community:30,finance:30},
+  };
+  G.ownerProfile = { ...(types[type] || types.balanced) };
+  G._ownerScore = Object.values(G.ownerProfile).reduce((a,b)=>a+b,0);
+  updateHeader();
+  document.querySelector('.dev-dashboard-overlay')?.remove();
+  _renderDevDashboard();
+  notify('オーナータイプ → ' + type, 'gold');
+}
+
+function _devApplyEditor(){
+  if(!DEV_MODE) return;
+  const get = id => { const el = document.getElementById(id); return el ? +el.value : null; };
+  const money   = get('dev-e-money');
+  const credit  = get('dev-e-credit');
+  const rep     = get('dev-e-rep');
+  const brand   = get('dev-e-brand');
+  const bond    = get('dev-e-bond');
+  const loyalty = get('dev-e-loyalty');
+  const ap      = get('dev-e-ap');
+  const fatigue = get('dev-e-fatigue');
+  if(money   !== null) G.money = money;
+  if(credit  !== null) G.creditScore = Math.min(100, Math.max(0, credit));
+  if(rep     !== null && G.regions[0]) G.regions[0].reputation = Math.min(100, Math.max(0, rep));
+  if(brand   !== null) G.storeBrand = Math.min(100, Math.max(0, brand));
+  if(bond    !== null) G.communityBond = Math.min(100, Math.max(0, bond));
+  if(loyalty !== null) G.customerLoyalty = Math.min(100, Math.max(0, loyalty));
+  if(ap      !== null) G.ap = Math.min(G.apMax||100, Math.max(0, ap));
+  if(fatigue !== null) G.fatigue = Math.min(120, Math.max(0, fatigue));
+  updateHeader();
+  renderTab();
+  document.querySelector('.dev-dashboard-overlay')?.remove();
+  _renderDevDashboard();
+  notify('ステータスを反映しました', 'gold');
+}
+
+function _devFireEvent(id){
+  if(!DEV_MODE) return;
+  const caseData = (typeof CASE_POOL !== 'undefined' ? CASE_POOL : []).find(c=>c.id===id)
+    || (typeof DOMAIN_CASES !== 'undefined' ? DOMAIN_CASES : []).find(c=>c.id===id);
+  if(!caseData){ notify('案件が見つかりません: ' + id, 'warn'); return; }
+  // 解決済みフラグをリセットして強制発火
+  G.cases = G.cases.filter(c => c.id !== id);
+  addCase({ ...caseData, repeatable: true });
+  document.querySelector('.dev-dashboard-overlay')?.remove();
+  renderTab();
+  notify('イベント発火: ' + id, 'gold');
+}
+
+function _devAdvanceDays(n){
+  if(!DEV_MODE) return;
+  for(let i = 0; i < n; i++) advanceDay();
+  document.querySelector('.dev-dashboard-overlay')?.remove();
+  _renderDevDashboard();
+}
+
+function _devSkipToMonthEnd(){
+  if(!DEV_MODE) return;
+  const daysLeft = 30 - G.day;
+  for(let i = 0; i < daysLeft; i++) advanceDay();
+  document.querySelector('.dev-dashboard-overlay')?.remove();
+  _renderDevDashboard();
+}
+
+function _devJumpTo(year, month){
+  if(!DEV_MODE) return;
+  const current = (G.year-1)*360 + (G.month-1)*30 + G.day;
+  const target  = (year-1)*360  + (month-1)*30  + 1;
+  const diff = target - current;
+  if(diff <= 0){ notify('過去には戻れません', 'warn'); return; }
+  if(diff > 3600){ notify('最大3600日まで', 'warn'); return; }
+  for(let i = 0; i < diff; i++) advanceDay();
+  document.querySelector('.dev-dashboard-overlay')?.remove();
+  _renderDevDashboard();
 }
 
 // ─────────── DEBUG PANEL (legacy stub) ───────────
