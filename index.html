@@ -5732,7 +5732,6 @@ function generateConditionCases(){
   // キャラごとに最後のケース解決から7日以上経過しているか確認
   const nowDay = (G.year-1)*360 + (G.month-1)*30 + G.day;
   function charReady(key){ return nowDay - (G.characters[key].lastCaseDay || 0) >= 7; }
-  const ch = G.characters;
   // 田中アーク（茶屋にメニューがある場合のみ出会いイベント発火）
   const _storeHasMenu = G.stores.length > 0 && G.stores[0].menu && G.stores[0].menu.length > 0;
   if(_storeHasMenu && !ch.tanaka.met && !G.cases.some(c=>c.id==='chr_tanaka_1')) charCase('chr_tanaka_1');
