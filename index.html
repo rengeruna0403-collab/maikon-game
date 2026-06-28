@@ -195,6 +195,8 @@ body{font-family:'Noto Sans JP',sans-serif;background:var(--bg);color:var(--text
 .scene-box{position:relative;width:100%;height:72px;overflow:hidden;border-radius:10px;background:var(--bg2);margin-bottom:12px}
 .scene-char{position:absolute;font-size:20px;bottom:4px;animation-fill-mode:forwards}
 .day-flash-overlay{position:fixed;inset:0;z-index:500;display:flex;align-items:center;justify-content:center;pointer-events:none;animation:dayFlash .8s ease forwards}
+@keyframes buyPop{0%{opacity:0;transform:translateY(0)}15%{opacity:1}70%{opacity:1}100%{opacity:0;transform:translateY(-22px)}}
+.buy-pop{position:absolute;bottom:30px;font-size:10px;font-weight:700;background:rgba(0,170,80,.92);color:#fff;padding:2px 7px;border-radius:10px;animation:buyPop 3.2s ease-out infinite;white-space:nowrap;pointer-events:none}
 /* ACTION GRID */
 .act-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:8px}
 .act-btn{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:10px 8px;
@@ -2770,26 +2772,55 @@ function showMaikonPurchase(){
 
 // ─────────── FINAL DIAGNOSIS ───────────
 function _renderStoreScene(s){
-  if(!s || !s.isOpen) return '<div class="scene-box" style="display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:12px">🔒 閉店中</div>';
-  const isDay = G.day % 2 === 0; // シンプルな昼夜切替（偶数日=昼）
-  const bg = isDay ? 'linear-gradient(to bottom,#87CEEB 0%,#FFF8DC 100%)' : 'linear-gradient(to bottom,#1a1a3e 0%,#2d2d5e 100%)';
+  if(!s) return '';
+  if(!s.isOpen) return '<div class="scene-box" style="height:90px;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:12px">🔒 閉店中</div>';
+  const isNight = G.day % 6 >= 3;
+  const bg = isNight
+    ? 'linear-gradient(to bottom,#1e1e3a 0%,#2a2a4a 60%,#3a2a1a 100%)'
+    : 'linear-gradient(to bottom,#FFF8E7 0%,#FFF3CC 60%,#F5E6C8 100%)';
+  const skyIcon = isNight ? '🌙' : '☀️';
+  const wallColor = isNight ? 'rgba(255,255,255,.06)' : 'rgba(0,0,0,.06)';
+  const floorColor = isNight ? 'rgba(200,150,80,.35)' : 'rgba(139,90,43,.35)';
   const hasMidori = G.characters && G.characters.midori && G.characters.midori.relation >= 1;
-  const custCount = Math.min(4, Math.round((s.customers||0) / 5));
-  let chars = '';
-  if(hasMidori) chars += '<span class="scene-char" style="left:12px;animation:none">🙋</span>';
-  const custEmojis = ['🚶','👩','🧑','👴'];
-  const delays = ['0s','1.8s','3.5s','5.2s'];
-  const dirs = ['walkRight','walkLeft','walkRight','walkLeft'];
-  const positions = ['bottom:4px','bottom:4px','bottom:4px','bottom:4px'];
+  const hasStaff = (s.staffCount||0) > 0;
+  const custCount = Math.min(3, Math.max(0, Math.round((s.customers||0) / 5)));
+  const unitP = s.unitPrice || 700;
+  // 商品棚
+  const shelfHtml = '<div style="position:absolute;top:5px;left:6px;font-size:13px;letter-spacing:3px">🟫 🟩 🎁</div>'
+    + '<div style="position:absolute;top:22px;left:0;right:0;height:3px;background:' + wallColor + ';border-top:1px solid rgba(100,60,20,.25)"></div>';
+  // お客さん（歩く）
+  const custEmojis = ['🙂','👩','🧑'];
+  const custDelays = ['0s','3.8s','7.2s'];
+  const custDurs = ['5.5s','6.2s','5s'];
+  let custHtml = '';
   for(let i=0;i<custCount;i++){
-    const dur = (4 + i * 0.7).toFixed(1) + 's';
-    chars += '<span class="scene-char" style="font-size:18px;animation:' + dirs[i%2] + ' ' + dur + ' ' + delays[i] + ' ease-in-out infinite">' + custEmojis[i%custEmojis.length] + '</span>';
+    custHtml += '<span class="scene-char" style="font-size:15px;bottom:20px;animation:walkRight ' + custDurs[i] + ' ' + custDelays[i] + ' linear infinite">' + custEmojis[i] + '</span>';
   }
-  const sky = isDay ? '☀️' : '🌙';
-  return '<div class="scene-box" style="background:' + bg + '">'
-    + '<span style="position:absolute;top:4px;right:8px;font-size:14px">' + sky + '</span>'
-    + '<span style="position:absolute;bottom:0;left:0;right:0;height:16px;background:rgba(139,90,43,.5);border-radius:0 0 10px 10px"></span>'
-    + chars
+  // スタッフ（レジ）
+  const staffIcon = hasMidori ? '👩' : (hasStaff ? '🧑' : '');
+  const registerHtml = staffIcon
+    ? '<span style="position:absolute;bottom:20px;right:10px;font-size:15px">' + staffIcon + '</span>'
+      + '<span style="position:absolute;bottom:20px;right:28px;font-size:10px;color:' + (isNight?'rgba(255,255,255,.5)':'rgba(0,0,0,.35)') + '">🧾</span>'
+    : '';
+  // 売上ポップアップ
+  const popPositions = ['28%','50%','18%'];
+  const popDelays = ['1s','4.5s','8s'];
+  let popHtml = '';
+  for(let i=0;i<custCount;i++){
+    popHtml += '<span class="buy-pop" style="left:' + popPositions[i] + ';animation-delay:' + popDelays[i] + '">🛍 +¥' + (unitP + i*10) + '</span>';
+  }
+  // 床・入口
+  const floorHtml = '<div style="position:absolute;bottom:0;left:0;right:0;height:20px;background:' + floorColor + ';border-radius:0 0 10px 10px;display:flex;align-items:center;padding:0 8px;gap:4px">'
+    + '<span style="font-size:9px">🚪</span>'
+    + '<span style="font-size:9px;color:rgba(255,255,255,.6)">入口</span>'
+    + '</div>';
+  return '<div class="scene-box" style="height:90px;background:' + bg + '">'
+    + '<span style="position:absolute;top:4px;right:8px;font-size:12px">' + skyIcon + '</span>'
+    + shelfHtml
+    + custHtml
+    + registerHtml
+    + popHtml
+    + floorHtml
     + '</div>';
 }
 
@@ -5042,7 +5073,7 @@ const DOMAIN_CASES = [
   { id:'chr_tanaka_musume', conditionOnly:true, repeatable:false, domain:'landlord', character:'tanaka',
     sender:'金本恵子の息子', icon:'📞', apCost:0, expireDays:30, category:'ops',
     title:'田中さんのご家族から連絡がありました',
-    body:'田中さんの息子さんから、短い電話がありました。\n\n「母のことなんですが……\n先週、病院で先生から「食が細くなってきています」と言われまして。\n\n何を出しても、最近は残してしまって。\n一人暮らしだと、食事が偏るとわかってはいるんですが。\n\n……いつもお世話になっているとか言っているので、\nちょっとだけ、気にかけていただければ」',
+    body:'田中さんの息子さんから、短い電話がありました。\n\n「父のことなんですが……\n先週、病院で先生から「食が細くなってきています」と言われまして。\n\n何を出しても、最近は残してしまって。\n一人暮らしだと、食事が偏るとわかってはいるんですが。\n\n……いつもお世話になっているとか言っているので、\nちょっとだけ、気にかけていただければ」',
     choices:[
       {label:'「わかりました。様子を見てみます」と伝えた',cost:0,effects:{score:10,charNote:'息子さんから「食が細くなってきている」と相談を受けた',communityBond:2,profile:{people:3}},storyTag:'田中さんの息子さんから電話があった。食欲が落ちていると聞いた。その夜、田中さんの顔が頭に浮かんだ。'},
     ]},
