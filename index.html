@@ -2778,7 +2778,7 @@ function showMaikonPurchase(){
 // ─────────── FINAL DIAGNOSIS ───────────
 function _renderStoreScene(s){
   if(!s) return '';
-  if(!s.isOpen) return '<div class="scene-box" style="height:100px;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:12px">🔒 閉店中</div>';
+  if(!s.isOpen) return '<div class="scene-box" style="height:110px;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:12px">🔒 閉店中</div>';
 
   const isNight = G.day % 6 >= 3;
   const bg = isNight
@@ -2786,76 +2786,83 @@ function _renderStoreScene(s){
     : 'linear-gradient(to bottom,#FFFBF0 0%,#FFF5D6 70%,#F5E8C0 100%)';
   const skyIcon = isNight ? '🌙' : '☀️';
   const floorCol = isNight ? 'rgba(180,130,70,.4)' : 'rgba(139,90,43,.35)';
-  const shelfLineCol = isNight ? 'rgba(255,255,255,.1)' : 'rgba(100,60,20,.2)';
+  const shelfLineCol = isNight ? 'rgba(255,255,255,.15)' : 'rgba(100,60,20,.25)';
 
-  // 商品棚（Lvで増える）
   const lv = s.level || 1;
-  const shelfItems = lv >= 4 ? '🟫 🟩 🎁 🎍'
-    : lv >= 3 ? '🟫 🟩 🎁 🧺'
-    : lv >= 2 ? '🟫 🟩 🎁'
-    : '🟫 🟩';
-  const shelfHtml = '<div style="position:absolute;top:5px;left:8px;font-size:12px;letter-spacing:2px">' + shelfItems + '</div>'
-    + '<div style="position:absolute;top:23px;left:4px;right:45%;height:1px;background:' + shelfLineCol + ';border-top:1px solid rgba(100,60,20,.3)"></div>';
-
-  // イートインコーナー（右奥）
-  const eatinHtml = '<div style="position:absolute;top:5px;right:8px;font-size:11px;text-align:right;line-height:1.4">'
-    + '<div>🍙🍵</div>'
-    + '<div>🪑🪑</div>'
-    + '</div>';
-
-  // レジ（スタッフ固定）
+  const unitP = s.unitPrice || 700;
   const ch = G.characters || {};
   const hasMidori = ch.midori && ch.midori.relation >= 1;
   const staffIcon = hasMidori ? '👩' : ((s.staffCount||0)>0 ? '🧑' : '');
-  const registerHtml = staffIcon
-    ? '<span style="position:absolute;bottom:22px;right:52px;font-size:16px">' + staffIcon + '</span>'
-      + '<span style="position:absolute;bottom:22px;right:36px;font-size:10px;opacity:.5">🧾</span>'
-    : '';
-
-  // 常連キャラ判定
-  const regulars = [];
-  if(ch.tanaka && ch.tanaka.relation >= 2) regulars.push({icon:'👴', phrase:'今日もありがとう'});
-  if(ch.takahashi && ch.takahashi.relation >= 2) regulars.push({icon:'👨‍💼', phrase:'まとめて注文します'});
-  if(ch.yamamoto && ch.yamamoto.relation >= 2) regulars.push({icon:'👩', phrase:'また来ちゃった！'});
-
-  // 今日の客キャラ（常連優先、なければ日付ローテ）
-  const defaultCusts = ['🙂','🧑','👩','👴','👶'];
-  const todayIdx = (G.day + (G.month||0)*5) % (regulars.length > 0 ? regulars.length + defaultCusts.length : defaultCusts.length);
-  const isRegular = regulars.length > 0 && todayIdx < regulars.length;
-  const custIcon = isRegular ? regulars[todayIdx].icon : defaultCusts[todayIdx % defaultCusts.length];
-  const custPhrase = isRegular ? regulars[todayIdx].phrase : '';
-
-  // 客の購入旅（4フェーズ relay）
-  const unitP = s.unitPrice || 700;
   const hasCust = (s.customers||0) > 0 && s.menu && s.menu.length > 0;
-  const cycDur = '7s';
+
+  // 商品棚（Lv連動、左列）
+  const shelfDefs = [
+    {icon:'🟫', label:'舞昆'},
+    {icon:'🟩', label:'たもぎ茸舞昆'},
+    {icon:'🎁', label:'ギフト'},
+    {icon:'🍙', label:'おにぎり'},
+  ];
+  const shelfCount = Math.min(4, lv + 1);
+  let shelfHtml = '<div style="position:absolute;top:4px;left:6px;display:flex;flex-direction:column;gap:2px">';
+  for(let i=0;i<shelfCount;i++){
+    shelfHtml += '<div style="font-size:11px;white-space:nowrap">'
+      + shelfDefs[i].icon
+      + '<span style="font-size:9px;opacity:.65;margin-left:2px">' + shelfDefs[i].label + '</span>'
+      + '</div>';
+  }
+  shelfHtml += '</div>';
+  shelfHtml += '<div style="position:absolute;top:4px;bottom:22px;left:70px;width:1px;background:' + shelfLineCol + '"></div>';
+
+  // イートインコーナー（右上、Lv2以上はお客さん着席）
+  const eatSeat = lv >= 2 ? '🪑🙂' : '🪑🪑';
+  const eatinHtml = '<div style="position:absolute;top:4px;right:8px;text-align:right;line-height:1.6">'
+    + '<div style="font-size:13px">🍙🍵</div>'
+    + '<div style="font-size:13px">' + eatSeat + '</div>'
+    + '</div>';
+
+  // 今日のお客さん（常連優先）
+  const regularList = [];
+  if(ch.tanaka && ch.tanaka.relation >= 2) regularList.push({icon:'👴', phrases:['今日もありがとう','また来るよ']});
+  if(ch.takahashi && ch.takahashi.relation >= 2) regularList.push({icon:'👨‍💼', phrases:['まとめて注文します','贈り物にします']});
+  if(ch.yamamoto && ch.yamamoto.relation >= 2) regularList.push({icon:'👩', phrases:['また来ちゃった！','娘にも教えます']});
+  const defaultCusts = ['🙂','🧑','👩','👴'];
+  const allPhrases = ['また来ますね','舞昆、はじめて知りました','贈り物にします','このおにぎりおいしい！','娘にも教えます','ご縁に感謝'];
+  const dayHash = (G.day||1) + (G.month||1) * 7;
+  const isRegular = regularList.length > 0 && dayHash % 3 === 0;
+  const reg = isRegular ? regularList[dayHash % regularList.length] : null;
+  const custIcon = reg ? reg.icon : defaultCusts[dayHash % defaultCusts.length];
+  const showMoney = dayHash % 4 < 2;
+  const phrase = reg
+    ? reg.phrases[dayHash % reg.phrases.length]
+    : allPhrases[dayHash % allPhrases.length];
+  const bubbleText = showMoney ? '+¥' + unitP : phrase;
+
+  // 購入サイクル（一人が縦に変化、場所は中央ゾーン固定）
+  const cx = 'left:50%;margin-left:-8px';
+  const cycDur = '8s';
   let journeyHtml = '';
   if(hasCust){
-    // phase1: 入口→棚前
-    journeyHtml += '<span style="position:absolute;bottom:22px;left:6px;font-size:15px;animation:custIn ' + cycDur + ' 0s linear infinite">' + custIcon + '</span>';
-    // phase2: 棚前（商品手に取る）
-    journeyHtml += '<span style="position:absolute;bottom:22px;left:30%;font-size:15px;animation:custBrowse ' + cycDur + ' 0s linear infinite">🛍</span>';
-    // phase3: レジ前（支払い）
-    journeyHtml += '<span style="position:absolute;bottom:22px;right:70px;font-size:15px;animation:custPay ' + cycDur + ' 0s linear infinite">💴</span>';
-    // phase4: 出口（満足）
-    journeyHtml += '<span style="position:absolute;bottom:22px;right:8px;font-size:15px;animation:custLeave ' + cycDur + ' 0s linear infinite">😊</span>';
-    // 売上ポップアップ（phase3タイミングで出る）
-    journeyHtml += '<span class="buy-pop" style="right:65px;bottom:42px;animation-delay:3s;animation-duration:' + cycDur + '">+¥' + unitP + '</span>';
-    // 常連吹き出し
-    if(custPhrase){
-      journeyHtml += '<div style="position:absolute;bottom:42px;left:6px;background:rgba(255,255,255,.92);color:#333;font-size:9px;padding:2px 6px;border-radius:8px;white-space:nowrap;animation:speechBubble ' + cycDur + ' 0s ease-in-out infinite;pointer-events:none">'
-        + '💬 ' + custPhrase + '</div>';
-    }
+    journeyHtml += '<span style="position:absolute;bottom:28px;' + cx + ';font-size:16px;animation:custIn ' + cycDur + ' 0s linear infinite">' + custIcon + '</span>';
+    journeyHtml += '<span style="position:absolute;bottom:28px;' + cx + ';font-size:16px;animation:custBrowse ' + cycDur + ' 0s linear infinite">🛍</span>';
+    journeyHtml += '<span style="position:absolute;bottom:28px;' + cx + ';font-size:16px;animation:custPay ' + cycDur + ' 0s linear infinite">💴</span>';
+    journeyHtml += '<span style="position:absolute;bottom:28px;' + cx + ';font-size:16px;animation:custLeave ' + cycDur + ' 0s linear infinite">😊</span>';
+    // 吹き出し（購入フェーズに合わせてフワッと）
+    journeyHtml += '<div style="position:absolute;bottom:50px;left:50%;transform:translateX(-50%);background:rgba(255,255,255,.95);color:#333;font-size:10px;padding:3px 9px;border-radius:10px;white-space:nowrap;animation:speechBubble ' + cycDur + ' 0s ease-in-out infinite;pointer-events:none">💬 ' + bubbleText + '</div>';
   }
 
+  // レジのスタッフ（固定）
+  const registerHtml = staffIcon
+    ? '<span style="position:absolute;bottom:28px;right:88px;font-size:16px">' + staffIcon + '</span>'
+    : '';
+
   // 床・入口
-  const floorHtml = '<div style="position:absolute;bottom:0;left:0;right:0;height:20px;background:' + floorCol + ';border-radius:0 0 10px 10px;display:flex;align-items:center;padding:0 8px;gap:4px">'
+  const floorHtml = '<div style="position:absolute;bottom:0;left:0;right:0;height:22px;background:' + floorCol + ';border-radius:0 0 10px 10px;display:flex;align-items:center;padding:0 8px;gap:4px">'
     + '<span style="font-size:9px">🚪</span>'
     + '<span style="font-size:9px;color:rgba(255,255,255,.65)">入口</span>'
     + '<span style="font-size:9px;margin-left:auto">' + skyIcon + '</span>'
     + '</div>';
 
-  return '<div class="scene-box" style="height:100px;background:' + bg + '">'
+  return '<div class="scene-box" style="height:110px;background:' + bg + '">'
     + shelfHtml
     + eatinHtml
     + registerHtml
