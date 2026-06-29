@@ -2961,16 +2961,42 @@ function _ochawanAction(type){
 }
 // ────────────────────────────────────────────────────────────
 
+function getSeason(){
+  const m = G.month;
+  if(m >= 4 && m <= 6) return 'spring';
+  if(m >= 7 && m <= 9) return 'summer';
+  if(m >= 10 && m <= 12) return 'autumn';
+  return 'winter';
+}
+const SEASON_STORE_THEME = {
+  spring: { label:'🌸 春', deco:'🌸', deco2:'🌸', menu:'筍舞昆おにぎり', gift:'春の小箱ギフト',
+    bgDay:'linear-gradient(to bottom,#FFF0F5 0%,#FFE4EF 60%,#F5D5C8 100%)',
+    bgNight:'linear-gradient(to bottom,#2a1a2e 0%,#3a1e3a 70%,#2a1812 100%)',
+    floorDay:'rgba(200,120,140,.38)', floorNight:'rgba(160,80,110,.45)' },
+  summer: { label:'🎐 夏', deco:'🎐', deco2:'🧊', menu:'冷やし舞昆茶漬け', gift:'夏の涼味ギフト',
+    bgDay:'linear-gradient(to bottom,#E8F8FF 0%,#D0F0FF 60%,#C8E8F0 100%)',
+    bgNight:'linear-gradient(to bottom,#0a1a2e 0%,#0e2440 70%,#0a1820 100%)',
+    floorDay:'rgba(60,140,170,.35)', floorNight:'rgba(30,100,140,.45)' },
+  autumn: { label:'🍁 秋', deco:'🍁', deco2:'🍄', menu:'きのこ舞昆定食', gift:'敬老の日ギフト',
+    bgDay:'linear-gradient(to bottom,#FFF5E0 0%,#FFE8C0 60%,#F0D0A0 100%)',
+    bgNight:'linear-gradient(to bottom,#1e1a0e 0%,#2e2010 70%,#241808 100%)',
+    floorDay:'rgba(160,100,30,.40)', floorNight:'rgba(120,70,20,.50)' },
+  winter: { label:'❄ 冬', deco:'❄', deco2:'♨', menu:'温かい舞昆茶漬け', gift:'お歳暮ギフト',
+    bgDay:'linear-gradient(to bottom,#F0F5FF 0%,#E4EEFF 60%,#D8E8F5 100%)',
+    bgNight:'linear-gradient(to bottom,#0e1428 0%,#1a1e38 70%,#101830 100%)',
+    floorDay:'rgba(80,100,150,.35)', floorNight:'rgba(50,70,120,.45)' },
+};
+
 function _renderStoreScene(s){
   if(!s) return '';
   if(!s.isOpen) return '<div class="scene-box" style="height:110px;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:12px">🔒 閉店中</div>';
 
   const isNight = G.day % 6 >= 3;
-  const bg = isNight
-    ? 'linear-gradient(to bottom,#1e1e3a 0%,#28283e 70%,#2a1e12 100%)'
-    : 'linear-gradient(to bottom,#FFFBF0 0%,#FFF5D6 70%,#F5E8C0 100%)';
+  const season = getSeason();
+  const sth = SEASON_STORE_THEME[season];
+  const bg = isNight ? sth.bgNight : sth.bgDay;
   const skyIcon = isNight ? '🌙' : '☀️';
-  const floorCol = isNight ? 'rgba(180,130,70,.4)' : 'rgba(139,90,43,.35)';
+  const floorCol = isNight ? sth.floorNight : sth.floorDay;
   const shelfLineCol = isNight ? 'rgba(255,255,255,.15)' : 'rgba(100,60,20,.25)';
 
   const lv = s.level || 1;
@@ -2979,6 +3005,11 @@ function _renderStoreScene(s){
   const hasMidori = ch.midori && ch.midori.relation >= 1;
   const staffIcon = hasMidori ? '👩' : ((s.staffCount||0)>0 ? '🧑' : '');
   const hasCust = (s.customers||0) > 0 && s.menu && s.menu.length > 0;
+
+  // 季節デコ（棚上部・中央）
+  const seasonDecoHtml = '<div style="position:absolute;top:3px;left:50%;transform:translateX(-50%);font-size:13px;opacity:.75;pointer-events:none;white-space:nowrap">'
+    + sth.deco + ' ' + sth.deco2
+    + '</div>';
 
   // 商品棚（Lv連動、左列）
   const shelfDefs = [
@@ -2998,11 +3029,15 @@ function _renderStoreScene(s){
   shelfHtml += '</div>';
   shelfHtml += '<div style="position:absolute;top:4px;bottom:22px;left:70px;width:1px;background:' + shelfLineCol + '"></div>';
 
-  // イートインコーナー（右上、Lv2以上はお客さん着席）
+  // イートインコーナー（右上、Lv2以上はお客さん着席）+ 季節メニュー名
   const eatSeat = lv >= 2 ? '🪑🙂' : '🪑🪑';
+  const seasonMenuLabel = s.giftLevel >= 1
+    ? `<div style="font-size:8px;opacity:.7;white-space:nowrap;margin-top:1px">${sth.gift}</div>`
+    : `<div style="font-size:8px;opacity:.7;white-space:nowrap;margin-top:1px">${sth.menu}</div>`;
   const eatinHtml = '<div style="position:absolute;top:4px;right:8px;text-align:right;line-height:1.6">'
     + '<div style="font-size:13px">🍙🍵</div>'
     + '<div style="font-size:13px">' + eatSeat + '</div>'
+    + seasonMenuLabel
     + '</div>';
 
   // 今日のお客さん（常連優先）
@@ -3044,14 +3079,16 @@ function _renderStoreScene(s){
     + '</div>'
     + '<div style="position:absolute;bottom:23px;right:34px;font-size:9px;opacity:.5">🧾</div>';
 
-  // 床・入口
+  // 床・入口（季節ラベル入り）
   const floorHtml = '<div style="position:absolute;bottom:0;left:0;right:0;height:22px;background:' + floorCol + ';border-radius:0 0 10px 10px;display:flex;align-items:center;padding:0 8px;gap:4px">'
     + '<span style="font-size:9px">🚪</span>'
     + '<span style="font-size:9px;color:rgba(255,255,255,.65)">入口</span>'
+    + '<span style="font-size:9px;color:rgba(255,255,255,.8);margin-left:6px">' + sth.label + '</span>'
     + '<span style="font-size:9px;margin-left:auto">' + skyIcon + '</span>'
     + '</div>';
 
   return '<div class="scene-box" style="height:110px;background:' + bg + '">'
+    + seasonDecoHtml
     + shelfHtml
     + eatinHtml
     + registerHtml
