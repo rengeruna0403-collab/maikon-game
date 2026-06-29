@@ -3006,89 +3006,132 @@ function _renderStoreScene(s){
   const staffIcon = hasMidori ? '👩' : ((s.staffCount||0)>0 ? '🧑' : '');
   const hasCust = (s.customers||0) > 0 && s.menu && s.menu.length > 0;
 
-  // 季節デコ（棚上部・中央）
-  const seasonDecoHtml = '<div style="position:absolute;top:3px;left:50%;transform:translateX(-50%);font-size:13px;opacity:.75;pointer-events:none;white-space:nowrap">'
-    + sth.deco + ' ' + sth.deco2
-    + '</div>';
+  // ── 季節デコ（中央上部・Lvで大きさ変化） ──────────────
+  const decoSz  = lv >= 4 ? '14px' : lv >= 2 ? '13px' : '11px';
+  const decoOp  = lv >= 4 ? '.88'  : lv >= 2 ? '.75'  : '.55';
+  const decoContent = lv >= 2 ? sth.deco + ' ' + sth.deco2 : sth.deco;
+  const seasonDecoHtml = '<div style="position:absolute;top:3px;left:50%;transform:translateX(-50%);font-size:' + decoSz + ';opacity:' + decoOp + ';pointer-events:none;white-space:nowrap">'
+    + decoContent + '</div>';
 
-  // 商品棚（Lv連動、左列）
-  const shelfDefs = [
-    {icon:'🟫', label:'舞昆'},
-    {icon:'🟩', label:'たもぎ茸舞昆'},
-    {icon:'🎁', label:'ギフト'},
-    {icon:'🍙', label:'おにぎり'},
+  // ── Lv5：名店バッジ（左上） ────────────────────────────
+  const premiumBadge = lv >= 5
+    ? '<div style="position:absolute;top:3px;left:6px;font-size:8px;font-weight:700;background:rgba(180,130,0,.85);color:#fff;padding:1px 5px;border-radius:6px;white-space:nowrap">★名店</div>'
+    : '';
+
+  // ── Lv4+：季節限定POPラベル（中央、デコ下） ───────────
+  const seasonPopHtml = lv >= 4
+    ? '<div style="position:absolute;top:20px;left:50%;transform:translateX(-50%);font-size:8px;background:rgba(255,255,255,.80);color:#555;padding:1px 6px;border-radius:8px;white-space:nowrap;pointer-events:none">' + sth.deco + ' ' + (s.giftLevel >= 1 ? sth.gift : sth.menu) + '限定</div>'
+    : '';
+
+  // ── Lv3+：のれん（中央仕切り線上に表示） ──────────────
+  const norenHtml = lv >= 3
+    ? '<div style="position:absolute;top:14px;left:50%;transform:translateX(-50%);font-size:11px;opacity:.65;pointer-events:none">🎌</div>'
+    : '';
+
+  // ── 商品棚（左列・Lv連動） ─────────────────────────────
+  // Lv1:2品 Lv2:4品 Lv3:5品(POP追加) Lv4:5品(限定POP) Lv5:5品(贈答)
+  const shelfDefsAll = [
+    {icon:'🟫', label:'舞昆',    minLv:1},
+    {icon:'🟩', label:'たもぎ茸', minLv:1},
+    {icon:'🎁', label:'ギフト',  minLv:2},
+    {icon:'🍙', label:'おにぎり', minLv:2},
+    {icon: lv >= 5 ? '🎀' : lv >= 4 ? '🌟' : '📝',
+     label: lv >= 5 ? '贈答品' : lv >= 4 ? '限定' : 'POP', minLv:3},
   ];
-  const shelfCount = Math.min(4, lv + 1);
-  let shelfHtml = '<div style="position:absolute;top:4px;left:6px;display:flex;flex-direction:column;gap:2px">';
-  for(let i=0;i<shelfCount;i++){
-    shelfHtml += '<div style="font-size:11px;white-space:nowrap">'
-      + shelfDefs[i].icon
-      + '<span style="font-size:9px;opacity:.65;margin-left:2px">' + shelfDefs[i].label + '</span>'
+  const activeShelf = shelfDefsAll.filter(d => lv >= d.minLv);
+  const shelfGap = activeShelf.length >= 5 ? '1px' : '2px';
+  const shelfFontSz = activeShelf.length >= 5 ? '10px' : '11px';
+  let shelfHtml = '<div style="position:absolute;top:16px;left:6px;display:flex;flex-direction:column;gap:' + shelfGap + '">';
+  activeShelf.forEach(item => {
+    shelfHtml += '<div style="font-size:' + shelfFontSz + ';white-space:nowrap">'
+      + item.icon
+      + '<span style="font-size:8px;opacity:.65;margin-left:2px">' + item.label + '</span>'
       + '</div>';
-  }
+  });
   shelfHtml += '</div>';
-  shelfHtml += '<div style="position:absolute;top:4px;bottom:22px;left:70px;width:1px;background:' + shelfLineCol + '"></div>';
+  shelfHtml += '<div style="position:absolute;top:16px;bottom:22px;left:68px;width:1px;background:' + shelfLineCol + '"></div>';
 
-  // イートインコーナー（右上、Lv2以上はお客さん着席）+ 季節メニュー名
-  const eatSeat = lv >= 2 ? '🪑🙂' : '🪑🪑';
-  const seasonMenuLabel = s.giftLevel >= 1
-    ? `<div style="font-size:8px;opacity:.7;white-space:nowrap;margin-top:1px">${sth.gift}</div>`
-    : `<div style="font-size:8px;opacity:.7;white-space:nowrap;margin-top:1px">${sth.menu}</div>`;
-  const eatinHtml = '<div style="position:absolute;top:4px;right:8px;text-align:right;line-height:1.6">'
-    + '<div style="font-size:13px">🍙🍵</div>'
-    + '<div style="font-size:13px">' + eatSeat + '</div>'
-    + seasonMenuLabel
-    + '</div>';
+  // ── イートインコーナー（右上・Lvで充実） ─────────────────
+  // Lv1: 椅子のみ  Lv2: 食事+2椅子  Lv3: 食事+客1人  Lv4-5: 食事+客2人
+  let eatinHtml = '';
+  if(lv >= 2){
+    const eatSeats = lv >= 4 ? '🙂🙂' : lv >= 3 ? '🪑🙂' : '🪑🪑';
+    const showGift  = s.giftLevel >= 1 || lv >= 4;
+    const menuLabel = showGift ? sth.gift : sth.menu;
+    eatinHtml = '<div style="position:absolute;top:4px;right:6px;text-align:right;line-height:1.5">'
+      + '<div style="font-size:12px">🍙🍵</div>'
+      + '<div style="font-size:12px">' + eatSeats + '</div>'
+      + '<div style="font-size:7px;opacity:.7;white-space:nowrap;max-width:56px;overflow:hidden;text-overflow:ellipsis">' + menuLabel + '</div>'
+      + '</div>';
+  } else {
+    // Lv1：簡素な椅子のみ
+    eatinHtml = '<div style="position:absolute;top:16px;right:10px;font-size:13px;opacity:.7">🪑</div>';
+  }
 
-  // 今日のお客さん（常連優先）
+  // ── 今日のお客さん（常連優先） ─────────────────────────
   const regularList = [];
-  if(ch.tanaka && ch.tanaka.relation >= 2) regularList.push({icon:'👴', phrases:['今日もありがとう','また来るよ']});
+  if(ch.tanaka   && ch.tanaka.relation   >= 2) regularList.push({icon:'👴', phrases:['今日もありがとう','また来るよ']});
   if(ch.takahashi && ch.takahashi.relation >= 2) regularList.push({icon:'👨‍💼', phrases:['まとめて注文します','贈り物にします']});
   if(ch.yamamoto && ch.yamamoto.relation >= 2) regularList.push({icon:'👩', phrases:['また来ちゃった！','娘にも教えます']});
   const defaultCusts = ['🙂','🧑','👩','👴'];
-  const allPhrases = ['また来ますね','舞昆、はじめて知りました','贈り物にします','このおにぎりおいしい！','娘にも教えます','ご縁に感謝'];
+  const lvPhrases = lv >= 5
+    ? ['ここは地域の名店ですね','贈り物はいつもここで','また来ます','法人注文したいんですが']
+    : lv >= 3
+      ? ['また来ますね','このおにぎりおいしい！','贈り物にします','ご縁に感謝']
+      : ['また来ますね','舞昆、はじめて知りました','贈り物にします','ご縁に感謝'];
   const dayHash = (G.day||1) + (G.month||1) * 7;
   const isRegular = regularList.length > 0 && dayHash % 3 === 0;
   const reg = isRegular ? regularList[dayHash % regularList.length] : null;
   const custIcon = reg ? reg.icon : defaultCusts[dayHash % defaultCusts.length];
   const showMoney = dayHash % 4 < 2;
-  const phrase = reg
-    ? reg.phrases[dayHash % reg.phrases.length]
-    : allPhrases[dayHash % allPhrases.length];
+  const phrase = reg ? reg.phrases[dayHash % reg.phrases.length] : lvPhrases[dayHash % lvPhrases.length];
   const bubbleText = showMoney ? '+¥' + unitP : phrase;
 
-  // 購入サイクル（一人が縦に変化、場所は中央ゾーン固定）
+  // ── 購入サイクルアニメーション（中央固定） ─────────────
   const cx = 'left:50%;margin-left:-8px';
-  const cycDur = '8s';
+  const cycDur = lv >= 4 ? '6s' : '8s'; // Lv4+は少し速くして活気感
   let journeyHtml = '';
   if(hasCust){
-    journeyHtml += '<span style="position:absolute;bottom:28px;' + cx + ';font-size:16px;animation:custIn ' + cycDur + ' 0s linear infinite">' + custIcon + '</span>';
+    journeyHtml += '<span style="position:absolute;bottom:28px;' + cx + ';font-size:16px;animation:custIn '    + cycDur + ' 0s linear infinite">' + custIcon + '</span>';
     journeyHtml += '<span style="position:absolute;bottom:28px;' + cx + ';font-size:16px;animation:custBrowse ' + cycDur + ' 0s linear infinite">🛍</span>';
-    journeyHtml += '<span style="position:absolute;bottom:28px;' + cx + ';font-size:16px;animation:custPay ' + cycDur + ' 0s linear infinite">💴</span>';
-    journeyHtml += '<span style="position:absolute;bottom:28px;' + cx + ';font-size:16px;animation:custLeave ' + cycDur + ' 0s linear infinite">😊</span>';
-    // 吹き出し（購入フェーズに合わせてフワッと）
+    journeyHtml += '<span style="position:absolute;bottom:28px;' + cx + ';font-size:16px;animation:custPay '    + cycDur + ' 0s linear infinite">💴</span>';
+    journeyHtml += '<span style="position:absolute;bottom:28px;' + cx + ';font-size:16px;animation:custLeave '  + cycDur + ' 0s linear infinite">😊</span>';
     journeyHtml += '<div style="position:absolute;bottom:50px;left:50%;transform:translateX(-50%);background:rgba(255,255,255,.95);color:#333;font-size:10px;padding:3px 9px;border-radius:10px;white-space:nowrap;animation:speechBubble ' + cycDur + ' 0s ease-in-out infinite;pointer-events:none">💬 ' + bubbleText + '</div>';
+    // Lv4+：2人目の客（少しオフセット・サブ）
+    if(lv >= 4){
+      const cust2 = defaultCusts[(dayHash + 2) % defaultCusts.length];
+      const cx2 = 'left:calc(50% - 24px)';
+      journeyHtml += '<span style="position:absolute;bottom:28px;' + cx2 + ';font-size:12px;opacity:.55;animation:custBrowse ' + cycDur + ' 2s linear infinite">' + cust2 + '</span>';
+    }
   }
 
-  // レジのスタッフ（右下固定・ラベル付き）
+  // ── レジ・スタッフ（右下固定） ────────────────────────
   const staffName = hasMidori ? 'みどり' : ((s.staffCount||0)>0 ? 'スタッフ' : 'オーナー');
+  const staffTitle = lv >= 5 && hasMidori ? '店長' : staffName;
   const displayIcon = staffIcon || '🧑‍💼';
-  const registerHtml = '<div style="position:absolute;bottom:23px;right:8px;text-align:center;line-height:1">'
+  const registerHtml = '<div style="position:absolute;bottom:23px;right:6px;text-align:center;line-height:1">'
     + '<span style="font-size:18px">' + displayIcon + '</span>'
-    + '<div style="font-size:8px;color:rgba(255,255,255,.75);margin-top:1px">' + staffName + '</div>'
+    + '<div style="font-size:8px;color:rgba(255,255,255,.75);margin-top:1px">' + staffTitle + '</div>'
     + '</div>'
-    + '<div style="position:absolute;bottom:23px;right:34px;font-size:9px;opacity:.5">🧾</div>';
+    + '<div style="position:absolute;bottom:23px;right:32px;font-size:9px;opacity:.5">🧾</div>';
 
-  // 床・入口（季節ラベル入り）
-  const floorHtml = '<div style="position:absolute;bottom:0;left:0;right:0;height:22px;background:' + floorCol + ';border-radius:0 0 10px 10px;display:flex;align-items:center;padding:0 8px;gap:4px">'
+  // ── 床・入口バー（Lv5に★追加、のれんは別） ───────────
+  const floorExtra = lv >= 5 ? '<span style="font-size:8px;color:rgba(255,220,50,.9);margin-left:4px">★</span>' : '';
+  const norenFloor = lv >= 3 ? '<span style="font-size:9px;opacity:.7">🏮</span>' : '';
+  const floorHtml = '<div style="position:absolute;bottom:0;left:0;right:0;height:22px;background:' + floorCol + ';border-radius:0 0 10px 10px;display:flex;align-items:center;padding:0 8px;gap:3px">'
     + '<span style="font-size:9px">🚪</span>'
     + '<span style="font-size:9px;color:rgba(255,255,255,.65)">入口</span>'
-    + '<span style="font-size:9px;color:rgba(255,255,255,.8);margin-left:6px">' + sth.label + '</span>'
+    + norenFloor
+    + '<span style="font-size:9px;color:rgba(255,255,255,.8);margin-left:4px">' + sth.label + '</span>'
+    + floorExtra
     + '<span style="font-size:9px;margin-left:auto">' + skyIcon + '</span>'
     + '</div>';
 
-  return '<div class="scene-box" style="height:110px;background:' + bg + '">'
+  return '<div class="scene-box" style="height:110px;background:' + bg + ';overflow:hidden">'
     + seasonDecoHtml
+    + premiumBadge
+    + seasonPopHtml
+    + norenHtml
     + shelfHtml
     + eatinHtml
     + registerHtml
