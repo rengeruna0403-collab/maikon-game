@@ -1932,6 +1932,7 @@ function advanceDay(){
   showDayFlash();
   renderTab();
   saveGame();
+  setTimeout(_checkOchawanProposal, 1500);
 }
 
 function showDayFlash(){
@@ -2006,7 +2007,9 @@ function monthlyTick(){
     });
   });
   G.stores.forEach(s=>{
-    s.satisfaction=Math.max(20,Math.min(100,s.satisfaction+Math.random()*4-1.5));
+    const cleanBonus = s._cleanBonus || 0;
+    if(cleanBonus > 0){ s._cleanBonus = 0; }
+    s.satisfaction=Math.max(20,Math.min(100,s.satisfaction+Math.random()*4-1.5+cleanBonus));
     if(!s.isOpen || !s.menu || s.menu.length === 0) return;
     // 新規客：自然増加はほぼゼロ。客数増加は主に施策で
     const nc = s.newCustomers || 3;
@@ -2776,6 +2779,151 @@ function showMaikonPurchase(){
 }
 
 // ─────────── FINAL DIAGNOSIS ───────────
+// ─── お茶碗マン提案システム ────────────────────────────────
+const _OCHAWAN_DAILY = [
+  '高橋さん、最近忙しそうですね。',
+  '田中さん、今日も開店前から待っていましたよ。',
+  'みどりさん、店のPOPを描いていました。',
+  '常連さんが「舞昆、友人に話した」と言っていました。',
+  '商店街の花壇、きれいに咲いていましたよ。',
+  '入居者の山田さん、最近よく笑顔ですね。',
+  '今日は珍しく静かな一日でしたね。',
+  '金本さんのお孫さん、運動会だったそうですよ。',
+  '近所の方が「いいにおいがする」と立ち止まっていました。',
+  '今日は風が気持ちよかったですね。散歩日和でした。',
+];
+const _MAIKON_PRODUCTS = [
+  {name:'夢冴え舞昆', emoji:'🟫', desc:'昆布の旨味と醤油の深みが絶妙。白ご飯との相性は抜群です。', story:'創業者が「ご飯が止まらない」と言って生まれた看板商品。発売以来30年、変わらぬ味です。'},
+  {name:'たもぎ茸舞昆', emoji:'🟩', desc:'珍しいたもぎ茸を使った一品。旨味が強く、料理のアクセントにも。', story:'北海道産のたもぎ茸との出会いから生まれた限定品。地元でも入手困難な素材です。'},
+  {name:'生姜舞昆', emoji:'🫚', desc:'生姜の風味がさわやか。おにぎりの具にも最適です。', story:'常連の田中さんのリクエストで開発されました。今では人気No.2商品。'},
+  {name:'ギフト舞昆セット', emoji:'🎁', desc:'贈り物に最適な詰め合わせ。喜ばれること間違いなし。', story:'「大切な人への贈り物にしたい」というお客様の声から誕生しました。'},
+];
+
+function _checkOchawanProposal(){
+  if(!G.started || G.gameEnded) return;
+  const todayKey = G.year + '-' + G.month + '-' + G.day;
+  if(G._ochawanDay === todayKey) return;
+  if((G.ap||0) < 70) return;
+  // アクティブ案件が多い場合はスキップ
+  const activeCases = (G.cases||[]).filter(c => !c.completed && !c.failed && !c._taken);
+  if(activeCases.length > 2) return;
+  G._ochawanDay = todayKey;
+  setTimeout(showOchawanProposal, 600);
+}
+
+function showOchawanProposal(){
+  const modal = document.getElementById('event-modal');
+  const body = document.getElementById('event-body');
+  if(!modal || !body) return;
+  const ap = G.ap || 0;
+  const todayMsg = _OCHAWAN_DAILY[((G.day||1) + (G.month||1)*3) % _OCHAWAN_DAILY.length];
+  const product = _MAIKON_PRODUCTS[((G.day||1) + (G.month||1)) % _MAIKON_PRODUCTS.length];
+
+  const btn = (label, sub, apCost, action, disabled) => {
+    const d = disabled || ap < apCost;
+    return '<button onclick="_ochawanAction(\'' + action + '\')" style="'
+      + 'width:100%;text-align:left;padding:10px 14px;margin-bottom:8px;'
+      + 'background:' + (d ? 'var(--bg2)' : 'var(--bg3)') + ';'
+      + 'border:1px solid var(--border);border-radius:10px;cursor:' + (d ? 'not-allowed' : 'pointer') + ';'
+      + 'opacity:' + (d ? '.45' : '1') + ';color:var(--text)"'
+      + (d ? ' disabled' : '') + '>'
+      + '<span style="font-size:13px;font-weight:600">' + label + '</span>'
+      + (apCost > 0 ? '<span style="font-size:10px;color:var(--muted);margin-left:6px">AP ' + apCost + '</span>' : '<span style="font-size:10px;color:var(--gr);margin-left:6px">AP 0</span>')
+      + '<div style="font-size:11px;color:var(--muted);margin-top:2px">' + sub + '</div>'
+      + '</button>';
+  };
+
+  let html = '<div style="font-size:22px;text-align:center;margin-bottom:4px">🥣</div>'
+    + '<div style="font-weight:700;font-size:15px;text-align:center;margin-bottom:8px">お茶碗マン</div>'
+    + '<div style="background:var(--bg2);border-radius:10px;padding:10px 12px;margin-bottom:12px;font-size:12px;line-height:1.7">'
+    + '今日は余裕がありそうですね。（AP <strong>' + ap + '</strong>）<br>'
+    + '💬 <em>「' + todayMsg + '」</em>'
+    + '</div>'
+    + '<div style="font-size:12px;color:var(--muted);margin-bottom:8px">何かしてみますか？</div>'
+    + btn('👀 店を眺める', '店内を眺めて今日の気づきを得る', 0, 'watch')
+    + btn('💬 常連さんと雑談する', '地域の絆＋1 / 常連好感度＋1', 5, 'chat')
+    + btn('🏪 店頭に立つ', '新規客＋3 / 常連＋1 / 売上＋¥2,000', 10, 'stand')
+    + btn('🍙 ' + product.name + 'を試食する', 'ブランド力＋1 / 商品を深く知る', 5, 'taste')
+    + btn('🧹 掃除する', '明日の顧客満足度＋1', 5, 'clean')
+    + '<button onclick="document.getElementById(\'event-modal\').style.display=\'none\'" style="width:100%;padding:8px;background:none;border:none;color:var(--muted);font-size:12px;cursor:pointer;margin-top:4px">今日はいいです</button>';
+
+  body.innerHTML = html;
+  modal.style.display = 'flex';
+}
+
+function _ochawanAction(type){
+  const modal = document.getElementById('event-modal');
+  const ap = G.ap || 0;
+  const s = G.stores && G.stores[0];
+  const product = _MAIKON_PRODUCTS[((G.day||1) + (G.month||1)) % _MAIKON_PRODUCTS.length];
+
+  const spend = (cost) => { G.ap = Math.max(0, (G.ap||0) - cost); };
+
+  switch(type){
+    case 'watch': {
+      const watchMsgs = [
+        '今日は家族連れが多いですね。',
+        'みどりさんの接客、板についてきました。',
+        '商品棚の前で悩んでいる方がいます。おすすめを聞かれそうです。',
+        '常連の田中さん、また来てくれました。',
+        '「ありがとうございました」の声が聞こえます。',
+      ];
+      const msg = watchMsgs[((G.day||1)+(G.month||1)*2) % watchMsgs.length];
+      if(modal) modal.style.display = 'none';
+      notify('👀 🥣「' + msg + '」', 'gold');
+      break;
+    }
+    case 'chat': {
+      if(ap < 5){ notify('APが足りません','red'); return; }
+      spend(5);
+      G.communityBond = Math.min(100, (G.communityBond||0) + 1);
+      if(s) s.customerLoyalty = Math.min(100, (s.customerLoyalty||0) + 1);
+      if(modal) modal.style.display = 'none';
+      notify('💬 常連さんと雑談しました。地域の絆＋1 / 常連好感度＋1', 'green');
+      break;
+    }
+    case 'stand': {
+      if(ap < 10){ notify('APが足りません','red'); return; }
+      spend(10);
+      if(s){ s.customers = (s.customers||0) + 3; s.regulars = (s.regulars||0) + 1; }
+      G.money = (G.money||0) + 2000;
+      if(modal) modal.style.display = 'none';
+      notify('🏪 店頭に立ちました！ 新規客＋3 / 売上＋¥2,000', 'green');
+      break;
+    }
+    case 'taste': {
+      if(ap < 5){ notify('APが足りません','red'); return; }
+      spend(5);
+      G.storeBrand = Math.min(100, (G.storeBrand||0) + 1);
+      // 試食モーダルに切り替え
+      const body = document.getElementById('event-body');
+      if(body){
+        body.innerHTML = '<div style="text-align:center;font-size:28px;margin-bottom:8px">' + product.emoji + '</div>'
+          + '<div style="font-weight:700;font-size:16px;text-align:center;margin-bottom:4px">' + product.name + '</div>'
+          + '<div style="background:var(--bg2);border-radius:10px;padding:12px;margin-bottom:10px;font-size:12px;line-height:1.8">'
+          + '<strong>🍴 味わい</strong><br>' + product.desc + '<br><br>'
+          + '<strong>📖 開発秘話</strong><br>' + product.story
+          + '</div>'
+          + '<div style="background:rgba(0,180,80,.1);border-radius:8px;padding:8px 12px;font-size:12px;color:var(--gr);margin-bottom:12px">ブランド力 ＋1</div>'
+          + '<button onclick="document.getElementById(\'event-modal\').style.display=\'none\'" style="width:100%;padding:10px;background:var(--green,#4CAF50);border:none;border-radius:10px;color:#fff;font-size:14px;font-weight:700;cursor:pointer">おいしかった！</button>';
+      }
+      break;
+    }
+    case 'clean': {
+      if(ap < 5){ notify('APが足りません','red'); return; }
+      spend(5);
+      if(s) s._cleanBonus = (s._cleanBonus||0) + 1;
+      if(modal) modal.style.display = 'none';
+      notify('🧹 掃除しました！ 明日の顧客満足度＋1', 'green');
+      break;
+    }
+  }
+  updateHeader();
+  saveGame();
+  renderTab();
+}
+// ────────────────────────────────────────────────────────────
+
 function _renderStoreScene(s){
   if(!s) return '';
   if(!s.isOpen) return '<div class="scene-box" style="height:110px;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:12px">🔒 閉店中</div>';
