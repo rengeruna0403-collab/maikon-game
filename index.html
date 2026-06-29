@@ -1885,6 +1885,7 @@ function advanceDay(){
   G.day++;
   if(G.day>30){
     G.day=1; G.month++;
+    G._isMonthEnd = true;
     monthlyTick();
     if(G.month>12){G.month=1; G.year++;}
   }
@@ -1929,7 +1930,8 @@ function advanceDay(){
   }
 
   updateHeader();
-  showDayFlash();
+  if(!G._isMonthEnd) showDayFlash();
+  G._isMonthEnd = false;
   renderTab();
   saveGame();
   setTimeout(_checkOchawanProposal, 1500);
@@ -5104,7 +5106,7 @@ const DOMAIN_CASES = [
     ]},
 
   // ── 山本真由美（40代・主婦）アーク ──
-  { id:'chr_yamamoto_1', conditionOnly:false, repeatable:false, domain:'community', character:'yamamoto',
+  { id:'chr_yamamoto_1', conditionOnly:true, repeatable:false, domain:'community', character:'yamamoto',
     sender:'子ども食堂', icon:'👩', apCost:5, expireDays:21, category:'ops',
     title:'子ども食堂で話しかけられた',
     body:'子ども食堂の準備をしていると、一人の女性が話しかけてきました。\n\n「山本と申します。うちの子も今日来るんです。\n子どもって野菜食べないじゃないですか……\nあの、おにぎりに乗ってる黒いのって何ですか？」',
@@ -6232,7 +6234,9 @@ function generateConditionCases(){
   if(ch.tanaka.location === 'resident' && charReady('tanaka') && !G.cases.some(c=>c.id==='chr_tanaka_4')) charCase('chr_tanaka_4');
   if(ch.tanaka.level >= 4 && ch.tanaka.location === 'resident' && charReady('tanaka') && !ch.tanaka.complete && !G.cases.some(c=>c.id==='chr_tanaka_complete')) charCase('chr_tanaka_complete');
   if(ch.tanaka.complete && charReady('tanaka') && !G.cases.some(c=>c.id==='chr_tanaka_referral')) charCase('chr_tanaka_referral');
-  // 山本アーク
+  // 山本アーク（子ども食堂投資後に初対面イベント発火）
+  const _invYamamoto = G.regions && G.regions.some(r => r.investments && r.investments['子ども食堂']);
+  if(_invYamamoto && !ch.yamamoto.met && !G.cases.some(c=>c.id==='chr_yamamoto_1')) charCase('chr_yamamoto_1');
   if(ch.yamamoto.met && ch.yamamoto.level >= 1 && charReady('yamamoto') && !G.cases.some(c=>c.id==='chr_yamamoto_2')) charCase('chr_yamamoto_2');
   if(ch.yamamoto.level >= 2 && charReady('yamamoto') && !G.cases.some(c=>c.id==='chr_yamamoto_3')) charCase('chr_yamamoto_3');
   if(ch.yamamoto.level >= 3 && charReady('yamamoto') && !ch.yamamoto.complete && !G.cases.some(c=>c.id==='chr_yamamoto_referral')) charCase('chr_yamamoto_referral');
