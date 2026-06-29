@@ -517,6 +517,8 @@ let G = {
   currentChallenge: null, // 今月の成田チャレンジ
   lastChallengeResult: null, // 月末判定結果
   cases: [], // 案件ボックス
+  pendingMenuLaunches: [], // [{id,name,type,icon,seasonal,seasonDays,launchDay,sourceEvent}]
+  launchedMenus: [],       // [{id,name,type,icon,seasonal,seasonDays,launchedDay,sales,_expired}]
   caseCooldowns: {}, // repeatable案件の再出現クールダウン { id: lastResolvedDay }
   _lastCaseDay: 0, // 前回案件生成日
   discovery: {     // 初回発見フラグ（一度きりのお茶碗マンヒント）
@@ -1776,6 +1778,28 @@ function startGame(){
 }
 
 // ─────────── DAILY TICK ───────────
+function _processPendingMenuLaunches(){
+  G.pendingMenuLaunches = G.pendingMenuLaunches || [];
+  if(G.pendingMenuLaunches.length === 0) return;
+  const _td = (G.year-1)*360 + (G.month-1)*30 + G.day;
+  const _due = G.pendingMenuLaunches.filter(p => p.launchDay <= _td);
+  if(_due.length === 0) return;
+  G.pendingMenuLaunches = G.pendingMenuLaunches.filter(p => p.launchDay > _td);
+  G.launchedMenus = G.launchedMenus || [];
+  const _s = G.stores[0];
+  _due.forEach(p => {
+    if(G.launchedMenus.some(m => m.id === p.id && !m._expired)) return;
+    G.launchedMenus.push({ id:p.id, name:p.name, type:p.type, icon:p.icon||'🍽', seasonal:p.seasonal, seasonDays:p.seasonDays||0, launchedDay:_td, sales:0 });
+    if(p.type === 'eatIn' && _s && !(_s.menu||[]).includes(p.name)){
+      _s.menu = _s.menu || [];
+      _s.menu.push(p.name);
+    }
+    notify(`🎉 「${p.name}」の販売が始まりました！`, 'gold');
+    addHistory(p.icon||'🍽', `「${p.name}」販売開始`);
+    addStory(`「${p.name}」がメニューに加わった。`, 'highlight');
+  });
+}
+
 function advanceDay(){
   // モーダルが非表示なのにフラグが残っている場合はリセット（ボタンが止まる現象の防止）
   if(G.activeEvent && document.getElementById('event-modal')?.style.display === 'none'){
@@ -1917,6 +1941,8 @@ function advanceDay(){
   }
   // 条件トリガー案件
   try { generateConditionCases(); } catch(e){ console.error('[advanceDay] generateConditionCases:', e); }
+  // 予約メニュー反映
+  try { _processPendingMenuLaunches(); } catch(e){ console.error('[advanceDay] pendingMenuLaunches:', e); }
   // お茶碗マン ディスカバリーチェック
   try { checkDiscovery(); } catch(e){ console.error('[advanceDay] checkDiscovery:', e); }
 
@@ -2781,6 +2807,15 @@ function showMaikonPurchase(){
 }
 
 // ─────────── FINAL DIAGNOSIS ───────────
+// ─── メニューカタログ ────────────────────────────────────
+const MENU_CATALOG = {
+  maikon_bento:     { name:'舞昆弁当',          type:'eatIn',   icon:'🍱', seasonal:false, seasonDays:0 },
+  ferment_bento:    { name:'発酵ランチ弁当',     type:'eatIn',   icon:'🥗', seasonal:false, seasonDays:0 },
+  seasonal_bento:   { name:'季節限定弁当',       type:'eatIn',   icon:'🍱', seasonal:true,  seasonDays:90 },
+  seasonal_onigiri: { name:'季節の舞昆おにぎり', type:'eatIn',   icon:'🍙', seasonal:true,  seasonDays:90 },
+  seasonal_gift:    { name:'季節の小箱ギフト',   type:'product', icon:'🎁', seasonal:true,  seasonDays:90 },
+};
+
 // ─── お茶碗マン提案システム ────────────────────────────────
 const _OCHAWAN_DAILY = [
   '高橋さん、最近忙しそうですね。',
@@ -4647,7 +4682,7 @@ const DOMAIN_CASES = [
     title:'メニューへのご意見',
     body:'常連の田中さんから意見をいただきました。\n\n「最近同じメニューが多い気がします。\n季節のメニューがあると嬉しいのですが」',
     choices:[
-      {label:'季節メニューを開発する（¥50,000）',cost:50000,effects:{score:12,storeSat:8,custUp:3,profile:{community:1}},label2:'店舗満足+8・客数+3',storyTag:'季節メニューを開発した。常連客に喜ばれた。'},
+      {label:'季節メニューを開発する（¥50,000）',cost:50000,effects:{score:12,storeSat:8,custUp:3,profile:{community:1},pendingMenuId:'seasonal_onigiri'},label2:'店舗満足+8・客数+3・3日後に新メニュー追加',storyTag:'季節の舞昆おにぎりの開発を始めた。3日後に販売開始予定。'},
       {label:'次の仕入れで工夫してみる',cost:0,effects:{score:6,storeSat:3},label2:'小さな改善',storyTag:'仕入れで季節感を出す工夫をした。'},
     ]},
 
@@ -5996,8 +6031,8 @@ function generateConditionCases(){
         body:`常連の方が少し遠慮がちに言いました。\n\n「${staleMenus[0]}、美味しいんですけど——\nそろそろ新しいものも食べてみたくて。\n\n近所にランチの選択肢が増えてきましたし……」`,
         choices:[
           { label:'季節メニューを開発する（AP-15・¥20,000）', cost:20000, ap:15,
-            effects:{ score:15, storeSat:10, custRegular:3, profile:{ community:2 } },
-            label2:'常連+3・満足度+10', storyTag:'季節の舞昆メニューを開発した。常連さんが喜んでくれた。' },
+            effects:{ score:15, storeSat:10, custRegular:3, profile:{ community:2 }, pendingMenuId:'seasonal_onigiri' },
+            label2:'常連+3・満足度+10・3日後に新メニュー追加', storyTag:'季節の舞昆おにぎりの開発を始めた。3日後に販売開始予定。' },
           { label:'試食販売会で反応を見る（AP-10・¥10,000）', cost:10000, ap:10,
             effects:{ score:8, storeSat:5, custRegular:1 },
             label2:'常連+1・様子見', storyTag:'試食会で新メニューの反応を確認した。' },
@@ -6432,6 +6467,39 @@ function generateConditionCases(){
       if(_b) addCase(_b);
     }
   }
+
+  // ── 季節メニュー期限チェック ──────────────────────────────
+  G.launchedMenus = G.launchedMenus || [];
+  G.launchedMenus.forEach(m => {
+    if(!m.seasonal || m._expired) return;
+    const _daysActive = totalDays - (m.launchedDay || 0);
+    if(_daysActive < (m.seasonDays || 90)) return;
+    m._expired = true;
+    const _ss = G.stores[0];
+    if(_ss && _ss.menu) _ss.menu = _ss.menu.filter(n => n !== m.name);
+    notify(`🍂 「${m.name}」の季節販売が終了しました`, 'warn');
+    addStory(`「${m.name}」の季節販売が終了した。`, 'normal');
+    const _standaloneId = 'seasonal_standup_' + m.id;
+    if(!G.cases.some(c => c.id === _standaloneId)){
+      addCase({
+        id: _standaloneId, conditionOnly:true, repeatable:false,
+        domain:'store', sender:'常連客', icon:'⭐', apCost:5, expireDays:30, category:'strategy',
+        title: `「${m.name}」を定番にしませんか？`,
+        body: `季節限定で販売した「${m.name}」が好評でした。\n\n「また食べたい」という声をよくいただきます。\n定番メニューとして継続しますか？`,
+        choices: [
+          { label:'定番メニューとして継続する（¥30,000）', cost:30000, ap:5,
+            effects:{ score:15, storeSat:8, custRegular:2, _standaloneMenu:m.id },
+            label2:'常連+2・満足+8', storyTag:`「${m.name}」を定番化した。常連客が喜んでいる。` },
+          { label:'来シーズンも限定で販売する', cost:0,
+            effects:{ score:8, _seasonalReset:m.id },
+            label2:'話題性を維持', storyTag:`「${m.name}」は来シーズンの限定品として温存することにした。` },
+          { label:'販売を終了する', cost:0,
+            effects:{ score:2 },
+            label2:'新メニューの機会に', storyTag:`「${m.name}」の販売を終了した。` },
+        ],
+      });
+    }
+  });
 }
 
 // 入居申込案件を動的生成（seeking中の部屋に週次で）
@@ -7549,33 +7617,60 @@ function chooseEvent(idx, useFatigue){
   if(fx.launchBento){
     const _bentoNames = { maikon:'舞昆弁当', ferment:'発酵ランチ弁当', seasonal:'季節限定弁当' };
     const _name = _bentoNames[G._bentoChoice] || '舞昆弁当';
+    const _catalogKey = { '舞昆弁当':'maikon_bento', '発酵ランチ弁当':'ferment_bento', '季節限定弁当':'seasonal_bento' }[_name] || 'maikon_bento';
+    const _cat = MENU_CATALOG[_catalogKey];
     const _roll = Math.random();
-    if(!G.stores[0].menu.includes(_name)) G.stores[0].menu.push(_name);
-    addHistory('🍱', `「${_name}」販売開始`);
     G._bentoLaunched = true;
     G._bentoLaunchType = fx.launchBento;
+    // 3日後にメニューへ反映
+    G.pendingMenuLaunches = G.pendingMenuLaunches || [];
+    const _tdBento = (G.year-1)*360 + (G.month-1)*30 + G.day;
+    if(!G.pendingMenuLaunches.some(p => p.id === _catalogKey)){
+      G.pendingMenuLaunches.push({ id:_catalogKey, name:_name, type:'eatIn', icon:'🍱', seasonal:_cat.seasonal, seasonDays:_cat.seasonDays||0, launchDay:_tdBento+3, sourceEvent:'bento_launch' });
+    }
     if(_roll < 0.15){
-      // 不振
-      addStory(`「${_name}」の販売を開始したが、思ったより売れなかった。価格帯や告知を見直す必要があるかもしれない。`, 'warn');
-      notify(`🍱 ${_name} 販売開始（反応いまひとつ）`, 'warn');
+      addStory(`「${_name}」の販売準備を進めた。3日後に販売開始予定だが、告知方法を工夫した方がよいかもしれない。`, 'warn');
+      notify(`🍱 ${_name} 準備中（3日後に開始・告知に工夫を）`, 'warn');
     } else if(_roll < 0.55){
-      // 普通
       G.stores[0].newCustomers = (G.stores[0].newCustomers||0) + 2;
       G.stores[0].customers = (G.stores[0].newCustomers||0) + (G.stores[0].regulars||0);
       G.stores[0].unitPrice = (G.stores[0].unitPrice||700) + 80;
-      addStory(`「${_name}」の販売を始めた。少しずつ注文が入るようになった。客単価も上がってきた。`, 'normal');
-      notify(`🍱 ${_name} 販売開始（客数+2・単価+¥80）`, 'gold');
+      addStory(`「${_name}」の販売準備が整った。3日後から提供開始。試食した常連客の反応が良い。`, 'normal');
+      notify(`🍱 ${_name} 3日後に開始（客数+2・単価+¥80）`, 'gold');
     } else {
-      // 大当たり
       const _bonus = fx.launchBento === 'reservation' ? 5 : 3;
       G.stores[0].newCustomers = (G.stores[0].newCustomers||0) + _bonus;
       G.stores[0].regulars = (G.stores[0].regulars||0) + 1;
       G.stores[0].customers = (G.stores[0].newCustomers||0) + (G.stores[0].regulars||0);
       G.stores[0].unitPrice = (G.stores[0].unitPrice||700) + 150;
       G.stores[0].monthlyBonus = (G.stores[0].monthlyBonus||0) + 15000;
-      addStory(`「${_name}」が大当たり！近隣の会社員から注文が相次ぎ、昼の「完売」が続くようになった。客単価も上昇。`, 'highlight');
-      notify(`🍱 ${_name} 大ヒット！客数+${_bonus}・常連+1・単価+¥150`, 'gold');
+      addStory(`「${_name}」の試作が好評！3日後の販売開始を前に、近隣の会社員から問い合わせが届き始めた。`, 'highlight');
+      notify(`🍱 ${_name} 話題沸騰！3日後開始・客数+${_bonus}・常連+1・単価+¥150`, 'gold');
     }
+    addHistory('🍱', `「${_name}」準備中（3日後に販売開始）`);
+  }
+  if(fx.pendingMenuId){
+    const _pCat = MENU_CATALOG[fx.pendingMenuId];
+    if(_pCat){
+      G.pendingMenuLaunches = G.pendingMenuLaunches || [];
+      const _tdPm = (G.year-1)*360 + (G.month-1)*30 + G.day;
+      if(!G.pendingMenuLaunches.some(p => p.id === fx.pendingMenuId) && !(G.launchedMenus||[]).some(m => m.id === fx.pendingMenuId && !m._expired)){
+        G.pendingMenuLaunches.push({ id:fx.pendingMenuId, name:_pCat.name, type:_pCat.type, icon:_pCat.icon, seasonal:_pCat.seasonal, seasonDays:_pCat.seasonDays||0, launchDay:_tdPm+3, sourceEvent:event.id });
+        notify(`📋 「${_pCat.name}」の準備中です（3日後に販売開始）`, 'gold');
+      }
+    }
+  }
+  if(fx._standaloneMenu){
+    const _sm = (G.launchedMenus||[]).find(m => m.id === fx._standaloneMenu);
+    if(_sm){ _sm.seasonal = false; _sm._expired = false; _sm.seasonDays = 0;
+      const _ss = G.stores[0];
+      if(_ss && !_ss.menu.includes(_sm.name)) _ss.menu.push(_sm.name);
+      notify(`⭐ 「${_sm.name}」が定番メニューになりました！`, 'gold');
+    }
+  }
+  if(fx._seasonalReset){
+    const _sr = (G.launchedMenus||[]).find(m => m.id === fx._seasonalReset);
+    if(_sr){ _sr._pendingReset = true; }
   }
   if(fx.unlockExpansion){ G.expansionUnlocked = true; notify('新目標が解放されました：空き家取得へ挑戦！','gold'); }
   if(fx.staffSat && G.staff.length > 0){
@@ -9245,9 +9340,26 @@ function renderStore(){
 
     <div class="card">
       <div class="card-ttl">🍽️ イートインメニュー</div>
-      ${s.menu && s.menu.length > 0
-        ? `<div class="menu-tags">${s.menu.map(m=>`<span class="menu-tag">✓ ${m}</span>`).join('')}</div>`
-        : `<div style="font-size:12px;color:var(--muted);padding:4px 0">まだメニューがありません。下のボタンから追加してください。</div>`}
+      ${(()=>{
+        const _tdR = (G.year-1)*360 + (G.month-1)*30 + G.day;
+        const _pendEat = (G.pendingMenuLaunches||[]).filter(p => p.type === 'eatIn');
+        const _launchedEat = (G.launchedMenus||[]).filter(m => m.type === 'eatIn' && m.seasonal && !m._expired);
+        const _hasCurrent = s.menu && s.menu.length > 0;
+        if(!_hasCurrent && _pendEat.length === 0){
+          return `<div style="font-size:12px;color:var(--muted);padding:4px 0">まだメニューがありません。下のボタンから追加してください。</div>`;
+        }
+        const _regularTags = (s.menu||[]).map(m => {
+          const _lm = _launchedEat.find(lm => lm.name === m);
+          const _daysLeft = _lm ? ((_lm.launchedDay||0) + (_lm.seasonDays||90) - _tdR) : null;
+          const _suffix = _daysLeft !== null ? `<span style="font-size:8px;opacity:.6;margin-left:3px">（残${_daysLeft}日）</span>` : '';
+          return `<span class="menu-tag">✓ ${m}${_suffix}</span>`;
+        }).join('');
+        const _pendTags = _pendEat.map(p => {
+          const _daysToLaunch = Math.max(0, p.launchDay - _tdR);
+          return `<span class="menu-tag" style="opacity:.65;border-style:dashed;color:var(--muted)">🕐 ${p.name}（${_daysToLaunch}日後に開始）</span>`;
+        }).join('');
+        return `<div class="menu-tags">${_regularTags}${_pendTags}</div>`;
+      })()}
     </div>
     ${(()=>{
       if(!s.isOpen){
