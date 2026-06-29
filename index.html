@@ -2999,14 +2999,13 @@ function _renderStoreScene(s){
   }
 
   // レジのスタッフ（右下固定・ラベル付き）
-  const staffName = hasMidori ? 'みどり' : 'スタッフ';
-  const registerHtml = staffIcon
-    ? '<div style="position:absolute;bottom:23px;right:8px;text-align:center;line-height:1">'
-      + '<span style="font-size:18px">' + staffIcon + '</span>'
-      + '<div style="font-size:8px;color:rgba(255,255,255,.75);margin-top:1px">' + staffName + '</div>'
-      + '</div>'
-      + '<div style="position:absolute;bottom:23px;right:34px;font-size:9px;opacity:.5">🧾</div>'
-    : '';
+  const staffName = hasMidori ? 'みどり' : ((s.staffCount||0)>0 ? 'スタッフ' : 'オーナー');
+  const displayIcon = staffIcon || '🧑‍💼';
+  const registerHtml = '<div style="position:absolute;bottom:23px;right:8px;text-align:center;line-height:1">'
+    + '<span style="font-size:18px">' + displayIcon + '</span>'
+    + '<div style="font-size:8px;color:rgba(255,255,255,.75);margin-top:1px">' + staffName + '</div>'
+    + '</div>'
+    + '<div style="position:absolute;bottom:23px;right:34px;font-size:9px;opacity:.5">🧾</div>';
 
   // 床・入口
   const floorHtml = '<div style="position:absolute;bottom:0;left:0;right:0;height:22px;background:' + floorCol + ';border-radius:0 0 10px 10px;display:flex;align-items:center;padding:0 8px;gap:4px">'
