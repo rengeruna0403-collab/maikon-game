@@ -521,6 +521,8 @@ let G = {
   launchedMenus: [],       // [{id,name,type,icon,seasonal,seasonDays,launchedDay,_launchedSeason,_launchedYear,sales,_expired}]
   menuArchive: [],         // [{...launchedMenu, _archivedSeason, _archivedYear, _wasStandalone, _relaunchOffered}]
   _menuSeasonProposed: {}, // {'2年目-spring': true} — 同シーズン内の重複提案防止
+  unlockedProducts: ['kuro_maikon', 'ginger_maikon'], // 会話で解放された商品ID一覧
+  unlockedEatInMenus: [],  // 会話で解放されたイートインメニューID一覧
   caseCooldowns: {}, // repeatable案件の再出現クールダウン { id: lastResolvedDay }
   _lastCaseDay: 0, // 前回案件生成日
   discovery: {     // 初回発見フラグ（一度きりのお茶碗マンヒント）
@@ -2862,6 +2864,26 @@ const MENU_CATALOG = {
   seasonal_gift:    { name:'季節の小箱ギフト',   type:'product', icon:'🎁', seasonal:true,  seasonDays:90 },
 };
 
+// ─── 商品カタログ（会話で解放される商品の名前・アイコン・説明） ──────
+const UNLOCKED_PRODUCT_CATALOG = {
+  kuro_maikon:         { name:'黒舞昆',               icon:'🟫', desc:'定番の昆布佃煮。ご飯のお供として長く愛されている' },
+  ginger_maikon:       { name:'粒生姜舞昆',           icon:'🟤', desc:'生姜の風味が効いた定番品。体を温めてくれる' },
+  tamogitake_maikon:   { name:'たもぎ茸舞昆',         icon:'🟩', desc:'昆布×たもぎ茸。健康志向のお客様に人気の主力商品' },
+  mentai_hotate:       { name:'明太風帆立舞昆',       icon:'🐚', desc:'贅沢な帆立×明太の風味。贈り物にも人気' },
+  sansho_maikon:       { name:'山椒舞昆',             icon:'🌿', desc:'爽やかな山椒の香りが後を引く個性派' },
+  shiitake_maikon:     { name:'椎茸舞昆',             icon:'🍄', desc:'椎茸の旨みが凝縮。お茶漬けにも相性抜群' },
+  matsutake_maikon:    { name:'松茸舞昆',             icon:'🎋', desc:'贈答用として特に人気。季節限定の高級品' },
+  wasabi_maikon:       { name:'極旨わさび舞昆',       icon:'🌱', desc:'わさびのツンとした辛みがクセになる' },
+  karakuchi_maikon:    { name:'やみつき旨辛舞昆',     icon:'🌶', desc:'旨みと辛みのバランスが絶妙' },
+  shiro_maikon:        { name:'白白舞昆',             icon:'⬜', desc:'素材の色を活かした珍しい白い舞昆' },
+  chirimen_sansho:     { name:'ちりめん山椒',         icon:'🐟', desc:'ちりめんじゃこ×山椒の王道惣菜' },
+  tororo_konbu:        { name:'とろろ昆布',           icon:'💚', desc:'出汁にも料理にも使えるとろろ昆布' },
+  dashi_pack:          { name:'だしパック',           icon:'📦', desc:'プロの味を家庭で。昆布×かつお節のだし' },
+  dashi_shoyu:         { name:'だし醤油',             icon:'🍶', desc:'使い勝手のよい万能だし醤油' },
+  tamogitake_onigiri:  { name:'たもぎ茸舞昆おにぎり', icon:'🍙', desc:'イートインの看板メニュー。ご飯との相性抜群' },
+  tamogitake_set:      { name:'たもぎ茸舞昆定食',     icon:'🍱', desc:'たもぎ茸舞昆＋みそ汁のセット' },
+};
+
 // ─── お茶碗マン提案システム ────────────────────────────────
 const _OCHAWAN_DAILY = [
   '高橋さん、最近忙しそうですね。',
@@ -4220,6 +4242,55 @@ const CASE_POOL = [
     ],
     choices:[
       {label:'「お子さんによろしく伝えてください」と笑顔で返す',cost:0,effects:{score:8,communityBond:5,storeSat:4,profile:{people:3}},label2:'絆+',storyTag:'山本さんの子どもたちの様子を聞いた。舞昆が家族の記憶になっていた。'},
+    ]},
+
+  // ─── 商品解放イベント ──────────────────────────────────────
+
+  { id:'unlock_tamogitake_maikon', conditionOnly:true, repeatable:false,
+    domain:'store', sender:'お茶碗マン', icon:'🍵', apCost:0, expireDays:30, category:'mgmt',
+    title:'「たもぎ茸舞昆」をご存知ですか？',
+    body:'お茶碗マンが店内の商品棚を見ながら話しかけてきました。\n\n「オーナー、少しお店にも慣れてきましたね。\n今日は、このお店でぜひ知ってほしい商品を紹介します。\n\n『たもぎ茸舞昆』です。\n\nご飯にのせても、おにぎりにしても相性がよくて、\n健康を気にされるお客様にも手に取っていただきやすい商品なんです。\n\nまずは試食に出して、反応を見てみませんか？」',
+    choices:[
+      { label:'看板商品として前面に出す', cost:0, ap:5,
+        effects:{ score:12, storeBrand:3, customerLoyalty:2,
+                  unlockProduct:'tamogitake_maikon', unlockEatIn:'tamogitake_onigiri' },
+        label2:'たもぎ茸舞昆が商品コーナーに加わります・AP-5',
+        storyTag:'「たもぎ茸舞昆」を看板商品として前面に出すことにした。' },
+      { label:'まず試食で反応を見る', cost:0, ap:3,
+        effects:{ score:6, storeBrand:1, tamogitakeTastingPending:true },
+        label2:'3日後に試食結果イベントが来ます',
+        storyTag:'「たもぎ茸舞昆」を試食に出してみることにした。反応を見てから決める。' },
+      { label:'今は定番商品を優先する', cost:0,
+        effects:{ score:2, tamogitakeRetryPending:true },
+        label2:'30日後に再提案が来ます',
+        storyTag:'まだ時期ではないと判断した。定番を固めてからにしよう。' },
+    ]},
+
+  { id:'follow_tamogitake_tasting', conditionOnly:true, repeatable:false,
+    domain:'store', sender:'お茶碗マン', icon:'🍵', apCost:0, expireDays:14, category:'mgmt',
+    title:'試食の反応が出ました',
+    body:'試食に出したたもぎ茸舞昆に、お客様から反応がありました。\n\n「これ、ご飯にすごく合いますね。\nいつもの舞昆とまた違って、食べやすいです」\n\nお茶碗マンがうれしそうに言いました。\n\n「オーナー、これはお店の看板に育つかもしれませんね」',
+    choices:[
+      { label:'正式に販売を始める！', cost:0,
+        effects:{ score:10, storeBrand:2, customerLoyalty:3,
+                  unlockProduct:'tamogitake_maikon', unlockEatIn:'tamogitake_onigiri' },
+        label2:'たもぎ茸舞昆が販売開始！',
+        storyTag:'試食の好評を受けて、たもぎ茸舞昆の正式販売を始めた。' },
+    ]},
+
+  { id:'unlock_tamogitake_retry', conditionOnly:true, repeatable:false,
+    domain:'store', sender:'お茶碗マン', icon:'🍵', apCost:0, expireDays:30, category:'mgmt',
+    title:'「そろそろたもぎ茸舞昆を始めませんか？」',
+    body:'お茶碗マンが笑顔で話しかけてきました。\n\n「以前お話した「たもぎ茸舞昆」——\n\nあれから少し経ちましたね。\nお店も少し落ち着いてきたと思います。\n\nそろそろ、いかがですか？」',
+    choices:[
+      { label:'看板商品として前面に出す', cost:0, ap:5,
+        effects:{ score:12, storeBrand:3, customerLoyalty:2,
+                  unlockProduct:'tamogitake_maikon', unlockEatIn:'tamogitake_onigiri' },
+        label2:'たもぎ茸舞昆が商品コーナーに加わります',
+        storyTag:'ついに「たもぎ茸舞昆」を看板商品として前面に出すことにした。' },
+      { label:'やはり今回も見送る', cost:0,
+        effects:{ score:0 },
+        label2:'—', storyTag:'また見送ることにした。' },
     ]},
 ];
 
@@ -6175,6 +6246,28 @@ function generateConditionCases(){
     addCase(CASE_POOL.find(c => c.id === 'narita_diagnosis'));
   }
 
+  // ── たもぎ茸舞昆 商品解放イベント ──────────────────────────
+  const _hasTamogi = (G.unlockedProducts||[]).includes('tamogitake_maikon');
+  const _s0Open = G.stores[0] && G.stores[0].isOpen;
+  // メイン（7日目以降・開店済み・未解放）
+  if(_s0Open && !_hasTamogi && totalDays >= 7
+     && !G.cases.some(c => c.id === 'unlock_tamogitake_maikon')){
+    const _tb = DOMAIN_CASES.find(c => c.id === 'unlock_tamogitake_maikon');
+    if(_tb) addCase(_tb);
+  }
+  // 試食フォロー（B選択3日後）
+  if(!_hasTamogi && G._tamogitakeTastingDay && totalDays >= G._tamogitakeTastingDay
+     && !G.cases.some(c => c.id === 'follow_tamogitake_tasting')){
+    const _tf = DOMAIN_CASES.find(c => c.id === 'follow_tamogitake_tasting');
+    if(_tf) addCase(_tf);
+  }
+  // 再提案（C選択30日後）
+  if(!_hasTamogi && G._tamogitakeRetryDay && totalDays >= G._tamogitakeRetryDay
+     && !G.cases.some(c => c.id === 'unlock_tamogitake_retry')){
+    const _tr = DOMAIN_CASES.find(c => c.id === 'unlock_tamogitake_retry');
+    if(_tr) addCase(_tr);
+  }
+
   // ── メニュー寿命チェック（3ヶ月同じメニューで案件発生）──
   if(s0.isOpen && s0.menu && s0.menu.length > 0 && s0.menuAddedMonth && _canProposeNewMenu()){
     const currentTotalMonth = (G.year-1)*12 + (G.month-1);
@@ -7854,6 +7947,40 @@ function chooseEvent(idx, useFatigue){
     }
     addHistory('🍱', `「${_name}」準備中（3日後に販売開始）`);
   }
+  if(fx.unlockProduct){
+    G.unlockedProducts = G.unlockedProducts || [];
+    if(!G.unlockedProducts.includes(fx.unlockProduct)){
+      G.unlockedProducts.push(fx.unlockProduct);
+      const _pc = UNLOCKED_PRODUCT_CATALOG[fx.unlockProduct];
+      const _pName = _pc ? _pc.name : fx.unlockProduct;
+      notify(`🛍 「${_pName}」が商品コーナーに加わりました！`, 'gold');
+      addHistory('🛍', `${_pName} 販売開始`);
+      addStory(`「${_pName}」が店の商品コーナーに並んだ。`, 'highlight');
+    }
+  }
+  if(fx.unlockEatIn){
+    G.unlockedEatInMenus = G.unlockedEatInMenus || [];
+    if(!G.unlockedEatInMenus.includes(fx.unlockEatIn)){
+      G.unlockedEatInMenus.push(fx.unlockEatIn);
+      const _ec = UNLOCKED_PRODUCT_CATALOG[fx.unlockEatIn];
+      const _eName = _ec ? _ec.name : fx.unlockEatIn;
+      const _sE = G.stores[0];
+      if(_sE && !(_sE.menu||[]).includes(_eName)){
+        _sE.menu = _sE.menu || [];
+        _sE.menu.push(_eName);
+      }
+    }
+  }
+  if(fx.tamogitakeTastingPending){
+    const _tdT = (G.year-1)*360 + (G.month-1)*30 + G.day;
+    G._tamogitakeTastingDay = _tdT + 3;
+    notify('🍙 試食の結果は3日後にわかります', 'info');
+  }
+  if(fx.tamogitakeRetryPending){
+    const _tdR2 = (G.year-1)*360 + (G.month-1)*30 + G.day;
+    G._tamogitakeRetryDay = _tdR2 + 30;
+    notify('📋 たもぎ茸舞昆の提案は30日後に再検討できます', 'info');
+  }
   if(fx.pendingMenuId){
     const _pCat = MENU_CATALOG[fx.pendingMenuId];
     if(_pCat){
@@ -9517,7 +9644,48 @@ function renderStore(){
         { name:'季節限定セット', icon:'🌸', desc:'お中元・お歳暮など挨拶品', gift:true, giftMin:1 },
         { name:'頒布会（だし・サプリ）', icon:'📬', desc:'定期便・リピーター向け', gift:true, giftMin:2 },
       ];
-      const giftLevel = s.giftLevel || 0; // 0=未展開, 1=基本, 2=強化
+      const giftLevel = s.giftLevel || 0;
+      const _uProds = (G.unlockedProducts || []);
+      const _uEats  = (G.unlockedEatInMenus || []);
+      // 解放済み舞昆ラインナップ（会話で解放された商品）
+      const _prodListHtml = _uProds.length > 0 ? `
+        <div style="background:var(--bg2);border-radius:10px;padding:10px 12px;margin-bottom:10px">
+          <div style="font-size:10px;font-weight:700;color:var(--muted);margin-bottom:8px">舞昆ラインナップ</div>
+          <div style="display:flex;flex-direction:column;gap:6px">
+            ${_uProds.map(pid => {
+              const _c = UNLOCKED_PRODUCT_CATALOG[pid] || { name:pid, icon:'🟫', desc:'' };
+              return `<div style="display:flex;align-items:center;gap:10px">
+                <span style="font-size:18px">${_c.icon}</span>
+                <div style="flex:1">
+                  <div style="font-size:13px;font-weight:600">${_c.name}</div>
+                  <div style="font-size:10px;color:var(--muted)">${_c.desc}</div>
+                </div>
+                <span style="font-size:11px;color:var(--gr);font-weight:700">販売中</span>
+              </div>`;
+            }).join('')}
+          </div>
+        </div>` : `
+        <div style="background:var(--bg2);border-radius:10px;padding:10px 12px;margin-bottom:10px;text-align:center">
+          <div style="font-size:12px;color:var(--muted)">会話の中で商品を知っていきましょう</div>
+        </div>`;
+      // 解放済みイートインメニュー（会話で解放）
+      const _eatListHtml = _uEats.length > 0 ? `
+        <div style="background:var(--bg2);border-radius:10px;padding:10px 12px;margin-bottom:10px">
+          <div style="font-size:10px;font-weight:700;color:var(--muted);margin-bottom:8px">イートイン看板メニュー</div>
+          <div style="display:flex;flex-direction:column;gap:6px">
+            ${_uEats.map(eid => {
+              const _c = UNLOCKED_PRODUCT_CATALOG[eid] || { name:eid, icon:'🍽', desc:'' };
+              return `<div style="display:flex;align-items:center;gap:10px">
+                <span style="font-size:18px">${_c.icon}</span>
+                <div style="flex:1">
+                  <div style="font-size:13px;font-weight:600">${_c.name}</div>
+                  <div style="font-size:10px;color:var(--muted)">${_c.desc}</div>
+                </div>
+                <span style="font-size:11px;color:var(--gr);font-weight:700">提供中</span>
+              </div>`;
+            }).join('')}
+          </div>
+        </div>` : '';
       return `<div class="card">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
           <div class="card-ttl" style="margin-bottom:0">🛍 商品コーナー</div>
@@ -9525,6 +9693,9 @@ function renderStore(){
             giftLevel===1?`<span class="badge badge-g" style="font-size:10px">ギフト展開中</span>`:
             `<span class="badge badge-g" style="font-size:10px">✨ ギフト強化済み</span>`}
         </div>
+        ${_prodListHtml}
+        ${_eatListHtml}
+        <div style="font-size:10px;font-weight:700;color:var(--muted);margin-bottom:6px">パッケージ・ギフト</div>
         <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:12px">
           ${PRODUCT_LINEUP.map(p => {
             const unlocked = !p.gift || giftLevel >= (p.giftMin || 1);
