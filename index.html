@@ -3076,24 +3076,56 @@ function _renderStoreScene(s){
 
   // ── 商品棚（左列・Lv連動） ─────────────────────────────
   // Lv1:2品 Lv2:4品 Lv3:5品(POP追加) Lv4:5品(限定POP) Lv5:5品(贈答)
-  const shelfDefsAll = [
-    {icon:'🟫', label:'舞昆',    minLv:1},
-    {icon:'🟩', label:'たもぎ茸', minLv:1},
-    {icon:'🎁', label:'ギフト',  minLv:2},
-    {icon:'🍙', label:'おにぎり', minLv:2},
-    {icon: lv >= 5 ? '🎀' : lv >= 4 ? '🌟' : '📝',
-     label: lv >= 5 ? '贈答品' : lv >= 4 ? '限定' : 'POP', minLv:3},
+  // ── 商品棚（実商品ラインナップ・Lv連動） ──────────────────
+  // 全商品定義（cat: 定番/個性/ギフト/関連/贈答）
+  const _SHELF_ALL = [
+    // 定番舞昆（Lv1〜）
+    {icon:'🟫', label:'黒舞昆',   minLv:1, cat:'定番'},
+    {icon:'🟤', label:'生姜舞昆', minLv:1, cat:'定番'},
+    {icon:'🟩', label:'たもぎ茸', minLv:1, cat:'定番'},
+    // 個性派・季節（Lv2〜）
+    {icon:'🐚', label:'帆立明太', minLv:2, cat:'個性'},
+    {icon:'🌿', label:'山椒',     minLv:2, cat:'個性'},
+    {icon:'🍄', label:'椎茸',     minLv:2, cat:'個性'},
+    // ギフト棚（Lv3〜）
+    {icon:'🎋', label:'松茸',     minLv:3, cat:'ギフト'},
+    {icon:'⬜', label:'白白',     minLv:3, cat:'ギフト'},
+    {icon:'🌶', label:'旨辛',     minLv:3, cat:'ギフト'},
+    // 関連商品（Lv4〜）
+    {icon:'🐟', label:'ちりめん', minLv:4, cat:'関連'},
+    {icon:'💚', label:'とろろ昆布',minLv:4, cat:'関連'},
+    {icon:'📦', label:'だし',     minLv:4, cat:'関連'},
+    // 贈答品棚（Lv5〜）
+    {icon:'🎀', label:'法人ギフト',minLv:5, cat:'贈答'},
   ];
-  const activeShelf = shelfDefsAll.filter(d => lv >= d.minLv);
-  const shelfGap = activeShelf.length >= 5 ? '1px' : '2px';
-  const shelfFontSz = activeShelf.length >= 5 ? '10px' : '11px';
-  let shelfHtml = '<div style="position:absolute;top:16px;left:6px;display:flex;flex-direction:column;gap:' + shelfGap + '">';
-  activeShelf.forEach(item => {
-    shelfHtml += '<div style="font-size:' + shelfFontSz + ';white-space:nowrap">'
+  const _allActive = _SHELF_ALL.filter(d => lv >= d.minLv);
+
+  // 表示品数はスペースに合わせ4品固定、溢れは件数バッジで表現
+  const _MAX_SHOW = 4;
+  const _visibleShelf = _allActive.slice(0, _MAX_SHOW);
+  const _overflowCount = Math.max(0, _allActive.length - _MAX_SHOW);
+
+  // カテゴリ別に解放された追加棚の種別を調べる
+  const _hasGiftShelf = lv >= 3;
+  const _hasRelated   = lv >= 4;
+  const _hasPremium   = lv >= 5;
+  const _newCat = _hasPremium ? '贈答品棚' : _hasRelated ? '関連商品' : _hasGiftShelf ? 'ギフト棚' : '';
+
+  let shelfHtml = '<div style="position:absolute;top:16px;left:6px;display:flex;flex-direction:column;gap:2px">';
+  _visibleShelf.forEach(item => {
+    shelfHtml += '<div style="font-size:11px;white-space:nowrap">'
       + item.icon
-      + '<span style="font-size:8px;opacity:.65;margin-left:2px">' + item.label + '</span>'
+      + '<span style="font-size:8px;opacity:.7;margin-left:2px">' + item.label + '</span>'
       + '</div>';
   });
+  // 溢れバッジ（+N品）
+  if(_overflowCount > 0){
+    shelfHtml += '<div style="font-size:8px;color:rgba(255,255,255,.6);margin-top:1px">+'+ _overflowCount +'品</div>';
+  }
+  // 解放済みカテゴリ区切りラベル
+  if(_newCat){
+    shelfHtml += '<div style="font-size:7px;background:rgba(255,255,255,.18);border-radius:4px;padding:1px 3px;margin-top:1px;white-space:nowrap;color:rgba(255,255,255,.8)">' + _newCat + '</div>';
+  }
   shelfHtml += '</div>';
   shelfHtml += '<div style="position:absolute;top:16px;bottom:22px;left:68px;width:1px;background:' + shelfLineCol + '"></div>';
 
