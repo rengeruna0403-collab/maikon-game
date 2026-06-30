@@ -518,7 +518,9 @@ let G = {
   lastChallengeResult: null, // 月末判定結果
   cases: [], // 案件ボックス
   pendingMenuLaunches: [], // [{id,name,type,icon,seasonal,seasonDays,launchDay,sourceEvent}]
-  launchedMenus: [],       // [{id,name,type,icon,seasonal,seasonDays,launchedDay,sales,_expired}]
+  launchedMenus: [],       // [{id,name,type,icon,seasonal,seasonDays,launchedDay,_launchedSeason,_launchedYear,sales,_expired}]
+  menuArchive: [],         // [{...launchedMenu, _archivedSeason, _archivedYear, _wasStandalone, _relaunchOffered}]
+  _menuSeasonProposed: {}, // {'2年目-spring': true} — 同シーズン内の重複提案防止
   caseCooldowns: {}, // repeatable案件の再出現クールダウン { id: lastResolvedDay }
   _lastCaseDay: 0, // 前回案件生成日
   discovery: {     // 初回発見フラグ（一度きりのお茶碗マンヒント）
@@ -1778,6 +1780,26 @@ function startGame(){
 }
 
 // ─────────── DAILY TICK ───────────
+function _canProposeNewMenu(){
+  if(!G.started) return false;
+  const lv = (G.stores[0] && G.stores[0].level) || 1;
+  if(lv <= 1) return false; // Lv1は提案なし
+  // 未反映のpendingがあれば提案しない
+  if((G.pendingMenuLaunches || []).length > 0) return false;
+  // 季節限定が2品以上稼働中なら提案しない
+  const activeSeasonals = (G.launchedMenus || []).filter(m => m.seasonal && !m._expired);
+  if(activeSeasonals.length >= 2) return false;
+  // 同シーズン内で既に提案済みなら出さない
+  const seasonKey = G.year + '年-' + getSeason();
+  if(G._menuSeasonProposed && G._menuSeasonProposed[seasonKey]) return false;
+  return true;
+}
+
+function _markMenuSeasonProposed(){
+  G._menuSeasonProposed = G._menuSeasonProposed || {};
+  G._menuSeasonProposed[G.year + '年-' + getSeason()] = true;
+}
+
 function _processPendingMenuLaunches(){
   G.pendingMenuLaunches = G.pendingMenuLaunches || [];
   if(G.pendingMenuLaunches.length === 0) return;
@@ -1788,15 +1810,39 @@ function _processPendingMenuLaunches(){
   G.launchedMenus = G.launchedMenus || [];
   const _s = G.stores[0];
   _due.forEach(p => {
+    // 重複防止（同id・有効中）
     if(G.launchedMenus.some(m => m.id === p.id && !m._expired)) return;
-    G.launchedMenus.push({ id:p.id, name:p.name, type:p.type, icon:p.icon||'🍽', seasonal:p.seasonal, seasonDays:p.seasonDays||0, launchedDay:_td, sales:0 });
+
+    // 上限チェック
+    const _activeEatIn = (_s.menu || []).length;
+    const _activeSeasonals = G.launchedMenus.filter(m => m.seasonal && !m._expired).length;
+    const _activeProducts = G.launchedMenus.filter(m => m.type === 'product' && !m._expired).length;
+    if(p.type === 'eatIn' && !p.seasonal && _activeEatIn >= 5){
+      notify(`⚠️ イートインメニューが上限（5品）に達しているため「${p.name}」は追加できません`, 'warn');
+      return;
+    }
+    if(p.seasonal && _activeSeasonals >= 2){
+      notify(`⚠️ 季節限定メニューが上限（2品）に達しているため「${p.name}」は追加できません`, 'warn');
+      return;
+    }
+    if(p.type === 'product' && _activeProducts >= 6){
+      notify(`⚠️ 商品コーナーが上限（6品）に達しているため「${p.name}」は追加できません`, 'warn');
+      return;
+    }
+
+    G.launchedMenus.push({
+      id:p.id, name:p.name, type:p.type, icon:p.icon||'🍽',
+      seasonal:p.seasonal, seasonDays:p.seasonDays||0,
+      launchedDay:_td, _launchedSeason:getSeason(), _launchedYear:G.year,
+      sales:0
+    });
     if(p.type === 'eatIn' && _s && !(_s.menu||[]).includes(p.name)){
       _s.menu = _s.menu || [];
       _s.menu.push(p.name);
     }
-    notify(`🎉 「${p.name}」の販売が始まりました！`, 'gold');
+    notify(`🎉 先日考案した「${p.name}」の販売が始まりました！`, 'gold');
     addHistory(p.icon||'🍽', `「${p.name}」販売開始`);
-    addStory(`「${p.name}」がメニューに加わった。`, 'highlight');
+    addStory(`先日考案していた「${p.name}」がいよいよ販売開始した。`, 'highlight');
   });
 }
 
@@ -4758,7 +4804,7 @@ const DOMAIN_CASES = [
        label2:'安定収益・会社員需要取り込み', storyTag:'予約販売を始めた。近隣の会社員から注文が入るようになった。'},
     ]},
 
-  { id:'menu_feedback', repeatable:true, domain:'store', sender:'常連客', icon:'☕', apCost:10, expireDays:14, category:'mgmt',
+  { id:'menu_feedback', repeatable:true, menuProposal:true, domain:'store', sender:'常連客', icon:'☕', apCost:10, expireDays:14, category:'mgmt',
     title:'メニューへのご意見',
     body:'常連の田中さんから意見をいただきました。\n\n「最近同じメニューが多い気がします。\n季節のメニューがあると嬉しいのですが」',
     choices:[
@@ -6000,6 +6046,7 @@ function generateWeeklyCases(){
         if(totalDaysNow - G.caseCooldowns[c.id] < 30) return false;
       }
       if(c.requireVacancy && !_hasVacancy) return false;
+      if(c.menuProposal && !_canProposeNewMenu()) return false;
       return true;
     });
     if(avail.length > 0) domainPick.push(avail[Math.floor(Math.random() * avail.length)]);
@@ -6097,15 +6144,16 @@ function generateConditionCases(){
   }
 
   // ── メニュー寿命チェック（3ヶ月同じメニューで案件発生）──
-  if(s0.isOpen && s0.menu && s0.menu.length > 0 && s0.menuAddedMonth){
+  if(s0.isOpen && s0.menu && s0.menu.length > 0 && s0.menuAddedMonth && _canProposeNewMenu()){
     const currentTotalMonth = (G.year-1)*12 + (G.month-1);
     const staleMenus = s0.menu.filter(m => {
       const added = s0.menuAddedMonth[m];
       return added !== undefined && currentTotalMonth - added >= 3;
     });
     if(staleMenus.length > 0 && !G.cases.some(c => c.id === 'menu_refresh' && !c.resolved)){
+      _markMenuSeasonProposed();
       addCase({
-        id:'menu_refresh', repeatable:false, domain:'store', sender:'常連客', icon:'🍽️',
+        id:'menu_refresh', repeatable:false, menuProposal:true, domain:'store', sender:'常連客', icon:'🍽️',
         apCost:15, expireDays:21, category:'strategy',
         title:'「最近ずっと同じメニューですね」',
         body:`常連の方が少し遠慮がちに言いました。\n\n「${staleMenus[0]}、美味しいんですけど——\nそろそろ新しいものも食べてみたくて。\n\n近所にランチの選択肢が増えてきましたし……」`,
@@ -6550,35 +6598,80 @@ function generateConditionCases(){
 
   // ── 季節メニュー期限チェック ──────────────────────────────
   G.launchedMenus = G.launchedMenus || [];
+  G.menuArchive   = G.menuArchive   || [];
+  const _expiredNow = [];
   G.launchedMenus.forEach(m => {
     if(!m.seasonal || m._expired) return;
     const _daysActive = totalDays - (m.launchedDay || 0);
     if(_daysActive < (m.seasonDays || 90)) return;
     m._expired = true;
+    _expiredNow.push(m);
     const _ss = G.stores[0];
     if(_ss && _ss.menu) _ss.menu = _ss.menu.filter(n => n !== m.name);
-    notify(`🍂 「${m.name}」の季節販売が終了しました`, 'warn');
-    addStory(`「${m.name}」の季節販売が終了した。`, 'normal');
+    notify(`🍂 季節限定「${m.name}」は今季の販売を終了しました`, 'warn');
+    addStory(`季節限定「${m.name}」が今季の販売を終えた。`, 'normal');
+  });
+
+  // 期限切れメニューをアーカイブへ移動
+  _expiredNow.forEach(m => {
+    if(!G.menuArchive.some(a => a.id === m.id && a._archivedYear === G.year)){
+      G.menuArchive.push({
+        ...m,
+        _archivedSeason: m._launchedSeason || getSeason(),
+        _archivedYear: G.year,
+        _wasStandalone: false,
+        _relaunchOffered: false,
+      });
+    }
+  });
+  G.launchedMenus = G.launchedMenus.filter(m => !m._expired);
+
+  // 期限切れ後は定番化案件を発火
+  _expiredNow.forEach(m => {
     const _standaloneId = 'seasonal_standup_' + m.id;
     if(!G.cases.some(c => c.id === _standaloneId)){
       addCase({
         id: _standaloneId, conditionOnly:true, repeatable:false,
         domain:'store', sender:'常連客', icon:'⭐', apCost:5, expireDays:30, category:'strategy',
         title: `「${m.name}」を定番にしませんか？`,
-        body: `季節限定で販売した「${m.name}」が好評でした。\n\n「また食べたい」という声をよくいただきます。\n定番メニューとして継続しますか？`,
+        body: `今季の販売が終了した「${m.name}」が好評でした。\n\n「また食べたい」「来季も出して」という声が届いています。\n定番メニューとして継続しますか？`,
         choices: [
           { label:'定番メニューとして継続する（¥30,000）', cost:30000, ap:5,
             effects:{ score:15, storeSat:8, custRegular:2, _standaloneMenu:m.id },
             label2:'常連+2・満足+8', storyTag:`「${m.name}」を定番化した。常連客が喜んでいる。` },
-          { label:'来シーズンも限定で販売する', cost:0,
-            effects:{ score:8, _seasonalReset:m.id },
-            label2:'話題性を維持', storyTag:`「${m.name}」は来シーズンの限定品として温存することにした。` },
+          { label:'来シーズンも限定で出す', cost:0,
+            effects:{ score:8 },
+            label2:'話題性を維持・来季に再販候補へ', storyTag:`「${m.name}」は来シーズンの限定品として温存することにした。` },
           { label:'販売を終了する', cost:0,
-            effects:{ score:2 },
-            label2:'新メニューの機会に', storyTag:`「${m.name}」の販売を終了した。` },
+            effects:{ score:2, _archiveMenu:m.id },
+            label2:'新メニューの機会に', storyTag:`「${m.name}」の販売を終了した。新しいメニューのために席を空けた。` },
         ],
       });
     }
+  });
+
+  // ── 再販候補チェック（昨年同シーズンのアーカイブメニュー） ──────
+  const _curSeason = getSeason();
+  G.menuArchive.forEach(a => {
+    if(a._wasStandalone || a._relaunchOffered) return;
+    if(a._archivedSeason !== _curSeason) return;
+    if(a._archivedYear >= G.year) return; // 今年のものは除外
+    if(G.cases.some(c => c.id === 'menu_relaunch_' + a.id && !c.resolved)) return;
+    a._relaunchOffered = true;
+    addCase({
+      id: 'menu_relaunch_' + a.id, conditionOnly:true, repeatable:false,
+      domain:'store', sender:'常連客', icon:'🔄', apCost:5, expireDays:30, category:'strategy',
+      title: `「${a.name}」、今年も出しますか？`,
+      body: `昨年${_curSeason === 'spring' ? '春' : _curSeason === 'summer' ? '夏' : _curSeason === 'autumn' ? '秋' : '冬'}に好評だった「${a.name}」。\n\n常連のお客様から「今年も食べられますか？」と聞かれました。\n\n今年も季節限定で販売しますか？`,
+      choices: [
+        { label:'今年も季節限定で販売する', cost:10000, ap:5,
+          effects:{ score:12, storeSat:6, custRegular:1, _relaunchMenu:a.id },
+          label2:'常連+1・満足+6・3日後に販売開始', storyTag:`昨年好評だった「${a.name}」を今年も季節限定で販売することにした。` },
+        { label:'今年は見送る', cost:0,
+          effects:{ score:3 },
+          label2:'来年の楽しみに', storyTag:`「${a.name}」の再販は見送った。また来年の楽しみにする。` },
+      ],
+    });
   });
 }
 
@@ -7734,19 +7827,60 @@ function chooseEvent(idx, useFatigue){
     if(_pCat){
       G.pendingMenuLaunches = G.pendingMenuLaunches || [];
       const _tdPm = (G.year-1)*360 + (G.month-1)*30 + G.day;
-      if(!G.pendingMenuLaunches.some(p => p.id === fx.pendingMenuId) && !(G.launchedMenus||[]).some(m => m.id === fx.pendingMenuId && !m._expired)){
+      const _alreadyPending = G.pendingMenuLaunches.some(p => p.id === fx.pendingMenuId);
+      const _alreadyActive  = (G.launchedMenus||[]).some(m => m.id === fx.pendingMenuId && !m._expired);
+      if(!_alreadyPending && !_alreadyActive){
         G.pendingMenuLaunches.push({ id:fx.pendingMenuId, name:_pCat.name, type:_pCat.type, icon:_pCat.icon, seasonal:_pCat.seasonal, seasonDays:_pCat.seasonDays||0, launchDay:_tdPm+3, sourceEvent:event.id });
         notify(`📋 「${_pCat.name}」の準備中です（3日後に販売開始）`, 'gold');
+        _markMenuSeasonProposed(); // 同シーズン内の重複提案を防止
       }
     }
   }
-  if(fx._standaloneMenu){
-    const _sm = (G.launchedMenus||[]).find(m => m.id === fx._standaloneMenu);
-    if(_sm){ _sm.seasonal = false; _sm._expired = false; _sm.seasonDays = 0;
-      const _ss = G.stores[0];
-      if(_ss && !_ss.menu.includes(_sm.name)) _ss.menu.push(_sm.name);
-      notify(`⭐ 「${_sm.name}」が定番メニューになりました！`, 'gold');
+  if(fx._relaunchMenu){
+    // アーカイブから再有効化
+    const _arc = (G.menuArchive||[]).find(a => a.id === fx._relaunchMenu);
+    if(_arc){
+      G.pendingMenuLaunches = G.pendingMenuLaunches || [];
+      const _tdRl = (G.year-1)*360 + (G.month-1)*30 + G.day;
+      if(!G.pendingMenuLaunches.some(p => p.id === _arc.id)){
+        G.pendingMenuLaunches.push({ id:_arc.id, name:_arc.name, type:_arc.type, icon:_arc.icon, seasonal:true, seasonDays:_arc.seasonDays||90, launchDay:_tdRl+3, sourceEvent:'menu_relaunch' });
+        _arc._relaunchOffered = true;
+        notify(`📋 「${_arc.name}」を今季も販売準備中です（3日後に開始）`, 'gold');
+        _markMenuSeasonProposed();
+      }
     }
+  }
+  if(fx._archiveMenu){
+    // 手動アーカイブ（定番化せず販売終了）
+    const _lm = (G.launchedMenus||[]).find(m => m.id === fx._archiveMenu);
+    if(_lm){
+      _lm._expired = true;
+      const _ss = G.stores[0];
+      if(_ss && _ss.menu) _ss.menu = _ss.menu.filter(n => n !== _lm.name);
+      G.menuArchive = G.menuArchive || [];
+      if(!G.menuArchive.some(a => a.id === _lm.id)){
+        G.menuArchive.push({ ..._lm, _archivedSeason:_lm._launchedSeason||getSeason(), _archivedYear:G.year, _wasStandalone:false, _relaunchOffered:false });
+      }
+      G.launchedMenus = (G.launchedMenus||[]).filter(m => m.id !== _lm.id);
+    }
+  }
+  if(fx._standaloneMenu){
+    // アーカイブ内にあれば再有効化、なければlaunchedMenusを更新
+    const _arcSm = (G.menuArchive||[]).find(a => a.id === fx._standaloneMenu);
+    if(_arcSm){
+      _arcSm._wasStandalone = true; // 再販対象から外す
+      G.launchedMenus = G.launchedMenus || [];
+      if(!G.launchedMenus.some(m => m.id === _arcSm.id)){
+        G.launchedMenus.push({ ..._arcSm, seasonal:false, _expired:false, seasonDays:0 });
+      }
+    } else {
+      const _sm = (G.launchedMenus||[]).find(m => m.id === fx._standaloneMenu);
+      if(_sm){ _sm.seasonal = false; _sm._expired = false; _sm.seasonDays = 0; }
+    }
+    const _smName = (_arcSm || (G.launchedMenus||[]).find(m => m.id === fx._standaloneMenu) || {}).name || '';
+    const _ss = G.stores[0];
+    if(_ss && _smName && !(_ss.menu||[]).includes(_smName)){ _ss.menu = _ss.menu || []; _ss.menu.push(_smName); }
+    if(_smName) notify(`⭐ 「${_smName}」が定番メニューになりました！`, 'gold');
   }
   if(fx._seasonalReset){
     const _sr = (G.launchedMenus||[]).find(m => m.id === fx._seasonalReset);
