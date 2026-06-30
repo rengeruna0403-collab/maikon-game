@@ -3070,8 +3070,13 @@ function _renderStoreScene(s){
   const lv = s.level || 1;
   const unitP = s.unitPrice || 700;
   const ch = G.characters || {};
-  const hasMidori = ch.midori && ch.midori.relation >= 1;
-  const staffIcon = hasMidori ? '👩' : ((s.staffCount||0)>0 ? '🧑' : '');
+  // 実際のG.staff配属データで判定（キャラ好感度ではなく配属状態を参照）
+  const _policy = s.policy || 'owner';
+  const _assignedStaff = (G.staff || []).filter(st => st.store === s.name);
+  const _primaryStaff = _assignedStaff.length > 0 ? _assignedStaff[0] : null;
+  const _showOwner = !_primaryStaff || _policy === 'owner';
+  const _isMidoriAssigned = !_showOwner && _primaryStaff && _primaryStaff.name === '佐々木みどり';
+  const staffIcon = _showOwner ? '🧑‍💼' : (_isMidoriAssigned ? '👩' : (_primaryStaff.emoji || '🧑'));
   const hasCust = (s.customers||0) > 0 && s.menu && s.menu.length > 0;
 
   // ── 季節デコ（中央上部・Lvで大きさ変化） ──────────────
@@ -3206,9 +3211,9 @@ function _renderStoreScene(s){
   }
 
   // ── レジ・スタッフ（右下固定） ────────────────────────
-  const staffName = hasMidori ? 'みどり' : ((s.staffCount||0)>0 ? 'スタッフ' : 'オーナー');
-  const staffTitle = lv >= 5 && hasMidori ? '店長' : staffName;
-  const displayIcon = staffIcon || '🧑‍💼';
+  const staffName = _showOwner ? 'オーナー' : (_isMidoriAssigned ? 'みどり' : (_primaryStaff.name || 'スタッフ'));
+  const staffTitle = lv >= 5 && _isMidoriAssigned ? '店長' : staffName;
+  const displayIcon = staffIcon;
   const registerHtml = '<div style="position:absolute;bottom:23px;right:6px;text-align:center;line-height:1">'
     + '<span style="font-size:18px">' + displayIcon + '</span>'
     + '<div style="font-size:8px;color:rgba(255,255,255,.75);margin-top:1px">' + staffTitle + '</div>'
