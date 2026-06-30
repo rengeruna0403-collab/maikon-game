@@ -9054,7 +9054,7 @@ function openRentModal(bi,ri){
         ? `<button class="choice-btn" onclick="closeActionModal()"><div class="choice-lbl">現状維持</div><div class="choice-eff"></div></button>`
         : r.seeking
           ? `<button class="choice-btn" onclick="closeActionModal()"><div class="choice-lbl">このまま待つ</div><div class="choice-eff">入居者が決まるまで募集継続</div></button>`
-          : `<button class="choice-btn choice-btn-primary" onclick="startRecruiting(${bi},${ri});closeActionModal()"><div class="choice-lbl">📋 この賃料で募集を開始する</div><div class="choice-eff">AP -10 ／ 来月以降に入居者が決まる可能性あり</div></button>`
+          : `<button class="choice-btn choice-btn-primary" onclick="startRecruiting(${bi},${ri});closeActionModal()"><div class="choice-lbl">📋 この賃料で募集を開始する</div><div class="choice-eff">AP -10 ／ 数日〜数週間で入居希望者が現れます</div></button>`
       }
     </div>
   `);
@@ -9064,7 +9064,8 @@ function startRecruiting(bi,ri){
   const r = G.buildings[bi].rooms[ri];
   r.seeking = true;
   addNews(`📋 ${G.buildings[bi].name} ${r.num}号室 入居者募集開始（賃料 ${fmt(r.rent)}/月）`);
-  notify(`${r.num}号室の募集を開始しました`,'gold');
+  notify(`🏠 ${r.num}号室の入居募集を開始しました！`, 'gold');
+  addStory(`🏠 ${G.buildings[bi].name} ${r.num}号室の入居募集を開始しました！\n\n地域の不動産会社や募集サイトへ掲載しました。\n\n条件が合えば、数日〜数週間で入居希望者から連絡が入ります。\n\n信用度・地域評価・家賃設定によって、反応の早さや入居希望者の質が変化します。`, 'highlight');
   if(r.num==='103'){ tutCheckMission('vacancy'); tutCompleteStep('vacancy'); }
   updateHeader(); renderTab();
 }
