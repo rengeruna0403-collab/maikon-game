@@ -1849,11 +1849,16 @@ function _processPendingMenuLaunches(){
 }
 
 function advanceDay(){
-  // モーダルが非表示なのにフラグが残っている場合はリセット（ボタンが止まる現象の防止）
-  if(G.activeEvent && document.getElementById('event-modal')?.style.display === 'none'){
-    G.activeEvent = null;
+  console.log('[advanceDay] start day=' + G.day + ' month=' + G.month + ' year=' + G.year + ' G.activeEvent=' + JSON.stringify(G.activeEvent&&(G.activeEvent.id||G.activeEvent)));
+  // モーダルが表示中なら翌日進行を常にブロック（G.activeEvent非設定のモーダルにも対応）
+  const _advModal = document.getElementById('event-modal');
+  const _advModalShown = _advModal && _advModal.style.display !== 'none';
+  if(_advModalShown){ console.log('[advanceDay] blocked: modal visible'); return; }
+  // '_transition'は月末処理中の遷移ロック。モーダル非表示でも維持する
+  if(G.activeEvent && G.activeEvent !== '_transition'){
+    G.activeEvent = null; // 古いフラグをクリア（安全策）
   }
-  if(G.activeEvent) return;
+  if(G.activeEvent){ console.log('[advanceDay] blocked: G.activeEvent=' + G.activeEvent); return; }
   if(G.tut.phase==='opening') return;
 
   // Lv2: 現金マイナスなら翌日進行前に資金繰り選択を挟む
@@ -1958,8 +1963,10 @@ function advanceDay(){
   if(G.day>30){
     G.day=1; G.month++;
     G._isMonthEnd = true;
+    console.log('[advanceDay] month change → monthlyTick start month=' + G.month);
     monthlyTick();
     if(G.month>12){G.month=1; G.year++;}
+    console.log('[advanceDay] date update done: ' + G.year + '年' + G.month + '月' + G.day + '日 AP=' + G.ap + ' money=' + G.money);
   }
 
   // メインストーリーエンディング（2年目3月）
@@ -2006,6 +2013,7 @@ function advanceDay(){
   updateHeader();
   if(!G._isMonthEnd) showDayFlash();
   G._isMonthEnd = false;
+  console.log('[advanceDay] render start');
   renderTab();
   saveGame();
   setTimeout(_checkOchawanProposal, 1500);
@@ -2040,6 +2048,7 @@ function _daySceneEmoji(n){
 }
 
 function monthlyTick(){
+  console.log('[monthlyTick] start month=' + G.month);
   // 縮小運営フラグの自動解除チェック
   const currentMonthIdx = (G.year-1)*12 + G.month;
   G.stores.forEach(store => {
@@ -2116,6 +2125,7 @@ function monthlyTick(){
 
   // 月末AP完全回復
   G.ap = G.apMax;
+  console.log('[monthlyTick] recover AP=' + G.ap);
   notify('📅 月が変わりました。注意力が完全に回復しました（AP ' + G.apMax + '）');
 
   // 月末決済：売掛金を現金化
@@ -2189,6 +2199,8 @@ function showMonthlyMeeting(monthProfit, promotions, ownerRankUp){
       <div style="font-size:11px;opacity:.75;margin-top:4px">${ownerRankUp.desc}</div>
     </div>` : '';
 
+  console.log('[showMonthlyMeeting] open month popup');
+  G.activeEvent = 'monthly_meeting';
   const body = document.getElementById('event-modal-body');
   body.innerHTML = `
     <div style="padding:4px">
@@ -3542,15 +3554,21 @@ function sendLead(){
 }
 
 function afterMonthlyMeeting(){
+  console.log('[afterMonthlyMeeting] close meeting modal');
+  // 遷移ロック：400ms間は翌日進行をブロック（月末処理チェーン中の二重進行防止）
+  G.activeEvent = '_transition';
   document.getElementById('event-modal').style.display='none';
   renderTab();
   // 経営課題カード → 来月の目標 の順に表示
   if(G.started){
     setTimeout(()=>{
+      console.log('[afterMonthlyMeeting] show issue card');
+      // showIssueCardModal が G.activeEvent = card で上書きする
       showIssueCardModal();
-      // 課題カード閉鎖後に来月チャレンジを表示するため、課題カード側で nextChallenge を呼ぶ
       G._pendingChallenge = true;
-    }, 400);
+    }, 300);
+  } else {
+    G.activeEvent = null;
   }
 }
 
