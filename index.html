@@ -8938,6 +8938,8 @@ function hireApplicant(idx, targetSi){
   });
   G._applicants = null;
   G._applicantTargetSi = undefined;
+  // 配置先店舗の運営方針をスタッフに切り替え（アニメーション表示に反映）
+  if(G.stores[resolvedSi]) G.stores[resolvedSi].policy = 'staff';
   closeActionModal();
   addStory(`${a.name}（${a.type}）を採用した。${storeName}に配置。`, 'highlight');
   addNews(`👥 ${a.name} 採用（${storeName}）`);
@@ -8999,6 +9001,7 @@ function assignManagerToNewStore(choice, si){
     if(midori){
       const fromStore = G.stores.find(s => s.name === midori.store);
       midori.store = store.name;
+      store.policy = 'staff'; // 配置先の方針をスタッフ運営に切り替え
       if(fromStore){
         fromStore.newCustomers = Math.max(3, Math.round((fromStore.newCustomers||10) * 0.8));
         fromStore.regulars = Math.max(0, (fromStore.regulars||0) - 2);
@@ -9034,6 +9037,7 @@ function transferStaffSilent(staffId, toSi, impactNote){
   const fromStore = G.stores.find(s => s.name === fromStoreName);
   const toStore = G.stores[toSi];
   staff.store = toStore.name;
+  toStore.policy = 'staff'; // 配置先の方針をスタッフ運営に切り替え
   if(fromStore && fromStore !== toStore){
     fromStore.newCustomers = Math.max(3, Math.round((fromStore.newCustomers||10) * 0.85));
     fromStore.customers = fromStore.newCustomers + (fromStore.regulars||0);
@@ -9075,6 +9079,7 @@ function transferStaff(staffId, toSi){
   const toStore = G.stores[toSi];
   if(!toStore){ notify('店舗が見つかりません','warn'); return; }
   staff.store = toStore.name;
+  toStore.policy = 'staff'; // 配置先の方針をスタッフ運営に切り替え
   // 異動元の店舗に影響（客足が下がる）
   if(fromStore && fromStore !== toStore){
     fromStore.newCustomers = Math.max(3, (fromStore.newCustomers||10) - 3);
