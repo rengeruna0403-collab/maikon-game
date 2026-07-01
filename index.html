@@ -517,6 +517,8 @@ let G = {
   currentChallenge: null, // 今月の成田チャレンジ
   lastChallengeResult: null, // 月末判定結果
   cases: [], // 案件ボックス
+  isAdvancingDay: false,    // 翌日進行中フラグ（同期的二重実行防止）
+  processingMonthly: false, // 月末処理チェーン中フラグ（非同期ロック）
   pendingMenuLaunches: [], // [{id,name,type,icon,seasonal,seasonDays,launchDay,sourceEvent}]
   launchedMenus: [],       // [{id,name,type,icon,seasonal,seasonDays,launchedDay,_launchedSeason,_launchedYear,sales,_expired}]
   menuArchive: [],         // [{...launchedMenu, _archivedSeason, _archivedYear, _wasStandalone, _relaunchOffered}]
@@ -1848,18 +1850,32 @@ function _processPendingMenuLaunches(){
   });
 }
 
+// 日付の正規化：月・年が範囲外になった場合に繰り上げ補正
+function normalizeDate(){
+  while(G.day > 30){ G.day -= 30; G.month++; }
+  while(G.month > 12){ G.month -= 12; G.year++; }
+  if(G.month < 1) G.month = 1;
+  if(G.day < 1) G.day = 1;
+}
+
 function advanceDay(){
-  console.log('[advanceDay] start day=' + G.day + ' month=' + G.month + ' year=' + G.year + ' G.activeEvent=' + JSON.stringify(G.activeEvent&&(G.activeEvent.id||G.activeEvent)));
-  // モーダルが表示中なら翌日進行を常にブロック（G.activeEvent非設定のモーダルにも対応）
+  console.log('[advanceDay] start day=' + G.day + ' month=' + G.month + ' year=' + G.year + ' G.activeEvent=' + JSON.stringify(G.activeEvent&&(G.activeEvent.id||G.activeEvent)) + ' advancing=' + G.isAdvancingDay + ' monthly=' + G.processingMonthly);
+  // ① 同期的二重実行防止
+  if(G.isAdvancingDay){ console.log('[advanceDay] blocked: isAdvancingDay'); return; }
+  // ② 月末処理チェーン中（非同期ロック）
+  if(G.processingMonthly){ console.log('[advanceDay] blocked: processingMonthly'); return; }
+  // ③ モーダル表示中はブロック（G.activeEvent非設定のモーダルにも対応）
   const _advModal = document.getElementById('event-modal');
   const _advModalShown = _advModal && _advModal.style.display !== 'none';
   if(_advModalShown){ console.log('[advanceDay] blocked: modal visible'); return; }
-  // '_transition'は月末処理中の遷移ロック。モーダル非表示でも維持する
+  // ④ G.activeEvent残留クリーンアップ（'_transition'はprocessingMonthly管理なのでここでは消さない）
   if(G.activeEvent && G.activeEvent !== '_transition'){
-    G.activeEvent = null; // 古いフラグをクリア（安全策）
+    G.activeEvent = null;
   }
   if(G.activeEvent){ console.log('[advanceDay] blocked: G.activeEvent=' + G.activeEvent); return; }
   if(G.tut.phase==='opening') return;
+
+  G.isAdvancingDay = true;
 
   // Lv2: 現金マイナスなら翌日進行前に資金繰り選択を挟む
   if(G.money < 0){
@@ -1962,10 +1978,10 @@ function advanceDay(){
   G.day++;
   if(G.day>30){
     G.day=1; G.month++;
+    normalizeDate(); // 年・月を正規化してから monthlyTick に渡す（13月防止）
     G._isMonthEnd = true;
-    console.log('[advanceDay] month change → monthlyTick start month=' + G.month);
+    console.log('[advanceDay] month change → monthlyTick start month=' + G.month + ' year=' + G.year);
     monthlyTick();
-    if(G.month>12){G.month=1; G.year++;}
     console.log('[advanceDay] date update done: ' + G.year + '年' + G.month + '月' + G.day + '日 AP=' + G.ap + ' money=' + G.money);
   }
 
@@ -2017,6 +2033,9 @@ function advanceDay(){
   renderTab();
   saveGame();
   setTimeout(_checkOchawanProposal, 1500);
+  // 月末処理中でない場合のみここで isAdvancingDay を解除
+  // （月末の場合は closeMonthlyChallengeModal で解除）
+  if(!G.processingMonthly) G.isAdvancingDay = false;
 }
 
 function showDayFlash(){
@@ -2049,6 +2068,7 @@ function _daySceneEmoji(n){
 
 function monthlyTick(){
   console.log('[monthlyTick] start month=' + G.month);
+  G.processingMonthly = true; // 月末チェーン完了まで翌日進行をロック
   // 縮小運営フラグの自動解除チェック
   const currentMonthIdx = (G.year-1)*12 + G.month;
   G.stores.forEach(store => {
@@ -3568,7 +3588,10 @@ function afterMonthlyMeeting(){
       G._pendingChallenge = true;
     }, 300);
   } else {
+    // G.started でない場合は即ロック解除
     G.activeEvent = null;
+    G.processingMonthly = false;
+    G.isAdvancingDay = false;
   }
 }
 
@@ -7140,11 +7163,21 @@ function showMonthlyChallengeModal(challenge){
         📋 今月の目標：<strong>${challenge.desc}</strong>
         <div style="font-size:11px;color:var(--gr);margin-top:4px">達成報酬：${challenge.rewardDesc}</div>
       </div>
-      <button class="btn btn-gr" style="width:100%;padding:12px" onclick="document.getElementById('event-modal').style.display='none';renderTab()">
+      <button class="btn btn-gr" style="width:100%;padding:12px" onclick="closeMonthlyChallengeModal()">
         わかりました
       </button>
     </div>`;
   document.getElementById('event-modal').style.display = 'flex';
+}
+
+function closeMonthlyChallengeModal(){
+  console.log('[closeMonthlyChallengeModal] release monthly lock');
+  document.getElementById('event-modal').style.display = 'none';
+  // 月末処理チェーン完了 → 全ロック解除
+  G.processingMonthly = false;
+  G.isAdvancingDay = false;
+  G.activeEvent = null;
+  renderTab();
 }
 
 function checkChallengeResult(challenge, monthProfit){
@@ -7657,7 +7690,7 @@ function _advanceDayCore(){
   });
 
   G.day++;
-  if(G.day>30){ G.day=1; G.month++; monthlyTick(); if(G.month>12){G.month=1;G.year++;} }
+  if(G.day>30){ G.day=1; G.month++; normalizeDate(); G._isMonthEnd=true; monthlyTick(); }
   if(Math.random()<0.20 && !G.activeEvent) tryFireEvent();
 
   // ─── 後日談メール配信 ───
@@ -8278,9 +8311,16 @@ function chooseEvent(idx, useFatigue){
   updateHeader(); renderTab();
 
   // 経営課題カード後に来月チャレンジを表示
-  if(G._pendingChallenge && G.currentChallenge){
+  if(G._pendingChallenge){
     G._pendingChallenge = false;
-    setTimeout(()=>showMonthlyChallengeModal(G.currentChallenge), 400);
+    if(G.currentChallenge){
+      setTimeout(()=>showMonthlyChallengeModal(G.currentChallenge), 400);
+    } else {
+      // チャレンジなし → 月末処理チェーン完了、ロック解除
+      console.log('[chooseEvent] no challenge → release monthly lock');
+      G.processingMonthly = false;
+      G.isAdvancingDay = false;
+    }
   }
 }
 
