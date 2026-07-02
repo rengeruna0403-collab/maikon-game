@@ -2693,6 +2693,18 @@ function showFreeModeTransition(){
     + '</div>';
 }
 
+// ─────────── 診断タイプ別おすすめ舞昆商品 ───────────
+function getRecommendedProduct(styleKey){
+  const map = {
+    community:  { name:'たもぎ茸舞昆',      icon:'🟩', desc:'人とのご縁や健康を大切にするあなたにおすすめ。ご飯やおにぎりにも合わせやすい、舞昆茶屋でも人気の商品です。', productUrl:'' },
+    people:     { name:'粒生姜舞昆',         icon:'🫚', desc:'やさしい味わいと生姜の風味で、毎日の食卓に寄り添う一品です。', productUrl:'' },
+    finance:    { name:'黒舞昆',             icon:'🟫', desc:'まずは定番から。長く愛される基本の舞昆です。', productUrl:'' },
+    aggressive: { name:'明太風帆立舞昆',     icon:'🟥', desc:'少し個性のある味で、贈り物や話題作りにも向いています。', productUrl:'' },
+    balanced:   { name:'たもぎ茸舞昆',       icon:'🟩', desc:'食べやすさと特別感のバランスがよく、初めての方にもおすすめです。', productUrl:'' },
+  };
+  return map[styleKey] || map.balanced;
+}
+
 // ─────────── 1年目エンディング：詳細診断画面 ───────────
 function showEndingDiagnosis(){
   const style = getOwnerStyle() || { key:'balanced', title:'バランス型オーナー', icon:'⚖️' };
@@ -2704,6 +2716,15 @@ function showEndingDiagnosis(){
   const starCount = score >= 80 ? 5 : score >= 60 ? 4 : score >= 40 ? 3 : score >= 20 ? 2 : 1;
   const starsHtml = '<span style="color:#FFD700">★</span>'.repeat(starCount)
                   + '<span style="color:rgba(255,255,255,.3)">★</span>'.repeat(5 - starCount);
+  const prod = getRecommendedProduct(style.key);
+  const prodCard = '<div style="background:var(--warm);border-radius:10px;padding:14px 16px;margin-bottom:14px">'
+    + '<div style="font-size:10px;color:var(--muted);margin-bottom:8px;letter-spacing:.05em">あなたにおすすめの舞昆</div>'
+    + '<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">'
+    + '<span style="font-size:22px">' + prod.icon + '</span>'
+    + '<div style="font-size:15px;font-weight:700">' + prod.name + '</div>'
+    + '</div>'
+    + '<div style="font-size:12px;color:var(--muted);line-height:1.9">' + prod.desc + '</div>'
+    + '</div>';
 
   const body = document.getElementById('event-modal-body');
   body.innerHTML = '<div style="padding:4px">'
@@ -2727,7 +2748,8 @@ function showEndingDiagnosis(){
     + '<div style="font-size:10px;opacity:.75;margin-top:3px">資産</div></div>'
     + '</div>'
     + '</div>'
-    + '<div style="text-align:center;padding:14px 4px 10px;font-size:13px;line-height:2;color:var(--muted)">'
+    + prodCard
+    + '<div style="text-align:center;padding:10px 4px 10px;font-size:13px;line-height:2;color:var(--muted)">'
     + 'ここまでプレイありがとうございます。<br>'
     + 'あなたの経営結果を保存できます。'
     + '</div>'
