@@ -2663,7 +2663,7 @@ function showMainStoryEnding(){
     + '</div></div>'
 
     + '<button class="btn" style="width:100%;padding:15px;font-size:15px;background:var(--gold);color:#fff;border:none;border-radius:10px;font-weight:700"'
-    + ' onclick="showFreeModeTransition()">続きを見る →</button>'
+    + ' onclick="showEndingDiagnosis()">診断結果を確認する →</button>'
     + '</div>';
 
   document.getElementById('event-modal').style.display = 'flex';
@@ -2690,6 +2690,168 @@ function showFreeModeTransition(){
     + '<button class="btn" style="width:100%;padding:12px;font-size:13px;background:var(--gold);color:#fff;border:none;border-radius:10px;font-weight:600"'
     + ' onclick="document.getElementById(\'event-modal\').style.display=\'none\';showLeadCapture()">特典を受け取る 🎁</button>'
     + '</div>'
+    + '</div>';
+}
+
+// ─────────── 1年目エンディング：詳細診断画面 ───────────
+function showEndingDiagnosis(){
+  const style = getOwnerStyle() || { key:'balanced', title:'バランス型オーナー', icon:'⚖️' };
+  const p = G.ownerProfile || {};
+  const totalGoEn = (G._totalHouseholds||0) + Object.values(G.characters||{}).filter(c=>c&&c.met).length;
+  const rep = (G.regions[0]||{}).reputation || 0;
+  const totalAssets = (G.money||0) + (G.buildings||[]).reduce((a,b) => a+(b.value||0), 0);
+  const score = G._ownerScore || 0;
+  const starCount = score >= 80 ? 5 : score >= 60 ? 4 : score >= 40 ? 3 : score >= 20 ? 2 : 1;
+  const starsHtml = '<span style="color:#FFD700">★</span>'.repeat(starCount)
+                  + '<span style="color:rgba(255,255,255,.3)">★</span>'.repeat(5 - starCount);
+
+  const body = document.getElementById('event-modal-body');
+  body.innerHTML = '<div style="padding:4px">'
+    + '<div style="text-align:center;background:linear-gradient(135deg,#1B5E20,#388E3C);border-radius:14px;padding:24px 16px;margin-bottom:16px;color:#fff">'
+    + '<div style="font-size:11px;letter-spacing:.15em;opacity:.8;margin-bottom:10px">🌸 メインストーリークリア！</div>'
+    + '<div style="font-size:12px;opacity:.7;margin-bottom:6px">あなたは</div>'
+    + '<div style="font-size:26px;letter-spacing:2px;margin-bottom:8px">' + starsHtml + '</div>'
+    + '<div style="font-size:20px;font-weight:700;font-family:\'Noto Serif JP\',serif;margin-bottom:20px">' + style.icon + ' ' + style.title + '</div>'
+    + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">'
+    + '<div style="background:rgba(255,255,255,.13);border-radius:10px;padding:12px 8px">'
+    + '<div style="font-size:22px;font-weight:700">' + totalGoEn + '人</div>'
+    + '<div style="font-size:10px;opacity:.75;margin-top:3px">ご縁</div></div>'
+    + '<div style="background:rgba(255,255,255,.13);border-radius:10px;padding:12px 8px">'
+    + '<div style="font-size:22px;font-weight:700">' + rep + '</div>'
+    + '<div style="font-size:10px;opacity:.75;margin-top:3px">地域評価</div></div>'
+    + '<div style="background:rgba(255,255,255,.13);border-radius:10px;padding:12px 8px">'
+    + '<div style="font-size:22px;font-weight:700">' + (G.creditScore||45) + '</div>'
+    + '<div style="font-size:10px;opacity:.75;margin-top:3px">信用度</div></div>'
+    + '<div style="background:rgba(255,255,255,.13);border-radius:10px;padding:12px 8px">'
+    + '<div style="font-size:15px;font-weight:700">¥' + totalAssets.toLocaleString() + '</div>'
+    + '<div style="font-size:10px;opacity:.75;margin-top:3px">資産</div></div>'
+    + '</div>'
+    + '</div>'
+    + '<div style="text-align:center;padding:14px 4px 10px;font-size:13px;line-height:2;color:var(--muted)">'
+    + 'ここまでプレイありがとうございます。<br>'
+    + 'あなたの経営結果を保存できます。'
+    + '</div>'
+    + '<button class="btn" style="width:100%;padding:15px;font-size:15px;background:var(--gold);color:#fff;border:none;border-radius:10px;font-weight:700;margin-bottom:10px"'
+    + ' onclick="showEndingLeadCapture()">診断結果を保存する →</button>'
+    + '<button class="btn" style="width:100%;padding:12px;font-size:13px;background:transparent;color:var(--muted);border:1px solid var(--border);border-radius:10px"'
+    + ' onclick="enterFreeMode()">登録せずに続ける</button>'
+    + '</div>';
+}
+
+// ─────────── 1年目エンディング：CRM保存フォーム ───────────
+function showEndingLeadCapture(){
+  const style = getOwnerStyle() || { key:'balanced', title:'バランス型オーナー', icon:'⚖️' };
+  const maikonRec = {
+    aggressive:{ name:'たもぎ茸舞昆',       icon:'🍄' },
+    people:    { name:'明太子舞昆',          icon:'🍣' },
+    community: { name:'帆立舞昆',            icon:'🐚' },
+    finance:   { name:'舞昆（和紙袋入り）',  icon:'🎴' },
+    balanced:  { name:'舞昆（定番）',        icon:'🧃' },
+  };
+  const rec = maikonRec[style.key] || maikonRec.balanced;
+  const nameVal = G.playerName || '';
+
+  const lineSection = LINE_URL
+    ? '<div style="background:var(--bg2);border-radius:10px;padding:12px;margin-bottom:12px">'
+      + '<div style="font-size:11px;color:var(--muted);margin-bottom:8px">LINEで受け取る（おすすめ）</div>'
+      + '<button class="btn" style="width:100%;padding:12px;font-size:14px;background:#06C755;color:#fff;border:none;border-radius:10px;font-weight:700"'
+      + ' onclick="window.open(\'' + LINE_URL + '\',\'_blank\');document.getElementById(\'el-line-row\').style.display=\'flex\'">'
+      + 'LINE友達追加</button>'
+      + '<div id="el-line-row" style="display:none;align-items:center;gap:8px;margin-top:8px">'
+      + '<label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer">'
+      + '<input id="el-line" type="checkbox" style="width:15px;height:15px;accent-color:#06C755"> 友達追加しました ✓</label></div></div>'
+    : '';
+
+  const body = document.getElementById('event-modal-body');
+  body.innerHTML = '<div style="padding:4px">'
+    + '<div style="text-align:center;margin-bottom:14px">'
+    + '<div style="font-size:16px;font-weight:700;margin-bottom:4px">診断結果を保存しませんか？</div>'
+    + '</div>'
+    + '<div style="background:var(--warm);border-radius:10px;padding:14px 16px;margin-bottom:14px;font-size:12px;line-height:2.1">'
+    + 'ゲームはここで一区切りですが、<br>'
+    + 'ここから先は自由に経営を続けられます。<br><br>'
+    + '<span style="font-size:11px;color:var(--muted)">診断結果を保存すると、</span><br>'
+    + '・あなた専用の診断結果<br>'
+    + '・おすすめ舞昆商品 ' + rec.icon + '&nbsp;' + rec.name + '<br>'
+    + '・大家業タイプ診断<br>'
+    + '・今後追加されるイベント情報<br><br>'
+    + '<span style="font-size:11px;color:var(--muted)">を受け取ることができます。</span>'
+    + '</div>'
+    + (nameVal
+      ? '<div style="background:var(--bg2);border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:13px">'
+        + '<span style="font-size:10px;color:var(--muted)">プレイヤー名　</span>' + nameVal + '</div>'
+      : '')
+    + '<div style="margin-bottom:12px">'
+    + '<div style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:6px">メールアドレス（任意）</div>'
+    + '<input id="el-email" type="email" placeholder="例：your@email.com"'
+    + ' style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;background:var(--bg);color:var(--text);box-sizing:border-box">'
+    + '</div>'
+    + lineSection
+    + '<div style="display:flex;flex-direction:column;gap:10px;margin-bottom:16px">'
+    + '<label style="display:flex;align-items:flex-start;gap:10px;font-size:13px;cursor:pointer">'
+    + '<input id="el-maikon" type="checkbox" style="margin-top:2px;width:16px;height:16px;accent-color:var(--gr3)"><span>🍚 舞昆の商品に興味がある</span></label>'
+    + '<label style="display:flex;align-items:flex-start;gap:10px;font-size:13px;cursor:pointer">'
+    + '<input id="el-apt" type="checkbox" style="margin-top:2px;width:16px;height:16px;accent-color:var(--gr3)"><span>🏠 大家業に興味がある</span></label>'
+    + '</div>'
+    + '<button class="btn" style="width:100%;padding:15px;font-size:15px;background:var(--gr3);color:#fff;border:none;border-radius:10px;font-weight:700;margin-bottom:10px"'
+    + ' onclick="sendEndingLead()">保存してフリーモードへ →</button>'
+    + '<button class="btn" style="width:100%;padding:12px;font-size:13px;background:transparent;color:var(--muted);border:1px solid var(--border);border-radius:10px"'
+    + ' onclick="enterFreeMode()">登録せずに続ける</button>'
+    + '</div>';
+}
+
+// ─────────── 1年目エンディング：リード送信 ───────────
+function sendEndingLead(){
+  const email  = (document.getElementById('el-email')?.value || '').trim();
+  const apt    = document.getElementById('el-apt')?.checked    || false;
+  const maikon = document.getElementById('el-maikon')?.checked || false;
+  const line   = document.getElementById('el-line')?.checked   || false;
+  const style  = getOwnerStyle() || { key:'balanced', title:'バランス型オーナー' };
+  const p      = G.ownerProfile || {};
+  const prof   = G.profile || {};
+  const rep    = (G.regions[0]||{}).reputation || 0;
+
+  _post({
+    type:'lead', source:'ending_y1',
+    playerId:         _getPlayerId(),
+    playerName:       G.playerName || '',
+    age:              prof.age || '',
+    occupation:       prof.occupation || '',
+    experience:       prof.experience || '',
+    region:           prof.region || '',
+    email,
+    line,
+    interestApartment: apt,
+    interestMaikon:   maikon,
+    ownerType:        style.title,
+    ownerStyleKey:    style.key,
+    ownerScore:       G._ownerScore || 0,
+    profileRisk:      p.risk      || 0,
+    profilePeople:    p.people    || 0,
+    profileCommunity: p.community || 0,
+    profileFinance:   p.finance   || 0,
+    storeBrand:       G.storeBrand || 0,
+    customerLoyalty:  G.customerLoyalty || 0,
+    communityBond:    G.communityBond || 0,
+    finalCash:        G.money || 0,
+    finalRep:         rep,
+    loanCount:        G.loanCount || 0,
+    staffCount:       G.staff.length,
+    occPct:           Math.round(occupiedRooms() / Math.max(totalRooms(),1) * 100),
+    ending:           'good',
+  });
+
+  const body = document.getElementById('event-modal-body');
+  body.innerHTML = '<div style="padding:20px 8px;text-align:center">'
+    + '<div style="font-size:44px;margin-bottom:14px">🌸</div>'
+    + '<div style="font-size:17px;font-weight:700;margin-bottom:10px">ありがとうございます！</div>'
+    + '<div style="font-size:13px;color:var(--muted);line-height:2;margin-bottom:24px">'
+    + '診断結果を保存しました。<br>'
+    + (email ? email + ' へお届けします。<br><br>' : '')
+    + 'これからも舞昆茶屋を育てていきましょう。'
+    + '</div>'
+    + '<button class="btn" style="width:100%;padding:15px;font-size:15px;background:var(--gr3);color:#fff;border:none;border-radius:10px;font-weight:700"'
+    + ' onclick="enterFreeMode()">フリーモードへ →</button>'
     + '</div>';
 }
 
