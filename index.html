@@ -1850,6 +1850,15 @@ function _processPendingMenuLaunches(){
   });
 }
 
+// 月ごとの季節メニューオブジェクトを返す（【2】具体名対応）
+function getSeasonalMenuByMonth(month){
+  const m = month || G.month;
+  if(m >= 1 && m <= 3)  return { id:'winter_kurumi_maikon',    name:'冬限定 くるみ舞昆おにぎり',      icon:'⛄', type:'eatIn', seasonal:true, seasonDays:90 };
+  if(m >= 4 && m <= 6)  return { id:'spring_ume_maikon',       name:'春限定 梅舞昆おにぎり',          icon:'🌸', type:'eatIn', seasonal:true, seasonDays:90 };
+  if(m >= 7 && m <= 9)  return { id:'summer_aojiso_chazuke',   name:'夏限定 青じそ舞昆冷やし茶漬け', icon:'🍵', type:'eatIn', seasonal:true, seasonDays:90 };
+  return                        { id:'autumn_kinoko_maikon',    name:'秋限定 きのこ舞昆定食',          icon:'🍂', type:'eatIn', seasonal:true, seasonDays:90 };
+}
+
 // 日付の正規化：月・年が範囲外になった場合に繰り上げ補正
 function normalizeDate(){
   while(G.day > 30){ G.day -= 30; G.month++; }
@@ -1875,13 +1884,15 @@ function advanceDay(){
   if(G.activeEvent){ console.log('[advanceDay] blocked: G.activeEvent=' + G.activeEvent); return; }
   if(G.tut.phase==='opening') return;
 
-  G.isAdvancingDay = true;
-
-  // Lv2: 現金マイナスなら翌日進行前に資金繰り選択を挟む
+  // 現金マイナス → 資金繰りモーダル（isAdvancingDayを立てる前に返す）
   if(G.money < 0){
     showCashCrisisModal();
     return;
   }
+
+  // ここからが本処理。フラグを立て、finally で必ず下ろす
+  G.isAdvancingDay = true;
+  try {
 
   // 接客フラグリセット
   G.stores.forEach(s => { s.servedToday = false; });
@@ -1994,7 +2005,7 @@ function advanceDay(){
     }
   }
   // フリーモード：毎年12月に年次経営診断
-  if(G.freeMode && G.month === 12 && G.day === 1 && !G._annualDiagYear || (G.freeMode && G.month === 12 && G.day === 1 && G._annualDiagYear !== G.year)){
+  if(G.freeMode && G.month === 3 && G.day === 30 && (!G._annualDiagYear || G._annualDiagYear !== G.year)){
     G._annualDiagYear = G.year;
     setTimeout(showAnnualDiagnosis, 800);
   }
@@ -2033,9 +2044,12 @@ function advanceDay(){
   renderTab();
   saveGame();
   setTimeout(_checkOchawanProposal, 1500);
-  // 月末処理中でない場合のみここで isAdvancingDay を解除
-  // （月末の場合は closeMonthlyChallengeModal で解除）
-  if(!G.processingMonthly) G.isAdvancingDay = false;
+  } finally {
+    // 月末処理中でない場合のみここで解除
+    // （月末の場合は closeMonthlyChallengeModal で解除）
+    // try内の途中returnや例外発生時も必ずここを通る
+    if(!G.processingMonthly) G.isAdvancingDay = false;
+  }
 }
 
 function showDayFlash(){
@@ -2681,7 +2695,10 @@ function showFreeModeTransition(){
 
 function enterFreeMode(){
   G.freeMode = true;
-  G.gameEnded = false; // フリーモードではゲーム継続
+  G.gameEnded = false;
+  G.activeEvent = null;
+  G.processingMonthly = false;
+  G.isAdvancingDay = false;
   document.getElementById('event-modal').style.display = 'none';
   notify('🌸 フリーモード開始！経営を続けましょう。', 'gold');
   saveGame();
@@ -4957,7 +4974,7 @@ const DOMAIN_CASES = [
     title:'メニューへのご意見',
     body:'常連の田中さんから意見をいただきました。\n\n「最近同じメニューが多い気がします。\n季節のメニューがあると嬉しいのですが」',
     choices:[
-      {label:'季節メニューを開発する（¥50,000）',cost:50000,effects:{score:12,storeSat:8,custUp:3,profile:{community:1},pendingMenuId:'seasonal_onigiri'},label2:'店舗満足+8・客数+3・3日後に新メニュー追加',storyTag:'季節の舞昆おにぎりの開発を始めた。3日後に販売開始予定。'},
+      {label:'季節メニューを開発する（¥50,000）',cost:50000,effects:{score:12,storeSat:8,custUp:3,profile:{community:1},pendingMenuId:'__seasonal__'},label2:'店舗満足+8・客数+3・3日後に新メニュー追加',storyTag:'季節の新メニューの開発を始めた。3日後に販売開始予定。'},
       {label:'次の仕入れで工夫してみる',cost:0,effects:{score:6,storeSat:3},label2:'小さな改善',storyTag:'仕入れで季節感を出す工夫をした。'},
     ]},
 
@@ -6171,28 +6188,34 @@ function staffAutoProcess(){
   });
 }
 
+// 案件ごとのクールダウン日数（デフォルト30日）
+const CASE_COOLDOWN_DAYS = {
+  midori_sick:      60,
+  security_camera:  90,
+  subsidy_info:     120,
+};
+
 function generateWeeklyCases(){
   if(!G.started) return;
   const scale = totalBuildings() + totalStores();
   // 規模が大きいほど案件が増える（最大8件/週）
   const maxNew = Math.min(2 + Math.floor(scale / 2), 8);
 
-  // 5系統それぞれからランダム1件ずつ候補を選ぶ
+  // 系統ごとからランダム1件ずつ候補を選ぶ
   const domains = ['landlord', 'store', 'competitor', 'admin', 'community'];
-  // staff案件はみどり採用後のみ
   if(G.staffUnlocked) domains.push('staff');
-  // bank案件は信用度30以上
   if((G.creditScore||45) >= 30) domains.push('bank');
+  const totalDaysNow = (G.year-1)*360 + (G.month-1)*30 + G.day;
+  const _hasVacancy = G.buildings.some(b => b.rooms.some(r => !r.tenant));
   const domainPick = [];
   domains.forEach(dom => {
     const pool = DOMAIN_CASES.filter(c => c.domain === dom && !c.conditionOnly && !(c.requireStaff && !G.staffUnlocked));
     if(pool.length === 0) return;
-    const totalDaysNow = (G.year-1)*360 + (G.month-1)*30 + G.day;
-    const _hasVacancy = G.buildings.some(b => b.rooms.some(r => !r.tenant));
     const avail = pool.filter(c => {
       if(G.cases.some(x => x.id === c.id && !x.resolved)) return false;
       if(c.repeatable && G.caseCooldowns && G.caseCooldowns[c.id]){
-        if(totalDaysNow - G.caseCooldowns[c.id] < 30) return false;
+        const _cd = CASE_COOLDOWN_DAYS[c.id] || 30;
+        if(totalDaysNow - G.caseCooldowns[c.id] < _cd) return false;
       }
       if(c.requireVacancy && !_hasVacancy) return false;
       if(c.menuProposal && !_canProposeNewMenu()) return false;
@@ -6200,6 +6223,7 @@ function generateWeeklyCases(){
     });
     if(avail.length > 0) domainPick.push(avail[Math.floor(Math.random() * avail.length)]);
   });
+  console.log('[generateWeeklyCases] scale='+scale+' maxNew='+maxNew+' domainPick=['+domainPick.map(c=>c.id).join(',')+']');
 
   // CASE_POOL からランダム案件（conditionOnly除外）
   const generalPool = [...CASE_POOL].filter(c =>
@@ -6330,8 +6354,8 @@ function generateConditionCases(){
         body:`常連の方が少し遠慮がちに言いました。\n\n「${staleMenus[0]}、美味しいんですけど——\nそろそろ新しいものも食べてみたくて。\n\n近所にランチの選択肢が増えてきましたし……」`,
         choices:[
           { label:'季節メニューを開発する（AP-15・¥20,000）', cost:20000, ap:15,
-            effects:{ score:15, storeSat:10, custRegular:3, profile:{ community:2 }, pendingMenuId:'seasonal_onigiri' },
-            label2:'常連+3・満足度+10・3日後に新メニュー追加', storyTag:'季節の舞昆おにぎりの開発を始めた。3日後に販売開始予定。' },
+            effects:{ score:15, storeSat:10, custRegular:3, profile:{ community:2 }, pendingMenuId:'__seasonal__' },
+            label2:'常連+3・満足度+10・3日後に新メニュー追加', storyTag:'季節の新メニューの開発を始めた。3日後に販売開始予定。' },
           { label:'試食販売会で反応を見る（AP-10・¥10,000）', cost:10000, ap:10,
             effects:{ score:8, storeSat:5, custRegular:1 },
             label2:'常連+1・様子見', storyTag:'試食会で新メニューの反応を確認した。' },
@@ -6363,7 +6387,7 @@ function generateConditionCases(){
       }
       // 子どもの発熱（repeatable・7日ごとに確率発生）
       const _sickCooldown = G._midoriSickDay || 0;
-      if(totalDays - _sickCooldown >= 30 && Math.random() < 0.15 && !G.cases.some(c => c.id === 'midori_sick' && !c.resolved)){
+      if(totalDays - _sickCooldown >= 60 && Math.random() < 0.15 && !G.cases.some(c => c.id === 'midori_sick' && !c.resolved)){
         const base = DOMAIN_CASES.find(c => c.id === 'midori_sick');
         if(base){ addCase(base); G._midoriSickDay = totalDays; }
       }
@@ -8038,16 +8062,19 @@ function chooseEvent(idx, useFatigue){
     notify('📋 たもぎ茸舞昆の提案は30日後に再検討できます', 'info');
   }
   if(fx.pendingMenuId){
-    const _pCat = MENU_CATALOG[fx.pendingMenuId];
-    if(_pCat){
-      G.pendingMenuLaunches = G.pendingMenuLaunches || [];
-      const _tdPm = (G.year-1)*360 + (G.month-1)*30 + G.day;
-      const _alreadyPending = G.pendingMenuLaunches.some(p => p.id === fx.pendingMenuId);
-      const _alreadyActive  = (G.launchedMenus||[]).some(m => m.id === fx.pendingMenuId && !m._expired);
+    G.pendingMenuLaunches = G.pendingMenuLaunches || [];
+    const _tdPm = (G.year-1)*360 + (G.month-1)*30 + G.day;
+    // '__seasonal__' → 月ごとの具体メニューに解決
+    const _pEntry = fx.pendingMenuId === '__seasonal__'
+      ? getSeasonalMenuByMonth(G.month)
+      : MENU_CATALOG[fx.pendingMenuId] ? { id:fx.pendingMenuId, ...MENU_CATALOG[fx.pendingMenuId] } : null;
+    if(_pEntry){
+      const _alreadyPending = G.pendingMenuLaunches.some(p => p.id === _pEntry.id);
+      const _alreadyActive  = (G.launchedMenus||[]).some(m => m.id === _pEntry.id && !m._expired);
       if(!_alreadyPending && !_alreadyActive){
-        G.pendingMenuLaunches.push({ id:fx.pendingMenuId, name:_pCat.name, type:_pCat.type, icon:_pCat.icon, seasonal:_pCat.seasonal, seasonDays:_pCat.seasonDays||0, launchDay:_tdPm+3, sourceEvent:event.id });
-        notify(`📋 「${_pCat.name}」の準備中です（3日後に販売開始）`, 'gold');
-        _markMenuSeasonProposed(); // 同シーズン内の重複提案を防止
+        G.pendingMenuLaunches.push({ id:_pEntry.id, name:_pEntry.name, type:_pEntry.type, icon:_pEntry.icon, seasonal:_pEntry.seasonal, seasonDays:_pEntry.seasonDays||0, launchDay:_tdPm+3, sourceEvent:event.id });
+        notify(`📋 「${_pEntry.name}」の準備中です（3日後に販売開始）`, 'gold');
+        _markMenuSeasonProposed();
       }
     }
   }
