@@ -25,25 +25,28 @@ body{font-family:'Noto Sans JP',sans-serif;background:var(--bg);color:var(--text
 .date-txt{font-size:11px;opacity:.75;text-align:right}
 .money-row{display:flex;align-items:baseline;gap:6px}
 .money-lbl{font-size:12px;opacity:.7}
-.money-val{font-size:22px;font-weight:700;letter-spacing:-.5px;font-family:'Noto Serif JP',serif}
+.money-val{font-size:22px;font-weight:700;letter-spacing:-.5px;font-family:'Noto Serif JP',serif;font-variant-numeric:tabular-nums}
 .hdr-sub{font-size:12px;opacity:.65;margin-top:1px}
 /* BOTTOM NAV */
 .bnav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:430px;
   background:#fff;border-top:1px solid var(--border);display:flex;z-index:100;
-  box-shadow:0 -2px 8px rgba(0,0,0,.08)}
+  box-shadow:0 -2px 8px rgba(0,0,0,.08);
+  padding-bottom:env(safe-area-inset-bottom)}
 .bnav-item{flex:1;display:flex;flex-direction:column;align-items:center;padding:8px 2px;
   cursor:pointer;color:var(--muted);font-size:11px;gap:2px;border:none;background:none;
-  font-family:inherit;transition:color .15s}
+  font-family:inherit;transition:color .15s;min-height:48px;touch-action:manipulation}
+.bnav-item:active{opacity:.65;transform:scale(.94)}
 .bnav-item .icon{font-size:22px}
 .bnav-item.active{color:var(--gr)}
 /* MAIN */
-.main{padding:10px;padding-bottom:76px;min-height:calc(100vh - 120px)}
+.main{padding:10px;padding-bottom:calc(76px + env(safe-area-inset-bottom));min-height:calc(100vh - 120px)}
 /* ADVANCE */
 .adv-btn{width:100%;padding:17px;background:var(--gr);color:#fff;border:none;border-radius:12px;
   font-size:16px;font-weight:700;cursor:pointer;font-family:inherit;margin-bottom:10px;
   display:flex;align-items:center;justify-content:center;gap:6px;letter-spacing:.3px;
-  box-shadow:0 3px 10px rgba(58,107,69,.3)}
+  box-shadow:0 3px 10px rgba(58,107,69,.3);min-height:52px;touch-action:manipulation}
 .adv-btn:hover{background:var(--gr2)}
+.adv-btn:active{transform:scale(.97);filter:brightness(.9)}
 /* CARDS */
 .card{background:var(--card);border-radius:14px;padding:18px;margin-bottom:12px;
   box-shadow:0 1px 6px rgba(0,0,0,.07);border:1px solid var(--border)}
@@ -53,7 +56,8 @@ body{font-family:'Noto Sans JP',sans-serif;background:var(--bg);color:var(--text
   padding:18px;margin-bottom:12px;font-size:17px;line-height:1.8;color:var(--text)}
 /* BUTTONS */
 .btn{border:none;border-radius:8px;padding:11px 16px;font-size:15px;font-family:inherit;
-  cursor:pointer;font-weight:600;transition:all .15s}
+  cursor:pointer;font-weight:600;transition:all .15s;min-height:44px;touch-action:manipulation}
+.btn:active{transform:scale(.97);filter:brightness(.92)}
 .btn-gr{background:var(--gr);color:#fff}.btn-gr:hover{background:var(--gr2)}
 .btn-gr:disabled{opacity:.5;cursor:not-allowed}
 .btn-bg{background:var(--bg2);color:var(--text)}
@@ -84,7 +88,7 @@ body{font-family:'Noto Sans JP',sans-serif;background:var(--bg);color:var(--text
 /* METRICS */
 .metrics-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px}
 .metric-card{background:var(--bg2);border-radius:10px;padding:12px;text-align:center;border:1px solid var(--border)}
-.metric-v{font-size:19px;font-weight:700;color:var(--gr);font-family:'Noto Serif JP',serif}
+.metric-v{font-size:19px;font-weight:700;color:var(--gr);font-family:'Noto Serif JP',serif;font-variant-numeric:tabular-nums}
 .metric-l{font-size:12px;color:var(--muted);margin-top:2px}
 /* GAUGE */
 .gauge-wrap{display:flex;align-items:center;gap:8px;margin-top:5px}
@@ -151,25 +155,29 @@ body{font-family:'Noto Sans JP',sans-serif;background:var(--bg);color:var(--text
 .fin-row{display:flex;justify-content:space-between;padding:10px 0;
   border-bottom:1px solid var(--border);font-size:15px}
 .fin-row:last-child{border-bottom:none}
-.fin-lbl{color:var(--muted)}.fin-v{font-weight:700}
+.fin-lbl{color:var(--muted)}.fin-v{font-weight:700;font-variant-numeric:tabular-nums}
 .fin-pos{color:var(--gr)}.fin-neg{color:var(--orange)}
 /* MODAL */
 .overlay{position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:200;
-  display:flex;align-items:center;justify-content:center;padding:20px}
-.modal{background:#fff;border-radius:18px;padding:22px;width:100%;max-width:385px;
-  animation:slideUp .25s ease;max-height:85vh;overflow-y:auto}
+  display:flex;align-items:center;justify-content:center;padding:16px;
+  overscroll-behavior:contain;touch-action:none}
+.modal{background:#fff;border-radius:18px;padding:22px;width:min(95%,500px);max-width:500px;
+  animation:slideUp .25s ease;max-height:90vh;overflow-y:auto;overscroll-behavior:contain}
 @keyframes slideUp{from{transform:translateY(20px);opacity:0}to{transform:translateY(0);opacity:1}}
 @keyframes fadeInDown{from{transform:translateX(-50%) translateY(-10px);opacity:0}to{transform:translateX(-50%) translateY(0);opacity:1}}
 .modal-icon{font-size:40px;text-align:center;margin-bottom:8px}
 .modal-title{font-size:20px;font-weight:700;text-align:center;margin-bottom:8px;
   font-family:'Noto Serif JP',serif}
-.modal-body{font-size:17px;color:var(--muted);text-align:center;line-height:1.7;margin-bottom:18px}
+.modal-body{font-size:17px;color:var(--muted);text-align:center;line-height:1.7;margin-bottom:18px;
+  word-break:break-word;overflow-wrap:break-word}
 .modal-story{font-size:17px;color:var(--text);line-height:1.8;margin-bottom:18px;
   background:var(--warm);border-radius:12px;padding:18px;font-style:italic}
 .modal-choices{display:flex;flex-direction:column;gap:10px}
 .choice-btn{border:1.5px solid var(--border);border-radius:14px;padding:20px 16px;cursor:pointer;
-  text-align:left;font-size:16px;font-family:inherit;background:#fff;transition:all .15s;min-height:56px}
+  text-align:left;font-size:16px;font-family:inherit;background:#fff;transition:all .15s;min-height:56px;
+  touch-action:manipulation}
 .choice-btn:hover{border-color:var(--gr);background:var(--bg)}
+.choice-btn:active{transform:scale(.97);filter:brightness(.93)}
 .choice-lbl{font-weight:700;color:var(--text);line-height:1.5}
 .choice-eff{font-size:13px;color:var(--muted);margin-top:6px;line-height:1.5}
 /* NOTIFICATION */
@@ -205,8 +213,21 @@ body{font-family:'Noto Sans JP',sans-serif;background:var(--bg);color:var(--text
 /* ACTION GRID */
 .act-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:8px}
 .act-btn{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:10px 8px;
-  font-size:12px;font-family:inherit;cursor:pointer;text-align:left;transition:all .15s}
+  font-size:12px;font-family:inherit;cursor:pointer;text-align:left;transition:all .15s;
+  min-height:44px;touch-action:manipulation}
 .act-btn:hover{border-color:var(--gr);background:#fff}
+.act-btn:active{transform:scale(.96);filter:brightness(.92)}
+/* LOADING OVERLAY */
+.loading-overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:600;
+  display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px}
+.loading-spinner{width:40px;height:40px;border:4px solid rgba(255,255,255,.3);
+  border-top-color:#fff;border-radius:50%;animation:_spin .7s linear infinite}
+.loading-msg{color:#fff;font-size:14px;font-weight:700}
+@keyframes _spin{to{transform:rotate(360deg)}}
+/* DEBUG VIEWPORT */
+#_dbg-vp{position:fixed;top:4px;right:4px;z-index:9999;background:rgba(0,0,0,.7);color:#0f0;
+  font-size:10px;font-family:monospace;padding:3px 6px;border-radius:4px;pointer-events:none;
+  line-height:1.4}
 .act-icon{font-size:20px;display:block;margin-bottom:3px}
 .act-lbl{font-weight:600;display:block;font-size:12px}
 .act-cost{color:var(--gr);font-size:10px}
@@ -232,12 +253,27 @@ body.large-text #app{zoom:1.2;transform-origin:top center}
   border:1px solid var(--border)}
 .empty{text-align:center;padding:24px;color:var(--muted);font-size:13px}
 /* TUTORIAL */
-.tut-modal{background:#fff;border-radius:20px;padding:0;width:100%;max-width:390px;
-  animation:slideUp .3s ease;overflow:hidden;max-height:88vh;display:flex;flex-direction:column}
+.tut-modal{background:#fff;border-radius:20px;padding:0;width:min(95%,500px);max-width:500px;
+  animation:slideUp .3s ease;overflow:hidden;max-height:90vh;display:flex;flex-direction:column}
 .tut-header{background:linear-gradient(135deg,var(--gr3),var(--gr));padding:16px;color:#fff;flex-shrink:0}
 .tut-chapter{font-size:10px;opacity:.75;letter-spacing:1px;text-transform:uppercase;margin-bottom:3px}
 .tut-title{font-size:16px;font-weight:700;font-family:'Noto Serif JP',serif}
-.tut-body{padding:20px;overflow-y:auto;flex:1}
+.tut-body{padding:20px;overflow-y:auto;flex:1;animation:tutFadeIn .35s ease}
+@keyframes tutFadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+/* チュートリアル 3ステップ専用 */
+.tut-step-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:14px 0}
+.tut-step-cell{background:var(--bg2);border-radius:12px;padding:12px;text-align:center;border:1px solid var(--border)}
+.tut-step-cell .tsc-icon{font-size:26px;margin-bottom:6px}
+.tut-step-cell .tsc-lbl{font-size:13px;font-weight:700;color:var(--text)}
+.tut-step-cell .tsc-sub{font-size:11px;color:var(--muted);margin-top:3px;line-height:1.5}
+.tut-flow{display:flex;flex-direction:column;align-items:center;gap:4px;margin:14px 0}
+.tut-flow-item{background:var(--warm);border:1px solid #DDD0B0;border-radius:10px;padding:8px 16px;font-size:13px;font-weight:700;color:var(--gr3);width:100%;text-align:center}
+.tut-flow-arrow{font-size:14px;color:var(--muted)}
+/* 初日ヒント */
+.day1-hint{background:var(--gr3);color:#fff;border-radius:12px;padding:10px 14px;margin-bottom:10px;
+  display:flex;align-items:center;gap:10px;font-size:13px;font-weight:600}
+.day1-hint-close{margin-left:auto;background:rgba(255,255,255,.2);border:none;border-radius:8px;
+  color:#fff;font-size:12px;padding:3px 8px;cursor:pointer;font-family:inherit;flex-shrink:0}
 .tut-speaker{display:flex;align-items:center;gap:10px;margin-bottom:12px}
 .tut-avatar{width:44px;height:44px;border-radius:50%;background:var(--bg2);
   display:flex;align-items:center;justify-content:center;font-size:22px;
@@ -1872,7 +1908,8 @@ function _showNextProductReveal(){
       '<div style="font-size:44px;margin:10px 0">' + p.icon + '</div>' +
       '<div style="font-size:22px;font-weight:700;margin:6px 0;color:#333">' + p.name + '</div>' +
       '<div style="border-top:1px solid #eee;border-bottom:1px solid #eee;padding:12px 4px;margin:10px 0;font-size:14px;color:#555;line-height:1.7">' + (p.description || '新しい商品が店舗に並びます。') + '</div>' +
-      '<div style="font-size:13px;font-weight:600;color:#388E3C;margin-bottom:14px;letter-spacing:.8px">【 販売開始 】</div>' +
+      '<div style="font-size:13px;font-weight:600;color:#388E3C;margin-bottom:2px;letter-spacing:.6px">🎉 販売開始！</div>' +
+      '<div style="font-size:12px;color:#666;margin-bottom:14px">' + (p.type === 'product' ? '🛍 商品コーナーに追加されました' : '🍽 イートインメニューに追加されました') + '</div>' +
       '<button onclick="_dismissProductReveal()" class="btn btn-gr" style="width:100%;padding:11px;font-size:15px">OK</button>' +
     '</div>';
   document.getElementById('event-modal').style.display = 'flex';
@@ -2219,6 +2256,14 @@ function _daySceneEmoji(n){
 function monthlyTick(){
   console.log('[monthlyTick] start month=' + G.month);
   G.processingMonthly = true; // 月末チェーン完了まで翌日進行をロック
+  showLoadingOverlay('月末処理中…');
+  // 月末エフェクト用スナップショット（表示差分計算に使う）
+  G._monthSnap = {
+    rep:       (G.regions[0] ? G.regions[0].reputation : 0),
+    regulars:  (G.stores[0]  ? G.stores[0].regulars    : 0),
+    credit:    G.creditScore || 0,
+    money:     G.money       || 0,
+  };
   // 縮小運営フラグの自動解除チェック
   const currentMonthIdx = (G.year-1)*12 + G.month;
   G.stores.forEach(store => {
@@ -2346,6 +2391,7 @@ function getOchawanQuote(monthProfit){
 }
 
 function showMonthlyMeeting(monthProfit, promotions, ownerRankUp){
+  hideLoadingOverlay();
   const rep = G.regions[0].reputation;
   const occPct = Math.round(occupiedRooms()/totalRooms()*100);
   const avgSat = G.staff.length > 0
@@ -2369,15 +2415,36 @@ function showMonthlyMeeting(monthProfit, promotions, ownerRankUp){
       <div style="font-size:11px;opacity:.75;margin-top:4px">${ownerRankUp.desc}</div>
     </div>` : '';
 
+  // 変化デルタ計算（スナップショット比較）
+  const _snap = G._monthSnap || {};
+  const _dRep     = rep      - (_snap.rep     || rep);
+  const _dReg     = (G.stores[0] ? G.stores[0].regulars : 0) - (_snap.regulars || 0);
+  const _dCredit  = (G.creditScore||0) - (_snap.credit  || 0);
+  const _deltaRows = [];
+  if(monthProfit !== 0) _deltaRows.push({ icon:'💰', label:'今月の利益', val:monthProfit, fmt:true });
+  if(_dRep  !== 0) _deltaRows.push({ icon:'🌸', label:'地域評価',   val:_dRep });
+  if(_dReg  !== 0) _deltaRows.push({ icon:'👥', label:'常連',       val:_dReg });
+  if(_dCredit!==0) _deltaRows.push({ icon:'🏦', label:'信用度',     val:_dCredit });
+  const _changeSummary = _deltaRows.length > 0 ? `
+    <div style="background:var(--warm);border-radius:10px;padding:10px 14px;margin-bottom:10px">
+      <div style="font-size:10px;font-weight:700;color:var(--muted);margin-bottom:6px">📋 今月の主な変化</div>
+      ${_deltaRows.map(r => `
+        <div style="display:flex;justify-content:space-between;align-items:center;font-size:13px;padding:2px 0">
+          <span>${r.icon} ${r.label}</span>
+          <span style="font-weight:700;color:${r.val>=0?'var(--gr)':'var(--orange)'}">${r.val>=0?'+':''}${r.fmt?fmt(r.val):r.val}</span>
+        </div>`).join('')}
+    </div>` : '';
+
   console.log('[showMonthlyMeeting] open month popup');
   G.activeEvent = 'monthly_meeting';
   const body = document.getElementById('event-modal-body');
   body.innerHTML = `
     <div style="padding:4px">
       <div style="text-align:center;font-size:28px;margin-bottom:6px">📊</div>
-      <div style="font-size:16px;font-weight:700;text-align:center;margin-bottom:12px;font-family:'Noto Serif JP',serif">月末評価会議</div>
+      <div style="font-size:16px;font-weight:700;text-align:center;margin-bottom:10px;font-family:'Noto Serif JP',serif">月末評価会議</div>
+      ${_changeSummary}
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:12px">
-        <div style="background:var(--bg2);border-radius:8px;padding:8px;text-align:center">
+        <div style="background:var(--bg2);border-radius:8px;padding:8px;text-align:center;animation:_fxPop .5s cubic-bezier(.36,.07,.19,.97)">
           <div style="font-size:15px;font-weight:700;color:${monthProfit>=0?'var(--gr)':'var(--orange)'}">${monthProfit>=0?'+':''}${fmt(monthProfit)}</div>
           <div style="font-size:9px;color:var(--muted)">月次利益</div>
         </div>
@@ -3103,7 +3170,9 @@ function sendEndingLead(){
     staffCount:       G.staff.length,
     occPct:           Math.round(occupiedRooms() / Math.max(totalRooms(),1) * 100),
     ending:           'good',
+    gameVersion:      GAME_VERSION,
   });
+  if(DEV_MODE) showGrowthToast('📤 Lead送信しました（ending_y1）');
 
   const body = document.getElementById('event-modal-body');
   body.innerHTML = '<div style="padding:20px 8px;text-align:center">'
@@ -3125,6 +3194,7 @@ function enterFreeMode(){
   G.activeEvent = null;
   G.processingMonthly = false;
   G.isAdvancingDay = false;
+  hideLoadingOverlay();
   document.getElementById('event-modal').style.display = 'none';
   notify('🌸 フリーモード開始！経営を続けましょう。', 'gold');
   saveGame();
@@ -4010,9 +4080,11 @@ function sendLead(){
     staffCount:       G.staff.length,
     occPct:           Math.round(occupiedRooms() / Math.max(totalRooms(), 1) * 100),
     ending:           'good',
+    gameVersion:      GAME_VERSION,
   };
 
   _post(payload);
+  if(DEV_MODE) showGrowthToast('📤 Lead送信しました（annual）');
 
   // 送信後：お礼画面
   const emailRow = email
@@ -4052,6 +4124,7 @@ function afterMonthlyMeeting(){
     G.activeEvent = null;
     G.processingMonthly = false;
     G.isAdvancingDay = false;
+    hideLoadingOverlay();
   }
 }
 
@@ -8456,6 +8529,37 @@ function delegateToMidori(){
   renderTab();
 }
 
+// ─────────── ローディングオーバーレイ ───────────────────────────
+function showLoadingOverlay(msg){
+  let el = document.getElementById('_loadingOv');
+  if(!el){
+    el = document.createElement('div');
+    el.id = '_loadingOv';
+    el.className = 'loading-overlay';
+    el.innerHTML = '<div class="loading-spinner"></div><div class="loading-msg" id="_loadingMsg"></div>';
+    document.body.appendChild(el);
+  }
+  document.getElementById('_loadingMsg').textContent = msg || '';
+  el.style.display = 'flex';
+}
+function hideLoadingOverlay(){
+  const el = document.getElementById('_loadingOv');
+  if(el) el.style.display = 'none';
+}
+
+// ─────────── デバッグ ビューポート表示 ───────────────────────────
+function _initDebugViewport(){
+  if(!DEV_MODE) return;
+  const el = document.createElement('div');
+  el.id = '_dbg-vp';
+  document.body.appendChild(el);
+  function _update(){
+    el.textContent = window.innerWidth + 'x' + window.innerHeight + ' @' + (window.devicePixelRatio||1).toFixed(1) + 'x';
+  }
+  _update();
+  window.addEventListener('resize', _update);
+}
+
 // ─────────── エフェクト演出 共通関数 ───────────────────────────
 function _injectEffectCSS(){
   if(document.getElementById('_efxcss')) return;
@@ -8465,6 +8569,7 @@ function _injectEffectCSS(){
     '@keyframes _fxUp{0%{opacity:0;transform:translateY(0) scale(.85)}15%{opacity:1;transform:translateY(-10px) scale(1)}75%{opacity:1;transform:translateY(-32px)}100%{opacity:0;transform:translateY(-52px) scale(.9)}}' +
     '@keyframes _fxHeart{0%{opacity:0;transform:scale(0) rotate(-20deg)}50%{opacity:1;transform:scale(1.25) rotate(4deg)}100%{opacity:1;transform:scale(1) rotate(0)}}' +
     '@keyframes _fxToast{0%{opacity:0;transform:translate(-50%,16px)}15%{opacity:1;transform:translate(-50%,0)}80%{opacity:1;transform:translate(-50%,0)}100%{opacity:0;transform:translate(-50%,-10px)}}' +
+    '@keyframes _fxPop{0%{opacity:0;transform:scale(.7)}60%{transform:scale(1.08)}100%{opacity:1;transform:scale(1)}}' +
     '#_efx-overlay{position:fixed;bottom:32%;left:50%;transform:translateX(-50%);z-index:9999;pointer-events:none;display:flex;flex-direction:column;align-items:center;gap:5px}' +
     '.efx-line{font-size:14px;font-weight:700;padding:5px 16px;border-radius:20px;white-space:nowrap;animation:_fxUp 2s ease-out forwards;text-shadow:0 1px 2px rgba(0,0,0,.1)}' +
     '.efx-line.pos{background:rgba(255,255,255,.93);color:#2e7d32;border:1.5px solid #a5d6a7}' +
@@ -8473,6 +8578,18 @@ function _injectEffectCSS(){
     '.efx-toast{position:fixed;bottom:20%;left:50%;z-index:9998;background:rgba(255,255,255,.96);border-radius:14px;padding:9px 20px;font-size:14px;font-weight:600;color:#333;border:1.5px solid #f0d070;box-shadow:0 3px 12px rgba(0,0,0,.12);white-space:nowrap;animation:_fxToast 2.5s ease-out forwards;pointer-events:none}' +
     '.efx-heart{position:fixed;z-index:9997;pointer-events:none;animation:_fxUp 1.8s ease-out forwards}';
   document.head.appendChild(s);
+}
+
+// 単体テキストをふわっと表示（type: 'pos' | 'neg' | 'neu'）
+function showFloatingEffect(text, type){
+  _injectEffectCSS();
+  let ov = document.getElementById('_efx-overlay');
+  if(!ov){ ov = document.createElement('div'); ov.id='_efx-overlay'; document.body.appendChild(ov); }
+  const d = document.createElement('div');
+  d.className = 'efx-line ' + (type||'pos');
+  d.textContent = text;
+  ov.appendChild(d);
+  setTimeout(() => { if(d.parentNode) d.parentNode.removeChild(d); }, 2400);
 }
 
 // 案件選択後にふわっと浮かぶ数値変化エフェクト
@@ -8966,6 +9083,7 @@ function chooseEvent(idx, useFatigue){
       console.log('[chooseEvent] no challenge → release monthly lock');
       G.processingMonthly = false;
       G.isAdvancingDay = false;
+      hideLoadingOverlay();
     }
   }
 }
@@ -10958,6 +11076,8 @@ function renderFinance(){
 }
 
 // ─────────── ANALYTICS ───────────
+const GAME_VERSION = 'v0.9.x'; // ← バージョン更新時はここだけ変える
+
 // GASのウェブアプリURLをここに設定（空欄ならconsole出力のみ）
 const GAS_URL = 'https://script.google.com/macros/s/AKfycbxM8XA5eI_-DMsLW8iqRnFcu5afp_5c5V7Ltz-PhX4_7pHK4_eXJLO1kgZWudUXApPH/exec';
 const LINE_URL = ''; // LINE公式アカウント友達追加URL（例: https://lin.ee/xxxxxxxx）
@@ -10973,9 +11093,23 @@ function _ownerStyle(){
   return (p.risk||0)===m?'拡大型':(p.people||0)===m?'人材型':(p.community||0)===m?'地域型':'堅実型';
 }
 function _post(payload){
-  if(DEV_MODE) console.log('[Analytics]', payload);
   if(!GAS_URL) return;
-  fetch(GAS_URL, { method:'POST', mode:'no-cors', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) }).catch(()=>{});
+  // 追跡ログ初期化
+  G._aLog = G._aLog || { sent:0, fail:0, lastChoice:null, lastMonthly:null, lastLead:null };
+  const t = payload.type || 'other';
+  if(t === 'choice')  G._aLog.lastChoice  = payload;
+  if(t === 'monthly') G._aLog.lastMonthly = payload;
+  if(t === 'lead')    G._aLog.lastLead    = payload;
+  // debug=1 のときだけ型別サマリーをconsole出力
+  if(DEV_MODE){
+    if(t === 'choice')  console.log('[Analytics choice]',  payload.eventId + ' / ' + payload.choice + ' / day:' + payload.totalDays + ' / cash:' + payload.cash + ' / rep:' + payload.rep + ' / ap:' + payload.ap + ' / brand:' + payload.storeBrand + ' / bond:' + payload.communityBond);
+    else if(t === 'monthly') console.log('[Analytics monthly]', 'y' + payload.year + 'm' + payload.month + ' / cash:' + payload.cash + ' / profit:' + payload.monthProfit + ' / rep:' + payload.rep + ' / credit:' + payload.creditScore + ' / staff:' + payload.staffCount + ' / pending:' + payload.pendingCases);
+    else if(t === 'lead')    console.log('[Analytics lead]',    'pid:' + payload.playerId + ' / name:' + payload.playerName + ' / email:' + (payload.email?'あり':'なし') + ' / LINE:' + (payload.line?'あり':'なし') + ' / apt:' + payload.interestApartment + ' / maikon:' + payload.interestMaikon + ' / type:' + payload.ownerType);
+    else console.log('[Analytics ' + t + ']', payload);
+  }
+  fetch(GAS_URL, { method:'POST', mode:'no-cors', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) })
+    .then(() => { G._aLog.sent++; })
+    .catch(e  => { G._aLog.fail++; if(DEV_MODE) console.warn('[Analytics error]', t, e.message||String(e)); });
 }
 function _basePayload(){
   return {
@@ -11082,86 +11216,32 @@ function _buildSnapshot(){
 
 // ── 選択肢ログ（全案件） ──
 function sendAnalytics(eventName, choiceLabel){
-  if(!GAS_URL) return;
-  const op = G.ownerProfile || {};
-  const rep = (G.regions[0]||{}).reputation || 0;
-  const totalDays = (G.year-1)*360 + (G.month-1)*30 + G.day;
-  // 店舗日次粗利（推定）
-  const storeProfit = (s) => {
-    if(!s || !s.isOpen || !s.menu || !s.menu.length) return 0;
-    return Math.round((s.customers||0)*(s.unitPrice||700) - (s.ingredientCost||0) - (s.staffCost||0)/30);
-  };
-  // 棟入居率（%）
-  const bldOcc = (b) => {
-    if(!b || !b.rooms || !b.rooms.length) return 0;
-    return Math.round(b.rooms.filter(r=>r.tenant).length / b.rooms.length * 100);
-  };
-  const payload = {
-    // ===== 基本 =====
+  const snap = _buildSnapshot();
+  _post({
+    ...snap,
     type:        'choice',
-    gameVersion: 'v0.9.0',
-    tester:      G.playerName || 'Guest',
-    // ===== 日付 =====
-    year:       G.year,
-    month:      G.month,
-    day:        G.day,
-    totalDays,
-    // ===== 経営 =====
-    cash:        G.money,
-    creditScore: G.creditScore || 0,
-    rep,
-    ap:          G.ap,
-    fatigue:     G.fatigue || 0,
-    // ===== 隠しパラメータ =====
-    storeBrand:       G.storeBrand       || 0,
-    customerLoyalty:  G.customerLoyalty  || 0,
-    communityBond:    G.communityBond    || 0,
-    naritaTrust:      G.naritaTrust      || 0,
-    midoriTrust:      G.midoriTrust      || 0,
-    // ===== オーナー適性 =====
-    ownerRisk:      op.risk      || 0,
-    ownerPeople:    op.people    || 0,
-    ownerFinance:   op.finance   || 0,
-    ownerCommunity: op.community || 0,
-    // ===== 店舗 =====
-    storeCount:   G.stores.filter(s=>s.isOpen).length,
-    store1Profit: storeProfit(G.stores[0]),
-    store2Profit: storeProfit(G.stores[1]),
-    // ===== 物件 =====
-    buildingCount: G.buildings.length,
-    building1Occ:  bldOcc(G.buildings[0]),
-    building2Occ:  bldOcc(G.buildings[1]),
-    // ===== 人員 =====
-    staffCount: G.staff.length,
-    // ===== 案件 =====
-    pendingCases: G.cases.filter(c=>!c.resolved).length,
-    eventId:  eventName   || '',
-    choice:   choiceLabel || '',
-  };
-  if(DEV_MODE) console.log('[Analytics choice]', payload);
-  fetch(GAS_URL, {
-    method: 'POST',
-    mode:   'no-cors',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  }).catch(()=>{});
+    gameVersion: GAME_VERSION,
+    playerId:    _getPlayerId(),
+    playerName:  G.playerName || '',
+    eventId:     eventName   || '',
+    choice:      choiceLabel || '',
+  });
   recordSnapshot();
 }
 
+// ── 月次ログ ──
 function sendMonthlyAnalytics(monthProfit){
-  if(!GAS_URL) return;
-  const payload = _basePayload();
-  payload.type        = 'monthly';
-  payload.monthProfit = monthProfit;
-  payload.gameVersion = 'v0.9.0';
-  payload.tester      = G.playerName || 'Guest';
-  if(DEV_MODE) console.log('[Analytics monthly]', payload);
-  fetch(GAS_URL, {
-    method: 'POST',
-    mode:   'no-cors',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  }).catch(()=>{});
+  const snap = _buildSnapshot();
+  _post({
+    ...snap,
+    type:        'monthly',
+    gameVersion: GAME_VERSION,
+    playerId:    _getPlayerId(),
+    playerName:  G.playerName || '',
+    monthProfit: monthProfit || 0,
+    freeMode:    G.freeMode ? 1 : 0,
+    mainStoryCompleted: G.gameEnded ? 1 : 0,
+  });
 }
 
 // ─────────── DEV DASHBOARD ───────────
@@ -11316,6 +11396,46 @@ function _renderDevDashboard(){
   ].map(r => ({...r, value: r.value ?? ''}));
   const flagSection = _devSection('📜 フラグ＆統計', flags);
 
+  // ── 📡 Analytics確認 ──
+  const _al = G._aLog || {};
+  const _fmtPayload = (p) => {
+    if(!p) return '<span style="color:#555">未送信</span>';
+    const keys = ['type','gameVersion','playerId','playerName','year','month','day','cash','monthProfit','rep','creditScore','eventId','choice','email','ownerType','staffCount','pendingCases'];
+    return keys.filter(k => p[k] !== undefined).map(k => '<span style="color:#888">' + k + ':</span><span style="color:#fff">' + p[k] + '</span>').join(' ');
+  };
+  const analyticsSection = `<div style="background:#0d0d1a;border-radius:8px;padding:12px;margin-bottom:8px">
+    <div style="color:#FFD700;font-weight:700;font-size:12px;margin-bottom:8px">📡 Analytics</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:10px">
+      <div style="background:#1a1a2a;border-radius:6px;padding:6px;text-align:center">
+        <div style="font-size:18px;font-weight:700;color:#90EE90">${_al.sent||0}</div>
+        <div style="font-size:10px;color:#888">送信済み</div>
+      </div>
+      <div style="background:#1a1a2a;border-radius:6px;padding:6px;text-align:center">
+        <div style="font-size:18px;font-weight:700;color:#FF6B6B">${_al.fail||0}</div>
+        <div style="font-size:10px;color:#888">失敗</div>
+      </div>
+      <div style="background:#1a1a2a;border-radius:6px;padding:6px;text-align:center">
+        <div style="font-size:11px;font-weight:700;color:${GAS_URL?'#90EE90':'#FF6B6B'}">${GAS_URL?'設定済':'未設定'}</div>
+        <div style="font-size:10px;color:#888">GAS URL</div>
+      </div>
+    </div>
+    <div style="font-size:10px;color:#888;margin-bottom:4px">playerId: <span style="color:#fff">${_getPlayerId()}</span> ／ playerName: <span style="color:#fff">${G.playerName||'(未設定)'}</span> ／ ver: <span style="color:#FFD700">${GAME_VERSION}</span></div>
+    <div style="border-top:1px solid #222;margin:6px 0"></div>
+    <div style="font-size:10px;color:#FFD700;margin-bottom:4px">最後のchoice送信</div>
+    <div style="font-size:10px;line-height:1.8;word-break:break-all;margin-bottom:8px">${_fmtPayload(_al.lastChoice)}</div>
+    <div style="font-size:10px;color:#FFD700;margin-bottom:4px">最後のmonthly送信</div>
+    <div style="font-size:10px;line-height:1.8;word-break:break-all;margin-bottom:8px">${_fmtPayload(_al.lastMonthly)}</div>
+    <div style="font-size:10px;color:#FFD700;margin-bottom:4px">最後のlead送信</div>
+    <div style="font-size:10px;line-height:1.8;word-break:break-all;margin-bottom:10px">${_fmtPayload(_al.lastLead)}</div>
+    <div style="border-top:1px solid #222;margin:6px 0"></div>
+    <div style="font-size:11px;font-weight:700;color:#aaa;margin-bottom:6px">🧪 送信テスト</div>
+    <div style="display:flex;flex-wrap:wrap;gap:6px">
+      <button onclick="_devTestChoice()" style="${_devBtnStyle('#1e2a1e','#3a5a3a','#90EE90')}">📊 choiceテスト</button>
+      <button onclick="_devTestMonthly()" style="${_devBtnStyle('#1e1e2a','#3a3a6a','#90CAF9')}">📅 monthlyテスト</button>
+      <button onclick="_devTestLead()" style="${_devBtnStyle('#2a1e1e','#5a3a3a','#FF8A65')}">📤 leadテスト</button>
+    </div>
+  </div>`;
+
   // ── 🔧 クイックアクション ──
   const actionSection = `<div style="background:#0d0d1a;border-radius:8px;padding:12px;margin-bottom:8px">
     <div style="color:#FFD700;font-weight:700;font-size:12px;margin-bottom:8px">🔧 クイックアクション</div>
@@ -11433,6 +11553,7 @@ function _renderDevDashboard(){
           <button onclick="this.closest('.dev-dashboard-overlay').remove()" style="background:none;border:none;color:#aaa;font-size:18px;cursor:pointer">✕</button>
         </div>
       </div>
+      ${analyticsSection}
       ${endingSection}
       ${dateSection}
       ${editorSection}
@@ -11453,6 +11574,24 @@ function _renderDevDashboard(){
   const el = document.createElement('div');
   el.innerHTML = html;
   document.body.appendChild(el.firstElementChild);
+}
+
+// ─────────── ANALYTICS テスト送信 ───────────
+function _devTestChoice(){
+  _post({ testMode:true, type:'choice', gameVersion:GAME_VERSION, playerId:_getPlayerId(), playerName:G.playerName||'TEST', eventId:'dev_test', choice:'テスト選択', year:G.year, month:G.month, day:G.day, totalDays:(G.year-1)*360+(G.month-1)*30+G.day, cash:G.money, rep:(G.regions[0]||{}).reputation||0, ap:G.ap, storeBrand:G.storeBrand||0, communityBond:G.communityBond||0, pendingCases:G.cases.filter(c=>!c.resolved).length, creditScore:G.creditScore||0, staffCount:G.staff.length });
+  showGrowthToast('📊 choiceテスト送信しました');
+  showDebugPanel();
+}
+function _devTestMonthly(){
+  const snap = _buildSnapshot();
+  _post({ ...snap, testMode:true, type:'monthly', gameVersion:GAME_VERSION, playerId:_getPlayerId(), playerName:G.playerName||'TEST', monthProfit:99999, freeMode:G.freeMode?1:0, mainStoryCompleted:G.gameEnded?1:0 });
+  showGrowthToast('📅 monthlyテスト送信しました');
+  showDebugPanel();
+}
+function _devTestLead(){
+  _post({ testMode:true, type:'lead', source:'dev_test', gameVersion:GAME_VERSION, playerId:_getPlayerId(), playerName:G.playerName||'TEST', email:'test@example.com', line:false, interestApartment:true, interestMaikon:true, ownerType:'テスト用', ownerStyleKey:'balanced', age:'30代', occupation:'テスター', finalCash:G.money, finalRep:(G.regions[0]||{}).reputation||0 });
+  showGrowthToast('📤 leadテスト送信しました');
+  showDebugPanel();
 }
 
 // ─────────── DEV HELPERS ───────────
@@ -11845,6 +11984,7 @@ function showSaveRestoredBanner(){
 }
 
 init();
+_initDebugViewport();
 
 // 離脱ログ（タブを閉じる・リロード時）
 window.addEventListener('visibilitychange', ()=>{
