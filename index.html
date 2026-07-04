@@ -519,7 +519,9 @@ let G = {
   cases: [], // 案件ボックス
   isAdvancingDay: false,    // 翌日進行中フラグ（同期的二重実行防止）
   processingMonthly: false, // 月末処理チェーン中フラグ（非同期ロック）
-  pendingMenuLaunches: [], // [{id,name,type,icon,seasonal,seasonDays,launchDay,sourceEvent}]
+  pendingMenuLaunches: [],  // [{id,name,type,icon,seasonal,seasonDays,launchDay,sourceEvent}]
+  _productRevealQueue: [], // 商品解放演出キュー [{id,name,icon,seasonal,season,description}]
+  _expiryNotifyQueue:  [], // 季節終了演出キュー [{name,icon}]
   launchedMenus: [],       // [{id,name,type,icon,seasonal,seasonDays,launchedDay,_launchedSeason,_launchedYear,sales,_expired}]
   menuArchive: [],         // [{...launchedMenu, _archivedSeason, _archivedYear, _wasStandalone, _relaunchOffered}]
   _menuSeasonProposed: {}, // {'2年目-spring': true} — 同シーズン内の重複提案防止
@@ -1844,19 +1846,140 @@ function _processPendingMenuLaunches(){
       _s.menu = _s.menu || [];
       _s.menu.push(p.name);
     }
-    notify(`🎉 先日考案した「${p.name}」の販売が始まりました！`, 'gold');
+    // 商品解放演出キューに積む（notify→モーダルカード）
+    G._productRevealQueue = G._productRevealQueue || [];
+    const _pcInfo = PRODUCT_CATALOG[p.id] || {};
+    G._productRevealQueue.push({ id:p.id, name:p.name, icon:p.icon||'🍽', seasonal:p.seasonal||false, season:_pcInfo.season||p.season||'', description:_pcInfo.description||'' });
     addHistory(p.icon||'🍽', `「${p.name}」販売開始`);
     addStory(`先日考案していた「${p.name}」がいよいよ販売開始した。`, 'highlight');
   });
+  // キューがあれば商品カード演出を起動
+  if((G._productRevealQueue||[]).length > 0){ setTimeout(_showNextProductReveal, 200); }
 }
 
-// 月ごとの季節メニューオブジェクトを返す（【2】具体名対応）
+// 商品解放演出：キューから1件取り出してモーダルカード表示
+function _showNextProductReveal(){
+  if(!G._productRevealQueue || G._productRevealQueue.length === 0) return;
+  const p = G._productRevealQueue.shift();
+  const _seasonLabels = { spring:'🌸 春限定', summer:'☀️ 夏限定', autumn:'🍂 秋限定', winter:'⛄ 冬限定' };
+  const _seasonLabel = p.season ? (_seasonLabels[p.season] || '') : (p.seasonal ? '🌿 季節限定' : '');
+  G.activeEvent = 'product_reveal';
+  const body = document.getElementById('event-modal-body');
+  body.innerHTML =
+    '<div style="text-align:center;padding:8px 4px">' +
+      '<div style="font-size:13px;color:#888;margin-bottom:6px;letter-spacing:.3px">🎉 新商品が完成しました！</div>' +
+      (_seasonLabel ? '<div style="font-size:14px;font-weight:700;color:#B8860B;margin:4px 0">' + _seasonLabel + '</div>' : '') +
+      '<div style="font-size:44px;margin:10px 0">' + p.icon + '</div>' +
+      '<div style="font-size:22px;font-weight:700;margin:6px 0;color:#333">' + p.name + '</div>' +
+      '<div style="border-top:1px solid #eee;border-bottom:1px solid #eee;padding:12px 4px;margin:10px 0;font-size:14px;color:#555;line-height:1.7">' + (p.description || '新しい商品が店舗に並びます。') + '</div>' +
+      '<div style="font-size:13px;font-weight:600;color:#388E3C;margin-bottom:14px;letter-spacing:.8px">【 販売開始 】</div>' +
+      '<button onclick="_dismissProductReveal()" class="btn btn-gr" style="width:100%;padding:11px;font-size:15px">OK</button>' +
+    '</div>';
+  document.getElementById('event-modal').style.display = 'flex';
+}
+function _dismissProductReveal(){
+  document.getElementById('event-modal').style.display = 'none';
+  G.activeEvent = null;
+  renderTab();
+  if((G._productRevealQueue||[]).length > 0){ setTimeout(_showNextProductReveal, 300); }
+}
+
+// 季節終了演出：キューから1件取り出してモーダルカード表示
+function _showNextExpiryCard(){
+  if(!G._expiryNotifyQueue || G._expiryNotifyQueue.length === 0) return;
+  const m = G._expiryNotifyQueue.shift();
+  G.activeEvent = 'menu_expiry';
+  const body = document.getElementById('event-modal-body');
+  body.innerHTML =
+    '<div style="text-align:center;padding:12px 4px">' +
+      '<div style="font-size:40px;margin:8px 0">' + m.icon + '</div>' +
+      '<div style="font-size:18px;font-weight:700;color:#555;margin:4px 0">' + m.name + '</div>' +
+      '<div style="font-size:16px;font-weight:700;color:#B8860B;margin:12px 0">今季の販売が終了しました</div>' +
+      '<div style="font-size:13px;color:#aaa;margin:8px 0">また来年、同じ季節にお会いしましょう 🍃</div>' +
+      '<button onclick="_dismissExpiryCard()" class="btn" style="width:100%;margin-top:14px;padding:10px;background:#888;color:#fff;border-radius:6px">閉じる</button>' +
+    '</div>';
+  document.getElementById('event-modal').style.display = 'flex';
+}
+function _dismissExpiryCard(){
+  document.getElementById('event-modal').style.display = 'none';
+  G.activeEvent = null;
+  renderTab();
+  if((G._expiryNotifyQueue||[]).length > 0){ setTimeout(_showNextExpiryCard, 300); }
+}
+
+// AP余り時のお茶碗マン提案（AP70以上・未処理1件以下・15%/日）
+function _checkApSurplusProposal(){
+  if(!G.started || G.tut.phase !== 'done') return;
+  if((G.ap||0) < 70) return;
+  if(G.cases.filter(c => !c.resolved).length > 1) return;
+  const today = (G.year-1)*360 + (G.month-1)*30 + G.day;
+  if(G._lastApSurplusDay === today) return;
+  if(Math.random() > 0.15) return;
+  G._lastApSurplusDay = today;
+  addCase({
+    id: 'ap_surplus_' + today,
+    repeatable: false, domain:'community', sender:'お茶碗マン', icon:'🥣',
+    apCost: 0, expireDays: 3, category:'ops',
+    title:'お茶碗マンの提案',
+    body:'🥣「今日は少し余裕がありますね。\n\nいつもと違うことをしてみますか？」',
+    choices:[
+      { label:'店頭に立って常連さんと話す', cost:0, ap:5,
+        effects:{ score:4, rep:2, storeSat:3, custRegular:1 },
+        label2:'地域評価+2・常連+1',
+        storyTag:'時間を作って店頭に立ち、常連さんと話した。地域とのつながりを感じた。' },
+      { label:'商品を試食して記録する', cost:0, ap:5,
+        effects:{ score:3, storeSat:2 },
+        label2:'品質チェック・満足+2',
+        storyTag:'店の商品を改めて試食した。日常の中に発見があった。' },
+      { label:'今日は静かに過ごす', cost:0, ap:0,
+        effects:{ score:1 },
+        label2:'ゆっくり過ごす',
+        storyTag:'余裕のある一日をゆっくり過ごした。' }
+    ]
+  });
+}
+
+// 人気商品演出：稼働14日後にランダムで常連からの声案件を生成
+function _checkMenuPopularity(){
+  if(!G.started || G.tut.phase !== 'done') return;
+  const totalDays = (G.year-1)*360 + (G.month-1)*30 + G.day;
+  (G.launchedMenus||[]).forEach(m => {
+    if(m._expired) return;
+    if((totalDays - (m.launchedDay||0)) < 14) return;
+    const fanId = 'fan_' + m.id + '_' + (m._launchedYear||G.year);
+    if(G.cases.some(c => c.id === fanId)) return;
+    if((G.caseCooldowns||{})[fanId]) return;
+    if(Math.random() > 0.05) return; // 約5%/日 → 販売開始約20日後に自然発生
+    const desc = (PRODUCT_CATALOG[m.id]||{}).description || '';
+    const praise = m.seasonal
+      ? `今年の季節の楽しみとして根付いてきたようです。`
+      : `定番商品として長く愛されています。`;
+    addCase({
+      id: fanId, repeatable:false,
+      domain:'store', sender:'常連客', icon:m.icon||'😊',
+      apCost:0, expireDays:21, category:'community',
+      title:`「${m.name}」が好評です！`,
+      body:`常連のお客様から声をかけられました。\n\n「${m.name}、また食べに来ました！毎回楽しみにしてるんです」\n\n${praise}${desc ? '\n\n' + desc : ''}`,
+      choices:[
+        { label:'ありがとうございます！', cost:0, ap:0,
+          effects:{ score:5, rep:3, storeSat:3, custRegular:1 },
+          label2:'地域評価+3・常連+1',
+          storyTag:`「${m.name}」が常連客に好評。ブランドへの信頼が高まった。` }
+      ]
+    });
+  });
+}
+
+// 月ごとの季節メニューオブジェクトを返す（PRODUCT_CATALOG参照）
 function getSeasonalMenuByMonth(month){
   const m = month || G.month;
-  if(m >= 1 && m <= 3)  return { id:'winter_kurumi_maikon',    name:'冬限定 くるみ舞昆おにぎり',      icon:'⛄', type:'eatIn', seasonal:true, seasonDays:90 };
-  if(m >= 4 && m <= 6)  return { id:'spring_ume_maikon',       name:'春限定 梅舞昆おにぎり',          icon:'🌸', type:'eatIn', seasonal:true, seasonDays:90 };
-  if(m >= 7 && m <= 9)  return { id:'summer_aojiso_chazuke',   name:'夏限定 青じそ舞昆冷やし茶漬け', icon:'🍵', type:'eatIn', seasonal:true, seasonDays:90 };
-  return                        { id:'autumn_kinoko_maikon',    name:'秋限定 きのこ舞昆定食',          icon:'🍂', type:'eatIn', seasonal:true, seasonDays:90 };
+  let id;
+  if(m >= 1 && m <= 3)       id = 'winter_kurumi_maikon';
+  else if(m >= 4 && m <= 6)  id = 'spring_ume_maikon';
+  else if(m >= 7 && m <= 9)  id = 'summer_aojiso_chazuke';
+  else                        id = 'autumn_kinoko_maikon';
+  const p = PRODUCT_CATALOG[id] || {};
+  return { id, name:p.name||id, icon:p.icon||'🍽', type:p.type||'eatIn', seasonal:true, season:p.season||'', seasonDays:p.seasonDays||90, description:p.description||'' };
 }
 
 // 日付の正規化：月・年が範囲外になった場合に繰り上げ補正
@@ -2021,10 +2144,23 @@ function advanceDay(){
     try { generateRoomApplicationCases(); } catch(e){ console.error('[advanceDay] generateRoomApplicationCases:', e); }
     try { staffAutoProcess(); } catch(e){ console.error('[advanceDay] staffAutoProcess:', e); }
   }
+  // 補充チェック：5月以降・未処理1件以下・AP50以上・3日経過 → 早期補充
+  if(G.month >= 5 && G.tut.phase === 'done' && !G.processingMonthly){
+    const _pendingNow = G.cases.filter(c => !c.resolved).length;
+    const _daysSinceLast = totalDays - (G._lastCaseDay || 0);
+    if(_pendingNow <= 1 && _daysSinceLast >= 3 && (G.ap||0) >= 50){
+      G._lastCaseDay = totalDays; // 次回週次サイクルをリセット
+      try { generateWeeklyCases(); } catch(e){ console.error('[advanceDay] supplement cases:', e); }
+    }
+  }
   // 条件トリガー案件
   try { generateConditionCases(); } catch(e){ console.error('[advanceDay] generateConditionCases:', e); }
   // 予約メニュー反映
   try { _processPendingMenuLaunches(); } catch(e){ console.error('[advanceDay] pendingMenuLaunches:', e); }
+  // 人気商品 常連反応チェック
+  try { _checkMenuPopularity(); } catch(e){ console.error('[advanceDay] checkMenuPopularity:', e); }
+  // AP余り提案チェック
+  try { _checkApSurplusProposal(); } catch(e){ console.error('[advanceDay] apSurplus:', e); }
   // お茶碗マン ディスカバリーチェック
   try { checkDiscovery(); } catch(e){ console.error('[advanceDay] checkDiscovery:', e); }
 
@@ -2591,83 +2727,161 @@ function showGoEnNote(){
 }
 
 // ─────────── MAIN STORY ENDING（2年目3月） ───────────
-function showMainStoryEnding(){
-  const hasMidori = G.staff.some(s => s.name === '佐々木みどり');
-  const ch = G.characters || {};
+// ─── レガシーエイリアス（呼び出し元変更不要） ───
+function showMainStoryEnding(){ showEnding(1); }
 
-  // キャラクターからの言葉
-  const messages = [];
-  if(ch.narita && ch.narita.met){
-    messages.push({ icon:'💼', name:'成田（銀行員）',
-      line:'「最初は右も左も分からなかったあなたが、\nここまで経営を続けてこられました。\n\n数字よりも大事なものを、\nあなたは知っています。」' });
-  }
-  if(hasMidori){
-    messages.push({ icon:'🌿', name:'佐々木みどり',
-      line:'「ここからが本当のスタートですね。\n\nわたしも、もっと頑張ります。」' });
-  }
-  if(ch.takahashi && ch.takahashi.met){
-    messages.push({ icon:'👔', name:'高橋 亮',
-      line:'「また新しい一年、\n一緒に頑張りましょう。」' });
-  }
-  if(ch.tanaka && ch.tanaka.met){
-    messages.push({ icon:'🧓', name:'田中さん',
-      line:'「あなたのおかげで、\nこの町にいることができました。」' });
-  }
+// ─────────── エンディング共通CSS（初回のみ注入） ───────────
+function _injectEndingCSS(){
+  if(document.getElementById('_ecss')) return;
+  const s = document.createElement('style');
+  s.id = '_ecss';
+  s.textContent =
+    '@keyframes _sPop{0%{opacity:0;transform:scale(.3) rotate(-30deg)}65%{transform:scale(1.3)}100%{opacity:1;transform:scale(1)}}'
+    + '@keyframes _cFall{0%{opacity:1;transform:translateY(0) rotate(0)}100%{opacity:0;transform:translateY(100px) rotate(540deg)}}'
+    + '.e-star{display:inline-block;opacity:0;font-size:28px;color:#FFD700;margin:0 1px}'
+    + '.e-star.lit{animation:_sPop .45s cubic-bezier(.36,.07,.19,.97) forwards}'
+    + '.e-conf{position:absolute;top:-4px;width:8px;height:8px;border-radius:2px;animation:_cFall linear forwards}'
+    + '.e-bar{height:100%;border-radius:3px;width:0;transition:width .9s cubic-bezier(.4,0,.2,1)}';
+  document.head.appendChild(s);
+}
 
-  const msgHtml = messages.map(m =>
-    '<div style="background:var(--bg2);border-radius:10px;padding:12px 14px;margin-bottom:10px">'
-    + '<div style="font-size:10px;color:var(--muted);margin-bottom:6px">' + m.icon + ' ' + m.name + '</div>'
-    + '<div style="font-size:13px;line-height:2;white-space:pre-line">' + m.line + '</div>'
-    + '</div>'
-  ).join('');
-
-  const style = getOwnerStyle() || { key:'balanced', title:'バランス型オーナー', icon:'⚖️' };
-  const p = G.ownerProfile || {};
-  const profileMax = Math.max(p.risk||0, p.people||0, p.community||0, p.finance||0, 1);
-  const starRows = [
-    { label:'人とのご縁',   val: p.people    || 0 },
-    { label:'地域への貢献', val: p.community  || 0 },
-    { label:'経営判断',     val: p.risk       || 0 },
-    { label:'資金管理',     val: p.finance    || 0 },
-  ].map(r =>
-    '<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.15)">'
-    + '<span style="font-size:12px">' + r.label + '</span>'
-    + '<span style="font-size:13px;letter-spacing:1px">' + _starsHtml(r.val, profileMax) + '</span>'
-    + '</div>'
-  ).join('');
-
-  const totalGoEn = (G._totalHouseholds||0) + Object.values(G.characters||{}).filter(c=>c&&c.met).length;
-  const rep = (G.regions[0]||{}).reputation || 0;
-
-  const body = document.getElementById('event-modal-body');
-  body.innerHTML = '<div style="padding:4px">'
-
-    + '<div style="text-align:center;background:linear-gradient(135deg,#1B5E20,#388E3C);border-radius:14px;padding:20px 16px;margin-bottom:16px;color:#fff">'
-    + '<div style="font-size:11px;letter-spacing:.2em;opacity:.8;margin-bottom:6px">🌸 メインストーリークリア 🌸</div>'
-    + '<div style="font-size:22px;font-weight:700;font-family:\'Noto Serif JP\',serif;margin-bottom:4px">' + style.icon + ' ' + style.title + '</div>'
-    + '<div style="font-size:12px;opacity:.8;margin-bottom:12px">全国上位 ' + _calcPercentile(G._ownerScore||0) + '%</div>'
-    + '<div style="background:rgba(255,255,255,.12);border-radius:10px;padding:10px 8px">' + starRows + '</div>'
-    + '</div>'
-
-    + '<div style="background:var(--warm);border-radius:10px;padding:12px 16px;margin-bottom:14px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;text-align:center">'
-    + '<div><div style="font-size:18px;font-weight:700">' + totalGoEn + '人</div><div style="font-size:10px;color:var(--muted)">ご縁</div></div>'
-    + '<div><div style="font-size:18px;font-weight:700">' + rep + '</div><div style="font-size:10px;color:var(--muted)">地域評価</div></div>'
-    + '<div><div style="font-size:18px;font-weight:700">' + (G.creditScore||45) + '</div><div style="font-size:10px;color:var(--muted)">信用度</div></div>'
-    + '</div>'
-
-    + msgHtml
-
-    + '<div style="text-align:center;padding:12px 0;margin-bottom:14px">'
-    + '<div style="font-size:11px;color:var(--muted);line-height:1.9">'
-    + '舞昆を通じて<br>人と地域をつなぐ経営者になりました。'
-    + '</div></div>'
-
-    + '<button class="btn" style="width:100%;padding:15px;font-size:15px;background:var(--gold);color:#fff;border:none;border-radius:10px;font-weight:700"'
-    + ' onclick="showEndingDiagnosis()">診断結果を確認する →</button>'
-    + '</div>';
-
+// ─────────── showEnding(stage) ── エントリーポイント ───────────
+// stage=1:1年目  将来 2,3 へ拡張可能
+function showEnding(stage){
+  stage = stage || 1;
+  _injectEndingCSS();
+  G.gameEnded = true;
+  G.activeEvent = 'ending';
   document.getElementById('event-modal').style.display = 'flex';
   logEnding();
+  showYearReview(stage);
+}
+
+// ─────────── ① 年度振り返り ───────────
+function showYearReview(stage){
+  stage = stage || 1;
+  const totalGoEn   = (G._totalHouseholds||0) + Object.values(G.characters||{}).filter(c=>c&&c.met).length;
+  const rep         = (G.regions[0]||{}).reputation || 0;
+  const totalAssets = (G.money||0) + (G.buildings||[]).reduce((a,b)=>a+(b.value||0),0);
+  const storeCount  = (G.stores||[]).filter(s=>s.isOpen).length;
+  const staffCount  = (G.staff||[]).length;
+
+  const milestones = (G.storyLog||[])
+    .filter(s => s.type==='milestone' || s.type==='highlight')
+    .slice(-5).reverse();
+
+  const milestoneHtml = milestones.length > 0
+    ? milestones.map(s =>
+        '<div style="display:flex;align-items:flex-start;gap:8px;padding:6px 0;border-bottom:1px solid var(--border)">'
+        + '<span style="color:var(--muted);flex-shrink:0;font-size:10px">'+s.year+'年'+s.month+'月</span>'
+        + '<span style="font-size:12px;line-height:1.7;color:var(--text)">'+s.msg+'</span>'
+        + '</div>'
+      ).join('')
+    : '<div style="font-size:12px;color:var(--muted);text-align:center;padding:10px 0">この1年間の物語を育てました。</div>';
+
+  const statCells = [
+    {id:'yr-ast',val:totalAssets,      fmt:v=>'¥'+v.toLocaleString(), label:'最終資産', warm:true },
+    {id:'yr-gen',val:totalGoEn,        fmt:v=>v+'人',                 label:'ご縁',    warm:true },
+    {id:'yr-rep',val:rep,              fmt:v=>String(v),              label:'地域評価', warm:true },
+    {id:'yr-crd',val:G.creditScore||45,fmt:v=>String(v),             label:'信用度',  warm:false},
+    {id:'yr-str',val:storeCount,       fmt:v=>v+'店',                 label:'店舗数',  warm:false},
+    {id:'yr-stf',val:staffCount,       fmt:v=>v+'人',                 label:'スタッフ', warm:false},
+  ];
+
+  const statsHtml = statCells.map(c =>
+    '<div style="background:var('+(c.warm?'--warm':'--bg2')+');border-radius:10px;padding:10px 8px;text-align:center">'
+    +'<div id="'+c.id+'" style="font-size:14px;font-weight:700;opacity:0;transition:opacity .4s">—</div>'
+    +'<div style="font-size:10px;color:var(--muted);margin-top:2px">'+c.label+'</div>'
+    +'</div>'
+  ).join('');
+
+  const body = document.getElementById('event-modal-body');
+  body.innerHTML =
+    '<div style="padding:4px">'
+    +'<div style="text-align:center;padding:18px 0 14px">'
+    +'<div style="font-size:28px;margin-bottom:8px">🌸</div>'
+    +'<div style="font-size:17px;font-weight:700;font-family:\'Noto Serif JP\',serif">1年間を振り返りましょう</div>'
+    +'<div style="font-size:11px;color:var(--muted);margin-top:4px">1年目 4月〜3月30日 の記録</div>'
+    +'</div>'
+    +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:14px">'+statsHtml+'</div>'
+    +'<div style="background:var(--bg2);border-radius:10px;padding:14px;margin-bottom:16px">'
+    +'<div style="font-size:10px;color:var(--muted);letter-spacing:.08em;margin-bottom:10px">この1年間の出来事</div>'
+    +milestoneHtml
+    +'</div>'
+    +'<button class="btn" onclick="showMainStoryClear('+stage+')" style="width:100%;padding:14px;font-size:15px;background:var(--gold);color:#fff;border:none;border-radius:10px;font-weight:700">次へ →</button>'
+    +'</div>';
+
+  // 数字カウントアップ
+  setTimeout(()=>{
+    statCells.forEach((c,i)=>{
+      setTimeout(()=>{
+        const el = document.getElementById(c.id);
+        if(!el) return;
+        el.style.opacity = '1';
+        const target = c.val;
+        if(!target){ el.textContent = c.fmt(0); return; }
+        let step = 0; const STEPS = 20;
+        const t = setInterval(()=>{
+          step++;
+          el.textContent = c.fmt(Math.round((step/STEPS)*target));
+          if(step>=STEPS){ clearInterval(t); el.textContent = c.fmt(target); }
+        }, 40);
+      }, 250 + i*130);
+    });
+  }, 200);
+}
+
+// ─────────── ② メインストーリークリア ───────────
+function showMainStoryClear(stage){
+  stage = stage || 1;
+  const hasMidori = G.staff.some(s => s.name === '佐々木みどり');
+  const ch = G.characters || {};
+  const msgs = [];
+  if(ch.narita && ch.narita.met)
+    msgs.push({icon:'💼',name:'成田（銀行員）',
+      line:'「最初は右も左も分からなかったあなたが、\nここまで経営を続けてこられました。\n\n数字よりも大事なものを、\nあなたは知っています。」'});
+  if(hasMidori)
+    msgs.push({icon:'🌿',name:'佐々木みどり',
+      line:'「ここからが本当のスタートですね。\n\nわたしも、もっと頑張ります。」'});
+  if(ch.takahashi && ch.takahashi.met)
+    msgs.push({icon:'👔',name:'高橋 亮',
+      line:'「また新しい一年、\n一緒に頑張りましょう。」'});
+  if(ch.tanaka && ch.tanaka.met)
+    msgs.push({icon:'🧓',name:'田中さん',
+      line:'「あなたのおかげで、\nこの町にいることができました。」'});
+
+  const msgHtml = msgs.map(m =>
+    '<div style="background:var(--bg2);border-radius:10px;padding:12px 14px;margin-bottom:10px">'
+    +'<div style="font-size:10px;color:var(--muted);margin-bottom:6px">'+m.icon+' '+m.name+'</div>'
+    +'<div style="font-size:13px;line-height:2;white-space:pre-line">'+m.line+'</div>'
+    +'</div>'
+  ).join('');
+
+  const CCOLORS = ['#FFD700','#FF9800','#4CAF50','#E91E63','#2196F3','#9C27B0','#FF5722','#00BCD4'];
+  const confHtml = CCOLORS.map((c,i)=>
+    '<div class="e-conf" style="left:'+Math.round(5+i*12)+'%;background:'+c
+    +';animation-delay:'+Math.round(i*180)+'ms;animation-duration:'+(1600+i*120)+'ms"></div>'
+  ).join('');
+
+  const body = document.getElementById('event-modal-body');
+  body.innerHTML =
+    '<div style="padding:4px;position:relative;overflow:hidden">'
+    +'<div style="position:absolute;top:0;left:0;right:0;height:80px;pointer-events:none;overflow:hidden">'+confHtml+'</div>'
+    +'<div style="text-align:center;padding:22px 0 18px">'
+    +'<div style="font-size:34px;margin-bottom:8px">🎉</div>'
+    +'<div style="font-size:20px;font-weight:700;font-family:\'Noto Serif JP\',serif;margin-bottom:14px">メインストーリークリア！</div>'
+    +'<div style="font-size:13px;line-height:2.3;color:var(--muted)">'
+    +'1年間、本当にお疲れさまでした。<br><br>'
+    +'あなたは、<br>'
+    +'舞昆茶屋と地域を少しずつ育てながら、<br>'
+    +'たくさんの人とのご縁を築いてきました。<br><br>'
+    +'ここから先は、<br>'
+    +'自由に経営を続けるフリーモードになります。'
+    +'</div>'
+    +'</div>'
+    +(msgHtml ? '<div style="margin-bottom:16px">'+msgHtml+'</div>' : '')
+    +'<button class="btn" onclick="showEndingDiagnosis('+stage+')" style="width:100%;padding:14px;font-size:15px;background:var(--gr3);color:#fff;border:none;border-radius:10px;font-weight:700">オーナー診断を見る →</button>'
+    +'</div>';
 }
 
 function showFreeModeTransition(){
@@ -2705,59 +2919,87 @@ function getRecommendedProduct(styleKey){
   return map[styleKey] || map.balanced;
 }
 
-// ─────────── 1年目エンディング：詳細診断画面 ───────────
-function showEndingDiagnosis(){
+// ─────────── ③ オーナー診断（★アニメ + バーチャート） ───────────
+function showEndingDiagnosis(stage){
+  stage = stage || 1;
   const style = getOwnerStyle() || { key:'balanced', title:'バランス型オーナー', icon:'⚖️' };
-  const p = G.ownerProfile || {};
-  const totalGoEn = (G._totalHouseholds||0) + Object.values(G.characters||{}).filter(c=>c&&c.met).length;
-  const rep = (G.regions[0]||{}).reputation || 0;
-  const totalAssets = (G.money||0) + (G.buildings||[]).reduce((a,b) => a+(b.value||0), 0);
+  const p    = G.ownerProfile || {};
+  const pMax = Math.max(p.risk||0, p.people||0, p.community||0, p.finance||0, 1);
   const score = G._ownerScore || 0;
   const starCount = score >= 80 ? 5 : score >= 60 ? 4 : score >= 40 ? 3 : score >= 20 ? 2 : 1;
-  const starsHtml = '<span style="color:#FFD700">★</span>'.repeat(starCount)
-                  + '<span style="color:rgba(255,255,255,.3)">★</span>'.repeat(5 - starCount);
   const prod = getRecommendedProduct(style.key);
-  const prodCard = '<div style="background:var(--warm);border-radius:10px;padding:14px 16px;margin-bottom:14px">'
-    + '<div style="font-size:10px;color:var(--muted);margin-bottom:8px;letter-spacing:.05em">あなたにおすすめの舞昆</div>'
-    + '<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">'
-    + '<span style="font-size:22px">' + prod.icon + '</span>'
-    + '<div style="font-size:15px;font-weight:700">' + prod.name + '</div>'
-    + '</div>'
-    + '<div style="font-size:12px;color:var(--muted);line-height:1.9">' + prod.desc + '</div>'
-    + '</div>';
+
+  const starsHtml = Array.from({length:5}, (_,i) =>
+    '<span class="e-star" id="es-'+i+'" style="font-size:28px">'+(i<starCount?'★':'<span style="opacity:.25">★</span>')+'</span>'
+  ).join('');
+
+  const BARS = [
+    {key:'people',    label:'People',    color:'#66BB6A'},
+    {key:'community', label:'Community', color:'#26A69A'},
+    {key:'risk',      label:'Risk',      color:'#FFA726'},
+    {key:'finance',   label:'Finance',   color:'#42A5F5'},
+  ];
+  const barsHtml = BARS.map(r => {
+    const pct = Math.round(((p[r.key]||0)/pMax)*100);
+    return '<div style="margin-bottom:9px">'
+      +'<div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px">'
+      +'<span style="color:var(--muted)">'+r.label+'</span>'
+      +'<span style="font-weight:700">'+(p[r.key]||0)+'</span>'
+      +'</div>'
+      +'<div style="height:6px;background:var(--border);border-radius:3px;overflow:hidden">'
+      +'<div id="ebar-'+r.key+'" class="e-bar" data-pct="'+pct+'" style="background:'+r.color+'"></div>'
+      +'</div></div>';
+  }).join('');
+
+  const commentMap = {
+    community:  '人とのつながりを大切にしながら、地域とともに成長するオーナータイプです。',
+    people:     'スタッフを丁寧に育て、チームの力で経営を伸ばすオーナータイプです。',
+    finance:    '財務の健全性を保ちながら、着実に地盤を固めてきたオーナータイプです。',
+    aggressive: 'リスクを恐れず挑戦し続ける、拡大志向のオーナータイプです。',
+    balanced:   '状況を読みながら偏らず判断を重ねてきた、バランス型のオーナータイプです。',
+  };
 
   const body = document.getElementById('event-modal-body');
-  body.innerHTML = '<div style="padding:4px">'
-    + '<div style="text-align:center;background:linear-gradient(135deg,#1B5E20,#388E3C);border-radius:14px;padding:24px 16px;margin-bottom:16px;color:#fff">'
-    + '<div style="font-size:11px;letter-spacing:.15em;opacity:.8;margin-bottom:10px">🌸 メインストーリークリア！</div>'
-    + '<div style="font-size:12px;opacity:.7;margin-bottom:6px">あなたは</div>'
-    + '<div style="font-size:26px;letter-spacing:2px;margin-bottom:8px">' + starsHtml + '</div>'
-    + '<div style="font-size:20px;font-weight:700;font-family:\'Noto Serif JP\',serif;margin-bottom:20px">' + style.icon + ' ' + style.title + '</div>'
-    + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">'
-    + '<div style="background:rgba(255,255,255,.13);border-radius:10px;padding:12px 8px">'
-    + '<div style="font-size:22px;font-weight:700">' + totalGoEn + '人</div>'
-    + '<div style="font-size:10px;opacity:.75;margin-top:3px">ご縁</div></div>'
-    + '<div style="background:rgba(255,255,255,.13);border-radius:10px;padding:12px 8px">'
-    + '<div style="font-size:22px;font-weight:700">' + rep + '</div>'
-    + '<div style="font-size:10px;opacity:.75;margin-top:3px">地域評価</div></div>'
-    + '<div style="background:rgba(255,255,255,.13);border-radius:10px;padding:12px 8px">'
-    + '<div style="font-size:22px;font-weight:700">' + (G.creditScore||45) + '</div>'
-    + '<div style="font-size:10px;opacity:.75;margin-top:3px">信用度</div></div>'
-    + '<div style="background:rgba(255,255,255,.13);border-radius:10px;padding:12px 8px">'
-    + '<div style="font-size:15px;font-weight:700">¥' + totalAssets.toLocaleString() + '</div>'
-    + '<div style="font-size:10px;opacity:.75;margin-top:3px">資産</div></div>'
-    + '</div>'
-    + '</div>'
-    + prodCard
-    + '<div style="text-align:center;padding:10px 4px 10px;font-size:13px;line-height:2;color:var(--muted)">'
-    + 'ここまでプレイありがとうございます。<br>'
-    + 'あなたの経営結果を保存できます。'
-    + '</div>'
-    + '<button class="btn" style="width:100%;padding:15px;font-size:15px;background:var(--gold);color:#fff;border:none;border-radius:10px;font-weight:700;margin-bottom:10px"'
-    + ' onclick="showEndingLeadCapture()">診断結果を保存する →</button>'
-    + '<button class="btn" style="width:100%;padding:12px;font-size:13px;background:transparent;color:var(--muted);border:1px solid var(--border);border-radius:10px"'
-    + ' onclick="enterFreeMode()">登録せずに続ける</button>'
-    + '</div>';
+  body.innerHTML =
+    '<div style="padding:4px">'
+    +'<div style="text-align:center;background:linear-gradient(150deg,#1B5E20,#2E7D32);border-radius:14px;padding:24px 16px;margin-bottom:16px;color:#fff">'
+    +'<div style="font-size:11px;letter-spacing:.15em;opacity:.75;margin-bottom:12px">オーナー診断</div>'
+    +'<div style="margin-bottom:10px;line-height:1">'+starsHtml+'</div>'
+    +'<div style="font-size:22px;font-weight:700;font-family:\'Noto Serif JP\',serif;margin-bottom:8px">'+style.icon+' '+style.title+'</div>'
+    +'<div style="font-size:12px;opacity:.85;line-height:1.9;max-width:280px;margin:0 auto">'+(commentMap[style.key]||'')+'</div>'
+    +'</div>'
+    +'<div style="background:var(--bg2);border-radius:10px;padding:14px;margin-bottom:14px">'+barsHtml+'</div>'
+    +'<div style="background:var(--warm);border-radius:10px;padding:14px 16px;margin-bottom:14px">'
+    +'<div style="font-size:10px;color:var(--muted);margin-bottom:8px;letter-spacing:.05em">あなたにおすすめの舞昆</div>'
+    +'<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">'
+    +'<span style="font-size:22px">'+prod.icon+'</span>'
+    +'<div style="font-size:15px;font-weight:700">'+prod.name+'</div>'
+    +'</div>'
+    +'<div style="font-size:12px;color:var(--muted);line-height:1.9">'+prod.desc+'</div>'
+    +'</div>'
+    +'<div style="text-align:center;padding:6px 4px 12px;font-size:12px;color:var(--muted);line-height:2">'
+    +'ここまでプレイありがとうございます。<br>あなたの経営結果を保存できます。'
+    +'</div>'
+    +'<button class="btn" onclick="showEndingLeadCapture('+stage+')" style="width:100%;padding:14px;font-size:15px;background:var(--gold);color:#fff;border:none;border-radius:10px;font-weight:700;margin-bottom:10px">診断結果を保存する →</button>'
+    +'<button class="btn" onclick="enterFreeMode()" style="width:100%;padding:12px;font-size:13px;background:transparent;color:var(--muted);border:1px solid var(--border);border-radius:10px">登録せずに続ける</button>'
+    +'</div>';
+
+  // ★ が1つずつ点灯
+  setTimeout(()=>{
+    for(let i=0; i<starCount; i++){
+      (i=>{setTimeout(()=>{
+        const el = document.getElementById('es-'+i);
+        if(el) el.classList.add('lit');
+      }, i*220);})(i);
+    }
+  }, 500);
+  // バーが伸びる
+  setTimeout(()=>{
+    BARS.forEach(r=>{
+      const el = document.getElementById('ebar-'+r.key);
+      if(el) el.style.width = el.dataset.pct + '%';
+    });
+  }, 900);
 }
 
 // ─────────── 1年目エンディング：CRM保存フォーム ───────────
@@ -3095,6 +3337,23 @@ const MENU_CATALOG = {
   seasonal_bento:   { name:'季節限定弁当',       type:'eatIn',   icon:'🍱', seasonal:true,  seasonDays:90 },
   seasonal_onigiri: { name:'季節の舞昆おにぎり', type:'eatIn',   icon:'🍙', seasonal:true,  seasonDays:90 },
   seasonal_gift:    { name:'季節の小箱ギフト',   type:'product', icon:'🎁', seasonal:true,  seasonDays:90 },
+};
+
+// ─── 統合商品カタログ（季節メニュー＋商品 / description付き） ────────
+const PRODUCT_CATALOG = {
+  // 季節限定イートイン（店舗で提供）
+  spring_ume_maikon:     { name:'梅舞昆おにぎり',         icon:'🌸', type:'eatIn',   seasonal:true,  season:'spring', seasonDays:90, description:'ほんのり梅の香りが楽しめる春限定のおにぎりです。' },
+  summer_aojiso_chazuke: { name:'青じそ舞昆冷やし茶漬け', icon:'🍵', type:'eatIn',   seasonal:true,  season:'summer', seasonDays:90, description:'暑い日にぴったり。青じそと舞昆が爽やかに香ります。' },
+  autumn_kinoko_maikon:  { name:'きのこ舞昆定食',          icon:'🍂', type:'eatIn',   seasonal:true,  season:'autumn', seasonDays:90, description:'秋限定。きのこの風味が広がる人気の定食です。' },
+  winter_kurumi_maikon:  { name:'くるみ舞昆おにぎり',      icon:'⛄', type:'eatIn',   seasonal:true,  season:'winter', seasonDays:90, description:'香ばしいくるみと舞昆の旨みが広がる冬の定番。' },
+  // 定番商品（商品コーナー）
+  kuro_maikon:           { name:'黒舞昆',                  icon:'🟫', type:'product', seasonal:false, description:'昆布の旨みが凝縮された定番中の定番。まずここから。' },
+  ginger_maikon:         { name:'粒生姜舞昆',              icon:'🫚', type:'product', seasonal:false, description:'生姜の爽やかな風味と舞昆の旨みが絶妙にマッチ。' },
+  tamogi_maikon:         { name:'たもぎ茸舞昆',           icon:'🟩', type:'product', seasonal:false, description:'希少なたもぎ茸の香りと昆布の旨みが際立つ一品。' },
+  // 将来解放予定
+  matsutake_maikon:      { name:'松茸舞昆',                icon:'🎋', type:'product', seasonal:true,  season:'autumn', description:'香り高い松茸と舞昆の贅沢な組み合わせ。秋の特別品。' },
+  sansho_maikon:         { name:'山椒舞昆',                icon:'🌿', type:'product', seasonal:false, description:'山椒のピリリとした辛みがアクセント。ご飯が止まりません。' },
+  mentai_hotate:         { name:'明太風帆立舞昆',          icon:'🟥', type:'product', seasonal:false, description:'個性的な辛みと帆立の旨みが印象的な一品。' },
 };
 
 // ─── 商品カタログ（会話で解放される商品の名前・アイコン・説明） ──────
@@ -4954,7 +5213,7 @@ const DOMAIN_CASES = [
 
   { id:'seasonal_limited', requireStaff:true, repeatable:true, domain:'store', sender:'みどり', icon:'🌸', apCost:15, expireDays:21, category:'mgmt',
     title:'季節限定パッケージの提案',
-    body:'みどりから提案が届きました。\n\n「春の桜のデザインで限定パッケージを\n作りませんか？\nSNS映えしますし、贈答需要も狙えます」',
+    body:'みどりから提案が届きました。\n\n「今の季節に合わせた舞昆の限定パッケージを作りませんか？\nSNS映えしますし、贈答需要も狙えます」\n\nみどり「先日、試食したお客様からも好評でした！この季節だけのお楽しみにしましょう」',
     choices:[
       {label:'デザイン会社に発注する（¥80,000）',cost:80000,effects:{score:15,storeSat:8,custUp:5,profile:{risk:2}},label2:'客数+5・話題性UP',storyTag:'季節限定パッケージを作った。SNSで話題になった。'},
       {label:'手作りのPOPで工夫する（¥5,000）',cost:5000,effects:{score:8,storeSat:4,custUp:2},label2:'低コストで差別化',storyTag:'手作りPOPで季節感を演出した。'},
@@ -6321,6 +6580,13 @@ function checkCaseExpiry(){
     if(age < c.expireDays) return;
     c.resolved = true;
     c._expired = true;
+    // 期限切れ時もクールダウンを設定（再出現を少し遅らせる）
+    if(c.repeatable){
+      G.caseCooldowns = G.caseCooldowns || {};
+      const fullCd = CASE_COOLDOWN_DAYS[c.id] || 30;
+      // 満了クールダウンは通常の2/3 （放置ペナルティ分を考慮して少し短め）
+      G.caseCooldowns[c.id] = now - Math.floor(fullCd / 3);
+    }
     const p = c.expirePenalty || {};
     if(p.credit) G.creditScore = Math.max(0, Math.min(100, G.creditScore + p.credit));
     if(p.rep) G.regions[0].reputation = Math.max(0, G.regions[0].reputation + p.rep);
@@ -6372,64 +6638,148 @@ function staffAutoProcess(){
   });
 }
 
-// 案件ごとのクールダウン日数（デフォルト30日）
+// 案件ごとのクールダウン日数（resolveまたはexpiry時に参照）
 const CASE_COOLDOWN_DAYS = {
+  // みどり家庭系
   midori_sick:      60,
+  midori_jido:      90,
+  midori_overtime:  45,
+  // 物件系
   security_camera:  90,
+  // 行政系
   subsidy_info:     120,
+  disaster_drill:   60,
+  fire_inspection:  60,
+  // メニュー提案
+  menu_feedback:    60,
+  // 銀行系
+  midgame_cashflow_advice:  45,
+  midgame_narita_manager:   45,
+  midgame_narita_people:    45,
+  // 地域系
+  midgame_community_event:  45,
+  midgame_local_paper:      45,
+  midgame_school_visit:     45,
+  com_cleanup:      45,
+  com_stamp_rally:  45,
+  com_senior_lunch: 45,
+  com_work_experience: 60,
+  // 競合
+  price_war:        30,
+  price_war_2:      30,
+  competitor_store: 45,
+  // ギフト季節
+  gift_season_haha:  365,
+  gift_season_chichi:365,
+  gift_season_keiro: 365,
 };
 
 function generateWeeklyCases(){
   if(!G.started) return;
+
+  const tdNow = (G.year-1)*360 + (G.month-1)*30 + G.day;
+  const unresolved = G.cases.filter(c => !c.resolved);
+  const MAX_PENDING = 8;
+
+  // 未処理案件が上限以上なら生成しない
+  if(unresolved.length >= MAX_PENDING){
+    if(G._debugCase) console.log('[CaseGen] SKIP pending='+unresolved.length+'>='+MAX_PENDING);
+    return;
+  }
+
+  // 目標生成数：最低3件 / スケールに応じて最大6件
   const scale = totalBuildings() + totalStores();
-  // 規模が大きいほど案件が増える（最大8件/週）
-  const maxNew = Math.min(2 + Math.floor(scale / 2), 8);
+  const targetNew = Math.max(3, Math.min(2 + Math.floor(scale / 2), 6));
+  const canAdd = Math.min(targetNew, MAX_PENDING - unresolved.length);
+  if(canAdd <= 0) return;
 
-  // 系統ごとからランダム1件ずつ候補を選ぶ
-  const domains = ['landlord', 'store', 'competitor', 'admin', 'community'];
-  if(G.staffUnlocked) domains.push('staff');
-  if((G.creditScore||45) >= 30) domains.push('bank');
-  const totalDaysNow = (G.year-1)*360 + (G.month-1)*30 + G.day;
+  // 共通フィルター
   const _hasVacancy = G.buildings.some(b => b.rooms.some(r => !r.tenant));
-  const domainPick = [];
-  domains.forEach(dom => {
-    const pool = DOMAIN_CASES.filter(c => c.domain === dom && !c.conditionOnly && !(c.requireStaff && !G.staffUnlocked));
-    if(pool.length === 0) return;
-    const avail = pool.filter(c => {
-      if(G.cases.some(x => x.id === c.id && !x.resolved)) return false;
-      if(c.repeatable && G.caseCooldowns && G.caseCooldowns[c.id]){
-        const _cd = CASE_COOLDOWN_DAYS[c.id] || 30;
-        if(totalDaysNow - G.caseCooldowns[c.id] < _cd) return false;
-      }
-      if(c.requireVacancy && !_hasVacancy) return false;
-      if(c.menuProposal && !_canProposeNewMenu()) return false;
-      return true;
-    });
-    if(avail.length > 0) domainPick.push(avail[Math.floor(Math.random() * avail.length)]);
-  });
-  console.log('[generateWeeklyCases] scale='+scale+' maxNew='+maxNew+' domainPick=['+domainPick.map(c=>c.id).join(',')+']');
+  const _ok = c => {
+    if(c.conditionOnly) return false;
+    if(G.cases.some(x => x.id === c.id && !x.resolved)) return false;
+    if(c.requireStaff && !G.staffUnlocked) return false;
+    if(c.requireVacancy && !_hasVacancy) return false;
+    if(c.menuProposal && !_canProposeNewMenu()) return false;
+    if(c.id === 'narita_loan' && !G.staffUnlocked) return false;
+    if(c.repeatable && G.caseCooldowns?.[c.id]){
+      const cd = CASE_COOLDOWN_DAYS[c.id] || 30;
+      if(tdNow - G.caseCooldowns[c.id] < cd) return false;
+    }
+    return true;
+  };
 
-  // CASE_POOL からランダム案件（conditionOnly除外）
-  const generalPool = [...CASE_POOL].filter(c =>
-    !c.conditionOnly &&
-    !(c.id === 'narita_loan' && !G.staffUnlocked) &&
-    !G.cases.some(x => x.id === c.id && !x.resolved)
-  );
-  for(let i = generalPool.length-1; i > 0; i--){
-    const j = Math.floor(Math.random()*(i+1));
-    [generalPool[i], generalPool[j]] = [generalPool[j], generalPool[i]];
+  // 有効ドメインリスト
+  const validDomains = ['landlord','store','competitor','admin','community'];
+  if(G.staffUnlocked) validDomains.push('staff');
+  if((G.creditScore||45) >= 30) validDomains.push('bank');
+
+  // 経営状況に応じた重み付け
+  const storeRev  = (G.stores||[]).reduce((a,s)=>a+(s.monthlyRevenue||0),0);
+  const staffLow  = G.staffUnlocked && (G.staff||[]).some(s=>(s.satisfaction||70)<55);
+  const repLow    = ((G.regions[0]||{}).reputation||0) < 40;
+  const creditLow = (G.creditScore||45) < 40;
+  const brandLow  = (G.storeBrand||0) < 30;
+  const DW = {
+    landlord:   _hasVacancy        ? 2.5 : 1.5,
+    store:      (brandLow||storeRev<=0) ? 2.5 : 1.5,
+    competitor: 1.0,
+    admin:      1.0,
+    community:  repLow    ? 2.0 : 1.0,
+    staff:      staffLow  ? 2.5 : 1.0,
+    bank:       creditLow ? 2.0 : 1.0,
+  };
+
+  // DOMAIN_CASES + CASE_POOL（domainあり）を統合プールとして構築
+  const domainPool = [...DOMAIN_CASES, ...CASE_POOL].filter(c => c.domain && _ok(c));
+  const domPools = {};
+  validDomains.forEach(d => { domPools[d] = domainPool.filter(c => c.domain === d); });
+
+  // domain なし CASE_POOL はフォールバックとして保持
+  const fallbackPool = CASE_POOL.filter(c => !c.domain && _ok(c));
+  for(let i=fallbackPool.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[fallbackPool[i],fallbackPool[j]]=[fallbackPool[j],fallbackPool[i]];}
+
+  // デバッグログ
+  if(G._debugCase){
+    const byD = {};
+    validDomains.forEach(d => byD[d] = domPools[d].length);
+    console.log('[CaseGen] pending='+unresolved.length+' canAdd='+canAdd
+      +' domPool='+domainPool.length+' fallback='+fallbackPool.length
+      +' byDomain='+JSON.stringify(byD));
   }
 
-  // 系統案件を先に追加し、残枠をgeneral案件で埋める
-  let added = 0;
-  for(const c of domainPick){
-    if(added >= maxNew) break;
-    addCase(c); added++;
+  // 重み付きドメイン選択（1ドメインから最大2件/週）
+  const MAX_PER_DOM = 2;
+  const domCount = {};
+  const usedIds = new Set();
+  const selected = [];
+
+  for(let attempt=0; attempt < canAdd*4 && selected.length < canAdd; attempt++){
+    const eligible = validDomains.filter(d => (domPools[d]||[]).length > 0 && (domCount[d]||0) < MAX_PER_DOM);
+    if(!eligible.length) break;
+    const tot = eligible.reduce((s,d) => s+(DW[d]||1), 0);
+    let r = Math.random() * tot;
+    let dom = eligible[0];
+    for(const d of eligible){ r -= (DW[d]||1); if(r<=0){ dom=d; break; } }
+    const avail = domPools[dom].filter(c => !usedIds.has(c.id));
+    if(!avail.length){ domPools[dom]=[]; continue; }
+    const pick = avail[Math.floor(Math.random()*avail.length)];
+    selected.push(pick);
+    usedIds.add(pick.id);
+    domCount[dom] = (domCount[dom]||0)+1;
+    domPools[dom] = domPools[dom].filter(c => c.id !== pick.id);
   }
-  for(const c of generalPool){
-    if(added >= maxNew) break;
-    addCase(c); added++;
+
+  // 不足分をフォールバック（domainなし）で補充
+  for(let fi=0; selected.length < canAdd && fi < fallbackPool.length; fi++){
+    const c = fallbackPool[fi];
+    if(!usedIds.has(c.id)){ selected.push(c); usedIds.add(c.id); }
   }
+
+  if(G._debugCase)
+    console.log('[CaseGen] selected=['+selected.map(c=>c.id).join(',')+'] total='+selected.length);
+
+  selected.forEach(c => addCase(c));
 }
 
 function generateConditionCases(){
@@ -6987,8 +7337,10 @@ function generateConditionCases(){
     _expiredNow.push(m);
     const _ss = G.stores[0];
     if(_ss && _ss.menu) _ss.menu = _ss.menu.filter(n => n !== m.name);
-    notify(`🍂 季節限定「${m.name}」は今季の販売を終了しました`, 'warn');
-    addStory(`季節限定「${m.name}」が今季の販売を終えた。`, 'normal');
+    addHistory(m.icon||'🍂', `「${m.name}」今季販売終了`);
+    addStory(`季節限定「${m.name}」が今季の販売を終えた。また来年の同じ季節に会いましょう。`, 'normal');
+    G._expiryNotifyQueue = G._expiryNotifyQueue || [];
+    G._expiryNotifyQueue.push({ name:m.name, icon:m.icon||'🍂' });
   });
 
   // 期限切れメニューをアーカイブへ移動
@@ -7004,6 +7356,8 @@ function generateConditionCases(){
     }
   });
   G.launchedMenus = G.launchedMenus.filter(m => !m._expired);
+  // 季節終了演出モーダル起動
+  if((G._expiryNotifyQueue||[]).length > 0){ setTimeout(_showNextExpiryCard, 500); }
 
   // 期限切れ後は定番化案件を発火
   _expiredNow.forEach(m => {
@@ -7990,7 +8344,7 @@ function showEventModal(ev){
     <div style="background:${canUseFatigue?'#FFF3E0':'#FFEBEE'};border-radius:8px;padding:8px 12px;margin-bottom:8px;font-size:12px;border-left:3px solid ${canUseFatigue?'var(--orange)':'#e53935'}">
       ${canUseFatigue
         ? `⚠️ AP不足（残${G.ap}／必要${apCost}）。<strong>無理して対応</strong>すると疲労が+${apShortfall}蓄積します。`
-        : `🚫 AP不足（残${G.ap}／必要${apCost}）。この案件は翌週以降に対応してください。`}
+        : `🚫 AP不足（残${G.ap}／必要${apCost}）。この案件は翌週以降に対応してください。<br><span style="color:#8D6E63;display:block;margin-top:5px;font-style:italic">🥣「今日は少し考えすぎたみたいです。明日に備えましょう」</span>`}
     </div>` : '';
 
   const body=document.getElementById('event-modal-body');
@@ -8102,6 +8456,84 @@ function delegateToMidori(){
   renderTab();
 }
 
+// ─────────── エフェクト演出 共通関数 ───────────────────────────
+function _injectEffectCSS(){
+  if(document.getElementById('_efxcss')) return;
+  const s = document.createElement('style');
+  s.id = '_efxcss';
+  s.textContent =
+    '@keyframes _fxUp{0%{opacity:0;transform:translateY(0) scale(.85)}15%{opacity:1;transform:translateY(-10px) scale(1)}75%{opacity:1;transform:translateY(-32px)}100%{opacity:0;transform:translateY(-52px) scale(.9)}}' +
+    '@keyframes _fxHeart{0%{opacity:0;transform:scale(0) rotate(-20deg)}50%{opacity:1;transform:scale(1.25) rotate(4deg)}100%{opacity:1;transform:scale(1) rotate(0)}}' +
+    '@keyframes _fxToast{0%{opacity:0;transform:translate(-50%,16px)}15%{opacity:1;transform:translate(-50%,0)}80%{opacity:1;transform:translate(-50%,0)}100%{opacity:0;transform:translate(-50%,-10px)}}' +
+    '#_efx-overlay{position:fixed;bottom:32%;left:50%;transform:translateX(-50%);z-index:9999;pointer-events:none;display:flex;flex-direction:column;align-items:center;gap:5px}' +
+    '.efx-line{font-size:14px;font-weight:700;padding:5px 16px;border-radius:20px;white-space:nowrap;animation:_fxUp 2s ease-out forwards;text-shadow:0 1px 2px rgba(0,0,0,.1)}' +
+    '.efx-line.pos{background:rgba(255,255,255,.93);color:#2e7d32;border:1.5px solid #a5d6a7}' +
+    '.efx-line.neg{background:rgba(255,255,255,.93);color:#b71c1c;border:1.5px solid #ef9a9a}' +
+    '.efx-line.neu{background:rgba(255,255,255,.90);color:#555;border:1.5px solid #ddd}' +
+    '.efx-toast{position:fixed;bottom:20%;left:50%;z-index:9998;background:rgba(255,255,255,.96);border-radius:14px;padding:9px 20px;font-size:14px;font-weight:600;color:#333;border:1.5px solid #f0d070;box-shadow:0 3px 12px rgba(0,0,0,.12);white-space:nowrap;animation:_fxToast 2.5s ease-out forwards;pointer-events:none}' +
+    '.efx-heart{position:fixed;z-index:9997;pointer-events:none;animation:_fxUp 1.8s ease-out forwards}';
+  document.head.appendChild(s);
+}
+
+// 案件選択後にふわっと浮かぶ数値変化エフェクト
+function showEffectList(fx, cost){
+  _injectEffectCSS();
+  const lines = [];
+  if(cost > 0)                         lines.push({ t:'💰 資金 −' + fmt(cost),        c:'neg' });
+  if(fx.money && fx.money > 0)         lines.push({ t:'💰 資金 +' + fmt(fx.money),    c:'pos' });
+  if(fx.money && fx.money < 0)         lines.push({ t:'💰 資金 −' + fmt(-fx.money),   c:'neg' });
+  if(fx.rep > 0)                       lines.push({ t:'🌸 地域評価 +' + fx.rep,       c:'pos' });
+  if(fx.rep < 0)                       lines.push({ t:'🌸 地域評価 ' + fx.rep,        c:'neg' });
+  if(fx.storeSat > 0)                  lines.push({ t:'🏪 店舗満足 +' + fx.storeSat,  c:'pos' });
+  if(fx.storeSat < 0)                  lines.push({ t:'🏪 店舗満足 ' + fx.storeSat,   c:'neg' });
+  if(fx.staffSat > 0)                  lines.push({ t:'👩 スタッフ +' + fx.staffSat,  c:'pos' });
+  if(fx.staffSat < 0)                  lines.push({ t:'👩 スタッフ ' + fx.staffSat,   c:'neg' });
+  if(fx.custRegular > 0)               lines.push({ t:'👥 常連 +' + fx.custRegular,   c:'pos' });
+  if(fx.custUp > 0)                    lines.push({ t:'🛍 客数 +' + fx.custUp,        c:'pos' });
+  if(fx.credit > 0)                    lines.push({ t:'🏦 信用度 +' + fx.credit,      c:'pos' });
+  if(fx.credit < 0)                    lines.push({ t:'🏦 信用度 ' + fx.credit,       c:'neg' });
+  if(fx.charMeet)                      lines.push({ t:'📖 ご縁 +1',                   c:'pos' });
+  if(fx.charLevel)                     lines.push({ t:'🌟 ご縁 深まる',               c:'pos' });
+  if(fx.charComplete)                  lines.push({ t:'✨ ご縁 完結',                 c:'pos' });
+  if(lines.length === 0) return;
+  let ov = document.getElementById('_efx-overlay');
+  if(!ov){ ov = document.createElement('div'); ov.id = '_efx-overlay'; document.body.appendChild(ov); }
+  ov.innerHTML = '';
+  lines.forEach((l, i) => {
+    const d = document.createElement('div');
+    d.className = 'efx-line ' + l.c;
+    d.textContent = l.t;
+    d.style.animationDelay = (i * 110) + 'ms';
+    ov.appendChild(d);
+  });
+  if(fx.charMeet || fx.charLevel || fx.custRegular > 0 || fx.charComplete) showRelationshipEffect();
+  setTimeout(() => { if(ov) ov.innerHTML = ''; }, 2800);
+}
+
+// 店舗成長・商品追加トースト（ゲーム進行をブロックしない）
+function showGrowthToast(text){
+  _injectEffectCSS();
+  const t = document.createElement('div');
+  t.className = 'efx-toast';
+  t.textContent = text;
+  document.body.appendChild(t);
+  setTimeout(() => { if(t.parentNode) t.remove(); }, 2800);
+}
+
+// ご縁・信頼が増えた時の桜エフェクト（ランダム位置）
+function showRelationshipEffect(){
+  _injectEffectCSS();
+  const icons = ['🌸','💛','✨','🌿'];
+  for(let i = 0; i < 4; i++){
+    const h = document.createElement('div');
+    h.className = 'efx-heart';
+    h.textContent = icons[i % icons.length];
+    h.style.cssText = 'font-size:20px;left:' + (18 + Math.random() * 64) + '%;top:' + (38 + Math.random() * 18) + '%;animation-delay:' + (i * 160) + 'ms';
+    document.body.appendChild(h);
+    setTimeout(() => { if(h.parentNode) h.remove(); }, 2100 + i * 160);
+  }
+}
+
 function dismissEventModal(){
   document.getElementById('event-modal').style.display='none';
   G.activeEvent = null;
@@ -8154,6 +8586,7 @@ function chooseEvent(idx, useFatigue){
   if(fx.custRegular){
     G.stores[0].regulars = (G.stores[0].regulars || 0) + fx.custRegular;
     G.stores[0].customers = (G.stores[0].newCustomers||G.stores[0].customers) + G.stores[0].regulars;
+    if(fx.custRegular > 0) setTimeout(() => showGrowthToast('👥 常連さんが増えました'), 400);
   }
   if(fx.roomSat){
     const b=G.buildings[fx.roomSat.building];
@@ -8218,6 +8651,7 @@ function chooseEvent(idx, useFatigue){
       const _pc = UNLOCKED_PRODUCT_CATALOG[fx.unlockProduct];
       const _pName = _pc ? _pc.name : fx.unlockProduct;
       notify(`🛍 「${_pName}」が商品コーナーに加わりました！`, 'gold');
+      showGrowthToast('🛍 ' + _pName + ' が商品コーナーに並びました');
       addHistory('🛍', `${_pName} 販売開始`);
       addStory(`「${_pName}」が店の商品コーナーに並んだ。`, 'highlight');
     }
@@ -8519,6 +8953,7 @@ function chooseEvent(idx, useFatigue){
   document.getElementById('event-modal').style.display='none';
   if(choice.cost>0) notify(`${fmt(choice.cost)} を使いました`);
   else if(fx.score>0) notify('決断しました');
+  showEffectList(fx, choice.cost||0);
   updateHeader(); renderTab();
 
   // 経営課題カード後に来月チャレンジを表示
