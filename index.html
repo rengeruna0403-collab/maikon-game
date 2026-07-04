@@ -2447,7 +2447,8 @@ function monthlyTick(){
   // 月末評価会議（毎月表示 + 昇格 + 四半期プレイヤーランクアップ）
   const promotions = runMonthlyEvaluation();
   const ownerRankUp = (G.month % 3 === 0) ? checkOwnerRankUp() : null;
-  setTimeout(()=>showMonthlyMeeting(monthProfit, promotions, ownerRankUp), 600);
+  if(G.autoTesting){ showMonthlyMeeting(monthProfit, promotions, ownerRankUp); }
+  else { setTimeout(()=>showMonthlyMeeting(monthProfit, promotions, ownerRankUp), 600); }
 
   // チュートリアル: 1か月経過で融資審査
   if(G.tut.phase==='playing' && G.month > 4){
@@ -2470,6 +2471,7 @@ function getOchawanQuote(monthProfit){
 }
 
 function showMonthlyMeeting(monthProfit, promotions, ownerRankUp){
+  if(G.autoTesting){ afterMonthlyMeeting(); return; }
   hideLoadingOverlay();
   // 月初の季節あいさつ（モーダルが開く前に一瞬表示）
   const _seasonGreet = {spring:'🌸 春の月が始まりました',summer:'🌿 夏の月が始まりました',autumn:'🍂 秋の月が始まりました',winter:'⛄ 冬の月が始まりました'};
@@ -4215,15 +4217,20 @@ function afterMonthlyMeeting(){
   // 遷移ロック：400ms間は翌日進行をブロック（月末処理チェーン中の二重進行防止）
   G.activeEvent = '_transition';
   document.getElementById('event-modal').style.display='none';
-  renderTab();
+  if(!G.autoTesting) renderTab();
   // 経営課題カード → 来月の目標 の順に表示
   if(G.started){
+    if(G.autoTesting){
+      showIssueCardModal();
+      G._pendingChallenge = true;
+    } else {
     setTimeout(()=>{
       console.log('[afterMonthlyMeeting] show issue card');
       // showIssueCardModal が G.activeEvent = card で上書きする
       showIssueCardModal();
       G._pendingChallenge = true;
     }, 300);
+    }
   } else {
     // G.started でない場合は即ロック解除
     G.activeEvent = null;
@@ -7882,6 +7889,7 @@ function getMonthlyChallenge(){
 }
 
 function showMonthlyChallengeModal(challenge){
+  if(G.autoTesting){ closeMonthlyChallengeModal(); return; }
   const profileComment = getOchawanProfileComment();
   const profileBlock = profileComment ? `
       <div style="background:var(--bg2);border-radius:8px;padding:10px 12px;margin-bottom:10px;font-size:13px;line-height:1.8">
@@ -7935,6 +7943,7 @@ function showIssueCardModal(){
   if(!G.started) return;
   const card = ISSUE_CARDS[Math.floor(Math.random() * ISSUE_CARDS.length)];
   G.activeEvent = card;
+  if(G.autoTesting){ _autoResolveEvent(); return; }
   showEventModal(card);
 }
 
@@ -8512,6 +8521,7 @@ function getChoiceImpactIcons(choice){
 }
 
 function showEventModal(ev){
+  if(G.autoTesting){ _autoResolveEvent(); return; }
   const apCostRaw = ev.apCost || 0;
   const apCost = apCostRaw > 0 && G.staffUnlocked ? Math.ceil(apCostRaw * 0.5) : apCostRaw;
   const apShortfall = apCost > 0 ? Math.max(0, apCost - G.ap) : 0;
@@ -9185,7 +9195,8 @@ function chooseEvent(idx, useFatigue){
   if(G._pendingChallenge){
     G._pendingChallenge = false;
     if(G.currentChallenge){
-      setTimeout(()=>showMonthlyChallengeModal(G.currentChallenge), 400);
+      if(G.autoTesting){ showMonthlyChallengeModal(G.currentChallenge); }
+      else { setTimeout(()=>showMonthlyChallengeModal(G.currentChallenge), 400); }
     } else {
       // チャレンジなし → 月末処理チェーン完了、ロック解除
       console.log('[chooseEvent] no challenge → release monthly lock');
@@ -11424,6 +11435,7 @@ function _ownerStyle(){
 }
 function _post(payload){
   if(!GAS_URL) return;
+  if(G.autoTesting) return;
   // 追跡ログ初期化
   G._aLog = G._aLog || { sent:0, fail:0, lastChoice:null, lastMonthly:null, lastLead:null };
   const t = payload.type || 'other';
@@ -11575,6 +11587,123 @@ function sendMonthlyAnalytics(monthProfit){
 }
 
 // ─────────── DEV DASHBOARD ───────────
+// ─────────── AUTO TEST MODE ───────────
+function _autoResolveEvent(){
+  const ev = G.activeEvent;
+  if(!ev || typeof ev === 'string') return;
+  if(!ev.choices || !ev.choices.length){ G.activeEvent = null; return; }
+  // Ensure enough AP so cost checks pass
+  G.ap = Math.max(G.ap, (ev.apCost || 0) + 10);
+  const choice = ev.choices[0];
+  // Skip if cost exceeds cash (pick last free choice instead)
+  const idx = (choice.cost || 0) > G.money
+    ? ev.choices.reduce((best, c, i) => (c.cost||0) <= G.money ? i : best, 0)
+    : 0;
+  chooseEvent(idx);
+}
+
+function _checkAutoTestInvariants(){
+  const r = G.autoTestResults;
+  if(!r) return;
+  r.daysRun = (r.daysRun || 0) + 1;
+  const totalDays = (G.year-1)*360 + (G.month-1)*30 + G.day;
+  // Month sanity
+  if(G.month < 1 || G.month > 12){
+    r.errors.push({ day: totalDays, msg: '月が範囲外: ' + G.month });
+  }
+  // Day sanity
+  if(G.day < 1 || G.day > 30){
+    r.errors.push({ day: totalDays, msg: '日が範囲外: ' + G.day });
+  }
+  // NaN checks
+  const nanFields = ['money','creditScore','ap','apMax','fatigue','communityBond','storeBrand','customerLoyalty','naritaTrust','midoriTrust'];
+  nanFields.forEach(f => {
+    if(isNaN(G[f])){ r.errors.push({ day: totalDays, msg: 'NaN: G.' + f }); }
+  });
+  if(G.stores[0] && isNaN(G.stores[0].customers)){
+    r.errors.push({ day: totalDays, msg: 'NaN: stores[0].customers' });
+  }
+  // AP bounds
+  if(G.ap < 0){ r.warnings.push({ day: totalDays, msg: 'AP マイナス: ' + G.ap }); }
+  if(G.ap > G.apMax + 10){ r.warnings.push({ day: totalDays, msg: 'AP が apMax 超過: ' + G.ap + '/' + G.apMax }); }
+  // Year/phase track
+  if(G.year > r.maxYear) r.maxYear = G.year;
+  if(G.phase > r.maxPhase) r.maxPhase = G.phase;
+  if(G.gameEnded && !r.endingReached){ r.endingReached = true; r.endingDay = totalDays; }
+  if(G.freeMode && !r.freeModeReached){ r.freeModeReached = true; r.freeModeDay = totalDays; }
+}
+
+function _autoTestChunk(targetDays, chunkSize, onDone){
+  if(!G.autoTesting){ onDone(); return; }
+  const end = Math.min(G.autoTestResults.daysRun + chunkSize, targetDays);
+  while(G.autoTestResults.daysRun < end){
+    // Clear stale locks
+    G.isAdvancingDay = false;
+    G.processingMonthly = false;
+    G.activeEvent = null;
+    document.getElementById('event-modal').style.display = 'none';
+    // Ensure AP never blocks
+    G.ap = Math.max(G.ap, 10);
+    // Cash floor: avoid cascade crisis modals
+    if(G.money < 0) G.money = 0;
+    advanceDay();
+    _checkAutoTestInvariants();
+    // Safety: if locks are still set after advanceDay (async monthly chain incomplete), flush
+    if(G.processingMonthly || G.isAdvancingDay){
+      G.processingMonthly = false;
+      G.isAdvancingDay = false;
+      G.activeEvent = null;
+    }
+  }
+  if(G.autoTestResults.daysRun < targetDays){
+    _updateAutoTestPanel();
+    setTimeout(()=>_autoTestChunk(targetDays, chunkSize, onDone), 0);
+  } else {
+    onDone();
+  }
+}
+
+function runAutoTest(days){
+  if(!DEV_MODE) return;
+  if(G.autoTesting){ notify('テスト実行中です','warn'); return; }
+  const _saved = JSON.stringify(G);
+  G.autoTesting = true;
+  G.autoTestResults = {
+    targetDays: days, daysRun: 0, errors: [], warnings: [],
+    maxYear: G.year, maxPhase: G.phase,
+    endingReached: false, endingDay: null,
+    freeModeReached: false, freeModeDay: null,
+    startTime: Date.now()
+  };
+  showDebugPanel();
+  _autoTestChunk(days, 30, ()=>{
+    const r = G.autoTestResults;
+    r.elapsed = ((Date.now() - r.startTime) / 1000).toFixed(1);
+    r.done = true;
+    G.autoTesting = false;
+    // Restore game state
+    G = JSON.parse(_saved);
+    G.autoTestResults = r;
+    renderTab(); updateHeader();
+    showDebugPanel();
+    notify('🧪 自動テスト完了 ' + days + '日 / エラー' + r.errors.length + '件', r.errors.length > 0 ? 'warn' : 'gold');
+  });
+}
+
+function stopAutoTest(){
+  if(!G.autoTesting) return;
+  G.autoTesting = false;
+  if(G.autoTestResults) G.autoTestResults.cancelled = true;
+}
+
+function _updateAutoTestPanel(){
+  const el = document.getElementById('_autotest-progress');
+  if(!el || !G.autoTestResults) return;
+  const r = G.autoTestResults;
+  const pct = Math.round(r.daysRun / r.targetDays * 100);
+  el.textContent = r.daysRun + '/' + r.targetDays + '日 (' + pct + '%) — エラー:' + r.errors.length + ' 警告:' + r.warnings.length;
+}
+
 function showDebugPanel(){
   if(!DEV_MODE) return;
   // 既存ダッシュボードを閉じて再描画
@@ -11725,6 +11854,39 @@ function _renderDevDashboard(){
     {label:'独立育成',        value:G.graduations||0},
   ].map(r => ({...r, value: r.value ?? ''}));
   const flagSection = _devSection('📜 フラグ＆統計', flags);
+
+  // ── 🧪 自動テスト ──
+  const atr = G.autoTestResults;
+  const _errRows = atr && atr.errors.length > 0
+    ? atr.errors.slice(-5).map(e => '<div style="color:#FF6B6B;font-size:10px;margin-bottom:2px">day' + e.day + ': ' + e.msg + '</div>').join('')
+    : '<div style="color:#555;font-size:10px">（エラーなし）</div>';
+  const _warnRows = atr && atr.warnings.length > 0
+    ? atr.warnings.slice(-3).map(w => '<div style="color:#FFD700;font-size:10px;margin-bottom:2px">day' + w.day + ': ' + w.msg + '</div>').join('')
+    : '';
+  const _atrSummary = atr ? `
+    <div style="background:#0a1a0a;border-radius:6px;padding:8px 10px;margin-bottom:8px;font-size:10px">
+      <div style="color:#888;margin-bottom:3px">対象: <span style="color:#fff">${atr.targetDays}日</span>　実行: <span style="color:#fff">${atr.daysRun}日</span>　時間: <span style="color:#fff">${atr.elapsed||'---'}s</span>　${atr.done?'<span style="color:#90EE90">完了✓</span>':atr.cancelled?'<span style="color:#FF6B6B">中断</span>':'<span style="color:#FFD700">実行中…</span>'}</div>
+      <div style="color:#888;margin-bottom:3px">最大到達: <span style="color:#fff">${atr.maxYear}年 第${atr.maxPhase}部</span></div>
+      <div style="color:#888;margin-bottom:3px">エンディング: <span style="color:${atr.endingReached?'#90EE90':'#555'}">${atr.endingReached?'✓ day'+atr.endingDay:'未到達'}</span>　フリーモード: <span style="color:${atr.freeModeReached?'#90EE90':'#555'}">${atr.freeModeReached?'✓ day'+atr.freeModeDay:'未到達'}</span></div>
+      <div style="margin-top:5px;border-top:1px solid #1e3a1e;padding-top:5px">
+        <div style="color:#FF6B6B;font-weight:700;font-size:10px;margin-bottom:3px">エラー ${atr.errors.length}件:</div>${_errRows}
+        ${_warnRows ? '<div style="color:#FFD700;font-weight:700;font-size:10px;margin:4px 0 3px">警告 '+atr.warnings.length+'件:</div>'+_warnRows : ''}
+      </div>
+      ${G.autoTesting ? '<div id="_autotest-progress" style="color:#FFD700;font-size:11px;margin-top:5px">進行中…</div>' : ''}
+    </div>` : '<div style="color:#555;font-size:10px;margin-bottom:8px">未実行</div>';
+  const autoTestSection = `<div style="background:#0d0d1a;border-radius:8px;padding:12px;margin-bottom:8px">
+    <div style="color:#FFD700;font-weight:700;font-size:12px;margin-bottom:8px">🧪 自動テスト</div>
+    ${_atrSummary}
+    ${G.autoTesting
+      ? '<button onclick="stopAutoTest();showDebugPanel()" style="' + _devBtnStyle('#3a1a1a','#6a2a2a','#FF6B6B') + 'width:100%;font-size:12px">⏹ テスト停止</button>'
+      : `<div style="display:flex;flex-wrap:wrap;gap:6px">
+          <button onclick="runAutoTest(30)" style="${_devBtnStyle('#1e2a1e','#3a5a3a','#90EE90')}">30日</button>
+          <button onclick="runAutoTest(365)" style="${_devBtnStyle('#1e2a1e','#3a5a3a','#90EE90')}">365日</button>
+          <button onclick="runAutoTest(1000)" style="${_devBtnStyle('#1e2a1e','#3a5a3a','#A5D6A7')}">1000日</button>
+          <button onclick="runAutoTest(1080)" style="${_devBtnStyle('#2a2a0a','#5a5a1a','#FFD700')}">エンディング</button>
+          <button onclick="G.autoTestResults=null;showDebugPanel()" style="${_devBtnStyle('#2a1a1a','#5a3a3a','#aaa')}">結果クリア</button>
+        </div>`}
+  </div>`;
 
   // ── 📡 Analytics確認 ──
   const _al = G._aLog || {};
@@ -11883,6 +12045,7 @@ function _renderDevDashboard(){
           <button onclick="this.closest('.dev-dashboard-overlay').remove()" style="background:none;border:none;color:#aaa;font-size:18px;cursor:pointer">✕</button>
         </div>
       </div>
+      ${autoTestSection}
       ${analyticsSection}
       ${endingSection}
       ${dateSection}
