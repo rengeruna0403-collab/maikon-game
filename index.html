@@ -1155,56 +1155,9 @@ function getOchawanProfileComment(){
 // ─── オープニングモーダルのシーン（関数で生成して年齢セリフを動的に差し込む）───
 function buildTutOpening(){
   return [
-  { type:'narrator',
-    text:'ある秋の朝。\n一通の封筒が届いた。' },
-  { type:'speaker', avatar:'📜', name:'祖父の手紙',
-    text:'親愛なる相続人へ。\n\n私が65年間守ってきたアパートを、\nあなたに託したい。\n\nあの町が好きだった。\nあの町に、人が戻ってほしい。\n\n——祖父より' },
-  { type:'narrator',
-    text:'手紙を読み終えたとき、\n棚の古い茶碗が、ほのかに光った。' },
-  { type:'speaker', avatar:'🍚', name:'お茶碗マン',
-    text:'ふわあ……久しぶりに目が覚めた。\nあの手紙が読まれたんだね。' },
-  { type:'speaker', avatar:'🍚', name:'お茶碗マン',
-    text:'私はお茶碗マン。\n先代のオーナーに仕えていた、経営秘書のようなものだよ。' },
-  { type:'speaker', avatar:'🍚', name:'お茶碗マン',
-    text:'まず「舞昆茶屋」がどんなお店か、\n説明させてもらうね。',
-    html:`<div style="background:var(--warm);border:1.5px solid #D4A843;border-radius:14px;padding:14px 16px;margin-top:12px;font-size:12px;line-height:1.8">
-      <div style="font-weight:700;font-size:13px;margin-bottom:10px;text-align:center;color:var(--gr3)">🏪 舞昆茶屋 — 店内レイアウト</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-        <div style="background:#fff;border-radius:10px;padding:10px;border:1px solid #DDD0B0">
-          <div style="font-size:11px;font-weight:700;color:var(--gr3);margin-bottom:6px">🛍 商品コーナー</div>
-          <div style="color:var(--muted);font-size:11px;line-height:2">
-            □ 舞昆（パウチ・和紙袋入り）<br>
-            □ 木箱入りギフトセット<br>
-            □ 季節限定セット・頒布会
-          </div>
-        </div>
-        <div style="background:#fff;border-radius:10px;padding:10px;border:1px solid #DDD0B0">
-          <div style="font-size:11px;font-weight:700;color:var(--gr3);margin-bottom:6px">🍙 イートイン</div>
-          <div style="color:var(--muted);font-size:11px;line-height:2">
-            ● 舞昆定食<br>
-            ● おにぎり<br>
-            ● 昆布茶セット
-          </div>
-        </div>
-      </div>
-      <div style="margin-top:10px;padding:8px 10px;background:rgba(78,124,78,.1);border-radius:8px;font-size:11px;color:var(--gr3);text-align:center">
-        🍚 舞昆の商品を販売しながら、<br>店内では舞昆料理も食べられる<strong>専門店</strong>なんだ！
-      </div>
-    </div>` },
-  { type:'speaker', avatar:'🍚', name:'お茶碗マン',
-    text:'商品を買って帰る人も、\nその場で食べていく人も両方いる。\n\nだからお土産にもなるし、\n法人まとめ買いにも対応できる。\n\nそれが舞昆茶屋の強みだよ。' },
-  { type:'speaker', avatar:'🍚', name:'お茶碗マン',
-    text:'私は助言はできる。\nだが決めるのは君だ。\nさて——まず現状を聞いてみようか。' },
-  { type:'speaker', avatar:'💼', name:'銀行員・成田', role:'舞昆アパート信託 担当者',
-    text:`アパートの入居率は50%。6室のうち3室が空室です。\n\n1階の舞昆茶屋は数年前に閉店しており、\n店内には机と厨房設備だけが残っています。\n\n賃料収入だけでは維持費を賄えず、\n収支は赤字が続いています。\n\nこのままでは半年後に\n「売却」をお勧めするしかありません。\n\n——${getNaritaAgeComment()}` },
-  { type:'choice', question:'あなたはどうしますか？', choices:[
-    { label:'🏪 とにかく店を立て直す', sub:'祖父の意志を継ぎたい', key:'reopen' },
-    { label:'💰 売却して楽になる', sub:'現実的に考えると……', key:'sell' },
-    { label:'🤔 まず現状を把握する', sub:'焦らず判断したい', key:'wait' },
-  ]},
-  { type:'goal_reveal', avatar:'💼', name:'銀行員・成田', role:'舞昆アパート信託 担当者',
-    text:'一つ教えておきましょう。\n\n「黒字倒産」という言葉を\n知っていますか？\n\n利益は出ている。\nでも現金がない。\nだから倒産する。\n\nこのゲームでは——\n毎日の人件費・家賃は\n現金から即座に引かれます。\n売上は月末にまとめて入金です。\n\n手持ち資金が尽きないよう\n動いてください。',
-    action:'start_playing' },
+  { type:'tut3_step1' },
+  { type:'tut3_step2' },
+  { type:'tut3_step3' },
   ];
 }
 
