@@ -7296,133 +7296,142 @@ function generateConditionCases(){
     addCase(b);
     if(charKey) _charQueued.add(charKey);
   }
-  // キャラごとに最後のケース解決から7日以上経過しているか確認
+  // キャラごとに最後のケース解決から N日以上経過しているか確認
+  // gap: 田中=21日、山本/高橋=45-90日、鈴木/木村=21日
   const nowDay = (G.year-1)*360 + (G.month-1)*30 + G.day;
-  function charReady(key){ return nowDay - (G.characters[key].lastCaseDay || 0) >= 7; }
-  // 田中アーク（茶屋にメニューがある場合のみ出会いイベント発火）
+  function charReady(key, gap){ return nowDay - (G.characters[key].lastCaseDay || 0) >= (gap || 14); }
+
+  // ── 田中アーク（茶屋にメニューがある場合のみ出会いイベント発火）──
+  // 間隔：21日。入院・退院は60日以上かつ2年目以降
   const _storeHasMenu = G.stores.length > 0 && G.stores[0].menu && G.stores[0].menu.length > 0;
   if(_storeHasMenu && !ch.tanaka.met && !G.cases.some(c=>c.id==='chr_tanaka_1')) charCase('chr_tanaka_1');
-  if(ch.tanaka.met && ch.tanaka.level >= 1 && charReady('tanaka') && !G.cases.some(c=>c.id==='chr_tanaka_2')) charCase('chr_tanaka_2');
-  if(ch.tanaka.level >= 2 && charReady('tanaka') && !G.cases.some(c=>c.id==='chr_tanaka_3')) charCase('chr_tanaka_3');
-  // 田中入居申請：空き部屋募集中の枠がある場合のみ。物理的に既入居なら発生させない
+  if(ch.tanaka.met && ch.tanaka.level >= 1 && charReady('tanaka',21) && !G.cases.some(c=>c.id==='chr_tanaka_2')) charCase('chr_tanaka_2');
+  if(ch.tanaka.level >= 2 && charReady('tanaka',21) && !G.cases.some(c=>c.id==='chr_tanaka_3')) charCase('chr_tanaka_3');
+  // 田中入居申請：空き部屋募集中の枠がある場合のみ
   const _hasSeeking = G.buildings.some(b => b.rooms.some(r => r.seeking && !r.tenant));
   const _tanakaAlreadyIn = G.buildings.some(b => b.rooms.some(r => r.tenant && r.tenant.isCharacter === 'tanaka'));
-  if(ch.tanaka.level >= 3 && charReady('tanaka') && ch.tanaka.location !== 'resident' && !_tanakaAlreadyIn && _hasSeeking && !G.cases.some(c=>c.id==='chr_tanaka_apply')) charCase('chr_tanaka_apply');
-  if(ch.tanaka.location === 'resident' && charReady('tanaka') && !G.cases.some(c=>c.id==='chr_tanaka_4')) charCase('chr_tanaka_4');
-  if(ch.tanaka.level >= 4 && ch.tanaka.location === 'resident' && charReady('tanaka') && !ch.tanaka.complete && !G.cases.some(c=>c.id==='chr_tanaka_complete')) charCase('chr_tanaka_complete');
-  if(ch.tanaka.complete && charReady('tanaka') && !G.cases.some(c=>c.id==='chr_tanaka_referral')) charCase('chr_tanaka_referral');
-  // 山本アーク（子ども食堂投資後に初対面イベント発火）
+  if(ch.tanaka.level >= 3 && charReady('tanaka',21) && ch.tanaka.location !== 'resident' && !_tanakaAlreadyIn && _hasSeeking && !G.cases.some(c=>c.id==='chr_tanaka_apply')) charCase('chr_tanaka_apply');
+  if(ch.tanaka.location === 'resident' && charReady('tanaka',14) && !G.cases.some(c=>c.id==='chr_tanaka_4')) charCase('chr_tanaka_4');
+  if(ch.tanaka.level >= 4 && ch.tanaka.location === 'resident' && charReady('tanaka',30) && !ch.tanaka.complete && !G.cases.some(c=>c.id==='chr_tanaka_complete')) charCase('chr_tanaka_complete');
+  if(ch.tanaka.complete && charReady('tanaka',30) && !G.cases.some(c=>c.id==='chr_tanaka_referral')) charCase('chr_tanaka_referral');
+
+  // ── 山本アーク（子ども食堂投資後に初対面イベント発火）──
+  // 間隔：45日。受験期は6か月後（180日）、合格は9か月後（270日）、エンディングは2年目以降
   const _invYamamoto = G.regions && G.regions.some(r => r.investments && r.investments['子ども食堂']);
   if(_invYamamoto && !ch.yamamoto.met && !G.cases.some(c=>c.id==='chr_yamamoto_1')) charCase('chr_yamamoto_1');
-  if(ch.yamamoto.met && ch.yamamoto.level >= 1 && charReady('yamamoto') && !G.cases.some(c=>c.id==='chr_yamamoto_2')) charCase('chr_yamamoto_2');
-  if(ch.yamamoto.level >= 2 && charReady('yamamoto') && !G.cases.some(c=>c.id==='chr_yamamoto_3')) charCase('chr_yamamoto_3');
-  if(ch.yamamoto.level >= 3 && charReady('yamamoto') && !ch.yamamoto.complete && !G.cases.some(c=>c.id==='chr_yamamoto_referral')) charCase('chr_yamamoto_referral');
-  // 鈴木アーク
-  if(ch.suzuki.met && ch.suzuki.level >= 1 && charReady('suzuki') && !G.cases.some(c=>c.id==='chr_suzuki_2')) charCase('chr_suzuki_2');
-  if(ch.suzuki.level >= 2 && charReady('suzuki') && !G.cases.some(c=>c.id==='chr_suzuki_3')) charCase('chr_suzuki_3');
-  // 高橋アーク
-  if(ch.takahashi.met && ch.takahashi.level >= 1 && charReady('takahashi') && !G.cases.some(c=>c.id==='chr_takahashi_2')) charCase('chr_takahashi_2');
-  if(ch.takahashi.level >= 2 && charReady('takahashi') && !G.cases.some(c=>c.id==='chr_takahashi_3')) charCase('chr_takahashi_3');
-  if(ch.takahashi.level >= 3 && charReady('takahashi') && !ch.takahashi.complete && !G.cases.some(c=>c.id==='chr_takahashi_transfer')) charCase('chr_takahashi_transfer');
+  if(ch.yamamoto.met && ch.yamamoto.level >= 1 && charReady('yamamoto',45) && !G.cases.some(c=>c.id==='chr_yamamoto_2')) charCase('chr_yamamoto_2');
+  if(ch.yamamoto.level >= 2 && charReady('yamamoto',45) && !G.cases.some(c=>c.id==='chr_yamamoto_3')) charCase('chr_yamamoto_3');
+  if(ch.yamamoto.level >= 3 && charReady('yamamoto',60) && !ch.yamamoto.complete && !G.cases.some(c=>c.id==='chr_yamamoto_referral')) charCase('chr_yamamoto_referral');
+
+  // ── 鈴木アーク ──
+  if(ch.suzuki.met && ch.suzuki.level >= 1 && charReady('suzuki',21) && !G.cases.some(c=>c.id==='chr_suzuki_2')) charCase('chr_suzuki_2');
+  if(ch.suzuki.level >= 2 && charReady('suzuki',21) && !G.cases.some(c=>c.id==='chr_suzuki_3')) charCase('chr_suzuki_3');
+
+  // ── 高橋アーク ──
+  // 間隔：序盤30日、中盤45日。転勤は6か月後（180日）以降のみ。独立は1年後（360日）以降
+  if(ch.takahashi.met && ch.takahashi.level >= 1 && charReady('takahashi',30) && !G.cases.some(c=>c.id==='chr_takahashi_2')) charCase('chr_takahashi_2');
+  if(ch.takahashi.level >= 2 && charReady('takahashi',30) && !G.cases.some(c=>c.id==='chr_takahashi_3')) charCase('chr_takahashi_3');
+  // 転勤：level3かつ総経過180日以上かつ間隔90日以上
+  if(ch.takahashi.level >= 3 && nowDay >= 180 && charReady('takahashi',90) && !ch.takahashi.complete && !G.cases.some(c=>c.id==='chr_takahashi_transfer')) charCase('chr_takahashi_transfer');
   if(ch.takahashi.complete && !G.cases.some(c=>c.id==='chr_takahashi_referral')) { /* 転勤後は別途口コミのみ */ }
-  // 木村アーク（卒業は2年目3月以降のみ）
-  if(ch.kimura.met && ch.kimura.level >= 1 && charReady('kimura') && !G.cases.some(c=>c.id==='chr_kimura_2')) charCase('chr_kimura_2');
-  if(ch.kimura.level >= 2 && charReady('kimura') && !G.cases.some(c=>c.id==='chr_kimura_3')) charCase('chr_kimura_3');
+
+  // ── 木村アーク（卒業は2年目3月以降のみ）──
+  if(ch.kimura.met && ch.kimura.level >= 1 && charReady('kimura',14) && !G.cases.some(c=>c.id==='chr_kimura_2')) charCase('chr_kimura_2');
+  if(ch.kimura.level >= 2 && charReady('kimura',21) && !G.cases.some(c=>c.id==='chr_kimura_3')) charCase('chr_kimura_3');
   if(ch.kimura.level >= 3 && !ch.kimura.complete && !G.cases.some(c=>c.id==='chr_kimura_graduate') && G.year >= 2 && G.month === 3) charCase('chr_kimura_graduate');
   if(ch.kimura.complete && !G.cases.some(c=>c.id==='chr_kimura_referral')) charCase('chr_kimura_referral');
 
-  // ── 舞昆ストーリー深掘りエピソード（既存） ──
+  // ── 舞昆ストーリー深掘りエピソード ──
   // 木村：昆布苦手→食べてみたら違った（出会い直後、kimura_2の前）
-  if(ch.kimura.met && ch.kimura.level >= 1 && ch.kimura.level < 2 && charReady('kimura') && !G.cases.some(c=>c.id==='chr_kimura_0b')) charCase('chr_kimura_0b');
+  if(ch.kimura.met && ch.kimura.level >= 1 && ch.kimura.level < 2 && charReady('kimura',14) && !G.cases.some(c=>c.id==='chr_kimura_0b')) charCase('chr_kimura_0b');
   // 木村：実家の母に送る（level3以上、卒業前）
-  if(ch.kimura.level >= 3 && !ch.kimura.complete && charReady('kimura') && !G.cases.some(c=>c.id==='chr_kimura_4')) charCase('chr_kimura_4');
-  // 山本：子どもが舞昆おにぎりだけ食べる（level2以上）
-  if(ch.yamamoto.level >= 2 && charReady('yamamoto') && !G.cases.some(c=>c.id==='chr_yamamoto_4')) charCase('chr_yamamoto_4');
-  // 山本：遠足で子どもが友達に紹介（level3以上）
-  if(ch.yamamoto.level >= 3 && charReady('yamamoto') && !G.cases.some(c=>c.id==='chr_yamamoto_5')) charCase('chr_yamamoto_5');
-  // 高橋：東京出張で同僚が「それ何？」（転勤前・level2以上）
-  if(ch.takahashi.level >= 2 && !G.cases.some(c=>c.id==='chr_takahashi_transfer' && c.resolved) && charReady('takahashi') && !G.cases.some(c=>c.id==='chr_takahashi_4')) charCase('chr_takahashi_4');
-  // ★高橋：「東京に来て1か月、大阪に帰った気がした」（転勤後・transfer解決後）
-  if(G.cases.some(c=>c.id==='chr_takahashi_transfer' && c.resolved) && charReady('takahashi') && !G.cases.some(c=>c.id==='chr_takahashi_hotel')) charCase('chr_takahashi_hotel');
-  // 高橋：大阪出張のたびに同僚の分も買う（転勤後・hotel解決後）
-  if(G.cases.some(c=>c.id==='chr_takahashi_hotel' && c.resolved) && charReady('takahashi') && !G.cases.some(c=>c.id==='chr_takahashi_5')) charCase('chr_takahashi_5');
-  // ★木村：「ご飯と舞昆だけで乗り切った」（level2以上・kimura_3の前後）
-  if(ch.kimura.level >= 2 && charReady('kimura') && !G.cases.some(c=>c.id==='chr_kimura_jiason2')) charCase('chr_kimura_jiason2');
-  // ★老人会おにぎりシーン（みどりがいる・店舗が軌道に・まだ未発生）
+  if(ch.kimura.level >= 3 && !ch.kimura.complete && charReady('kimura',21) && !G.cases.some(c=>c.id==='chr_kimura_4')) charCase('chr_kimura_4');
+  // 山本：子どもが舞昆おにぎりだけ食べる（level2以上・45日間隔）
+  if(ch.yamamoto.level >= 2 && charReady('yamamoto',45) && !G.cases.some(c=>c.id==='chr_yamamoto_4')) charCase('chr_yamamoto_4');
+  // 山本：遠足で子どもが友達に紹介（level3以上・45日間隔）
+  if(ch.yamamoto.level >= 3 && charReady('yamamoto',45) && !G.cases.some(c=>c.id==='chr_yamamoto_5')) charCase('chr_yamamoto_5');
+  // 高橋：東京出張で同僚が「それ何？」（転勤前・level2以上・45日間隔）
+  if(ch.takahashi.level >= 2 && !G.cases.some(c=>c.id==='chr_takahashi_transfer' && c.resolved) && charReady('takahashi',45) && !G.cases.some(c=>c.id==='chr_takahashi_4')) charCase('chr_takahashi_4');
+  // 高橋：「東京に来て1か月、大阪に帰った気がした」（転勤後・transfer解決後・60日間隔）
+  if(G.cases.some(c=>c.id==='chr_takahashi_transfer' && c.resolved) && charReady('takahashi',60) && !G.cases.some(c=>c.id==='chr_takahashi_hotel')) charCase('chr_takahashi_hotel');
+  // 高橋：大阪出張のたびに同僚の分も買う（転勤後・hotel解決後・60日間隔）
+  if(G.cases.some(c=>c.id==='chr_takahashi_hotel' && c.resolved) && charReady('takahashi',60) && !G.cases.some(c=>c.id==='chr_takahashi_5')) charCase('chr_takahashi_5');
+  // 木村：「ご飯と舞昆だけで乗り切った」（level2以上・21日間隔）
+  if(ch.kimura.level >= 2 && charReady('kimura',21) && !G.cases.some(c=>c.id==='chr_kimura_jiason2')) charCase('chr_kimura_jiason2');
+  // 老人会おにぎりシーン（みどりがいる・60日以上経過）
   const _hasMidoriForOnigiri = G.staff.some(s => s.name === '佐々木みどり');
   const _totalDaysForOnigiri = (G.year-1)*360 + (G.month-1)*30 + G.day;
   if(_hasMidoriForOnigiri && _totalDaysForOnigiri >= 60 && G.regions[0]?.investTotal >= 0 && !G.cases.some(c=>c.id==='maikonbu_rouijin_onigiri')) charCase('maikonbu_rouijin_onigiri');
-  // 田中：朝ごはんに舞昆おにぎり（入居後 level4以上）
-  if(ch.tanaka.level >= 4 && ch.tanaka.location === 'resident' && charReady('tanaka') && !G.cases.some(c=>c.id==='chr_tanaka_5')) charCase('chr_tanaka_5');
-  // 田中：孫への贈り物（level5以上）
-  if(ch.tanaka.level >= 5 && charReady('tanaka') && !G.cases.some(c=>c.id==='chr_tanaka_6')) charCase('chr_tanaka_6');
+  // 田中：朝ごはんに舞昆おにぎり（入居後 level4以上・30日間隔）
+  if(ch.tanaka.level >= 4 && ch.tanaka.location === 'resident' && charReady('tanaka',30) && !G.cases.some(c=>c.id==='chr_tanaka_5')) charCase('chr_tanaka_5');
+  // 田中：孫への贈り物（level5以上・30日間隔）
+  if(ch.tanaka.level >= 5 && charReady('tanaka',30) && !G.cases.some(c=>c.id==='chr_tanaka_6')) charCase('chr_tanaka_6');
 
   // ── 田中 追加エピソード ──
-  // 転倒事故（level2以上・入居前）
-  if(ch.tanaka.level >= 2 && ch.tanaka.location !== 'resident' && charReady('tanaka') && !G.cases.some(c=>c.id==='chr_tanaka_fall')) charCase('chr_tanaka_fall');
-  // ★食欲不振の電話（level3以上・入居前）→ 「この昆布だけは」への伏線
-  if(ch.tanaka.level >= 3 && ch.tanaka.location !== 'resident' && charReady('tanaka') && !G.cases.some(c=>c.id==='chr_tanaka_musume')) charCase('chr_tanaka_musume');
-  // ★「この昆布だけはご飯がすすむ」（入居後 level4、musume解決後）
-  if(ch.tanaka.level >= 4 && ch.tanaka.location === 'resident' && G.cases.some(c=>c.id==='chr_tanaka_musume' && c.resolved) && charReady('tanaka') && !G.cases.some(c=>c.id==='chr_tanaka_kore_dake')) charCase('chr_tanaka_kore_dake');
-  // 入院（入居後 complete後 level5以上）
-  if(ch.tanaka.complete && charReady('tanaka') && !G.cases.some(c=>c.id==='chr_tanaka_hospital')) charCase('chr_tanaka_hospital');
-  // 退院・真の完結（入院案件解決後）
-  if(G.cases.some(c=>c.id==='chr_tanaka_hospital' && c.resolved) && charReady('tanaka') && !G.cases.some(c=>c.id==='chr_tanaka_final')) charCase('chr_tanaka_final');
+  // 転倒事故（level2以上・入居前・21日間隔）
+  if(ch.tanaka.level >= 2 && ch.tanaka.location !== 'resident' && charReady('tanaka',21) && !G.cases.some(c=>c.id==='chr_tanaka_fall')) charCase('chr_tanaka_fall');
+  // 食欲不振の電話（level3以上・入居前・30日間隔）
+  if(ch.tanaka.level >= 3 && ch.tanaka.location !== 'resident' && charReady('tanaka',30) && !G.cases.some(c=>c.id==='chr_tanaka_musume')) charCase('chr_tanaka_musume');
+  // 「この昆布だけはご飯がすすむ」（入居後 level4、musume解決後・30日間隔）
+  if(ch.tanaka.level >= 4 && ch.tanaka.location === 'resident' && G.cases.some(c=>c.id==='chr_tanaka_musume' && c.resolved) && charReady('tanaka',30) && !G.cases.some(c=>c.id==='chr_tanaka_kore_dake')) charCase('chr_tanaka_kore_dake');
+  // 入院（complete後・60日間隔・2年目以降）
+  if(ch.tanaka.complete && nowDay >= 390 && charReady('tanaka',60) && !G.cases.some(c=>c.id==='chr_tanaka_hospital')) charCase('chr_tanaka_hospital');
+  // 退院・真の完結（入院案件解決後・60日間隔）
+  if(G.cases.some(c=>c.id==='chr_tanaka_hospital' && c.resolved) && charReady('tanaka',60) && !G.cases.some(c=>c.id==='chr_tanaka_final')) charCase('chr_tanaka_final');
 
   // ── 山本 追加エピソード ──
-  // PTAイベント（level3以上）
-  if(ch.yamamoto.level >= 3 && charReady('yamamoto') && !G.cases.some(c=>c.id==='chr_yamamoto_pta')) charCase('chr_yamamoto_pta');
-  // 受験期（level4以上）
-  if(ch.yamamoto.level >= 4 && charReady('yamamoto') && !G.cases.some(c=>c.id==='chr_yamamoto_juken')) charCase('chr_yamamoto_juken');
-  // 合格（受験期解決後）
-  if(G.cases.some(c=>c.id==='chr_yamamoto_juken' && c.resolved) && charReady('yamamoto') && !G.cases.some(c=>c.id==='chr_yamamoto_pass')) charCase('chr_yamamoto_pass');
-  // エンディング（合格後 complete前）
-  if(G.cases.some(c=>c.id==='chr_yamamoto_pass' && c.resolved) && !ch.yamamoto.complete && charReady('yamamoto') && !G.cases.some(c=>c.id==='chr_yamamoto_ending')) charCase('chr_yamamoto_ending');
-  // 食卓シーン（level3以上・yamamoto_4解決後）
-  if(ch.yamamoto.level >= 3 && G.cases.some(c=>c.id==='chr_yamamoto_4' && c.resolved) && charReady('yamamoto') && !G.cases.some(c=>c.id==='chr_yamamoto_shokutaku')) charCase('chr_yamamoto_shokutaku');
+  // PTAイベント（level3以上・60日間隔）
+  if(ch.yamamoto.level >= 3 && charReady('yamamoto',60) && !G.cases.some(c=>c.id==='chr_yamamoto_pta')) charCase('chr_yamamoto_pta');
+  // 受験期（level4以上・総経過180日以上・90日間隔）
+  if(ch.yamamoto.level >= 4 && nowDay >= 180 && charReady('yamamoto',90) && !G.cases.some(c=>c.id==='chr_yamamoto_juken')) charCase('chr_yamamoto_juken');
+  // 合格（受験期解決後・総経過270日以上・90日間隔）
+  if(G.cases.some(c=>c.id==='chr_yamamoto_juken' && c.resolved) && nowDay >= 270 && charReady('yamamoto',90) && !G.cases.some(c=>c.id==='chr_yamamoto_pass')) charCase('chr_yamamoto_pass');
+  // エンディング（合格後 complete前・2年目以降・60日間隔）
+  if(G.cases.some(c=>c.id==='chr_yamamoto_pass' && c.resolved) && !ch.yamamoto.complete && G.year >= 2 && charReady('yamamoto',60) && !G.cases.some(c=>c.id==='chr_yamamoto_ending')) charCase('chr_yamamoto_ending');
+  // 食卓シーン（level3以上・yamamoto_4解決後・45日間隔）
+  if(ch.yamamoto.level >= 3 && G.cases.some(c=>c.id==='chr_yamamoto_4' && c.resolved) && charReady('yamamoto',45) && !G.cases.some(c=>c.id==='chr_yamamoto_shokutaku')) charCase('chr_yamamoto_shokutaku');
 
   // ── 鈴木 追加エピソード ──
-  // PTAイベント（level2以上）
-  if(ch.suzuki.level >= 2 && charReady('suzuki') && !G.cases.some(c=>c.id==='chr_suzuki_pta')) charCase('chr_suzuki_pta');
-  // 食育授業（level3以上）
-  if(ch.suzuki.level >= 3 && charReady('suzuki') && !G.cases.some(c=>c.id==='chr_suzuki_shokuiku')) charCase('chr_suzuki_shokuiku');
-  // 地域新聞（食育授業解決後）
-  if(G.cases.some(c=>c.id==='chr_suzuki_shokuiku' && c.resolved) && charReady('suzuki') && !G.cases.some(c=>c.id==='chr_suzuki_newspaper')) charCase('chr_suzuki_newspaper');
-  // 卒業記念（level4以上・1年経過後）
-  if(ch.suzuki.level >= 4 && G.year >= 2 && charReady('suzuki') && !G.cases.some(c=>c.id==='chr_suzuki_graduation')) charCase('chr_suzuki_graduation');
-  // エンディング（卒業記念解決後 complete前・3月限定）
-  if(G.cases.some(c=>c.id==='chr_suzuki_graduation' && c.resolved) && !ch.suzuki.complete && G.month === 3 && charReady('suzuki') && !G.cases.some(c=>c.id==='chr_suzuki_ending')) charCase('chr_suzuki_ending');
-  // 異動・贈り物（complete後）
-  if(ch.suzuki.complete && charReady('suzuki') && !G.cases.some(c=>c.id==='chr_suzuki_ido')) charCase('chr_suzuki_ido');
+  // PTAイベント（level2以上・30日間隔）
+  if(ch.suzuki.level >= 2 && charReady('suzuki',30) && !G.cases.some(c=>c.id==='chr_suzuki_pta')) charCase('chr_suzuki_pta');
+  // 食育授業（level3以上・30日間隔）
+  if(ch.suzuki.level >= 3 && charReady('suzuki',30) && !G.cases.some(c=>c.id==='chr_suzuki_shokuiku')) charCase('chr_suzuki_shokuiku');
+  // 地域新聞（食育授業解決後・21日間隔）
+  if(G.cases.some(c=>c.id==='chr_suzuki_shokuiku' && c.resolved) && charReady('suzuki',21) && !G.cases.some(c=>c.id==='chr_suzuki_newspaper')) charCase('chr_suzuki_newspaper');
+  // 卒業記念（level4以上・1年経過後・30日間隔）
+  if(ch.suzuki.level >= 4 && G.year >= 2 && charReady('suzuki',30) && !G.cases.some(c=>c.id==='chr_suzuki_graduation')) charCase('chr_suzuki_graduation');
+  // エンディング（卒業記念解決後 complete前・3月限定・21日間隔）
+  if(G.cases.some(c=>c.id==='chr_suzuki_graduation' && c.resolved) && !ch.suzuki.complete && G.month === 3 && charReady('suzuki',21) && !G.cases.some(c=>c.id==='chr_suzuki_ending')) charCase('chr_suzuki_ending');
+  // 異動・贈り物（complete後・30日間隔）
+  if(ch.suzuki.complete && charReady('suzuki',30) && !G.cases.some(c=>c.id==='chr_suzuki_ido')) charCase('chr_suzuki_ido');
   // 手紙（贈り物フラグ後 6ヶ月以上）
-  if(G._suzukiGiftDone && totalDays >= (G._suzukiGiftDay||0)+180 && charReady('suzuki') && !G.cases.some(c=>c.id==='chr_suzuki_tegami')) charCase('chr_suzuki_tegami');
+  if(G._suzukiGiftDone && totalDays >= (G._suzukiGiftDay||0)+180 && charReady('suzuki',30) && !G.cases.some(c=>c.id==='chr_suzuki_tegami')) charCase('chr_suzuki_tegami');
 
   // ── 高橋 追加エピソード ──
-  // 法人利用（level2以上）
   // ギフト伏線（高橋level2到達・法人案件前・みどり採用後）
   if(ch.takahashi.level >= 2 && G.staffUnlocked && !G.cases.some(c=>c.id==='midori_gift_foreshadow') && !G.cases.some(c=>c.id==='chr_takahashi_houjin')) charCase('midori_gift_foreshadow');
-  // 法人案件（ギフト伏線解決後 or 未採用の場合）
-  if(ch.takahashi.level >= 2 && (G.cases.some(c=>c.id==='midori_gift_foreshadow' && c.resolved) || !G.staffUnlocked) && charReady('takahashi') && !G.cases.some(c=>c.id==='chr_takahashi_houjin')) charCase('chr_takahashi_houjin');
-  // クレーム（法人利用解決後）
-  if(G.cases.some(c=>c.id==='chr_takahashi_houjin' && c.resolved) && charReady('takahashi') && !G.cases.some(c=>c.id==='chr_takahashi_claim')) charCase('chr_takahashi_claim');
-  // 大口注文（クレーム解決後 level4以上）
-  if(ch.takahashi.level >= 4 && G.cases.some(c=>c.id==='chr_takahashi_claim' && c.resolved) && charReady('takahashi') && !G.cases.some(c=>c.id==='chr_takahashi_bulk')) charCase('chr_takahashi_bulk');
-  // 独立（level5以上 complete前）
-  if(ch.takahashi.level >= 5 && !ch.takahashi.complete && charReady('takahashi') && !G.cases.some(c=>c.id==='chr_takahashi_startup')) charCase('chr_takahashi_startup');
-  // エンディング（独立解決後）
-  if(G.cases.some(c=>c.id==='chr_takahashi_startup' && c.resolved) && charReady('takahashi') && !G.cases.some(c=>c.id==='chr_takahashi_ending')) charCase('chr_takahashi_ending');
+  // 法人案件（ギフト伏線解決後 or 未採用の場合・45日間隔）
+  if(ch.takahashi.level >= 2 && (G.cases.some(c=>c.id==='midori_gift_foreshadow' && c.resolved) || !G.staffUnlocked) && charReady('takahashi',45) && !G.cases.some(c=>c.id==='chr_takahashi_houjin')) charCase('chr_takahashi_houjin');
+  // クレーム（法人利用解決後・30日間隔）
+  if(G.cases.some(c=>c.id==='chr_takahashi_houjin' && c.resolved) && charReady('takahashi',30) && !G.cases.some(c=>c.id==='chr_takahashi_claim')) charCase('chr_takahashi_claim');
+  // 大口注文（クレーム解決後 level4以上・45日間隔）
+  if(ch.takahashi.level >= 4 && G.cases.some(c=>c.id==='chr_takahashi_claim' && c.resolved) && charReady('takahashi',45) && !G.cases.some(c=>c.id==='chr_takahashi_bulk')) charCase('chr_takahashi_bulk');
+  // 独立（level5以上 complete前・総経過360日以上・90日間隔）
+  if(ch.takahashi.level >= 5 && !ch.takahashi.complete && nowDay >= 360 && charReady('takahashi',90) && !G.cases.some(c=>c.id==='chr_takahashi_startup')) charCase('chr_takahashi_startup');
+  // エンディング（独立解決後・60日間隔）
+  if(G.cases.some(c=>c.id==='chr_takahashi_startup' && c.resolved) && charReady('takahashi',60) && !G.cases.some(c=>c.id==='chr_takahashi_ending')) charCase('chr_takahashi_ending');
 
   // ── 木村 追加エピソード ──
-  // 一人暮らしの話（kimura_2解決後）
-  if(ch.kimura.level >= 2 && charReady('kimura') && !G.cases.some(c=>c.id==='chr_kimura_hitorigurashi')) charCase('chr_kimura_hitorigurashi');
-  // SNS投稿（level3以上）
-  if(ch.kimura.level >= 3 && charReady('kimura') && !G.cases.some(c=>c.id==='chr_kimura_sns')) charCase('chr_kimura_sns');
-  // バズる（SNS投稿解決後）
-  if(G.cases.some(c=>c.id==='chr_kimura_sns' && c.resolved) && charReady('kimura') && !G.cases.some(c=>c.id==='chr_kimura_buzz')) charCase('chr_kimura_buzz');
-  // 就活（level4以上 卒業前）
-  if(ch.kimura.level >= 4 && !ch.kimura.complete && charReady('kimura') && !G.cases.some(c=>c.id==='chr_kimura_shushoku')) charCase('chr_kimura_shushoku');
-  // 数年後・再来店（卒業完結後 2年目以降）
-  if(ch.kimura.complete && G.year >= 2 && charReady('kimura') && !G.cases.some(c=>c.id==='chr_kimura_return')) charCase('chr_kimura_return');
+  // 一人暮らしの話（kimura_2解決後・21日間隔）
+  if(ch.kimura.level >= 2 && charReady('kimura',21) && !G.cases.some(c=>c.id==='chr_kimura_hitorigurashi')) charCase('chr_kimura_hitorigurashi');
+  // SNS投稿（level3以上・21日間隔）
+  if(ch.kimura.level >= 3 && charReady('kimura',21) && !G.cases.some(c=>c.id==='chr_kimura_sns')) charCase('chr_kimura_sns');
+  // バズる（SNS投稿解決後・14日間隔）
+  if(G.cases.some(c=>c.id==='chr_kimura_sns' && c.resolved) && charReady('kimura',14) && !G.cases.some(c=>c.id==='chr_kimura_buzz')) charCase('chr_kimura_buzz');
+  // 就活（level4以上 卒業前・30日間隔）
+  if(ch.kimura.level >= 4 && !ch.kimura.complete && charReady('kimura',30) && !G.cases.some(c=>c.id==='chr_kimura_shushoku')) charCase('chr_kimura_shushoku');
+  // 数年後・再来店（卒業完結後 2年目以降・30日間隔）
+  if(ch.kimura.complete && G.year >= 2 && charReady('kimura',30) && !G.cases.some(c=>c.id==='chr_kimura_return')) charCase('chr_kimura_return');
 
   // ── Wi-Fi放置の記憶（半年後・入居希望者から口コミ）──
   if(G._wifiIgnoredDay && totalDays >= G._wifiIgnoredDay + 180 && !G.cases.some(c=>c.id==='wifi_memory_applicant')) charCase('wifi_memory_applicant');
@@ -10487,10 +10496,10 @@ function renderAnnualSchedule(){
   const ORDER = [4,5,6,7,8,9,10,11,12,1,2,3];
   const isOpen = !!G.showAnnualSchedule;
 
-  // 直近3か月のインデックス（現在月の前後）
+  // 折りたたみ時は現在月＋次月の2件のみ表示
   const curIdx = ORDER.indexOf(G.month);
-  const PREVIEW_START = Math.max(0, curIdx); // 現在月から表示
-  const PREVIEW_END   = Math.min(ORDER.length, PREVIEW_START + 3);
+  const PREVIEW_START = Math.max(0, curIdx);
+  const PREVIEW_END   = Math.min(ORDER.length, PREVIEW_START + 2);
   const displayMonths = isOpen ? ORDER : ORDER.slice(PREVIEW_START, PREVIEW_END);
 
   const rows = displayMonths.map(m => {
@@ -10526,16 +10535,64 @@ function renderAnnualSchedule(){
     </div>`;
   }).join('');
 
-  const toggleLabel = isOpen ? '閉じる ▲' : '全12か月を見る ▼';
+  const toggleLabel = isOpen ? '閉じる ▲' : 'すべて見る ▼';
+  const nextMonth = ORDER[Math.min(ORDER.length-1, curIdx+1)];
+  const nextInfo  = ANNUAL_SCHEDULE[nextMonth] || {};
 
-  return `<div class="card" style="padding:14px">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
-      <div class="card-ttl" style="margin-bottom:0">📅 年間スケジュール</div>
+  return `<div class="card" style="padding:12px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:${isOpen?'10':'6'}px">
+      <div style="display:flex;align-items:center;gap:6px">
+        <span style="font-size:12px;font-weight:700;color:var(--muted)">📅 年間スケジュール</span>
+        ${!isOpen ? `<span style="font-size:11px;color:var(--muted)">— 次：${nextMonth}月 ${nextInfo.theme||''}</span>` : ''}
+      </div>
       <button onclick="G.showAnnualSchedule=!G.showAnnualSchedule;renderTab()"
-        style="font-size:11px;color:var(--gr);background:none;border:1px solid var(--gr);border-radius:8px;padding:3px 8px;cursor:pointer;font-family:inherit;touch-action:manipulation">${toggleLabel}</button>
+        style="font-size:11px;color:var(--gr);background:none;border:1px solid var(--gr);border-radius:8px;padding:3px 8px;cursor:pointer;font-family:inherit;touch-action:manipulation;flex-shrink:0">${toggleLabel}</button>
     </div>
     <div style="display:flex;flex-direction:column;gap:2px">${rows}</div>
-    ${!isOpen ? `<div style="font-size:11px;color:var(--muted);text-align:center;margin-top:8px">${G.month}月〜${ORDER[Math.min(ORDER.length-1, ORDER.indexOf(G.month)+2)]}月を表示中</div>` : ''}
+  </div>`;
+}
+
+// ─────────── 今すぐやること ───────────
+function renderTodayAction(){
+  const actions = [];
+  const store = G.stores[0];
+
+  // 1. 店舗が閉店中
+  if(store && !store.isOpen){
+    actions.push({ icon:'🏪', label:'舞昆茶屋を開店する', desc:'お店がまだ閉まっています', onclick:"setTab('store')" });
+  }
+  // 2. 店舗は開いているがメニュー未設定
+  if(store && store.isOpen && (!store.menu || store.menu.length === 0)){
+    actions.push({ icon:'🍙', label:'最初のメニューを出す', desc:'メニューがないとお客様が来られません', onclick:"setTab('store')" });
+  }
+  // 3. 空室あり・募集未開始
+  const _hasUnseekingVacant = G.buildings.some(b => b.rooms.some(r => !r.tenant && !r.seeking));
+  if(_hasUnseekingVacant){
+    actions.push({ icon:'🏠', label:'空室募集を開始する', desc:'空き部屋の入居者を募集しましょう', onclick:"setTab('building')" });
+  }
+  // 4. 未対応案件あり（3件以内に収まる場合のみ）
+  const _pendingCnt = G.cases.filter(c => !c.resolved).length;
+  if(_pendingCnt > 0 && actions.length < 3){
+    actions.push({ icon:'📋', label:`案件に対応する（${_pendingCnt}件）`, desc:'未処理の案件があります', onclick:"setTab('cases')" });
+  }
+  // 5. やることが何もない → 翌日へ
+  if(actions.length === 0){
+    actions.push({ icon:'🌿', label:'翌日へ進む', desc:'今日の作業はすべて完了しています', onclick:'advanceDay()' });
+  }
+
+  const items = actions.slice(0,3).map(a => `
+    <div style="display:flex;align-items:center;gap:10px;padding:9px 10px;background:rgba(255,255,255,.55);border-radius:10px;margin-bottom:5px">
+      <span style="font-size:20px;flex-shrink:0">${a.icon}</span>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;font-weight:700;color:var(--gr3);line-height:1.3">${a.label}</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:1px">${a.desc}</div>
+      </div>
+      <button onclick="${a.onclick}" class="btn btn-gr" style="padding:6px 14px;min-height:36px;font-size:12px;white-space:nowrap;flex-shrink:0">→</button>
+    </div>`).join('');
+
+  return `<div class="card" style="background:var(--warm);border-color:#c8d8a0;padding:12px 14px;margin-bottom:8px">
+    <div style="font-size:12px;font-weight:700;color:var(--gr3);margin-bottom:8px;letter-spacing:.04em">✅ 今すぐやること</div>
+    ${items}
   </div>`;
 }
 
@@ -10562,9 +10619,9 @@ function renderHome(){
         🌿 翌日へ進む ——${G.year}年${G.month}月${G.day}日
       </button>
       ${_day1Hint}
+      ${renderTodayAction()}
       ${renderCasesBox()}
       ${renderUpcomingCard()}
-      ${renderAnnualSchedule()}
       ${renderCashWarningBanner()}
       ${renderTodayMood()}
       ${renderTutMissionCard()}
@@ -10595,6 +10652,7 @@ function renderHome(){
         <div style="font-size:11px;color:var(--muted);margin-top:8px">次の称号まで——地域貢献・人材育成を続けること</div>
       </div>
       ${renderGoenGoal()}
+      ${renderAnnualSchedule()}
       <div class="card">
         <div class="card-ttl">📰 最近の出来事</div>
         ${G.news.slice(0,6).map(n=>`
