@@ -10454,6 +10454,80 @@ function renderGoenGoal(){
   </div>`;
 }
 
+// ─────────── 年間スケジュール ───────────────────────────────────
+const ANNUAL_SCHEDULE = {
+  4:  { icon:'🌸', theme:'開店・春のご挨拶',    hint:'新しい出会いの季節' },
+  5:  { icon:'🛍', theme:'商品棚づくり',         hint:'お店の個性を磨く' },
+  6:  { icon:'👥', theme:'常連づくり',            hint:'ご縁が深まる季節' },
+  7:  { icon:'🎐', theme:'夏メニュー',            hint:'新しい味との出会い' },
+  8:  { icon:'🏠', theme:'入居者とのご縁',        hint:'人が集まる季節' },
+  9:  { icon:'🎁', theme:'敬老ギフト準備',        hint:'感謝を形にする' },
+  10: { icon:'🍁', theme:'秋まつり',              hint:'地域と一緒に盛り上がる' },
+  11: { icon:'🏦', theme:'融資・事業計画',        hint:'次の一手を考える' },
+  12: { icon:'❄',  theme:'お歳暮シーズン',        hint:'1年の感謝を届ける' },
+  1:  { icon:'🎍', theme:'新年のご挨拶',          hint:'新しい年の始まり' },
+  2:  { icon:'📊', theme:'年度末準備',            hint:'1年を振り返る準備' },
+  3:  { icon:'🌸', theme:'1年の振り返り',         hint:'ご縁の記録を締めくくる' },
+};
+
+function renderAnnualSchedule(){
+  const nowDay = (G.year-1)*360 + (G.month-1)*30 + G.day;
+  // 4月始まりの財政年度順（4,5,6,7,8,9,10,11,12,1,2,3）
+  const ORDER = [4,5,6,7,8,9,10,11,12,1,2,3];
+  const isOpen = !!G.showAnnualSchedule;
+
+  // 直近3か月のインデックス（現在月の前後）
+  const curIdx = ORDER.indexOf(G.month);
+  const PREVIEW_START = Math.max(0, curIdx); // 現在月から表示
+  const PREVIEW_END   = Math.min(ORDER.length, PREVIEW_START + 3);
+  const displayMonths = isOpen ? ORDER : ORDER.slice(PREVIEW_START, PREVIEW_END);
+
+  const rows = displayMonths.map(m => {
+    const info = ANNUAL_SCHEDULE[m] || { icon:'📅', theme:'', hint:'' };
+    const isCur  = m === G.month;
+    const isPast = ORDER.indexOf(m) < ORDER.indexOf(G.month);
+
+    // 今月のあと○日（月末まで）
+    let daysTag = '';
+    if(isCur){
+      const remaining = 30 - G.day + 1;
+      daysTag = `<span style="font-size:10px;background:var(--gr);color:#fff;border-radius:8px;padding:1px 6px;margin-left:6px;flex-shrink:0">今月・あと${remaining}日</span>`;
+    } else if(!isPast){
+      // 何日後に始まるか
+      const mIdx = ORDER.indexOf(m);
+      const curMIdx = ORDER.indexOf(G.month);
+      const monthsAhead = mIdx - curMIdx;
+      if(monthsAhead === 1){
+        const daysToNext = (30 - G.day + 1) + 1; // 大体
+        daysTag = `<span style="font-size:10px;color:var(--muted);margin-left:6px;flex-shrink:0">来月</span>`;
+      }
+    }
+
+    const opacity = isPast ? '0.4' : '1';
+    const bg      = isCur  ? 'background:var(--bg2);border-color:var(--gr);border-width:1.5px' : 'background:transparent;border-color:transparent;border-width:1px';
+    const fontW   = isCur  ? '700' : '400';
+
+    return `<div style="display:flex;align-items:center;gap:8px;padding:7px 8px;border-radius:10px;${bg};opacity:${opacity}">
+      <span style="font-size:15px;flex-shrink:0;width:22px;text-align:center">${info.icon}</span>
+      <span style="font-size:11px;color:var(--muted);flex-shrink:0;width:20px">${m}月</span>
+      <span style="font-size:13px;font-weight:${fontW};color:var(--text);flex:1;line-height:1.3">${info.theme}</span>
+      ${daysTag}
+    </div>`;
+  }).join('');
+
+  const toggleLabel = isOpen ? '閉じる ▲' : '全12か月を見る ▼';
+
+  return `<div class="card" style="padding:14px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+      <div class="card-ttl" style="margin-bottom:0">📅 年間スケジュール</div>
+      <button onclick="G.showAnnualSchedule=!G.showAnnualSchedule;renderTab()"
+        style="font-size:11px;color:var(--gr);background:none;border:1px solid var(--gr);border-radius:8px;padding:3px 8px;cursor:pointer;font-family:inherit;touch-action:manipulation">${toggleLabel}</button>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:2px">${rows}</div>
+    ${!isOpen ? `<div style="font-size:11px;color:var(--muted);text-align:center;margin-top:8px">${G.month}月〜${ORDER[Math.min(ORDER.length-1, ORDER.indexOf(G.month)+2)]}月を表示中</div>` : ''}
+  </div>`;
+}
+
 // ─────────── RENDER HOME ───────────
 function renderHome(){
   const {rev,exp,profit}=calcDailyRevenue();
@@ -10479,6 +10553,7 @@ function renderHome(){
       ${_day1Hint}
       ${renderCasesBox()}
       ${renderUpcomingCard()}
+      ${renderAnnualSchedule()}
       ${renderCashWarningBanner()}
       ${renderTodayMood()}
       ${renderTutMissionCard()}
