@@ -10319,6 +10319,141 @@ function renderTab(){
   }
 }
 
+// ─────────── 未来予告システム ───────────────────────────────────
+function buildUpcomingEvents(){
+  if(!G.started) return [];
+  const nowDay = (G.year-1)*360 + (G.month-1)*30 + G.day;
+  const items = [];
+
+  // ① 商品開発中（pendingMenuLaunches）
+  (G.pendingMenuLaunches||[]).forEach(p => {
+    const dl = p.launchDay - nowDay;
+    if(dl > 0 && dl <= 20){
+      const cat = PRODUCT_CATALOG[p.id] || {};
+      items.push({ icon:cat.icon||p.icon||'🍱', label:(p.name||'新商品')+'の準備が進んでいます', sub:'あと'+dl+'日で完成予定', daysLeft:dl, type:'menu' });
+    }
+  });
+
+  // ② 季節変わり（20日以内）
+  const _SEASON_NEXT = [{month:4,icon:'🌸',name:'春'},{month:7,icon:'🌿',name:'夏'},{month:10,icon:'🍂',name:'秋'},{month:1,icon:'⛄',name:'冬',nextYear:true}];
+  for(const _s of _SEASON_NEXT){
+    const _yr = _s.nextYear ? G.year+1 : G.year;
+    const _bd = (_yr-1)*360 + (_s.month-1)*30 + 1;
+    if(_bd > nowDay){
+      const dl = _bd - nowDay;
+      if(dl <= 20) items.push({ icon:_s.icon, label:'まもなく'+_s.name+'になります', sub:'あと'+dl+'日', daysLeft:dl, type:'season' });
+      break;
+    }
+  }
+
+  // ③ 年度末（1年目のみ・25日以内）
+  if(G.year===1){
+    const _yed = (0)*360 + (3-1)*30 + 30;
+    const dl = _yed - nowDay;
+    if(dl > 0 && dl <= 25) items.push({ icon:'📅', label:'1年目の締めくくりが近づいています', sub:'あと'+dl+'日', daysLeft:dl, type:'yearend' });
+  }
+
+  // ④ 人物イベント（charReadyまであと1-5日）
+  const ch = G.characters || {};
+  const _charInfos = [{key:'tanaka',icon:'👴',name:'田中さん'},{key:'takahashi',icon:'👨‍💼',name:'高橋さん'},{key:'nishimura',icon:'👩',name:'西村さん'}];
+  for(const ci of _charInfos){
+    const c = ch[ci.key];
+    if(!c || !c.met) continue;
+    const readyIn = 7 - (nowDay - (c.lastCaseDay||0));
+    if(readyIn >= 1 && readyIn <= 5){ items.push({ icon:ci.icon, label:ci.name+'から連絡がありそうです', sub:'あと'+readyIn+'日ほど', daysLeft:readyIn, type:'character' }); break; }
+  }
+
+  // ⑤ 空室募集中 → 内見予告
+  const _seekRooms = (G.buildings||[]).flatMap(b=>(b.rooms||[]).filter(r=>r.seeking&&!r.tenant));
+  if(_seekRooms.length > 0 && !items.some(i=>i.type==='room')){
+    const _rh = ((_seekRooms[0].num||'01').charCodeAt(1)||49) % 4;
+    items.push({ icon:'🏠', label:'空室にお問い合わせが届いています', sub:'あと'+(3+_rh)+'日ほどで内見予定', daysLeft:3+_rh, type:'room' });
+  }
+
+  // ⑥ 店舗改装費用まであと少し
+  const _st = G.stores[0];
+  if(_st && _st.isOpen && _st.level < 5){
+    const _avail = RENOV_OPTIONS.filter(r=>!(_st.upgrades||[]).includes(r.name));
+    if(_avail.length > 0){
+      const _cheap = Math.min(..._avail.map(r=>r.cost));
+      const _gap = _cheap - G.money;
+      if(_gap > 0 && _gap <= _cheap * 0.4){
+        const _dpr = Math.max(500, calcDailyRevenue().profit);
+        const _est = Math.min(30, Math.ceil(_gap / _dpr));
+        if(_est > 0) items.push({ icon:'⭐', label:'店舗Lv'+(_st.level+1)+'への改装費用があと少し', sub:'あと'+_est+'日ほどで準備できそう', daysLeft:_est, type:'store' });
+      }
+    }
+  }
+
+  items.sort((a,b) => a.daysLeft - b.daysLeft);
+  return items.slice(0, 2);
+}
+
+function _ochawanHint(){
+  const s = G.stores[0] || {};
+  const ch = G.characters || {};
+  const nowDay = (G.year-1)*360 + (G.month-1)*30 + G.day;
+  const hints = [];
+  if((G.pendingMenuLaunches||[]).length > 0) hints.push('そろそろ新商品が完成しそうですよ。');
+  if(ch.tanaka && ch.tanaka.met && nowDay-(ch.tanaka.lastCaseDay||0) >= 5) hints.push('田中さん、また来てくれそうな気がします。');
+  if(ch.takahashi && ch.takahashi.met && nowDay-(ch.takahashi.lastCaseDay||0) >= 5) hints.push('高橋さんから連絡があるかもしれません。');
+  if((s.regulars||0) >= 5) hints.push('常連さんが増えてきましたね。口コミが広がりそうです。');
+  if(G.month >= 3 && G.month <= 5) hints.push('季節の変わり目、新しい出会いがあるかもしれません。');
+  if(G.year===1 && G.month >= 2) hints.push('もうすぐ1年目の終わり。あなたの歩みを振り返る時が来そうです。');
+  const _def = ['今月は忙しくなりそうですね。','もうすぐ新しい出会いがあります。','焦らなくていいですよ。あなたのペースで。','じっくり育てると、いつか大きな花が咲きます。','小さなご縁が、やがて大きな絆になります。'];
+  const pool = hints.length > 0 ? hints : _def;
+  return pool[((G.day||1)+(G.month||1)*3) % pool.length];
+}
+
+function renderUpcomingCard(){
+  const evs = buildUpcomingEvents();
+  const hint = _ochawanHint();
+  let evHtml = '';
+  if(evs.length > 0){
+    evHtml = evs.map(ev=>`
+      <div style="display:flex;align-items:flex-start;gap:10px;padding:8px 0;border-bottom:1px solid rgba(0,0,0,.06)">
+        <div style="font-size:18px;flex-shrink:0;margin-top:1px">${ev.icon}</div>
+        <div style="flex:1">
+          <div style="font-size:13px;font-weight:600;color:var(--text);line-height:1.4">${ev.label}</div>
+          <div style="font-size:11px;color:var(--gr);font-weight:700;margin-top:2px">${ev.sub}</div>
+        </div>
+      </div>`).join('');
+  } else {
+    evHtml = '<div style="font-size:12px;color:var(--muted);text-align:center;padding:4px 0">特に予定はありません。今日も一歩ずつ。</div>';
+  }
+  return `<div class="card" style="background:linear-gradient(135deg,#EEF6EE,var(--warm));border-color:var(--gr);border-width:1.5px">
+    <div class="card-ttl" style="color:var(--gr3)">📅 もうすぐ起こること</div>
+    ${evHtml}
+    <div style="display:flex;align-items:flex-start;gap:6px;margin-top:10px;padding-top:8px;border-top:1px solid rgba(0,0,0,.06)">
+      <span style="font-size:14px;flex-shrink:0">🍚</span>
+      <span style="font-size:12px;color:var(--muted);line-height:1.6;font-style:italic">「${hint}」</span>
+    </div>
+  </div>`;
+}
+
+function renderGoenGoal(){
+  const reg = (G.stores[0]||{}).regulars || 0;
+  const MILES = [5,10,20,30,50,100];
+  const next = MILES.find(m => m > reg);
+  if(!next) return '<div class="card" style="padding:14px"><div class="card-ttl">🌸 ご縁目標</div><div style="font-size:13px;color:var(--gr);font-weight:700">🎉 常連100人達成！地域の宝になりました</div></div>';
+  const prev = MILES[MILES.indexOf(next)-1] || 0;
+  const pct = Math.min(100, Math.round((reg-prev)/(next-prev)*100));
+  const hit = MILES.includes(reg) && reg > 0;
+  return `<div class="card" style="padding:14px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <div class="card-ttl" style="margin-bottom:0">🌸 ご縁の目標</div>
+      <div style="font-size:11px;color:var(--muted)">常連 ${reg} 人</div>
+    </div>
+    <div style="font-size:13px;color:var(--text);margin-bottom:8px">${hit
+      ? `<span style="color:var(--gr);font-weight:700">🎉 ${reg}人達成！ありがとうございます</span>`
+      : `常連 <strong>${next}人</strong> まで、あと <strong style="color:var(--gr)">${next-reg}人</strong>`}</div>
+    <div style="height:6px;background:var(--bg2);border-radius:3px;overflow:hidden">
+      <div style="width:${pct}%;height:100%;border-radius:3px;background:linear-gradient(90deg,var(--gr),var(--gr2))"></div>
+    </div>
+    <div style="font-size:10px;color:var(--muted);margin-top:4px;text-align:right">${pct}%</div>
+  </div>`;
+}
+
 // ─────────── RENDER HOME ───────────
 function renderHome(){
   const {rev,exp,profit}=calcDailyRevenue();
@@ -10343,6 +10478,7 @@ function renderHome(){
       </button>
       ${_day1Hint}
       ${renderCasesBox()}
+      ${renderUpcomingCard()}
       ${renderCashWarningBanner()}
       ${renderTodayMood()}
       ${renderTutMissionCard()}
@@ -10372,6 +10508,7 @@ function renderHome(){
         <div style="font-size:12px;color:var(--muted);margin-top:4px">${ownerTitle.desc}</div>
         <div style="font-size:11px;color:var(--muted);margin-top:8px">次の称号まで——地域貢献・人材育成を続けること</div>
       </div>
+      ${renderGoenGoal()}
       <div class="card">
         <div class="card-ttl">📰 最近の出来事</div>
         ${G.news.slice(0,6).map(n=>`
