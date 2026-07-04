@@ -1161,6 +1161,39 @@ function buildTutOpening(){
   ];
 }
 
+// ─── チュートリアル完了フラグ（localStorage） ───
+function isTutDone(){ return localStorage.getItem('maikon_tut_done') === '1'; }
+function markTutDone(){ localStorage.setItem('maikon_tut_done','1'); }
+function resetTutDone(){ localStorage.removeItem('maikon_tut_done'); }
+
+// ─── 最初の案件（チュートリアル用greeting case） ───
+function _injectFirstCase(){
+  addCase({
+    id: 'tutorial_greeting',
+    repeatable: false, domain:'store', sender:'お茶碗マン', icon:'😊',
+    apCost: 0, expireDays: 30, category:'community',
+    title: 'はじめてのお客様',
+    body: '🍚 お茶碗マン：\n\n「まずはお客様に挨拶してみましょう。\n笑顔が一番のおもてなしです。\n\nこの画面で案件を選んでいきますよ。」',
+    choices:[
+      { label:'😊 笑顔でお迎えする', cost:0, ap:0,
+        effects:{ score:3, rep:3, storeSat:5 },
+        label2:'地域評価+3・店舗満足+5',
+        storyTag:'お客様が嬉しそうに微笑み返してくれた。地域との絆が少し深まった。' },
+      { label:'🍚 舞昆をおすすめする', cost:0, ap:0,
+        effects:{ score:3, rep:2, storeBrand:5 },
+        label2:'地域評価+2・ブランド+5',
+        storyTag:'「これが舞昆……」お客様が興味深そうに手に取ってくれた。' },
+    ]
+  });
+}
+
+// ─── 「遊び方」再表示 ───
+function showHowToPlay(){
+  showTutModal(buildTutOpening(), 'はじめに', 'ようこそ');
+  // 遊び方リプレイ時は開始ボタンを「閉じる」に差し替え
+  G.tut._replayMode = true;
+}
+
 // ─── ゴール定義（いずれか1つ達成＋3日進行でクリア）───
 function getTutGoals(){
   const {profit} = calcDailyRevenue();
@@ -1207,6 +1240,70 @@ function _renderTutScene(){
   const sc = G.tut._scenes[G.tut._sceneIdx];
   const body = document.getElementById('tut-modal-body');
   let inner='';
+
+  // ─── 新3ステップチュートリアル ───
+  if(sc.type==='tut3_step1'){
+    body.innerHTML=`
+      <div class="tut-header"><div class="tut-chapter">STEP 1 / 3</div><div class="tut-title">ようこそ！</div></div>
+      <div class="tut-body">
+        <div class="tut-speaker"><div class="tut-avatar" style="animation:tutFadeIn .5s ease .1s both">🍚</div>
+          <div><div class="tut-name" style="font-size:13px;font-weight:700;color:var(--text)">お茶碗マン</div>
+          <div style="font-size:10px;color:var(--muted)">経営の相棒</div></div></div>
+        <div class="tut-text">「ようこそ！<br><br>難しいゲームではありませんよ。<br>迷ったら私が案内します。」</div>
+        <div style="background:linear-gradient(135deg,#EBF5EC,var(--warm));border-radius:14px;padding:16px;margin:14px 0;border:1px solid var(--border)">
+          <div style="font-size:13px;font-weight:700;color:var(--gr3);margin-bottom:8px;text-align:center">あなたがやること</div>
+          <div style="font-size:14px;line-height:2;color:var(--text);text-align:center">
+            🏪 舞昆茶屋のオーナーとして<br>
+            🏠 アパートを経営しながら<br>
+            🌱 <strong>人とのご縁を育てる</strong>
+          </div>
+        </div>
+        <div class="tut-text" style="font-size:13px;color:var(--muted)">「正解は一つではありません。<br>あなたらしい経営を楽しんでください。」</div>
+        <button class="tut-next" onclick="_nextTutScene()">次へ →</button>
+      </div>`;
+    return;
+  } else if(sc.type==='tut3_step2'){
+    body.innerHTML=`
+      <div class="tut-header"><div class="tut-chapter">STEP 2 / 3</div><div class="tut-title">画面の使い方</div></div>
+      <div class="tut-body">
+        <div class="tut-speaker"><div class="tut-avatar">🍚</div>
+          <div><div class="tut-name" style="font-size:13px;font-weight:700;color:var(--text)">お茶碗マン</div></div></div>
+        <div class="tut-text">「下のボタンで画面を切り替えます。<br>気になるところから押してみてください！」</div>
+        <div class="tut-step-grid">
+          <div class="tut-step-cell"><div class="tsc-icon">🏪</div><div class="tsc-lbl">店舗</div><div class="tsc-sub">メニューや来客を管理</div></div>
+          <div class="tut-step-cell"><div class="tsc-icon">🏢</div><div class="tsc-lbl">物件</div><div class="tsc-sub">空室に入居者を募集</div></div>
+          <div class="tut-step-cell"><div class="tsc-icon">🌏</div><div class="tsc-lbl">地域</div><div class="tsc-sub">地域とのつながりを深める</div></div>
+          <div class="tut-step-cell"><div class="tsc-icon">👥</div><div class="tsc-lbl">人材</div><div class="tsc-sub">スタッフを育てる</div></div>
+        </div>
+        <div style="background:var(--warm);border-radius:10px;padding:10px 14px;font-size:12px;color:var(--muted);text-align:center">
+          🍚「最初は全部見なくて大丈夫ですよ。<br>まずホーム画面から始めましょう！」
+        </div>
+        <button class="tut-next" onclick="_nextTutScene()">次へ →</button>
+      </div>`;
+    return;
+  } else if(sc.type==='tut3_step3'){
+    body.innerHTML=`
+      <div class="tut-header"><div class="tut-chapter">STEP 3 / 3</div><div class="tut-title">ゲームの流れ</div></div>
+      <div class="tut-body">
+        <div class="tut-speaker"><div class="tut-avatar">🍚</div>
+          <div><div class="tut-name" style="font-size:13px;font-weight:700;color:var(--text)">お茶碗マン</div></div></div>
+        <div class="tut-text">「毎日こんな流れで進みます。<br>1年間経営してみましょう！」</div>
+        <div class="tut-flow">
+          <div class="tut-flow-item">📬 案件が届く</div>
+          <div class="tut-flow-arrow">↓</div>
+          <div class="tut-flow-item">✅ 選択する</div>
+          <div class="tut-flow-arrow">↓</div>
+          <div class="tut-flow-item">📈 お店や地域が成長する</div>
+          <div class="tut-flow-arrow">↓</div>
+          <div class="tut-flow-item">🌿 翌日へ進む</div>
+        </div>
+        <div style="background:var(--warm);border-radius:10px;padding:12px 14px;font-size:13px;color:var(--gr3);text-align:center;font-weight:600;margin-bottom:4px">
+          🍚「失敗しても大丈夫！<br>まずは一歩、踏み出してみましょう。」
+        </div>
+        <button class="tut-next" style="background:var(--gold);margin-top:12px" onclick="_nextTutScene()">${G.tut._replayMode ? '閉じる ✓' : 'それでは開店です！ 🎉'}</button>
+      </div>`;
+    return;
+  }
 
   if(sc.type==='narrator'){
     inner=`<div class="tut-narrator">${sc.text.replace(/\n/g,'<br>')}</div>
@@ -1320,8 +1417,16 @@ function _nextTutScene(){
   G.tut._sceneIdx++;
   if(G.tut._sceneIdx >= G.tut._scenes.length){
     document.getElementById('tut-modal').style.display='none';
-    if(sc.action==='start_playing'){
-      G.tut.phase='playing'; G.started=true;
+    // リプレイモード（「遊び方」からの閲覧）は閉じるだけ
+    if(G.tut._replayMode){
+      G.tut._replayMode = false;
+      return;
+    }
+    // 新3ステップ型：最後のシーンが tut3_step3 → ゲーム開始
+    if(sc.type==='tut3_step3' || sc.action==='start_playing'){
+      markTutDone();
+      G.tut.phase='done'; G.started=true;
+      _injectFirstCase();
       updateHeader(); setTab('home');
     }
     return;
@@ -1754,9 +1859,9 @@ function getNaritaAgeComment(){
 function startGame(){
   document.getElementById('intro-modal').style.display='none';
   addHistory('🌱', '創業 — 舞昆茶屋・桜橋ハイツを引き継ぐ');
-  // チュートリアル用：入居率50%・メニュー1つ・スタッフ最小構成
+  // 初期状態：入居率50%・メニューなし・スタッフなし
   G.buildings[0].rooms[2].tenant=null; // 103空室
-  G.buildings[0].rooms[3].tenant=null; // 104空室（50%にするため）
+  G.buildings[0].rooms[3].tenant=null; // 104空室
   G.buildings[0].rooms[5].tenant=null; // 106空室
   G.stores[0].menu=[];
   G.stores[0].menuAddedMonth={};
@@ -1766,12 +1871,20 @@ function startGame(){
   G.stores[0].unitPrice=700;
   G.stores[0].satisfaction=50;
   G.stores[0].servedToday=false;
-  G.stores[0].isOpen=false; // チュートリアル中は閉店状態からスタート
+  G.stores[0].isOpen=false;
   G.staff=[];
   G.tut.manualServes=0;
   G.tut.step=0;
   G.tut.stepsDone=[false,false,false,false,false];
-  showTutModal(buildTutOpening(),'第0章','祖父のアパート');
+  // 2回目以降はチュートリアルをスキップしてゲーム開始
+  if(isTutDone()){
+    G.tut.phase='done'; G.started=true;
+    _injectFirstCase();
+    updateHeader(); setTab('home');
+    notify('🍚 おかえり！ホームの「翌日へ進む」でゲームを進めてね','gold');
+    return;
+  }
+  showTutModal(buildTutOpening(),'はじめに','ようこそ');
 }
 
 // ─────────── DAILY TICK ───────────
@@ -1981,6 +2094,7 @@ function normalizeDate(){
 }
 
 function advanceDay(){
+  G.tut._day1HintDone = true; // 初日ヒントは翌日へ進むと同時に消す
   console.log('[advanceDay] start day=' + G.day + ' month=' + G.month + ' year=' + G.year + ' G.activeEvent=' + JSON.stringify(G.activeEvent&&(G.activeEvent.id||G.activeEvent)) + ' advancing=' + G.isAdvancingDay + ' monthly=' + G.processingMonthly);
   // ① 同期的二重実行防止
   if(G.isAdvancingDay){ console.log('[advanceDay] blocked: isAdvancingDay'); return; }
@@ -10176,10 +10290,17 @@ function renderHome(){
 
   // チュートリアル完了後：今やること＋案件ボックスをまとめて上部に
   if(G.tut.phase === 'done'){
+    const _day1Hint = (G.year===1 && G.month===1 && G.day===1 && !G.tut._day1HintDone) ? `
+      <div class="day1-hint">
+        <span>🍚</span>
+        <span>案件を選んだら「翌日へ進む」を押してみましょう！</span>
+        <button class="day1-hint-close" onclick="G.tut._day1HintDone=true;renderTab()">OK</button>
+      </div>` : '';
     return `
       <button class="adv-btn" onclick="advanceDay()">
         🌿 翌日へ進む ——${G.year}年${G.month}月${G.day}日
       </button>
+      ${_day1Hint}
       ${renderCasesBox()}
       ${renderCashWarningBanner()}
       ${renderTodayMood()}
@@ -10221,6 +10342,9 @@ function renderHome(){
       </div>
       <button onclick="showManagementMeeting()" style="width:100%;padding:14px;background:var(--warm);border:1.5px solid #DDD0B0;border-radius:12px;font-size:13px;font-weight:700;cursor:pointer;color:var(--gr3);font-family:'Noto Serif JP',serif;display:flex;align-items:center;justify-content:center;gap:8px">
         🗣️ 経営会議を開く <span style="font-size:10px;font-weight:400;color:var(--muted)">4人の視点で相談する</span>
+      </button>
+      <button onclick="showHowToPlay()" style="width:100%;padding:11px;background:none;border:1px solid var(--border);border-radius:12px;font-size:12px;font-weight:600;cursor:pointer;color:var(--muted);font-family:inherit;margin-top:8px;touch-action:manipulation">
+        🍚 遊び方を見る
       </button>
     `;
   }
