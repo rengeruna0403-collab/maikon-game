@@ -11435,7 +11435,13 @@ function renderStore(){
         const _launchedEat = (G.launchedMenus||[]).filter(m => m.type === 'eatIn' && m.seasonal && !m._expired);
         const _hasCurrent = s.menu && s.menu.length > 0;
         if(!_hasCurrent && _pendEat.length === 0){
-          return `<div style="font-size:12px;color:var(--muted);padding:4px 0">まだメニューがありません。下のボタンから追加してください。</div>`;
+          const _isOpen = s.isOpen;
+          return _isOpen
+            ? `<div style="font-size:12px;color:var(--muted);margin-bottom:10px">まだメニューがありません。まず看板商品を追加してください。</div>
+               <button class="btn btn-gr" style="width:100%;padding:12px;font-size:14px;font-weight:700" onclick="openMenuModal(${si})">
+                 🍱 メニューを追加する <span style="font-size:11px;opacity:.8;margin-left:6px">¥80,000〜</span>
+               </button>`
+            : `<div style="font-size:12px;color:var(--muted);padding:4px 0">まだメニューがありません。再開後に追加できます。</div>`;
         }
         const _regularTags = (s.menu||[]).map(m => {
           const _lm = _launchedEat.find(lm => lm.name === m);
