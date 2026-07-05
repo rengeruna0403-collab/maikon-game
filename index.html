@@ -2250,25 +2250,36 @@ function advanceDay(){
   // 案件放置ペナルティ（毎日チェック）
   try { checkCaseExpiry(); } catch(e){ console.error('[advanceDay] checkCaseExpiry:', e); }
 
-  // 案件生成（7日ごと）
+  // 案件生成（スケジューラ制御）
   const totalDays = (G.year - 1) * 360 + (G.month - 1) * 30 + G.day;
+
+  // ── スケジューラ staging 開始 ──
+  _schedStaging = true;
+  _schedRaw = [];
+
   if(totalDays - (G._lastCaseDay || 0) >= 7){
     G._lastCaseDay = totalDays;
     try { generateWeeklyCases(); } catch(e){ console.error('[advanceDay] generateWeeklyCases:', e); }
-    try { generateRoomApplicationCases(); } catch(e){ console.error('[advanceDay] generateRoomApplicationCases:', e); }
     try { staffAutoProcess(); } catch(e){ console.error('[advanceDay] staffAutoProcess:', e); }
   }
-  // 補充チェック：5月以降・未処理1件以下・AP50以上・3日経過 → 早期補充
+  // 補充チェック：5月以降・未処理+バックログ少なめ・AP50以上・3日経過 → 早期補充
   if(G.month >= 5 && G.tut.phase === 'done' && !G.processingMonthly){
-    const _pendingNow = G.cases.filter(c => !c.resolved).length;
+    const _pendingNow = G.cases.filter(c => !c.resolved).length + _schedRaw.length + ((G._sched||{}).backlog||[]).length;
     const _daysSinceLast = totalDays - (G._lastCaseDay || 0);
     if(_pendingNow <= 1 && _daysSinceLast >= 3 && (G.ap||0) >= 50){
-      G._lastCaseDay = totalDays; // 次回週次サイクルをリセット
+      G._lastCaseDay = totalDays;
       try { generateWeeklyCases(); } catch(e){ console.error('[advanceDay] supplement cases:', e); }
     }
   }
-  // 条件トリガー案件
+  // 条件トリガー案件（キャラクター・季節など）
   try { generateConditionCases(); } catch(e){ console.error('[advanceDay] generateConditionCases:', e); }
+
+  // ── スケジューラ staging 終了 → 選択して G.cases へ配信 ──
+  _schedStaging = false;
+  try { _schedProcess(); } catch(e){ console.error('[advanceDay] _schedProcess:', e); }
+
+  // 部屋申込案件はスケジューラ外（タイミング重要）
+  try { generateRoomApplicationCases(); } catch(e){ console.error('[advanceDay] generateRoomApplicationCases:', e); }
   // 予約メニュー反映
   try { _processPendingMenuLaunches(); } catch(e){ console.error('[advanceDay] pendingMenuLaunches:', e); }
   // 人気商品 常連反応チェック
@@ -12405,6 +12416,21 @@ function _renderDevDashboard(){
       ${flagSection}
       ${actionSection}
       ${seasonalCasesSection}
+      ${(()=>{
+        const _slog = (G._sched||{}).dayLog || [];
+        const _sBacklog = (G._sched||{}).backlog || [];
+        const _sRows = _slog.map(line => {
+          const icon = line.startsWith('✅') ? '#90EE90' : line.startsWith('❌') ? '#FF6B6B' : line.startsWith('⏸') ? '#888' : line.startsWith('⏳') ? '#CCAA55' : line.startsWith('🗑') ? '#555' : '#aaa';
+          return `<div style="color:${icon};font-size:10px;padding:1px 0;word-break:break-all">${line}</div>`;
+        });
+        const _bRows = _sBacklog.slice(0,8).map(m=>`<div style="font-size:9px;color:#888">[p${m.pri}/${m.cat}] ${m.c.id}</div>`);
+        return `<div style="margin-bottom:10px">
+          <div style="font-size:11px;font-weight:700;color:#FFB347;margin-bottom:6px">⚙️ スケジューラ（本日ログ）</div>
+          ${_sRows.length ? _sRows.join('') : '<div style="color:#555;font-size:10px">本日未実行（日付を進めると更新）</div>'}
+          ${_bRows.length ? `<div style="margin-top:6px;font-size:10px;color:#888;font-weight:700">バックログ(${_sBacklog.length}件)</div>${_bRows.join('')}` : ''}
+          <div style="margin-top:5px;font-size:9px;color:#555">✅選択済 ❌除外 ⏸スキップ ⏳待機 🗑期限切れ</div>
+        </div>`;
+      })()}
       <div style="padding:6px 0;color:#333;font-size:10px;text-align:center">?debug=1 で表示 ／ タップ外で閉じる</div>
     </div>
   </div>`;
