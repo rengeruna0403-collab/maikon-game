@@ -752,6 +752,13 @@ function fmtNum(v, digits){
   const rounded = Math.round(n * factor) / factor;
   return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(digits);
 }
+// 翌日の日付ラベルを返す（月末・年末も正しく計算）
+function getNextDayLabel(){
+  let y = G.year, m = G.month, d = G.day + 1;
+  if(d > 30){ d = 1; m++; }
+  if(m > 12){ m = 1; y++; }
+  return `${y}年${m}月${d}日`;
+}
 function getOwnerTitle(){
   return TITLES_OWNER[G.ownerTitleIdx ?? 0];
 }
@@ -11030,7 +11037,7 @@ function renderHome(){
       </div>` : '';
     return `
       <button class="adv-btn" onclick="advanceDay()">
-        🌿 翌日へ進む ——${G.year}年${G.month}月${G.day}日
+        🌿 翌日へ進む ——${getNextDayLabel()}
       </button>
       ${_day1Hint}
       ${renderTodayAction()}
@@ -11146,7 +11153,7 @@ function renderHome(){
 
   return `
     <button class="adv-btn" onclick="advanceDay()">
-      🌿 翌日へ進む ——${G.year}年${G.month}月${G.day}日
+      🌿 翌日へ進む ——${getNextDayLabel()}
     </button>
 
     ${renderCasesBox()}
