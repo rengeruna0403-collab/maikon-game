@@ -3061,13 +3061,22 @@ function showFreeModeTransition(){
 // ─────────── 診断タイプ別おすすめ舞昆商品 ───────────
 function getRecommendedProduct(styleKey){
   const map = {
-    community:  { name:'たもぎ茸舞昆',      icon:'🟩', desc:'人とのご縁や健康を大切にするあなたにおすすめ。ご飯やおにぎりにも合わせやすい、舞昆茶屋でも人気の商品です。', productUrl:'' },
-    people:     { name:'粒生姜舞昆',         icon:'🫚', desc:'やさしい味わいと生姜の風味で、毎日の食卓に寄り添う一品です。', productUrl:'' },
-    finance:    { name:'黒舞昆',             icon:'🟫', desc:'まずは定番から。長く愛される基本の舞昆です。', productUrl:'' },
-    aggressive: { name:'明太風帆立舞昆',     icon:'🟥', desc:'少し個性のある味で、贈り物や話題作りにも向いています。', productUrl:'' },
-    balanced:   { name:'たもぎ茸舞昆',       icon:'🟩', desc:'食べやすさと特別感のバランスがよく、初めての方にもおすすめです。', productUrl:'' },
+    // オーナースタイルキー
+    community:     { name:'たもぎ茸舞昆',      icon:'🟩', desc:'人とのご縁や健康を大切にするあなたにおすすめ。ご飯やおにぎりにも合わせやすい、舞昆茶屋でも人気の商品です。', productUrl:'' },
+    people:        { name:'粒生姜舞昆',         icon:'🫚', desc:'やさしい味わいと生姜の風味で、毎日の食卓に寄り添う一品です。', productUrl:'' },
+    finance:       { name:'黒舞昆',             icon:'🟫', desc:'まずは定番から。長く愛される基本の舞昆です。', productUrl:'' },
+    aggressive:    { name:'明太風帆立舞昆',     icon:'🟥', desc:'少し個性のある味で、贈り物や話題作りにも向いています。', productUrl:'' },
+    balanced:      { name:'たもぎ茸舞昆',       icon:'🟩', desc:'食べやすさと特別感のバランスがよく、初めての方にもおすすめです。', productUrl:'' },
+    // エンディングキー別
+    failure:       { name:'黒舞昆',             icon:'🟫', desc:'まずは原点から。毎朝の一杯が、次のチャレンジへの力になります。', productUrl:'' },
+    good:          { name:'たもぎ茸舞昆',       icon:'🟩', desc:'食べやすさと特別感のバランスがよく、初めての方にもおすすめです。', productUrl:'' },
+    maikon_master: { name:'粒生姜舞昆',         icon:'🫚', desc:'舞昆マスターのあなたには、繊細な風味が際立つ逸品を。毎日の食卓に欠かせない味です。', productUrl:'' },
+    owner_master:  { name:'舞昆（和紙袋入り）', icon:'🎴', desc:'大家マスターのあなたへ。品質を見極める目を持つ方に贈る、特別な逸品です。', productUrl:'' },
+    perfect:       { name:'明太風帆立舞昆',     icon:'🟥', desc:'全項目MAXのあなたにふさわしい、個性と贈り物の両方で輝く舞昆の最高傑作です。', productUrl:'' },
   };
-  return map[styleKey] || map.balanced;
+  // DEVモードでendingKeyが設定されていれば優先
+  const key = (G._devEndingKey && map[G._devEndingKey]) ? G._devEndingKey : styleKey;
+  return map[key] || map.balanced;
 }
 
 // ─────────── ③ オーナー診断（★アニメ + バーチャート） ───────────
@@ -3157,13 +3166,19 @@ function showEndingDiagnosis(stage){
 function showEndingLeadCapture(){
   const style = getOwnerStyle() || { key:'balanced', title:'バランス型オーナー', icon:'⚖️' };
   const maikonRec = {
-    aggressive:{ name:'たもぎ茸舞昆',       icon:'🍄' },
-    people:    { name:'明太子舞昆',          icon:'🍣' },
-    community: { name:'帆立舞昆',            icon:'🐚' },
-    finance:   { name:'舞昆（和紙袋入り）',  icon:'🎴' },
-    balanced:  { name:'舞昆（定番）',        icon:'🧃' },
+    aggressive:    { name:'たもぎ茸舞昆',       icon:'🍄' },
+    people:        { name:'明太子舞昆',          icon:'🍣' },
+    community:     { name:'帆立舞昆',            icon:'🐚' },
+    finance:       { name:'舞昆（和紙袋入り）',  icon:'🎴' },
+    balanced:      { name:'舞昆（定番）',        icon:'🧃' },
+    failure:       { name:'舞昆（定番）',        icon:'🧃' },
+    good:          { name:'舞昆（定番）',        icon:'🧃' },
+    maikon_master: { name:'明太子舞昆',          icon:'🍣' },
+    owner_master:  { name:'舞昆（和紙袋入り）',  icon:'🎴' },
+    perfect:       { name:'たもぎ茸舞昆',        icon:'🍄' },
   };
-  const rec = maikonRec[style.key] || maikonRec.balanced;
+  const _recKey = (G._devEndingKey && maikonRec[G._devEndingKey]) ? G._devEndingKey : style.key;
+  const rec = maikonRec[_recKey] || maikonRec.balanced;
   const nameVal = G.playerName || '';
 
   const lineSection = LINE_URL
@@ -3253,7 +3268,7 @@ function sendEndingLead(){
     loanCount:        G.loanCount || 0,
     staffCount:       G.staff.length,
     occPct:           Math.round(occupiedRooms() / Math.max(totalRooms(),1) * 100),
-    ending:           'good',
+    ending:           G._devEndingKey || 'good',
     gameVersion:      GAME_VERSION,
   });
   if(DEV_MODE) showGrowthToast('📤 Lead送信しました（ending_y1）');
@@ -4012,13 +4027,19 @@ function showFinalDiagnosis(){
 
   // 舞昆おすすめ（タイプ別）
   const maikonRec = {
-    aggressive: { name:'たもぎ茸舞昆', reason:'決断力があり、新しいものを真っ先に試すタイプ。', icon:'🍄' },
-    people:     { name:'明太子舞昆',   reason:'人との縁を大切にする、贈り物にも喜ばれる定番。', icon:'🍣' },
-    community:  { name:'帆立舞昆',     reason:'地域と共に歩むあなたに、素材の丁寧さが響くはず。', icon:'🐚' },
-    finance:    { name:'舞昆（和紙袋入り）', reason:'品質を見極める目を持つあなたへ、贈答にも使える逸品。', icon:'🎴' },
-    balanced:   { name:'舞昆（定番）', reason:'バランス感覚のあるあなたには、まず原点から。', icon:'🧃' },
+    aggressive:    { name:'たもぎ茸舞昆',       reason:'決断力があり、新しいものを真っ先に試すタイプ。', icon:'🍄' },
+    people:        { name:'明太子舞昆',          reason:'人との縁を大切にする、贈り物にも喜ばれる定番。', icon:'🍣' },
+    community:     { name:'帆立舞昆',            reason:'地域と共に歩むあなたに、素材の丁寧さが響くはず。', icon:'🐚' },
+    finance:       { name:'舞昆（和紙袋入り）',  reason:'品質を見極める目を持つあなたへ、贈答にも使える逸品。', icon:'🎴' },
+    balanced:      { name:'舞昆（定番）',        reason:'バランス感覚のあるあなたには、まず原点から。', icon:'🧃' },
+    failure:       { name:'舞昆（定番）',        reason:'次のチャレンジの力に。まず原点の味から始めよう。', icon:'🧃' },
+    good:          { name:'舞昆（定番）',        reason:'バランス感覚のあるあなたには、まず原点から。', icon:'🧃' },
+    maikon_master: { name:'明太子舞昆',          reason:'舞昆を知り尽くしたあなたに、繊細な風味の傑作を。', icon:'🍣' },
+    owner_master:  { name:'舞昆（和紙袋入り）',  reason:'大家マスターのあなたへ。品質を見極める目に応える逸品。', icon:'🎴' },
+    perfect:       { name:'たもぎ茸舞昆',        reason:'全てを極めたあなたに、舞昆の最高峰をお届けします。', icon:'🍄' },
   };
-  const rec = maikonRec[style.key] || maikonRec.balanced;
+  const _recKey = (G._devEndingKey && maikonRec[G._devEndingKey]) ? G._devEndingKey : style.key;
+  const rec = maikonRec[_recKey] || maikonRec.balanced;
 
   const body = document.getElementById('event-modal-body');
   body.innerHTML = `
@@ -4078,13 +4099,19 @@ function showFinalDiagnosis(){
 function showLeadCapture(){
   const style = getOwnerStyle() || { key:'balanced', title:'バランス型オーナー', icon:'⚖️' };
   const maikonRec = {
-    aggressive: { name:'たもぎ茸舞昆', reason:'決断力のあるあなたには、旨みの強い一品を。', icon:'🍄' },
-    people:     { name:'明太子舞昆',   reason:'人を大切にするあなたに、贈り物にも喜ばれる定番。', icon:'🍣' },
-    community:  { name:'帆立舞昆',     reason:'地域と共に歩む姿勢が、この素材の丁寧さに重なります。', icon:'🐚' },
-    finance:    { name:'舞昆（和紙袋入り）', reason:'品質を見極めるあなたへ、贈答にも使える逸品。', icon:'🎴' },
-    balanced:   { name:'舞昆（定番）', reason:'まず原点から。毎朝ご飯一杯を変える味です。', icon:'🧃' },
+    aggressive:    { name:'たもぎ茸舞昆',       reason:'決断力のあるあなたには、旨みの強い一品を。', icon:'🍄' },
+    people:        { name:'明太子舞昆',          reason:'人を大切にするあなたに、贈り物にも喜ばれる定番。', icon:'🍣' },
+    community:     { name:'帆立舞昆',            reason:'地域と共に歩む姿勢が、この素材の丁寧さに重なります。', icon:'🐚' },
+    finance:       { name:'舞昆（和紙袋入り）',  reason:'品質を見極めるあなたへ、贈答にも使える逸品。', icon:'🎴' },
+    balanced:      { name:'舞昆（定番）',        reason:'まず原点から。毎朝ご飯一杯を変える味です。', icon:'🧃' },
+    failure:       { name:'舞昆（定番）',        reason:'次のチャレンジの力に。まず原点の味から始めよう。', icon:'🧃' },
+    good:          { name:'舞昆（定番）',        reason:'まず原点から。毎朝ご飯一杯を変える味です。', icon:'🧃' },
+    maikon_master: { name:'明太子舞昆',          reason:'舞昆を知り尽くしたあなたに、繊細な風味の傑作を。', icon:'🍣' },
+    owner_master:  { name:'舞昆（和紙袋入り）',  reason:'大家マスターのあなたへ。品質を見極める目に応える逸品。', icon:'🎴' },
+    perfect:       { name:'たもぎ茸舞昆',        reason:'全てを極めたあなたに、舞昆の最高峰をお届けします。', icon:'🍄' },
   };
-  const rec = maikonRec[style.key] || maikonRec.balanced;
+  const _recKey = (G._devEndingKey && maikonRec[G._devEndingKey]) ? G._devEndingKey : style.key;
+  const rec = maikonRec[_recKey] || maikonRec.balanced;
 
   const prof = G.profile || {};
   const nameVal = G.playerName || '';
@@ -4186,7 +4213,7 @@ function sendLead(){
     loanCount:        G.loanCount || 0,
     staffCount:       G.staff.length,
     occPct:           Math.round(occupiedRooms() / Math.max(totalRooms(), 1) * 100),
-    ending:           'good',
+    ending:           G._devEndingKey || 'good',
     gameVersion:      GAME_VERSION,
   };
 
@@ -12151,18 +12178,21 @@ function _devBtnStyle(bg, border, color){
 }
 
 const _DEV_PRESETS = {
-  fail:      { money:30000,   creditScore:20, storeBrand:5,  communityBond:5,  rep:10, ownerProfile:{risk:2,people:2,community:2,finance:2} },
-  normal:    { money:1200000, creditScore:55, storeBrand:30, communityBond:30, rep:50, ownerProfile:{risk:10,people:10,community:10,finance:10} },
-  community: { money:2000000, creditScore:72, storeBrand:50, communityBond:90, rep:88, ownerProfile:{risk:8,people:30,community:90,finance:20} },
-  maikon:    { money:2800000, creditScore:78, storeBrand:95, communityBond:60, rep:90, ownerProfile:{risk:15,people:40,community:60,finance:30} },
-  landlord:  { money:5000000, creditScore:92, storeBrand:40, communityBond:70, rep:96, ownerProfile:{risk:70,people:20,community:70,finance:85} },
-  max:       { money:9000000, creditScore:100,storeBrand:100,communityBond:100,rep:100,ownerProfile:{risk:80,people:80,community:80,finance:80} },
+  // key: デバッグ内部キー / endingKey: Leadに送る ending フィールド値
+  fail:     { endingKey:'failure',      money:30000,   creditScore:20,  storeBrand:5,  communityBond:5,   rep:10,  ownerProfile:{risk:2, people:2, community:2, finance:2}  },
+  normal:   { endingKey:'good',         money:1200000, creditScore:55,  storeBrand:30, communityBond:30,  rep:50,  ownerProfile:{risk:10,people:10,community:10,finance:10} },
+  community:{ endingKey:'community',    money:2000000, creditScore:72,  storeBrand:50, communityBond:90,  rep:88,  ownerProfile:{risk:8, people:30,community:90,finance:20} },
+  maikon:   { endingKey:'maikon_master',money:2800000, creditScore:78,  storeBrand:95, communityBond:60,  rep:90,  ownerProfile:{risk:20,people:80,community:50,finance:30} },
+  landlord: { endingKey:'owner_master', money:5000000, creditScore:92,  storeBrand:40, communityBond:60,  rep:96,  ownerProfile:{risk:70,people:20,community:30,finance:85} },
+  max:      { endingKey:'perfect',      money:9000000, creditScore:100, storeBrand:100,communityBond:100, rep:100, ownerProfile:{risk:80,people:80,community:80,finance:80} },
 };
 
 function _devPreset(key){
   if(!DEV_MODE) return;
   const p = _DEV_PRESETS[key];
   if(!p) return;
+  const endingKey = p.endingKey || 'good';
+  console.log('Ending:', endingKey);
   G.money = p.money;
   G.creditScore = p.creditScore;
   G.storeBrand = p.storeBrand;
@@ -12171,6 +12201,8 @@ function _devPreset(key){
   if(G.regions[0]) G.regions[0].reputation = p.rep;
   G.ownerProfile = { ...p.ownerProfile };
   G._ownerScore = Object.values(p.ownerProfile).reduce((a,b)=>a+b,0);
+  // すべてのエンディング関連関数が参照する共通キー
+  G._devEndingKey = endingKey;
   updateHeader();
   document.querySelector('.dev-dashboard-overlay')?.remove();
   showMainStoryEnding();
