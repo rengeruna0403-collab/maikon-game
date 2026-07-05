@@ -10938,31 +10938,52 @@ function renderAnnualSchedule(){
 function renderTodayAction(){
   const actions = [];
   const store = G.stores[0];
+  const ap = G.ap || 0;
 
-  // 1. 店舗が閉店中
+  // 優先1: 店舗が閉店中
   if(store && !store.isOpen){
-    actions.push({ icon:'🏪', label:'舞昆茶屋を開店する', desc:'お店がまだ閉まっています', onclick:"setTab('store')" });
+    actions.push({ icon:'🏪', label:'舞昆茶屋を開店する', desc:'お店がまだ閉まっています',
+      onclick:"setTab('store');setTimeout(()=>{document.getElementById('store-reopen-anchor')?.scrollIntoView({behavior:'smooth',block:'center'})},200)" });
   }
-  // 2. 店舗は開いているがメニュー未設定
+  // 優先2: 店舗は開いているがメニュー未設定
   if(store && store.isOpen && (!store.menu || store.menu.length === 0)){
-    actions.push({ icon:'🍙', label:'最初のメニューを出す', desc:'メニューがないとお客様が来られません', onclick:"setTab('store')" });
+    actions.push({ icon:'🍙', label:'最初のメニューを出す', desc:'メニューがないとお客様が来られません',
+      onclick:"setTab('store')" });
   }
-  // 3. 空室あり・募集未開始
+  // 優先3: 空室あり・募集未開始
   const _hasUnseekingVacant = G.buildings.some(b => b.rooms.some(r => !r.tenant && !r.seeking));
   if(_hasUnseekingVacant){
-    actions.push({ icon:'🏠', label:'空室募集を開始する', desc:'空き部屋の入居者を募集しましょう', onclick:"setTab('apt');setTimeout(()=>{document.getElementById('apt-seek-anchor')?.scrollIntoView({behavior:'smooth'})},150)" });
+    actions.push({ icon:'🏠', label:'空室募集を開始する', desc:'空き部屋の入居者を募集しましょう',
+      onclick:"setTab('apt');setTimeout(()=>{document.getElementById('apt-seek-anchor')?.scrollIntoView({behavior:'smooth'})},150)" });
   }
-  // 4. 未対応案件あり（3件以内に収まる場合のみ）
+  // 優先4: 未対応案件あり
   const _pendingCnt = G.cases.filter(c => !c.resolved).length;
-  if(_pendingCnt > 0 && actions.length < 3){
-    actions.push({ icon:'📋', label:`案件に対応する（${_pendingCnt}件）`, desc:'未処理の案件があります', onclick:"document.getElementById('home-cases-anchor')?.scrollIntoView({behavior:'smooth'})" });
+  if(_pendingCnt > 0){
+    actions.push({ icon:'📋', label:`案件に対応する（${_pendingCnt}件）`, desc:'未処理の案件があります',
+      onclick:"document.getElementById('home-cases-anchor')?.scrollIntoView({behavior:'smooth'})" });
   }
-  // 5. やることが何もない → 翌日へ
-  if(actions.length === 0){
-    actions.push({ icon:'🌿', label:'翌日へ進む', desc:'今日の作業はすべて完了しています', onclick:'advanceDay()' });
+  // 優先5: APが30以上余っている → 行動候補を提示
+  if(ap >= 30 && actions.length < 3){
+    const _apActions = [];
+    if(store && store.isOpen)
+      _apActions.push({ icon:'🏪', label:'店舗を見回る', desc:'店の様子を確認し、売上アップのヒントを探す', onclick:"setTab('store')" });
+    if(G.buildings.length > 0)
+      _apActions.push({ icon:'🏢', label:'物件を見回る', desc:'入居者の様子を確認する', onclick:"setTab('apt')" });
+    _apActions.push({ icon:'🌿', label:'地域へ出る', desc:'地域活動で評判を高める', onclick:"setTab('com')" });
+    if(store && store.isOpen && (store.customers||0) > 0)
+      _apActions.push({ icon:'☕', label:'常連さんと話す', desc:'常連客との交流がご縁を生む', onclick:"setTab('store')" });
+    // シードで1つ選ぶ（日付ベースで変化する）
+    const seed = G.day + G.month * 31;
+    const pick = _apActions[seed % _apActions.length];
+    if(pick) actions.push(pick);
   }
 
-  const items = actions.slice(0,3).map(a => `
+  // 優先6: すべて完了 → 翌日へ進む（最後の手段）
+  if(actions.length === 0){
+    actions.push({ icon:'🌿', label:'明日へ進む', desc:'今日はここまでにする', onclick:'advanceDay()' });
+  }
+
+  const items = actions.slice(0, 3).map(a => `
     <div style="display:flex;align-items:center;gap:10px;padding:9px 10px;background:rgba(255,255,255,.55);border-radius:10px;margin-bottom:5px">
       <span style="font-size:20px;flex-shrink:0">${a.icon}</span>
       <div style="flex:1;min-width:0">
@@ -11199,6 +11220,12 @@ function renderStore(){
   return `
     ${renderTutBanner()}
     <div class="sel-tabs">${tabs}<button class="sel-tab" onclick="openNewStoreModal()">+ 新店舗</button></div>
+    ${!s.isOpen ? `<div id="store-reopen-anchor" style="background:#FFF3E0;border:2px solid #FF8F00;border-radius:12px;padding:14px 16px;margin-bottom:10px">
+      <div style="font-size:13px;font-weight:700;color:#E65100;margin-bottom:10px">🔒 このお店は現在閉店中です</div>
+      <button class="btn btn-gr" style="width:100%;padding:13px;font-size:15px;font-weight:700" onclick="openStore(${si})">
+        🏪 舞昆茶屋を再開する <span style="font-size:12px;opacity:.85;margin-left:6px">AP -10</span>
+      </button>
+    </div>` : ''}
     <div class="card">
       ${_renderStoreScene(s)}
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px">
@@ -11414,12 +11441,7 @@ function renderStore(){
     </div>
     ${(()=>{
       if(!s.isOpen){
-        return `<div style="background:#FFF3E0;border:1.5px solid #FFCC80;border-radius:12px;padding:12px 14px;margin-bottom:10px">
-          <div style="font-size:12px;color:#E65100;margin-bottom:8px">🔒 このお店は現在閉店中です。営業を再開してください。</div>
-          <button class="btn btn-gr" style="width:100%;padding:10px;font-size:13px" onclick="openStore(${si})">
-            🏪 舞昆茶屋を再開する <span style="font-size:11px;opacity:.8;margin-left:6px">AP -10</span>
-          </button>
-        </div>`;
+        return `<div style="font-size:11px;color:var(--muted);padding:4px 0;text-align:center">↑ 上のボタンから再開できます</div>`;
       }
       const hasStaff = G.staff.some(st => st.store === s.name);
       // 2号店以降でスタッフ未配置の場合、採用 or 異動を促す
