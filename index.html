@@ -12232,31 +12232,115 @@ function _devFireEvent(id){
   notify('イベント発火: ' + id, 'gold');
 }
 
-function _devAdvanceDays(n){
-  if(!DEV_MODE) return;
-  for(let i = 0; i < n; i++) advanceDay();
+// ================================================================
+// デバッグ用日付ジャンプ（advanceDay()連打は使わない）
+// 月末モーダル・案件モーダル・エンディングを発火させず直接日付を移動する
+// ================================================================
+function debugJumpDays(days){
+  if(!DEV_MODE || days <= 0) return;
+  G.debugJumping = true;
+  try {
+    // ── 現在の総日数から目標日を計算 ──────────────────────────
+    const fromTotal = (G.year - 1) * 360 + (G.month - 1) * 30 + G.day;
+    const toTotal   = fromTotal + days;
+
+    // ── 簡易財務シミュレーション（ループなし）────────────────
+    const {rev, exp} = calcDailyRevenue();
+    const dailyProfit = rev - exp;
+    // 入居家賃はmonth末に入金される想定で概算加算
+    G.money        += Math.round(dailyProfit * days);
+    G.receivables   = Math.max(0, G.receivables || 0);
+    G.totalRevenue += Math.round(rev * days);
+    G.totalProfit  += Math.round(dailyProfit * days);
+
+    // スタッフ成長（日数分）
+    G.staff.forEach(s => {
+      s.daysWorked = (s.daysWorked || 0) + days;
+      s.growthPts  = (s.growthPts  || 0) + days;
+    });
+
+    // ── 日付をダイレクトに設定（13月・31日が出ない）──────────
+    const t = toTotal - 1; // 0-indexed
+    G.year  = Math.floor(t / 360) + 1;
+    const dayOfYear = t % 360;
+    G.month = Math.floor(dayOfYear / 30) + 1;
+    G.day   = (dayOfYear % 30) + 1;
+    normalizeDate(); // 念のため
+
+    // ── AP: 月ごとに満タン回復（月次ミーティング代わり）────────
+    const monthsJumped = Math.floor(days / 30);
+    G.ap = Math.min(G.apMax || 100, G.ap + monthsJumped * 40 + Math.floor((days % 30) * 1.5));
+
+    // ── 月次カウンタリセット（月が変わった場合）──────────────
+    G.monthRevenue = 0;
+    G.monthExpense = 0;
+    G._isMonthEnd  = false;
+
+    // ── 解放済みフラグ更新 ────────────────────────────────────
+    // ケース生成トリガー日を更新（ジャンプ後に即大量生成されないよう）
+    G._lastCaseDay = toTotal - 1;
+
+  } finally {
+    // ロックフラグを確実に解除
+    G.debugJumping      = false;
+    G.activeEvent       = null;
+    G.processingMonthly = false;
+    G.isAdvancingDay    = false;
+    G._isMonthEnd       = false;
+    // モーダルを強制クローズ
+    const modal = document.getElementById('event-modal');
+    if(modal) modal.style.display = 'none';
+  }
+
+  // 再描画
+  updateHeader();
+  renderTab();
   document.querySelector('.dev-dashboard-overlay')?.remove();
   _renderDevDashboard();
+  notify(`⏩ ${days}日ジャンプ → ${G.year}年${G.month}月${G.day}日`, 'gold');
+}
+
+function debugJumpToCurrentMonthEnd(){
+  if(!DEV_MODE) return;
+  const daysLeft = 30 - G.day;
+  if(daysLeft <= 0){
+    notify('すでに月末です', 'warn'); return;
+  }
+  debugJumpDays(daysLeft);
+}
+
+function debugJumpTo(year, month, day){
+  if(!DEV_MODE) return;
+  const current = (G.year - 1) * 360 + (G.month - 1) * 30 + G.day;
+  const target  = (year  - 1)  * 360 + (month  - 1)  * 30 + (day || 1);
+  const diff = target - current;
+  if(diff <= 0){ notify('過去には戻れません', 'warn'); return; }
+  if(diff > 3600){ notify('最大3600日まで', 'warn'); return; }
+  debugJumpDays(diff);
+}
+
+// 旧関数（後方互換のためラップ）
+function _devAdvanceDays(n){
+  if(!DEV_MODE) return;
+  if(n >= 30){
+    // 大きなジャンプは新しい安全な関数で処理
+    debugJumpDays(n);
+  } else {
+    // 7日以下は通常の advanceDay() で演出込みで実行
+    for(let i = 0; i < n; i++) advanceDay();
+    document.querySelector('.dev-dashboard-overlay')?.remove();
+    _renderDevDashboard();
+  }
 }
 
 function _devSkipToMonthEnd(){
   if(!DEV_MODE) return;
-  const daysLeft = 30 - G.day;
-  for(let i = 0; i < daysLeft; i++) advanceDay();
-  document.querySelector('.dev-dashboard-overlay')?.remove();
-  _renderDevDashboard();
+  debugJumpToCurrentMonthEnd();
 }
 
 function _devJumpTo(year, month){
   if(!DEV_MODE) return;
-  const current = (G.year-1)*360 + (G.month-1)*30 + G.day;
-  const target  = (year-1)*360  + (month-1)*30  + 1;
-  const diff = target - current;
-  if(diff <= 0){ notify('過去には戻れません', 'warn'); return; }
-  if(diff > 3600){ notify('最大3600日まで', 'warn'); return; }
-  for(let i = 0; i < diff; i++) advanceDay();
-  document.querySelector('.dev-dashboard-overlay')?.remove();
-  _renderDevDashboard();
+  debugJumpTo(year, month, 1);
 }
 
 // ─────────── DEBUG PANEL (legacy stub) ───────────
