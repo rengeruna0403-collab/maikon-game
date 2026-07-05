@@ -123,6 +123,7 @@ const ACTIONS_COLS = [
 function onOpen() {
   SpreadsheetApp.getUi()
     .createMenu('🍙 舞昆ダッシュボード')
+    .addItem('★ 切り分け用（setupAllMinimal）',        'setupAllMinimal')
     .addItem('① シート作成・ヘッダー設定（setupAll）', 'setupAll')
     .addItem('② 装飾・条件付き書式（setupFormats）',  'setupFormats')
     .addSeparator()
@@ -257,57 +258,54 @@ function _calcSalesPriority(d) {
 // setupAll ─ シート作成 + ヘッダー設定のみ（10秒以内で完了）
 // ※ 装飾・条件付き書式・Dashboard描画・大量読み込みは一切しない
 // ================================================================
+// ================================================================
+// setupAllMinimal ─ 切り分け用（シート作成のみ）
+// ================================================================
+function setupAllMinimal() {
+  Logger.log('setupAllMinimal start');
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  [S_DASH, S_CRM, S_ANALYT, S_LEADS, S_CHOICE, S_MONTHLY, S_ACTIONS, S_DEBUG].forEach(name => {
+    if (!ss.getSheetByName(name)) ss.insertSheet(name);
+  });
+  Logger.log('setupAllMinimal end');
+  return true;
+}
+
+// ================================================================
+// setupAll ─ シート作成 + ヘッダー設定のみ（alert なし、return true で終了）
+// ================================================================
 function setupAll() {
   Logger.log('setupAll start');
 
   const ss = SpreadsheetApp.getActiveSpreadsheet();
 
-  // ── シート作成（なければ追加）────────────────────────────────
   Logger.log('ensure sheets start');
   const order = [S_DASH, S_CRM, S_ANALYT, S_LEADS, S_CHOICE, S_MONTHLY, S_ACTIONS, S_DEBUG];
   order.forEach((name, i) => {
     if (!ss.getSheetByName(name)) {
       ss.insertSheet(name, i);
-      Logger.log('created sheet: ' + name);
+      Logger.log('created: ' + name);
     } else {
-      Logger.log('already exists: ' + name);
+      Logger.log('exists: ' + name);
     }
   });
   Logger.log('ensure sheets end');
 
-  // ── ヘッダー設定（行1のみ setValues で一括書き込み）──────────
   Logger.log('headers start');
-
   _setHeaderOnly(ss, S_CHOICE,  CHOICE_COLS.map(c => c[1]));
-  Logger.log('header set: ' + S_CHOICE);
-
+  Logger.log('header done: ' + S_CHOICE);
   _setHeaderOnly(ss, S_MONTHLY, MONTHLY_COLS.map(c => c[1]));
-  Logger.log('header set: ' + S_MONTHLY);
-
+  Logger.log('header done: ' + S_MONTHLY);
   _setHeaderOnly(ss, S_LEADS,   LEADS_COLS.map(c => c[1]));
-  Logger.log('header set: ' + S_LEADS);
-
+  Logger.log('header done: ' + S_LEADS);
   _setHeaderOnly(ss, S_ACTIONS, ACTIONS_COLS.map(c => c[1]));
-  Logger.log('header set: ' + S_ACTIONS);
-
+  Logger.log('header done: ' + S_ACTIONS);
   _setHeaderOnly(ss, S_DEBUG,   ['受信日時', 'type', 'playerId', 'JSON全文']);
-  Logger.log('header set: ' + S_DEBUG);
-
-  // Dashboard / CRM / Analytics はヘッダー行なし（空のまま）
+  Logger.log('header done: ' + S_DEBUG);
   Logger.log('headers end');
 
   Logger.log('setupAll end');
-  SpreadsheetApp.getUi().alert(
-    '✅ シート作成・ヘッダー設定完了！\n\n' +
-    '作成されたシート:\n' +
-    order.map(n => '  • ' + n).join('\n') + '\n\n' +
-    'ゲームからのログ受信はこれで有効です。\n\n' +
-    '見た目の整備は別途メニューから：\n' +
-    '  「② Dashboard更新」\n' +
-    '  「③ CRM更新」\n' +
-    '  「④ Analytics更新」\n' +
-    '  「⑤ 条件付き書式設定」'
-  );
+  return true;
 }
 
 // ヘッダー行1のみ書き込む（装飾なし・frozenRowsのみ）
@@ -342,7 +340,7 @@ function setupFormats() {
   Logger.log('conditional format end');
 
   Logger.log('setupFormats end');
-  SpreadsheetApp.getUi().alert('✅ 装飾・条件付き書式を設定しました。');
+  return true;
 }
 
 // ================================================================
@@ -796,7 +794,8 @@ function setTimeTrigger() {
     .filter(t => t.getHandlerFunction() === 'autoRefresh')
     .forEach(t => ScriptApp.deleteTrigger(t));
   ScriptApp.newTrigger('autoRefresh').timeBased().everyMinutes(30).create();
-  SpreadsheetApp.getUi().alert('✅ 30分ごとの自動更新トリガーを設定しました。');
+  Logger.log('setTimeTrigger: done');
+  return true;
 }
 
 function autoRefresh() {
