@@ -1920,30 +1920,44 @@ function _markMenuSeasonProposed(){
 
 function _processPendingMenuLaunches(){
   G.pendingMenuLaunches = G.pendingMenuLaunches || [];
-  if(G.pendingMenuLaunches.length === 0) return;
   const _td = (G.year-1)*360 + (G.month-1)*30 + G.day;
+  if(G._debugCase) console.log(`[MenuLaunch] pending check: td=${_td} count=${G.pendingMenuLaunches.length}`, G.pendingMenuLaunches.map(p=>`${p.name}(day${p.launchDay})`));
+  if(G.pendingMenuLaunches.length === 0) return;
   const _due = G.pendingMenuLaunches.filter(p => p.launchDay <= _td);
-  if(_due.length === 0) return;
+  if(_due.length === 0){
+    if(G._debugCase) G.pendingMenuLaunches.forEach(p => console.log(`[MenuLaunch] skipped: ${p.name} launchDay=${p.launchDay} > td=${_td} (残${p.launchDay-_td}日)`));
+    return;
+  }
   G.pendingMenuLaunches = G.pendingMenuLaunches.filter(p => p.launchDay > _td);
   G.launchedMenus = G.launchedMenus || [];
   const _s = G.stores[0];
+  if(!_s){
+    console.error('[MenuLaunch] G.stores[0] が存在しません。pending:', _due.map(p=>p.name));
+    return;
+  }
   _due.forEach(p => {
     // 重複防止（同id・有効中）
-    if(G.launchedMenus.some(m => m.id === p.id && !m._expired)) return;
+    if(G.launchedMenus.some(m => m.id === p.id && !m._expired)){
+      console.log(`[MenuLaunch] skipped: ${p.name} (${p.id}) は既に有効中`);
+      return;
+    }
 
     // 上限チェック
     const _activeEatIn = (_s.menu || []).length;
     const _activeSeasonals = G.launchedMenus.filter(m => m.seasonal && !m._expired).length;
     const _activeProducts = G.launchedMenus.filter(m => m.type === 'product' && !m._expired).length;
     if(p.type === 'eatIn' && !p.seasonal && _activeEatIn >= 5){
+      console.log(`[MenuLaunch] skipped: ${p.name} イートイン上限(${_activeEatIn}/5)`);
       notify(`⚠️ イートインメニューが上限（5品）に達しているため「${p.name}」は追加できません`, 'warn');
       return;
     }
     if(p.seasonal && _activeSeasonals >= 2){
+      console.log(`[MenuLaunch] skipped: ${p.name} 季節限定上限(${_activeSeasonals}/2)`);
       notify(`⚠️ 季節限定メニューが上限（2品）に達しているため「${p.name}」は追加できません`, 'warn');
       return;
     }
     if(p.type === 'product' && _activeProducts >= 6){
+      console.log(`[MenuLaunch] skipped: ${p.name} 商品コーナー上限(${_activeProducts}/6)`);
       notify(`⚠️ 商品コーナーが上限（6品）に達しているため「${p.name}」は追加できません`, 'warn');
       return;
     }
@@ -1954,10 +1968,11 @@ function _processPendingMenuLaunches(){
       launchedDay:_td, _launchedSeason:getSeason(), _launchedYear:G.year,
       sales:0
     });
-    if(p.type === 'eatIn' && _s && !(_s.menu||[]).includes(p.name)){
+    if(p.type === 'eatIn' && !(_s.menu||[]).includes(p.name)){
       _s.menu = _s.menu || [];
       _s.menu.push(p.name);
     }
+    console.log(`[MenuLaunch] launched: ${p.name} (${p.id}) type=${p.type} seasonal=${p.seasonal} sourceEvent=${p.sourceEventId||p.sourceEvent||'?'}`);
     // 商品解放演出キューに積む（notify→モーダルカード）
     G._productRevealQueue = G._productRevealQueue || [];
     const _pcInfo = PRODUCT_CATALOG[p.id] || {};
@@ -2253,34 +2268,35 @@ function advanceDay(){
   // 案件生成（スケジューラ制御）
   const totalDays = (G.year - 1) * 360 + (G.month - 1) * 30 + G.day;
 
-  // ── スケジューラ staging 開始 ──
+  // ── スケジューラ staging（finally で必ず解除）──
   _schedStaging = true;
   _schedRaw = [];
-
-  if(totalDays - (G._lastCaseDay || 0) >= 7){
-    G._lastCaseDay = totalDays;
-    try { generateWeeklyCases(); } catch(e){ console.error('[advanceDay] generateWeeklyCases:', e); }
-    try { staffAutoProcess(); } catch(e){ console.error('[advanceDay] staffAutoProcess:', e); }
-  }
-  // 補充チェック：5月以降・未処理+バックログ少なめ・AP50以上・3日経過 → 早期補充
-  if(G.month >= 5 && G.tut.phase === 'done' && !G.processingMonthly){
-    const _pendingNow = G.cases.filter(c => !c.resolved).length + _schedRaw.length + ((G._sched||{}).backlog||[]).length;
-    const _daysSinceLast = totalDays - (G._lastCaseDay || 0);
-    if(_pendingNow <= 1 && _daysSinceLast >= 3 && (G.ap||0) >= 50){
+  try {
+    if(totalDays - (G._lastCaseDay || 0) >= 7){
       G._lastCaseDay = totalDays;
-      try { generateWeeklyCases(); } catch(e){ console.error('[advanceDay] supplement cases:', e); }
+      try { generateWeeklyCases(); } catch(e){ console.error('[advanceDay] generateWeeklyCases:', e); }
+      try { staffAutoProcess(); } catch(e){ console.error('[advanceDay] staffAutoProcess:', e); }
     }
+    // 補充チェック：5月以降・未処理+バックログ少なめ・AP50以上・3日経過 → 早期補充
+    if(G.month >= 5 && G.tut.phase === 'done' && !G.processingMonthly){
+      const _pendingNow = G.cases.filter(c => !c.resolved).length + _schedRaw.length + ((G._sched||{}).backlog||[]).length;
+      const _daysSinceLast = totalDays - (G._lastCaseDay || 0);
+      if(_pendingNow <= 1 && _daysSinceLast >= 3 && (G.ap||0) >= 50){
+        G._lastCaseDay = totalDays;
+        try { generateWeeklyCases(); } catch(e){ console.error('[advanceDay] supplement cases:', e); }
+      }
+    }
+    // 条件トリガー案件（キャラクター・季節など）
+    try { generateConditionCases(); } catch(e){ console.error('[advanceDay] generateConditionCases:', e); }
+  } finally {
+    // 例外が起きても必ず staging を解除してから scheduler を動かす
+    _schedStaging = false;
+    try { _schedProcess(); } catch(e){ console.error('[advanceDay] _schedProcess:', e); }
   }
-  // 条件トリガー案件（キャラクター・季節など）
-  try { generateConditionCases(); } catch(e){ console.error('[advanceDay] generateConditionCases:', e); }
-
-  // ── スケジューラ staging 終了 → 選択して G.cases へ配信 ──
-  _schedStaging = false;
-  try { _schedProcess(); } catch(e){ console.error('[advanceDay] _schedProcess:', e); }
 
   // 部屋申込案件はスケジューラ外（タイミング重要）
   try { generateRoomApplicationCases(); } catch(e){ console.error('[advanceDay] generateRoomApplicationCases:', e); }
-  // 予約メニュー反映
+  // ── 予約メニュー反映（スケジューラ・案件生成とは独立して毎日必ず実行）──
   try { _processPendingMenuLaunches(); } catch(e){ console.error('[advanceDay] pendingMenuLaunches:', e); }
   // 人気商品 常連反応チェック
   try { _checkMenuPopularity(); } catch(e){ console.error('[advanceDay] checkMenuPopularity:', e); }
@@ -5447,20 +5463,20 @@ const DOMAIN_CASES = [
     ]},
 
   // ② 商品開発（mgmt AP15）
-  { id:'new_product_idea', requireStaff:true, repeatable:true, domain:'store', sender:'みどり', icon:'💡', apCost:15, expireDays:21, category:'mgmt',
+  { id:'new_product_idea', requireStaff:true, repeatable:true, menuProposal:true, domain:'store', sender:'みどり', icon:'💡', apCost:15, expireDays:21, category:'mgmt',
     title:'みどりが新商品のアイデアを出した',
     body:'みどりからアイデアを提案されました。\n\n「お客様から「おにぎり専用の舞昆が欲しい」\nという声を何度もいただいています。\nコンビニおにぎり向け小分けパックを\n作ってみませんか？」',
     choices:[
-      {label:'試作を進める（¥60,000）',cost:60000,effects:{score:15,storeSat:8,profile:{risk:2,people:2}},label2:'新商品開発・スタッフ満足',storyTag:'みどりの提案を採用して試作を始めた。スタッフのやる気が上がった。'},
+      {label:'試作を進める（¥60,000）',cost:60000,effects:{score:15,storeSat:8,profile:{risk:2,people:2},pendingMenuId:'__seasonal__'},label2:'新商品開発・3日後に新メニュー追加',storyTag:'みどりの提案を採用して試作を始めた。3日後に販売開始予定。'},
       {label:'来月の会議で検討する',cost:0,effects:{score:6,staffSat:-2},label2:'スタッフ少し残念',storyTag:'会議で検討することにした。'},
       {label:'今は既存商品の強化が優先',cost:0,effects:{score:4,profile:{finance:2}},label2:'既存集中',storyTag:'既存商品の強化を優先することにした。'},
     ]},
 
-  { id:'seasonal_limited', requireStaff:true, repeatable:true, domain:'store', sender:'みどり', icon:'🌸', apCost:15, expireDays:21, category:'mgmt',
+  { id:'seasonal_limited', requireStaff:true, repeatable:true, menuProposal:true, domain:'store', sender:'みどり', icon:'🌸', apCost:15, expireDays:21, category:'mgmt',
     title:'季節限定パッケージの提案',
     body:'みどりから提案が届きました。\n\n「今の季節に合わせた舞昆の限定パッケージを作りませんか？\nSNS映えしますし、贈答需要も狙えます」\n\nみどり「先日、試食したお客様からも好評でした！この季節だけのお楽しみにしましょう」',
     choices:[
-      {label:'デザイン会社に発注する（¥80,000）',cost:80000,effects:{score:15,storeSat:8,custUp:5,profile:{risk:2}},label2:'客数+5・話題性UP',storyTag:'季節限定パッケージを作った。SNSで話題になった。'},
+      {label:'デザイン会社に発注する（¥80,000）',cost:80000,effects:{score:15,storeSat:8,custUp:5,profile:{risk:2},pendingMenuId:'__seasonal__'},label2:'客数+5・3日後に季節メニュー追加',storyTag:'季節限定パッケージを作った。3日後から販売開始予定。'},
       {label:'手作りのPOPで工夫する（¥5,000）',cost:5000,effects:{score:8,storeSat:4,custUp:2},label2:'低コストで差別化',storyTag:'手作りPOPで季節感を演出した。'},
     ]},
 
@@ -7087,10 +7103,11 @@ function _schedProcess(){
     log.push(`⏳ ${m.c.id}[${m.cat}/p${m.pri}] → バックログ待機中`)
   );
 
-  // 6. バックログ期限切れ削除（ステージから30日超）
+  // 6. バックログ期限切れ削除（case の expireDays または最大60日）
   sched.backlog = sched.backlog.filter(m => {
-    if(totalDays - m.stagedDay > 30){
-      log.push(`🗑 ${m.c.id} → バックログ期限切れ(${totalDays - m.stagedDay}日)`);
+    const ttl = m.c.expireDays ? Math.max(m.c.expireDays, 14) : 60;
+    if(totalDays - m.stagedDay > ttl){
+      log.push(`🗑 ${m.c.id} → バックログ期限切れ(待機${totalDays - m.stagedDay}日/TTL${ttl}日)`);
       return false;
     }
     return true;
@@ -9136,7 +9153,8 @@ function chooseEvent(idx, useFatigue){
     G.pendingMenuLaunches = G.pendingMenuLaunches || [];
     const _tdBento = (G.year-1)*360 + (G.month-1)*30 + G.day;
     if(!G.pendingMenuLaunches.some(p => p.id === _catalogKey)){
-      G.pendingMenuLaunches.push({ id:_catalogKey, name:_name, type:'eatIn', icon:'🍱', seasonal:_cat.seasonal, seasonDays:_cat.seasonDays||0, launchDay:_tdBento+3, sourceEvent:'bento_launch' });
+      G.pendingMenuLaunches.push({ id:_catalogKey, name:_name, type:'eatIn', icon:'🍱', seasonal:_cat.seasonal, seasonDays:_cat.seasonDays||0, launchDay:_tdBento+3, sourceEventId:'bento_launch' });
+      console.log(`[MenuLaunch] scheduled: ${_name} (${_catalogKey}) launchDay=${_tdBento+3} from=bento_launch`);
     }
     if(_roll < 0.15){
       addStory(`「${_name}」の販売準備を進めた。3日後に販売開始予定だが、告知方法を工夫した方がよいかもしれない。`, 'warn');
@@ -9205,7 +9223,9 @@ function chooseEvent(idx, useFatigue){
       const _alreadyPending = G.pendingMenuLaunches.some(p => p.id === _pEntry.id);
       const _alreadyActive  = (G.launchedMenus||[]).some(m => m.id === _pEntry.id && !m._expired);
       if(!_alreadyPending && !_alreadyActive){
-        G.pendingMenuLaunches.push({ id:_pEntry.id, name:_pEntry.name, type:_pEntry.type, icon:_pEntry.icon, seasonal:_pEntry.seasonal, seasonDays:_pEntry.seasonDays||0, launchDay:_tdPm+3, sourceEvent:event.id });
+        const _pmEntry = { id:_pEntry.id, name:_pEntry.name, type:_pEntry.type, icon:_pEntry.icon, seasonal:_pEntry.seasonal, seasonDays:_pEntry.seasonDays||0, launchDay:_tdPm+3, sourceEventId:event.id };
+        G.pendingMenuLaunches.push(_pmEntry);
+        console.log(`[MenuLaunch] scheduled: ${_pEntry.name} (${_pEntry.id}) launchDay=${_tdPm+3} from=${event.id}`);
         notify(`📋 「${_pEntry.name}」の準備中です（3日後に販売開始）`, 'gold');
         _markMenuSeasonProposed();
       }
@@ -9218,7 +9238,8 @@ function chooseEvent(idx, useFatigue){
       G.pendingMenuLaunches = G.pendingMenuLaunches || [];
       const _tdRl = (G.year-1)*360 + (G.month-1)*30 + G.day;
       if(!G.pendingMenuLaunches.some(p => p.id === _arc.id)){
-        G.pendingMenuLaunches.push({ id:_arc.id, name:_arc.name, type:_arc.type, icon:_arc.icon, seasonal:true, seasonDays:_arc.seasonDays||90, launchDay:_tdRl+3, sourceEvent:'menu_relaunch' });
+        G.pendingMenuLaunches.push({ id:_arc.id, name:_arc.name, type:_arc.type, icon:_arc.icon, seasonal:true, seasonDays:_arc.seasonDays||90, launchDay:_tdRl+3, sourceEventId:'menu_relaunch' });
+        console.log(`[MenuLaunch] scheduled: ${_arc.name} (${_arc.id}) launchDay=${_tdRl+3} from=menu_relaunch`);
         _arc._relaunchOffered = true;
         notify(`📋 「${_arc.name}」を今季も販売準備中です（3日後に開始）`, 'gold');
         _markMenuSeasonProposed();
@@ -12416,6 +12437,20 @@ function _renderDevDashboard(){
       ${flagSection}
       ${actionSection}
       ${seasonalCasesSection}
+      ${(()=>{
+        const _pmList = G.pendingMenuLaunches || [];
+        const _tdPm = (G.year-1)*360 + (G.month-1)*30 + G.day;
+        const _pmRows = _pmList.map(p => {
+          const daysLeft = p.launchDay - _tdPm;
+          const ready = daysLeft <= 0;
+          return `<div style="font-size:10px;padding:1px 0;color:${ready?'#90EE90':'#FFB347'}">${ready?'🚀':'⏳'} ${p.name} → ${ready?'本日発動！':`${daysLeft}日後`} [${p.sourceEventId||p.sourceEvent||'?'}] id=${p.id}</div>`;
+        });
+        return `<div style="margin-bottom:10px">
+          <div style="font-size:11px;font-weight:700;color:#87CEEB;margin-bottom:6px">📋 pendingMenuLaunches（${_pmList.length}件）</div>
+          <div style="font-size:9px;color:#888;margin-bottom:4px">今日 totalDays=${_tdPm}</div>
+          ${_pmRows.length ? _pmRows.join('') : '<div style="font-size:10px;color:#555">予約メニューなし</div>'}
+        </div>`;
+      })()}
       ${(()=>{
         const _slog = (G._sched||{}).dayLog || [];
         const _sBacklog = (G._sched||{}).backlog || [];
