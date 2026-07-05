@@ -3557,22 +3557,25 @@ const PRODUCT_CATALOG = {
 
 // ─── 商品カタログ（会話で解放される商品の名前・アイコン・説明） ──────
 const UNLOCKED_PRODUCT_CATALOG = {
-  kuro_maikon:         { name:'黒舞昆',               icon:'🟫', desc:'定番の昆布佃煮。ご飯のお供として長く愛されている' },
-  ginger_maikon:       { name:'粒生姜舞昆',           icon:'🟤', desc:'生姜の風味が効いた定番品。体を温めてくれる' },
-  tamogitake_maikon:   { name:'たもぎ茸舞昆',         icon:'🟩', desc:'昆布×たもぎ茸。健康志向のお客様に人気の主力商品' },
-  mentai_hotate:       { name:'明太風帆立舞昆',       icon:'🐚', desc:'贅沢な帆立×明太の風味。贈り物にも人気' },
-  sansho_maikon:       { name:'山椒舞昆',             icon:'🌿', desc:'爽やかな山椒の香りが後を引く個性派' },
-  shiitake_maikon:     { name:'椎茸舞昆',             icon:'🍄', desc:'椎茸の旨みが凝縮。お茶漬けにも相性抜群' },
-  matsutake_maikon:    { name:'松茸舞昆',             icon:'🎋', desc:'贈答用として特に人気。季節限定の高級品' },
-  wasabi_maikon:       { name:'極旨わさび舞昆',       icon:'🌱', desc:'わさびのツンとした辛みがクセになる' },
-  karakuchi_maikon:    { name:'やみつき旨辛舞昆',     icon:'🌶', desc:'旨みと辛みのバランスが絶妙' },
-  shiro_maikon:        { name:'白白舞昆',             icon:'⬜', desc:'素材の色を活かした珍しい白い舞昆' },
-  chirimen_sansho:     { name:'ちりめん山椒',         icon:'🐟', desc:'ちりめんじゃこ×山椒の王道惣菜' },
-  tororo_konbu:        { name:'とろろ昆布',           icon:'💚', desc:'出汁にも料理にも使えるとろろ昆布' },
-  dashi_pack:          { name:'だしパック',           icon:'📦', desc:'プロの味を家庭で。昆布×かつお節のだし' },
-  dashi_shoyu:         { name:'だし醤油',             icon:'🍶', desc:'使い勝手のよい万能だし醤油' },
-  tamogitake_onigiri:  { name:'たもぎ茸舞昆おにぎり', icon:'🍙', desc:'イートインの看板メニュー。ご飯との相性抜群' },
-  tamogitake_set:      { name:'たもぎ茸舞昆定食',     icon:'🍱', desc:'たもぎ茸舞昆＋みそ汁のセット' },
+  // ─ Lv1 初期商品（ratio=擬似販売比率）─
+  kuro_maikon:         { name:'黒舞昆',               icon:'🟫', desc:'定番の昆布佃煮。ご飯のお供として長く愛されている',   ratio:0.32, stars:4 },
+  ginger_maikon:       { name:'粒生姜舞昆',           icon:'🟤', desc:'生姜の風味が効いた定番品。体を温めてくれる',          ratio:0.26, stars:4 },
+  // ─ イベント解放商品 ─
+  tamogitake_maikon:   { name:'たもぎ茸舞昆',         icon:'🟩', desc:'昆布×たもぎ茸。健康志向のお客様に人気の主力商品',    ratio:0.38, stars:5 },
+  mentai_hotate:       { name:'明太風帆立舞昆',       icon:'🐚', desc:'贅沢な帆立×明太の風味。贈り物にも人気',              ratio:0.28, stars:5 },
+  sansho_maikon:       { name:'山椒舞昆',             icon:'🌿', desc:'爽やかな山椒の香りが後を引く個性派',                 ratio:0.20, stars:4 },
+  matsutake_maikon:    { name:'松茸舞昆',             icon:'🎋', desc:'贈答用として特に人気。季節限定の高級品',             ratio:0.15, stars:5 },
+  wasabi_maikon:       { name:'極旨わさび舞昆',       icon:'🌱', desc:'わさびのツンとした辛みがクセになる',                 ratio:0.18, stars:4 },
+  shiitake_maikon:     { name:'椎茸舞昆',             icon:'🍄', desc:'椎茸の旨みが凝縮。お茶漬けにも相性抜群',             ratio:0.22, stars:4 },
+  karakuchi_maikon:    { name:'やみつき旨辛舞昆',     icon:'🌶', desc:'旨みと辛みのバランスが絶妙',                         ratio:0.17, stars:4 },
+  shiro_maikon:        { name:'白白舞昆',             icon:'⬜', desc:'素材の色を活かした珍しい白い舞昆',                   ratio:0.12, stars:3 },
+  chirimen_sansho:     { name:'ちりめん山椒',         icon:'🐟', desc:'ちりめんじゃこ×山椒の王道惣菜',                     ratio:0.21, stars:4 },
+  tororo_konbu:        { name:'とろろ昆布',           icon:'💚', desc:'出汁にも料理にも使えるとろろ昆布',                   ratio:0.14, stars:3 },
+  dashi_pack:          { name:'だしパック',           icon:'📦', desc:'プロの味を家庭で。昆布×かつお節のだし',             ratio:0.16, stars:4 },
+  dashi_shoyu:         { name:'だし醤油',             icon:'🍶', desc:'使い勝手のよい万能だし醤油',                         ratio:0.18, stars:4 },
+  // ─ イートインメニュー ─
+  tamogitake_onigiri:  { name:'たもぎ茸舞昆おにぎり', icon:'🍙', desc:'イートインの看板メニュー。ご飯との相性抜群',         ratio:0.30, stars:5 },
+  tamogitake_set:      { name:'たもぎ茸舞昆定食',     icon:'🍱', desc:'たもぎ茸舞昆＋みそ汁のセット',                       ratio:0.22, stars:4 },
 };
 
 // ─── お茶碗マン提案システム ────────────────────────────────
@@ -5058,6 +5061,59 @@ const CASE_POOL = [
       { label:'やはり今回も見送る', cost:0,
         effects:{ score:0 },
         label2:'—', storyTag:'また見送ることにした。' },
+    ]},
+
+  // ─── 商品種類拡充イベント ───
+  { id:'unlock_sansho_maikon', conditionOnly:true, repeatable:false,
+    domain:'store', sender:'常連客', icon:'🌿', apCost:10, expireDays:21, category:'mgmt',
+    title:'「山椒舞昆も好きなんです」',
+    body:'常連の方が嬉しそうに話しかけてきました。\n\n「舞昆って色々な種類があるんですね。\n前に別のお店で山椒舞昆を食べたことがあって——\n山椒のピリリとした香りが忘れられないんです。\n\nこちらでも扱う予定はありますか？」',
+    choices:[
+      { label:'山椒舞昆を仕入れてみる（¥40,000）', cost:40000,
+        effects:{ score:12, storeSat:8, custRegular:2, unlockProduct:'sansho_maikon' },
+        label2:'山椒舞昆が商品コーナーに加わります', storyTag:'山椒舞昆を仕入れることにした。常連客が喜んでくれた。' },
+      { label:'今は難しいと伝える', cost:0,
+        effects:{ score:3 },
+        label2:'—', storyTag:'今回は見送ることにした。' },
+    ]},
+
+  { id:'unlock_mentai_hotate', conditionOnly:true, repeatable:false,
+    domain:'store', sender:'みどり', icon:'🐚', apCost:15, expireDays:21, category:'mgmt',
+    title:'「新しい味を置いてみませんか？」',
+    body:'みどりが少し興奮気味に話してきました。\n\n「お客様から「帆立が好き」という声をよく聞くんです。\n\n舞昆の中に「明太風帆立舞昆」という商品があって——\n贅沢な帆立×明太の風味で、贈り物にも人気らしいです。\n\nぜひ試してみませんか？」',
+    choices:[
+      { label:'明太風帆立舞昆を仕入れる（¥60,000）', cost:60000,
+        effects:{ score:15, storeSat:10, custUp:3, unlockProduct:'mentai_hotate' },
+        label2:'明太風帆立舞昆が商品コーナーに加わります', storyTag:'明太風帆立舞昆を仕入れた。みどりも喜んでくれた。' },
+      { label:'今月は様子を見る', cost:0,
+        effects:{ score:4, staffSat:-3 },
+        label2:'みどり少し残念', storyTag:'今月は見送ることにした。' },
+    ]},
+
+  { id:'unlock_matsutake_maikon', conditionOnly:true, repeatable:false,
+    domain:'store', sender:'高橋（法人）', icon:'🎋', apCost:15, expireDays:30, category:'strategy',
+    title:'「贈答用に松茸舞昆はありますか？」',
+    body:'高橋さんから連絡が来ました。\n\n「会社の接待用に少し高級な手土産を探しているんですが——\n\n「松茸舞昆」という商品が気になっていて。\n香り高い松茸と舞昆の組み合わせで、季節限定らしいですね。\n\n取り扱いを検討していただけませんか？」',
+    choices:[
+      { label:'松茸舞昆を特別仕入れする（¥80,000）', cost:80000,
+        effects:{ score:18, rep:8, credit:2, custRegular:2, unlockProduct:'matsutake_maikon' },
+        label2:'松茸舞昆が商品コーナーに加わります（高橋さんとの関係強化）', storyTag:'高橋さんの要望に応え、松茸舞昆を仕入れた。' },
+      { label:'贈答セットで対応する', cost:0,
+        effects:{ score:6 },
+        label2:'既存商品で対応', storyTag:'既存の贈答セットで対応した。' },
+    ]},
+
+  { id:'unlock_wasabi_maikon', conditionOnly:true, repeatable:false,
+    domain:'store', sender:'常連客', icon:'🌱', apCost:10, expireDays:21, category:'mgmt',
+    title:'「わさびも好きで…」',
+    body:'若い常連客が照れながら言いました。\n\n「あの——個人的なお願いなんですけど、\n舞昆ってわさび味はないんですか？\n\n辛いの好きで、わさびとご飯の組み合わせが最高で。\n「極旨わさび舞昆」って商品があると聞いて……」',
+    choices:[
+      { label:'わさび舞昆を仕入れてみる（¥35,000）', cost:35000,
+        effects:{ score:10, storeSat:6, custRegular:1, unlockProduct:'wasabi_maikon' },
+        label2:'極旨わさび舞昆が商品コーナーに加わります', storyTag:'わさび舞昆を仕入れた。辛いもの好きの常連客に大人気になった。' },
+      { label:'今は品揃えを絞っておく', cost:0,
+        effects:{ score:2 },
+        label2:'—', storyTag:'今回は見送ることにした。' },
     ]},
 ];
 
@@ -7324,6 +7380,36 @@ function generateConditionCases(){
      && !G.cases.some(c => c.id === 'unlock_tamogitake_retry')){
     const _tr = DOMAIN_CASES.find(c => c.id === 'unlock_tamogitake_retry');
     if(_tr) addCase(_tr);
+  }
+
+  // ── 商品種類拡充イベント ──
+  const _uProd = G.unlockedProducts || [];
+  // 山椒舞昆：1年目4月以降・客数10以上・たもぎ茸解放済み
+  if(!_uProd.includes('sansho_maikon') && G.month >= 4 && (s0.customers||0) >= 10
+     && _uProd.includes('tamogitake_maikon')
+     && !G.cases.some(c => c.id === 'unlock_sansho_maikon')){
+    const _cs = DOMAIN_CASES.find(c => c.id === 'unlock_sansho_maikon');
+    if(_cs) addCase(_cs);
+  }
+  // 明太風帆立舞昆：みどり採用後・店舗Lv2以上・2年目以降
+  if(!_uProd.includes('mentai_hotate') && G.staffUnlocked && G.year >= 2
+     && (s0.level||1) >= 2
+     && !G.cases.some(c => c.id === 'unlock_mentai_hotate')){
+    const _cm = DOMAIN_CASES.find(c => c.id === 'unlock_mentai_hotate');
+    if(_cm) addCase(_cm);
+  }
+  // 松茸舞昆：高橋アーク法人契約以降・1年目6月以降
+  if(!_uProd.includes('matsutake_maikon') && G.month >= 6
+     && G.cases.some(c => c.id === 'chr_takahashi_houjin' && c.resolved)
+     && !G.cases.some(c => c.id === 'unlock_matsutake_maikon')){
+    const _ck = DOMAIN_CASES.find(c => c.id === 'unlock_matsutake_maikon');
+    if(_ck) addCase(_ck);
+  }
+  // わさび舞昆：2年目以降・客数20以上
+  if(!_uProd.includes('wasabi_maikon') && G.year >= 2 && (s0.customers||0) >= 20
+     && !G.cases.some(c => c.id === 'unlock_wasabi_maikon')){
+    const _cw = DOMAIN_CASES.find(c => c.id === 'unlock_wasabi_maikon');
+    if(_cw) addCase(_cw);
   }
 
   // ── メニュー寿命チェック（3ヶ月同じメニューで案件発生）──
@@ -11250,14 +11336,34 @@ function renderStore(){
       if(!_s || !_s.isOpen) return '';
       const _cust = _s.customers || 0;
       const _gLv = _s.giftLevel || 0;
-      // 販売中商品の擬似販売数（客数から比率で算出）
-      const POPULAR = [
-        { name:'たもぎ茸舞昆', sold: Math.round(_cust * 0.38), stars:5, desc:'昆布の旨みと独特の香り。ご飯が止まらない' },
-        { name:'帆立舞昆', sold: Math.round(_cust * 0.28), stars:5, desc:'贅沢な帆立の風味。贈り物にも人気' },
-        { name:'明太子舞昆', sold: Math.round(_cust * 0.21), stars:4, desc:'ピリッとした辛みが後を引く' },
-      ];
-      if(_gLv >= 1) POPULAR.push({ name:'木箱ギフトセット', sold: Math.round(_cust * 0.13), stars:5, desc:'贈答品として選ばれています' });
-      const topItems = POPULAR.sort((a,b)=>b.sold-a.sold).slice(0,3);
+      const _uProdsRank = G.unlockedProducts || [];
+      // 解放済み商品のみからランキング生成（客数×ratio で擬似販売数）
+      const _popularCandidates = _uProdsRank
+        .map(pid => {
+          const c = UNLOCKED_PRODUCT_CATALOG[pid];
+          if(!c || c.ratio === undefined) return null;
+          // 月ごとに微妙なブレ（シード）
+          const seed = (G.year * 12 + G.month + pid.charCodeAt(0)) % 7;
+          const jitter = 0.85 + seed * 0.05;
+          return { name:c.name, icon:c.icon||'🟫', sold:Math.round(_cust * c.ratio * jitter), stars:c.stars||4, desc:c.desc||'' };
+        })
+        .filter(Boolean)
+        .sort((a, b) => b.sold - a.sold);
+      // ギフト解放時はギフトセットを追加
+      if(_gLv >= 1){
+        _popularCandidates.push({ name:'木箱ギフトセット', icon:'🎁', sold:Math.round(_cust * 0.13), stars:5, desc:'贈答品として選ばれています' });
+        _popularCandidates.sort((a, b) => b.sold - a.sold);
+      }
+      const topItems = _popularCandidates.slice(0, 3);
+      if(topItems.length === 0 || _cust === 0){
+        return `<div class="card" style="border:1.5px solid #D4A843">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
+            <span style="font-size:16px">🏆</span>
+            <div class="card-ttl" style="margin-bottom:0;color:#B8860B">今月の人気商品</div>
+          </div>
+          <div style="font-size:12px;color:var(--muted);padding:6px 0">販売データ集計中です。営業を続けるとランキングが表示されます。</div>
+        </div>`;
+      }
       return `<div class="card" style="border:1.5px solid #D4A843">
         <div style="display:flex;align-items:center;gap:6px;margin-bottom:10px">
           <span style="font-size:16px">🏆</span>
@@ -11267,7 +11373,7 @@ function renderStore(){
           <div style="display:flex;align-items:center;gap:10px;padding:9px 0;${i<topItems.length-1?'border-bottom:1px solid var(--border)':''}">
             <div style="font-size:16px;font-weight:700;color:${i===0?'#B8860B':i===1?'#888':'#a0522d'};width:20px;flex-shrink:0">${['🥇','🥈','🥉'][i]}</div>
             <div style="flex:1;min-width:0">
-              <div style="font-size:13px;font-weight:700">${p.name}</div>
+              <div style="font-size:13px;font-weight:700">${p.icon} ${p.name}</div>
               <div style="font-size:10px;color:var(--muted);margin-top:1px">${p.desc}</div>
               <div style="font-size:11px;color:#B8860B;margin-top:2px">${'★'.repeat(p.stars)}${'☆'.repeat(5-p.stars)}</div>
             </div>
