@@ -2252,9 +2252,9 @@ function advanceDay(){
     console.log('[advanceDay] date update done: ' + G.year + '年' + G.month + '月' + G.day + '日 AP=' + G.ap + ' money=' + G.money);
   }
 
-  // メインストーリーエンディング（2年目3月）
+  // メインストーリーエンディング（1年目3月30日のみ）
   if(!G.gameEnded && !G.freeMode && G.tut.phase === 'done'){
-    if(G.year >= 2 && G.month >= 3){
+    if(G.year === 1 && G.month === 3 && G.day === 30){
       G.gameEnded = true;
       setTimeout(showMainStoryEnding, 800);
       return;
