@@ -6755,12 +6755,19 @@ const DOMAIN_CASES = [
 
 let _casePoolIdx = 0;
 
+// ── スケジューラ staging flag ──
+let _schedStaging = false;
+let _schedRaw     = []; // ステージングされた候補
+
 function addCase(caseData){
+  if(!caseData) return;
   // repeatable でない案件は解決済み含めて重複をブロック
   if(caseData.repeatable){
     if(G.cases.some(c => c.id === caseData.id && !c.resolved)) return;
+    if(_schedStaging && _schedRaw.some(r => r.id === caseData.id)) return;
   } else {
     if(G.cases.some(c => c.id === caseData.id)) return;
+    if(_schedStaging && _schedRaw.some(r => r.id === caseData.id)) return;
   }
   const entry = { ...caseData, createdDay: G.day, createdMonth: G.month, createdYear: G.year, resolved: false };
   // bodyVariants: 複数パターンからランダム選択
@@ -6771,6 +6778,11 @@ function addCase(caseData){
   if(typeof caseData.bodyFn === 'function'){
     entry.body = caseData.bodyFn();
     delete entry.bodyFn;
+  }
+  // スケジューラのステージングモード中はキューへ溜める
+  if(_schedStaging){
+    _schedRaw.push(entry);
+    return;
   }
   G.cases.push(entry);
 }
@@ -6907,6 +6919,182 @@ const CASE_COOLDOWN_DAYS = {
   gift_season_chichi:365,
   gift_season_keiro: 365,
 };
+
+// ═══════════════════════════════════════════════════════════════
+// ■ イベントスケジューラ
+// ═══════════════════════════════════════════════════════════════
+
+// カテゴリ判定
+function _schedCat(c){
+  const id  = c.id || '';
+  const dom = c.domain || '';
+  if(c.conditionOnly && c.character) return 'story';
+  if(c.character)                    return 'relationship';
+  if(c.minMonth || c.maxMonth)       return 'seasonal';
+  if(id.startsWith('unlock_') || id.startsWith('follow_')) return 'product';
+  if(dom === 'staff')      return 'staff';
+  if(dom === 'store')      return 'store';
+  if(dom === 'community')  return 'community';
+  if(dom === 'bank')       return 'bank';
+  if(dom === 'landlord')   return 'landlord';
+  return 'random';
+}
+
+// 優先度（高いほど選ばれやすい）
+function _schedPri(c){
+  const id = c.id || '';
+  if(c.conditionOnly && c.character) return 90; // ストーリーアーク
+  if(c.minMonth || c.maxMonth)       return 85; // 季節（時限）
+  if(id.startsWith('unlock_'))       return 80; // 商品解放
+  if(c.character)                    return 75; // 関係構築
+  const dom = c.domain || '';
+  if(dom === 'staff')      return 55;
+  if(dom === 'store')      return 50;
+  if(dom === 'community')  return 45;
+  if(dom === 'bank')       return 40;
+  if(dom === 'landlord')   return 35;
+  return 10;
+}
+
+// 同一人物スケジューラクールダウン（日数）
+const _SCHED_PERSON_CD = {
+  tanaka:30, yamamoto:45, takahashi:30,
+  kimura:14, suzuki:21, midori:14, narita:14, nishimura:7,
+};
+
+// メインスケジューラ処理（generateConditionCases / generateWeeklyCases の後に呼ぶ）
+function _schedProcess(){
+  if(!G.started) return;
+
+  if(!G._sched) G._sched = {};
+  const sched = G._sched;
+  if(!sched.backlog)        sched.backlog        = [];
+  if(!sched.recentCats)    sched.recentCats     = [];
+  if(!sched.recentPersons) sched.recentPersons  = {};
+  if(!sched.lastEventDay)  sched.lastEventDay   = 0;
+
+  const totalDays = (G.year - 1) * 360 + (G.month - 1) * 30 + G.day;
+  const log = [];
+
+  // 1. 今日の新規候補をバックログへ追加（重複チェック込み）
+  for(const raw of _schedRaw){
+    const id = raw.id;
+    const dupInCases   = raw.repeatable
+      ? G.cases.some(x => x.id === id && !x.resolved)
+      : G.cases.some(x => x.id === id);
+    if(dupInCases) continue;
+    if(sched.backlog.some(m => m.c.id === id)) continue;
+    sched.backlog.push({
+      c: raw, cat: _schedCat(raw), pri: _schedPri(raw),
+      person: raw.character || null, stagedDay: totalDays,
+    });
+  }
+  _schedRaw = [];
+
+  // 2. バックログを優先度順にソート
+  sched.backlog.sort((a, b) => b.pri - a.pri);
+
+  const daysSinceEvent = totalDays - (sched.lastEventDay || 0);
+  const blankRisk  = daysSinceEvent >= 6;
+  const hasUrgent  = sched.backlog.some(m => m.pri >= 85);
+  const pending    = G.cases.filter(c => !c.resolved).length;
+
+  // 3. 今日の配信予算（平均2〜3日に1件）
+  let budget;
+  if(blankRisk)             budget = 1;          // 空白防止：強制1件
+  else if(hasUrgent)        budget = 1 + (Math.random() < 0.25 ? 1 : 0);
+  else {
+    const roll = Math.random();
+    budget = roll < 0.45 ? 0 : roll < 0.90 ? 1 : 2;
+  }
+  // 優先度≥85（季節・ストーリー）はbudget=0でも最低1件
+  if(budget === 0 && hasUrgent) budget = 1;
+  // 未処理案件が多い場合は抑制
+  if(pending >= 5 && budget > 1) budget = 1;
+  if(pending >= 8 && !hasUrgent) budget = 0;
+
+  log.push(`📊 budget=${budget} | backlog=${sched.backlog.length} | daysSince=${daysSinceEvent} | pending=${pending} | blankRisk=${blankRisk}`);
+
+  if(budget === 0){
+    sched.backlog.forEach(m => log.push(`⏸ ${m.c.id} [${m.cat}/p${m.pri}] → 本日スキップ`));
+    sched.dayLog = log;
+    if(G._debugCase) console.log('[Sched]\n' + log.join('\n'));
+    return;
+  }
+
+  // 4. 候補選択
+  const lastCat = sched.recentCats.slice(-1)[0] || '';
+  const selected     = [];
+  const todayPersons = new Set();
+  const todayCats    = new Set();
+
+  for(const meta of sched.backlog){
+    if(selected.length >= budget) break;
+    const { c, cat, pri, person } = meta;
+
+    // 同人物の未解決案件があるならスキップ
+    if(person && G.cases.some(x => x.character === person && !x.resolved)){
+      log.push(`❌ ${c.id}[${cat}] → ${person}の未解決案件あり`); continue;
+    }
+    // スケジューラ人物クールダウン
+    if(person){
+      const last = sched.recentPersons[person] || 0;
+      const cd   = _SCHED_PERSON_CD[person] || 14;
+      if(totalDays - last < cd){
+        log.push(`❌ ${c.id}[${cat}] → ${person}CD中（残${cd - (totalDays - last)}日）`); continue;
+      }
+    }
+    // 本日同一人物選択済み
+    if(person && todayPersons.has(person)){
+      log.push(`❌ ${c.id}[${cat}] → ${person}は本日既選択`); continue;
+    }
+    // 同カテゴリ連続禁止（高優先度は免除）
+    if(pri < 80 && cat === lastCat){
+      log.push(`❌ ${c.id}[${cat}] → 前日と同カテゴリ連続(${lastCat})`); continue;
+    }
+    // 本日同カテゴリ重複禁止（高優先度は免除）
+    if(pri < 80 && todayCats.has(cat)){
+      log.push(`❌ ${c.id}[${cat}] → 本日同カテゴリ重複(${cat})`); continue;
+    }
+
+    selected.push(meta);
+    if(person) todayPersons.add(person);
+    todayCats.add(cat);
+  }
+
+  // 5. G.casesへ追加 & バックログから除去
+  const selectedIds = new Set(selected.map(m => m.c.id));
+  for(const meta of selected){
+    G.cases.push(meta.c);
+    if(meta.c.addedCallback) meta.c.addedCallback();
+    log.push(`✅ ${meta.c.id} [${meta.cat}/p${meta.pri}]${meta.person ? ' @'+meta.person : ''}`);
+  }
+  sched.backlog = sched.backlog.filter(m => !selectedIds.has(m.c.id));
+
+  // 残候補のログ
+  sched.backlog.slice(0, 10).forEach(m =>
+    log.push(`⏳ ${m.c.id}[${m.cat}/p${m.pri}] → バックログ待機中`)
+  );
+
+  // 6. バックログ期限切れ削除（ステージから30日超）
+  sched.backlog = sched.backlog.filter(m => {
+    if(totalDays - m.stagedDay > 30){
+      log.push(`🗑 ${m.c.id} → バックログ期限切れ(${totalDays - m.stagedDay}日)`);
+      return false;
+    }
+    return true;
+  });
+
+  // 7. スケジューラ状態更新
+  if(selected.length > 0){
+    sched.lastEventDay   = totalDays;
+    sched.recentCats     = [...sched.recentCats, ...selected.map(m => m.cat)].slice(-6);
+    selected.forEach(m => { if(m.person) sched.recentPersons[m.person] = totalDays; });
+  }
+
+  sched.dayLog = log;
+  if(G._debugCase) console.log('[Sched]\n' + log.join('\n'));
+}
 
 function generateWeeklyCases(){
   if(!G.started) return;
