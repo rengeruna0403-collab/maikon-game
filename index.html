@@ -1924,8 +1924,8 @@ function _canProposeNewMenu(){
   if(!G.started) return false;
   const lv = (G.stores[0] && G.stores[0].level) || 1;
   if(lv <= 1) return false; // Lv1は提案なし
-  // 未反映のpendingがあれば提案しない
-  if((G.pendingMenuLaunches || []).length > 0) return false;
+  // 未反映のpendingがあれば提案しない（弁当は別フローなので除外）
+  if((G.pendingMenuLaunches || []).some(p => !p.isBento)) return false;
   // 季節限定が2品以上稼働中なら提案しない
   const activeSeasonals = (G.launchedMenus || []).filter(m => m.seasonal && !m._expired);
   if(activeSeasonals.length >= 2) return false;
@@ -1986,6 +1986,7 @@ function _processPendingMenuLaunches(){
 
     G.launchedMenus.push({
       id:p.id, name:p.name, type:p.type, icon:p.icon||'🍽',
+      isBento:p.isBento||false,
       seasonal:p.seasonal, seasonDays:p.seasonDays||0,
       launchedDay:_td, _launchedSeason:getSeason(), _launchedYear:G.year,
       sales:0
@@ -1994,13 +1995,18 @@ function _processPendingMenuLaunches(){
       _s.menu = _s.menu || [];
       _s.menu.push(p.name);
     }
-    console.log(`[MenuLaunch] launched: ${p.name} (${p.id}) type=${p.type} seasonal=${p.seasonal} sourceEvent=${p.sourceEventId||p.sourceEvent||'?'}`);
+    // CRMフラグ：弁当解放
+    if(p.isBento){ G._bentoUnlocked = true; G._bentoLaunched = true; }
+    console.log(`[MenuLaunch] launched: ${p.name} (${p.id}) type=${p.type} isBento=${!!p.isBento} sourceEvent=${p.sourceEventId||p.sourceEvent||'?'}`);
     // 商品解放演出キューに積む（notify→モーダルカード）
     G._productRevealQueue = G._productRevealQueue || [];
     const _pcInfo = PRODUCT_CATALOG[p.id] || {};
-    G._productRevealQueue.push({ id:p.id, name:p.name, icon:p.icon||'🍽', seasonal:p.seasonal||false, season:_pcInfo.season||p.season||'', description:_pcInfo.description||'' });
+    G._productRevealQueue.push({ id:p.id, name:p.name, icon:p.icon||'🍽', isBento:p.isBento||false, seasonal:p.seasonal||false, season:_pcInfo.season||p.season||'', description:p.description||_pcInfo.description||'' });
     addHistory(p.icon||'🍽', `「${p.name}」販売開始`);
-    addStory(`先日考案していた「${p.name}」がいよいよ販売開始した。`, 'highlight');
+    const _storyMsg = p.isBento
+      ? `開発を進めていた「${p.name}」が完成し、テイクアウトメニューに並んだ。`
+      : `先日考案していた「${p.name}」がいよいよ販売開始した。`;
+    addStory(_storyMsg, 'highlight');
   });
   // キューがあれば商品カード演出を起動
   if((G._productRevealQueue||[]).length > 0){ setTimeout(_showNextProductReveal, 200); }
@@ -2022,7 +2028,7 @@ function _showNextProductReveal(){
       '<div style="font-size:22px;font-weight:700;margin:6px 0;color:#333">' + p.name + '</div>' +
       '<div style="border-top:1px solid #eee;border-bottom:1px solid #eee;padding:12px 4px;margin:10px 0;font-size:14px;color:#555;line-height:1.7">' + (p.description || '新しい商品が店舗に並びます。') + '</div>' +
       '<div style="font-size:13px;font-weight:600;color:#388E3C;margin-bottom:2px;letter-spacing:.6px">🎉 販売開始！</div>' +
-      '<div style="font-size:12px;color:#666;margin-bottom:14px">' + (p.type === 'product' ? '🛍 商品コーナーに追加されました' : '🍽 イートインメニューに追加されました') + '</div>' +
+      '<div style="font-size:12px;color:#666;margin-bottom:14px">' + (p.isBento ? '🍱 テイクアウトメニューに追加されました' : p.type === 'product' ? '🛍 商品コーナーに追加されました' : '🍽 イートインメニューに追加されました') + '</div>' +
       '<button onclick="_dismissProductReveal()" class="btn btn-gr" style="width:100%;padding:11px;font-size:15px">OK</button>' +
     '</div>';
   document.getElementById('event-modal').style.display = 'flex';
@@ -3558,6 +3564,22 @@ const MENU_CATALOG = {
   seasonal_bento:   { name:'季節限定弁当',       type:'eatIn',   icon:'🍱', seasonal:true,  seasonDays:90 },
   seasonal_onigiri: { name:'季節の舞昆おにぎり', type:'eatIn',   icon:'🍙', seasonal:true,  seasonDays:90 },
   seasonal_gift:    { name:'季節の小箱ギフト',   type:'product', icon:'🎁', seasonal:true,  seasonDays:90 },
+};
+
+// 季節ごとのお弁当マップ（月→弁当情報）
+const SEASONAL_BENTO_MAP = {
+  1:  { id:'bento_shoga',    name:'生姜舞昆弁当',    icon:'🫚', desc:'生姜の温かみが冷えた日にやさしい舞昆弁当。じんわりと体を温めてくれます。' },
+  2:  { id:'bento_shoga',    name:'生姜舞昆弁当',    icon:'🫚', desc:'生姜の温かみが冷えた日にやさしい舞昆弁当。じんわりと体を温めてくれます。' },
+  3:  { id:'bento_haru',     name:'春待ち舞昆弁当',  icon:'🌱', desc:'やわらかな春野菜と舞昆を合わせた、季節の変わり目にやさしいお弁当です。' },
+  4:  { id:'bento_sakura',   name:'桜舞昆弁当',      icon:'🌸', desc:'ほんのり甘い桜の香りと昆布の旨みが絶妙な春限定のお弁当です。' },
+  5:  { id:'bento_sakura',   name:'桜舞昆弁当',      icon:'🌸', desc:'ほんのり甘い桜の香りと昆布の旨みが絶妙な春限定のお弁当です。' },
+  6:  { id:'bento_ume',      name:'梅舞昆弁当',      icon:'🌿', desc:'梅の酸味が夏の始まりにさわやか。舞昆とのハーモニーが食欲をそそります。' },
+  7:  { id:'bento_natsu',    name:'夏野菜舞昆弁当',  icon:'🌻', desc:'旬の夏野菜をたっぷり使った彩り豊かなお弁当。暑い夏にも食べやすい一品。' },
+  8:  { id:'bento_natsu',    name:'夏野菜舞昆弁当',  icon:'🌻', desc:'旬の夏野菜をたっぷり使った彩り豊かなお弁当。暑い夏にも食べやすい一品。' },
+  9:  { id:'bento_kuri',     name:'栗ごはん舞昆弁当', icon:'🍂', desc:'秋の味覚・栗ごはんに舞昆をのせた秋の贅沢弁当。ほっこりとした甘みが広がります。' },
+  10: { id:'bento_matsutake', name:'松茸舞昆弁当',   icon:'🍄', desc:'香り高い松茸と舞昆の贅沢な組み合わせ。秋限定の特別なお弁当です。' },
+  11: { id:'bento_kinoko',   name:'きのこ舞昆弁当',  icon:'🍄', desc:'数種のきのこをたっぷり使った舞昆弁当。秋の深まりを感じる風味豊かな一品。' },
+  12: { id:'bento_fuyu',     name:'冬の舞昆弁当',    icon:'⛄', desc:'体の芯から温まる冬の舞昆弁当。根菜をたっぷり使った滋味深い味わいです。' },
 };
 
 // ─── 統合商品カタログ（季節メニュー＋商品 / description付き） ────────
@@ -5712,44 +5734,17 @@ const DOMAIN_CASES = [
   // ③ 舞昆茶屋：常連客・商品系（repeatable, category:'mgmt', AP 10-15）
   { id:'bento_request', repeatable:false, domain:'store', sender:'常連客', icon:'🍱', apCost:10, expireDays:21, category:'mgmt',
     title:'お弁当の販売リクエスト',
-    body:'常連のお客様から手紙が届きました。\n\n「舞昆茶屋のお弁当があれば\n会社に持っていけるのに。\n需要はあると思いますよ」\n\nお弁当を商品化するには\n開発費用と2週間ほどの試作期間が必要です。',
+    body:'常連のお客様から手紙が届きました。\n\n「舞昆茶屋のお弁当があれば\n会社に持っていけるのに。\n需要はあると思いますよ」\n\nお弁当を商品化するには開発費用と\n約2週間の試作期間が必要です。\n完成後は季節に合わせた商品名・内容で\nテイクアウトメニューに並びます。',
     choices:[
-      {label:'弁当開発に取り組む（¥80,000）', cost:80000,
+      {label:'お弁当開発に取り組む（¥80,000）', cost:80000,
        effects:{ score:5, startBentoDev:true, profile:{risk:1} },
-       label2:'開発開始・2週間後に試作品完成', storyTag:'お弁当の開発を始めた。常連客のひと言が動いた。'},
+       label2:'開発開始・14日後に季節のお弁当が完成', storyTag:'お弁当の開発を始めた。常連客のひと言が動いた。'},
       {label:'次のシーズンに検討する', cost:0,
        effects:{ score:3, profile:{finance:1} },
        label2:'課題として記録', storyTag:'弁当販売は来シーズンの課題にした。'},
       {label:'今は難しいと伝える', cost:0,
        effects:{ score:-3, storeSat:-5 },
        label2:'常連客がっかり・満足度-5', storyTag:'弁当販売を断った。常連さんが少し残念そうだった。'},
-    ]},
-
-  { id:'bento_prototype', conditionOnly:true, repeatable:false, domain:'store', sender:'厨房より', icon:'🍱', apCost:5, expireDays:21, category:'mgmt',
-    title:'試作品が完成しました',
-    body:'2週間の試作を経て、弁当の原型ができました。\n\nどのコンセプトで商品化しますか？\n\n方向性によって、来る客層と価格帯が変わります。',
-    choices:[
-      {label:'舞昆弁当（細切り舞昆の炊き込みご飯＋焼き魚）', cost:0, ap:3,
-       effects:{ score:5, setBentoPrototype:'maikon' },
-       label2:'定番路線・幅広い客層', storyTag:'舞昆弁当を試作品として選んだ。炊き込みご飯の香りが厨房に広がった。'},
-      {label:'発酵ランチ弁当（麹漬け＋発酵副菜3品）', cost:0, ap:3,
-       effects:{ score:5, setBentoPrototype:'ferment' },
-       label2:'健康志向・単価高め', storyTag:'発酵ランチ弁当を選んだ。麹の香りが独自性を出す。'},
-      {label:'季節限定弁当（旬の食材で変わる限定品）', cost:0, ap:3,
-       effects:{ score:5, setBentoPrototype:'seasonal' },
-       label2:'話題性・リピート創出', storyTag:'季節限定弁当を選んだ。毎月変わるお弁当で話題を作る。'},
-    ]},
-
-  { id:'bento_launch', conditionOnly:true, repeatable:false, domain:'store', sender:'開発チーム', icon:'🎉', apCost:5, expireDays:14, category:'mgmt',
-    title:'お弁当を正式販売しますか？',
-    body:'試作と試食を重ね、商品として仕上がりました。\n\n正式にメニューに加えて販売を開始します。\n\nどの売り方で展開しますか？',
-    choices:[
-      {label:'店頭販売のみ（昼のみ・数量限定）', cost:0, ap:3,
-       effects:{ score:8, launchBento:'limited' },
-       label2:'希少感あり・廃棄リスク低', storyTag:'数量限定でお弁当の店頭販売を始めた。「本日分完売」の張り紙が出る日も。'},
-      {label:'予約販売も受け付ける（電話・翌日分）', cost:0, ap:5,
-       effects:{ score:12, launchBento:'reservation' },
-       label2:'安定収益・会社員需要取り込み', storyTag:'予約販売を始めた。近隣の会社員から注文が入るようになった。'},
     ]},
 
   { id:'menu_feedback', repeatable:true, menuProposal:true, domain:'store', sender:'常連客', icon:'☕', apCost:10, expireDays:14, category:'mgmt',
@@ -7511,21 +7506,7 @@ function generateConditionCases(){
         if(base) addCase(base);
       }
 
-      // ── お弁当開発フロー ──
-      if(G._bentoDevDay !== undefined && !G._bentoChoice && !G._bentoLaunched){
-        const _daysSinceDev = _totalDays - G._bentoDevDay;
-        if(_daysSinceDev >= 14 && !G.cases.some(c => c.id === 'bento_prototype')){
-          const base = DOMAIN_CASES.find(c => c.id === 'bento_prototype');
-          if(base) addCase(base);
-        }
-      }
-      if(G._bentoChoice && G._bentoPrototypeDay !== undefined && !G._bentoLaunched){
-        const _daysSinceProto = _totalDays - G._bentoPrototypeDay;
-        if(_daysSinceProto >= 7 && !G.cases.some(c => c.id === 'bento_launch')){
-          const base = DOMAIN_CASES.find(c => c.id === 'bento_launch');
-          if(base) addCase(base);
-        }
-      }
+      // ── お弁当開発フロー（pendingMenuLaunches に直接登録・旧3段階廃止） ──
 
       // ── 坂本見送りペナルティ（見送りから30日後）──
       if(G._arubaitoRejected && G._arubaitoRejectedDay !== undefined && !_hasArubaito){
@@ -9242,49 +9223,32 @@ function chooseEvent(idx, useFatigue){
   if(fx.hireArubaito){ setTimeout(showArubaitoModal, 400); }
   if(fx.startBentoDev){
     const _td = (G.year-1)*360 + (G.month-1)*30 + G.day;
+    // 完成月を計算（14日後）
+    let _cDay = G.day + 14, _cMonth = G.month, _cYear = G.year;
+    while(_cDay > 30){ _cDay -= 30; _cMonth++; }
+    while(_cMonth > 12){ _cMonth -= 12; _cYear++; }
+    const _bentoInfo = SEASONAL_BENTO_MAP[_cMonth] || SEASONAL_BENTO_MAP[G.month] || { id:'bento_maikon', name:'舞昆弁当', icon:'🍱', desc:'舞昆の旨みが詰まったお弁当です。' };
     G._bentoDevDay = _td;
-    addStory('弁当の開発を開始した。約2週間後に試作品が完成する予定だ。', 'normal');
-  }
-  if(fx.setBentoPrototype){
-    const _td = (G.year-1)*360 + (G.month-1)*30 + G.day;
-    G._bentoChoice = fx.setBentoPrototype;
-    G._bentoPrototypeDay = _td;
-  }
-  if(fx.launchBento){
-    const _bentoNames = { maikon:'舞昆弁当', ferment:'発酵ランチ弁当', seasonal:'季節限定弁当' };
-    const _name = _bentoNames[G._bentoChoice] || '舞昆弁当';
-    const _catalogKey = { '舞昆弁当':'maikon_bento', '発酵ランチ弁当':'ferment_bento', '季節限定弁当':'seasonal_bento' }[_name] || 'maikon_bento';
-    const _cat = MENU_CATALOG[_catalogKey];
-    const _roll = Math.random();
-    G._bentoLaunched = true;
-    G._bentoLaunchType = fx.launchBento;
-    // 3日後にメニューへ反映
+    G._bentoLaunched = true; // 旧3段階フローを無効化
     G.pendingMenuLaunches = G.pendingMenuLaunches || [];
-    const _tdBento = (G.year-1)*360 + (G.month-1)*30 + G.day;
-    if(!G.pendingMenuLaunches.some(p => p.id === _catalogKey)){
-      G.pendingMenuLaunches.push({ id:_catalogKey, name:_name, type:'eatIn', icon:'🍱', seasonal:_cat.seasonal, seasonDays:_cat.seasonDays||0, launchDay:_tdBento+3, sourceEventId:'bento_launch' });
-      console.log(`[MenuLaunch] scheduled: ${_name} (${_catalogKey}) launchDay=${_tdBento+3} from=bento_launch`);
+    if(!G.pendingMenuLaunches.some(p => p.isBento)){
+      G.pendingMenuLaunches.push({
+        id: _bentoInfo.id,
+        name: _bentoInfo.name,
+        type: 'eatIn',
+        icon: _bentoInfo.icon,
+        isBento: true,
+        seasonal: true,
+        seasonDays: 60,
+        launchDay: _td + 14,
+        sourceEventId: 'bento_request',
+        description: _bentoInfo.desc,
+      });
+      console.log(`[BentoDev] scheduled: ${_bentoInfo.name} launchDay=${_td+14}`);
     }
-    if(_roll < 0.15){
-      addStory(`「${_name}」の販売準備を進めた。3日後に販売開始予定だが、告知方法を工夫した方がよいかもしれない。`, 'warn');
-      notify(`🍱 ${_name} 準備中（3日後に開始・告知に工夫を）`, 'warn');
-    } else if(_roll < 0.55){
-      G.stores[0].newCustomers = (G.stores[0].newCustomers||0) + 2;
-      G.stores[0].customers = (G.stores[0].newCustomers||0) + (G.stores[0].regulars||0);
-      G.stores[0].unitPrice = (G.stores[0].unitPrice||700) + 80;
-      addStory(`「${_name}」の販売準備が整った。3日後から提供開始。試食した常連客の反応が良い。`, 'normal');
-      notify(`🍱 ${_name} 3日後に開始（客数+2・単価+¥80）`, 'gold');
-    } else {
-      const _bonus = fx.launchBento === 'reservation' ? 5 : 3;
-      G.stores[0].newCustomers = (G.stores[0].newCustomers||0) + _bonus;
-      G.stores[0].regulars = (G.stores[0].regulars||0) + 1;
-      G.stores[0].customers = (G.stores[0].newCustomers||0) + (G.stores[0].regulars||0);
-      G.stores[0].unitPrice = (G.stores[0].unitPrice||700) + 150;
-      G.stores[0].monthlyBonus = (G.stores[0].monthlyBonus||0) + 15000;
-      addStory(`「${_name}」の試作が好評！3日後の販売開始を前に、近隣の会社員から問い合わせが届き始めた。`, 'highlight');
-      notify(`🍱 ${_name} 話題沸騰！3日後開始・客数+${_bonus}・常連+1・単価+¥150`, 'gold');
-    }
-    addHistory('🍱', `「${_name}」準備中（3日後に販売開始）`);
+    addStory(`季節のお弁当「${_bentoInfo.name}」の開発を始めた。14日後に完成する予定だ。`, 'normal');
+    notify(`🍱 お弁当開発スタート（14日後に「${_bentoInfo.name}」完成予定）`, 'gold');
+    addHistory('🍱', `「${_bentoInfo.name}」開発中（14日後に完成）`);
   }
   if(fx.unlockProduct){
     G.unlockedProducts = G.unlockedProducts || [];
@@ -10815,7 +10779,10 @@ function _ochawanHint(){
   const ch = G.characters || {};
   const nowDay = (G.year-1)*360 + (G.month-1)*30 + G.day;
   const hints = [];
-  if((G.pendingMenuLaunches||[]).length > 0) hints.push('そろそろ新商品が完成しそうですよ。');
+  const _pendingNonBento = (G.pendingMenuLaunches||[]).filter(p => !p.isBento);
+  const _pendingBento = (G.pendingMenuLaunches||[]).filter(p => p.isBento);
+  if(_pendingNonBento.length > 0) hints.push('そろそろ新商品が完成しそうですよ。');
+  if(_pendingBento.length > 0){ const _pb = _pendingBento[0]; hints.push(`お弁当「${_pb.name}」の開発が進んでいます。`); }
   if(ch.tanaka && ch.tanaka.met && nowDay-(ch.tanaka.lastCaseDay||0) >= 5) hints.push('田中さん、また来てくれそうな気がします。');
   if(ch.takahashi && ch.takahashi.met && nowDay-(ch.takahashi.lastCaseDay||0) >= 5) hints.push('高橋さんから連絡があるかもしれません。');
   if((s.regulars||0) >= 5) hints.push('常連さんが増えてきましたね。口コミが広がりそうです。');
@@ -11404,6 +11371,14 @@ function renderStore(){
         _popularCandidates.push({ name:'木箱ギフトセット', icon:'🎁', sold:Math.round(_cust * 0.13), stars:5, desc:'贈答品として選ばれています' });
         _popularCandidates.sort((a, b) => b.sold - a.sold);
       }
+      // 弁当解放時はテイクアウト弁当を追加
+      const _activeBentos = (G.launchedMenus||[]).filter(m => m.isBento && !m._expired);
+      _activeBentos.forEach(b => {
+        const seed = (G.year * 12 + G.month + (b.id||'').charCodeAt(0)) % 5;
+        const jitter = 0.80 + seed * 0.05;
+        _popularCandidates.push({ name:b.name, icon:b.icon||'🍱', sold:Math.round(_cust * 0.15 * jitter), stars:4, desc:'季節のお弁当として人気です' });
+      });
+      if(_activeBentos.length > 0) _popularCandidates.sort((a, b) => b.sold - a.sold);
       const topItems = _popularCandidates.slice(0, 3);
       if(topItems.length === 0 || _cust === 0){
         return `<div class="card" style="border:1.5px solid #D4A843">
@@ -11439,9 +11414,12 @@ function renderStore(){
       <div class="card-ttl">🍽️ イートインメニュー</div>
       ${(()=>{
         const _tdR = (G.year-1)*360 + (G.month-1)*30 + G.day;
-        const _pendEat = (G.pendingMenuLaunches||[]).filter(p => p.type === 'eatIn');
-        const _launchedEat = (G.launchedMenus||[]).filter(m => m.type === 'eatIn' && m.seasonal && !m._expired);
-        const _hasCurrent = s.menu && s.menu.length > 0;
+        // bento は別カードに表示するので除外
+        const _launchedBentoNames = (G.launchedMenus||[]).filter(m => m.isBento && !m._expired).map(m => m.name);
+        const _pendEat = (G.pendingMenuLaunches||[]).filter(p => p.type === 'eatIn' && !p.isBento);
+        const _launchedEat = (G.launchedMenus||[]).filter(m => m.type === 'eatIn' && m.seasonal && !m._expired && !m.isBento);
+        const _menuNonBento = (s.menu||[]).filter(m => !_launchedBentoNames.includes(m));
+        const _hasCurrent = _menuNonBento.length > 0;
         if(!_hasCurrent && _pendEat.length === 0){
           const _isOpen = s.isOpen;
           return _isOpen
@@ -11451,7 +11429,7 @@ function renderStore(){
                </button>`
             : `<div style="font-size:12px;color:var(--muted);padding:4px 0">まだメニューがありません。再開後に追加できます。</div>`;
         }
-        const _regularTags = (s.menu||[]).map(m => {
+        const _regularTags = _menuNonBento.map(m => {
           const _lm = _launchedEat.find(lm => lm.name === m);
           const _daysLeft = _lm ? ((_lm.launchedDay||0) + (_lm.seasonDays||90) - _tdR) : null;
           const _suffix = _daysLeft !== null ? `<span style="font-size:8px;opacity:.6;margin-left:3px">（残${_daysLeft}日）</span>` : '';
@@ -11464,6 +11442,40 @@ function renderStore(){
         return `<div class="menu-tags">${_regularTags}${_pendTags}</div>`;
       })()}
     </div>
+
+    ${(()=>{
+      // ── テイクアウト・お弁当カード ──
+      const _tdR = (G.year-1)*360 + (G.month-1)*30 + G.day;
+      const _pendBento = (G.pendingMenuLaunches||[]).filter(p => p.isBento);
+      const _launchedBento = (G.launchedMenus||[]).filter(m => m.isBento && !m._expired);
+      if(_pendBento.length === 0 && _launchedBento.length === 0) return '';
+      const _launchedTags = _launchedBento.map(m => {
+        const _daysLeft = (m.launchedDay||0) + (m.seasonDays||60) - _tdR;
+        return `<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--border)">
+          <span style="font-size:20px">${m.icon||'🍱'}</span>
+          <div style="flex:1">
+            <div style="font-size:13px;font-weight:700">${m.name}</div>
+            <div style="font-size:10px;color:var(--muted);margin-top:1px">季節限定 · 残${Math.max(0,_daysLeft)}日</div>
+          </div>
+          <span style="font-size:11px;color:#388E3C;font-weight:700">販売中</span>
+        </div>`;
+      }).join('');
+      const _pendTags = _pendBento.map(p => {
+        const _daysLeft = Math.max(0, p.launchDay - _tdR);
+        return `<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--border);opacity:.7">
+          <span style="font-size:20px">${p.icon||'🍱'}</span>
+          <div style="flex:1">
+            <div style="font-size:13px;font-weight:700">${p.name}</div>
+            <div style="font-size:10px;color:var(--muted);margin-top:1px">開発中 · あと${_daysLeft}日で完成</div>
+          </div>
+          <span style="font-size:11px;color:#B8860B;font-weight:700">開発中</span>
+        </div>`;
+      }).join('');
+      return `<div class="card" style="border:1.5px solid #D4A843">
+        <div class="card-ttl">🍱 テイクアウト・お弁当</div>
+        ${_launchedTags}${_pendTags}
+      </div>`;
+    })()}
     ${(()=>{
       if(!s.isOpen){
         return `<div style="font-size:11px;color:var(--muted);padding:4px 0;text-align:center">↑ 上のボタンから再開できます</div>`;
