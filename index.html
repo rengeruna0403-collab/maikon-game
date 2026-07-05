@@ -6216,12 +6216,13 @@ const DOMAIN_CASES = [
 
   // ── 山本真由美（40代・主婦）アーク ──
   { id:'chr_yamamoto_1', conditionOnly:true, repeatable:false, domain:'community', character:'yamamoto',
-    sender:'子ども食堂', icon:'👩', apCost:5, expireDays:21, category:'ops',
-    title:'子ども食堂で話しかけられた',
-    body:'子ども食堂の準備をしていると、一人の女性が話しかけてきました。\n\n「山本と申します。うちの子も今日来るんです。\n子どもって野菜食べないじゃないですか……\nあの、おにぎりに乗ってる黒いのって何ですか？」',
+    sender:'お客さま', icon:'👩', apCost:5, expireDays:21, category:'ops',
+    title:'山本さんとの出会い',
+    body:'小学生くらいのお子さんを連れた女性が、お店をのぞいていました。\n\n「あの……うちの子、最近あまりご飯を食べなくて。\n何か食べやすいものってありますか？」\n\n少し疲れた顔で、でも一生懸命に聞いてくれました。',
     choices:[
-      {label:'「舞昆という昆布の佃煮ですよ。試食どうぞ」',cost:0,effects:{score:9,rep:4,charMeet:'yamamoto',charNote:'「子どもに食べさせてみたい」と言った',profile:{people:2,community:1}},label2:'ご縁スタート',storyTag:'山本さんと初めて話した。子どもに食べさせてみたいと言ってくれた。'},
-      {label:'「昆布ときのこで作った佃煮です」と説明する',cost:0,effects:{score:7,rep:3,charMeet:'yamamoto',charNote:'昆布ときのこと聞いて「子どもが食べるかな」と言った'},label2:'ご縁スタート',storyTag:'山本さんに舞昆を説明した。'},
+      {label:'舞昆おにぎりをすすめる',cost:0,effects:{score:9,rep:4,charMeet:'yamamoto',charNote:'「子どもに食べさせてみたい」と言った',profile:{people:2,community:1}},label2:'ご縁スタート',storyTag:'山本さんと初めて話した。舞昆おにぎりをすすめると、子どもに食べさせてみたいと言ってくれた。'},
+      {label:'少量で食べられる商品を一緒に選ぶ',cost:0,effects:{score:8,rep:4,charMeet:'yamamoto',charNote:'小さいサイズの商品を選んで帰っていった',profile:{people:2,community:1}},label2:'ご縁スタート',storyTag:'山本さんと一緒に商品を選んだ。子ども向けに少量で食べやすいものを選んでいった。'},
+      {label:'無理にすすめず、まず話を聞く',cost:0,effects:{score:6,rep:3,charMeet:'yamamoto',charNote:'「また来ます」と言って帰った',profile:{people:1}},label2:'ご縁スタート',storyTag:'山本さんの話をゆっくり聞いた。「また来ます」と言って帰っていった。'},
     ]},
 
   { id:'chr_yamamoto_2', conditionOnly:true, repeatable:false, domain:'community', character:'yamamoto',
