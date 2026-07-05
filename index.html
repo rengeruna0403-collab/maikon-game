@@ -389,18 +389,18 @@ body.large-text #app{zoom:1.2;transform-origin:top center}
 
 <!-- Start Modal（セーブデータあり時の起動画面） -->
 <div class="overlay" id="start-modal" style="display:none">
-  <div class="modal" style="max-width:400px;padding:32px 24px">
-    <div style="text-align:center;margin-bottom:24px">
-      <div style="font-size:28px;margin-bottom:8px">🏮</div>
-      <div style="font-size:18px;font-weight:700;color:var(--text)">舞昆アパート経営</div>
-      <div style="font-size:12px;color:var(--muted);margin-top:4px">〜地域に人を残す〜</div>
+  <div class="modal" style="max-width:420px;padding:24px 20px;max-height:90vh;display:flex;flex-direction:column">
+    <div style="text-align:center;margin-bottom:18px;flex-shrink:0">
+      <div style="font-size:26px;margin-bottom:6px">🏮</div>
+      <div style="font-size:17px;font-weight:700;color:var(--text)">舞昆アパート経営</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:2px">〜地域に人を残す〜</div>
     </div>
-    <div style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:10px">セーブデータ</div>
-    <div id="start-modal-saves"></div>
-    <hr style="border:none;border-top:1px solid var(--border);margin:16px 0">
-    <button onclick="startFresh()" style="width:100%;padding:12px;background:transparent;border:1px dashed var(--border);border-radius:10px;color:var(--muted);font-size:13px;cursor:pointer;font-family:inherit">
-      ＋ 最初から遊ぶ（新しいデータ）
-    </button>
+    <div id="start-modal-saves" style="flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding-right:2px"></div>
+    <div style="flex-shrink:0;margin-top:12px;border-top:1px solid var(--border);padding-top:12px">
+      <button onclick="startFresh()" style="width:100%;padding:11px;background:transparent;border:1px dashed var(--border);border-radius:10px;color:var(--muted);font-size:13px;cursor:pointer;font-family:inherit">
+        ＋ 最初から遊ぶ（新しいデータ）
+      </button>
+    </div>
   </div>
 </div>
 
@@ -596,6 +596,10 @@ let G = {
   ownerFundUses: 0,      // オーナー資金投入回数（最大3回）
   ownerAptitude: 50,     // オーナー適性スコア（内部のみ・プレイヤーには非表示）
   playerName: '',    // プレイヤーネーム（セーブキー・ログ識別に使用）
+  saveLabel: '',     // セーブデータ表示名（ユーザー変更可）
+  lastPlayedAt: 0,   // 最終プレイ日時（Date.now()）
+  _isDebugSave: false, // Debugモードで作成されたセーブか
+  settings: { debugSaveLimit: 20 }, // ゲーム設定
   profile: { age: null, occupation: null, experience: null, region: '' }, // プレイヤー情報
   // 隠し経営者プロファイル（プレイヤーには非表示）
   ownerProfile: { risk: 0, people: 0, community: 0, finance: 0 },
@@ -12990,13 +12994,30 @@ function findAllSaves(){
       if(s && s.started) saves.push({ key: k, data: s });
     } catch(e){}
   }
+  // 最終プレイ順（新しい順）
+  saves.sort((a, b) => (b.data.lastPlayedAt || 0) - (a.data.lastPlayedAt || 0));
   return saves;
 }
 
 function saveGame(){
   try {
+    G.lastPlayedAt = Date.now();
+    if(DEV_MODE) G._isDebugSave = true;
     localStorage.setItem(getSaveKey(), JSON.stringify(G));
+    // デバッグセーブの自動削除（設定件数を超えた古いものを削除）
+    _pruneDebugSaves();
   } catch(e) {}
+}
+
+function _pruneDebugSaves(){
+  try {
+    const limit = (G.settings && G.settings.debugSaveLimit != null) ? G.settings.debugSaveLimit : 20;
+    const all = findAllSaves();
+    const debugSaves = all.filter(sv => sv.data._isDebugSave).sort((a,b) => (b.data.lastPlayedAt||0) - (a.data.lastPlayedAt||0));
+    if(debugSaves.length > limit){
+      debugSaves.slice(limit).forEach(sv => localStorage.removeItem(sv.key));
+    }
+  } catch(e){}
 }
 
 function loadGame(key){
@@ -13040,22 +13061,150 @@ function startFresh(){
   document.getElementById('intro-modal').style.display = 'flex';
 }
 
+// セーブカード1枚のHTML生成
+function _buildSaveCard(sv, isTop){
+  const d = sv.data;
+  const key = sv.key;
+  const rawName = d.playerName || key.replace(SAVE_KEY_PREFIX, '');
+  const displayName = d.saveLabel || ((rawName && rawName !== 'v1' && rawName !== 'guest') ? rawName : '以前のデータ');
+  const dateStr = `${d.year||1}年${d.month||1}月${d.day||1}日`;
+  const money = `¥${(d.money||0).toLocaleString()}`;
+  const bldCnt = (d.buildings||[]).length;
+  const storeCnt = (d.stores||[]).filter(s=>s.isOpen).length;
+  const ending = d.endingReached ? `🏁 ${d.endingReached}` : '';
+  const lastPlay = d.lastPlayedAt
+    ? new Date(d.lastPlayedAt).toLocaleString('ja-JP', {month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'})
+    : '';
+  const keyEsc = key.replace(/'/g, "\\'");
+  const nameEsc = displayName.replace(/'/g, "\\'");
+  const border = isTop ? '2px solid var(--gr)' : '1px solid var(--border)';
+  const bg     = isTop ? 'var(--bg2,#f9f9f9)' : 'var(--card)';
+  return `<div style="background:${bg};border:${border};border-radius:12px;padding:12px 14px;margin-bottom:8px">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:6px">
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:700;font-size:${isTop?'16px':'14px'};color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${isTop?'▶ ':''}${displayName}</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:3px">${dateStr}　${money}　棟${bldCnt}　店${storeCnt}${ending?'　'+ending:''}</div>
+        ${lastPlay?`<div style="font-size:10px;color:var(--muted);margin-top:1px">最終: ${lastPlay}</div>`:''}
+      </div>
+      <div style="display:flex;gap:5px;flex-shrink:0;align-items:center">
+        <button onclick="_renameSave('${keyEsc}','${nameEsc}')" style="font-size:10px;padding:3px 7px;background:transparent;border:1px solid var(--border);border-radius:6px;color:var(--muted);cursor:pointer">✏️</button>
+        <button onclick="_deleteSave('${keyEsc}')" style="font-size:10px;padding:3px 7px;background:transparent;border:1px solid #fcc;border-radius:6px;color:#c66;cursor:pointer">🗑</button>
+      </div>
+    </div>
+    <button onclick="continueGame('${keyEsc}')" style="width:100%;margin-top:8px;padding:8px;background:var(--gr,#4CAF50);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">続きをプレイ</button>
+  </div>`;
+}
+
 function showStartModal(saves){
   document.getElementById('intro-modal').style.display = 'none';
-  let listHtml = '';
-  saves.forEach(sv => {
-    const d = sv.data;
-    const rawName = d.playerName || sv.key.replace(SAVE_KEY_PREFIX, '');
-    // 旧セーブキー由来の "v1" など意味のない文字列はフォールバック
-    const name = (rawName && rawName !== 'v1' && rawName !== 'guest') ? rawName : null;
-    const label = `${d.year || 1}年${d.month || 1}月${d.day || 1}日　所持金 ¥${(d.money||0).toLocaleString()}`;
-    listHtml += `<button onclick="continueGame('${sv.key}')" style="width:100%;padding:14px 16px;margin-bottom:10px;background:var(--card);border:1px solid var(--border);border-radius:12px;text-align:left;cursor:pointer;font-family:inherit">
-      <div style="font-weight:700;font-size:15px;color:var(--text)">${name ? name + ' さんのデータ' : '以前のデータ'}</div>
-      <div style="font-size:12px;color:var(--muted);margin-top:3px">${label}</div>
-    </button>`;
-  });
-  document.getElementById('start-modal-saves').innerHTML = listHtml;
+  const normal = saves.filter(sv => !sv.data._isDebugSave);
+  const debug  = saves.filter(sv =>  sv.data._isDebugSave);
+  const SHOW_LIMIT = 5;
+  let html = '';
+
+  if(normal.length === 0 && debug.length === 0){
+    html = '<div style="color:var(--muted);font-size:13px;padding:8px 0">セーブデータが見つかりません</div>';
+  } else {
+    // 前回の続き（最新1件を大きく）
+    const latest = normal[0] || debug[0];
+    html += `<div style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:6px">前回の続き</div>`;
+    html += _buildSaveCard(latest, true);
+
+    // 通常データ（2件目以降）
+    if(normal.length > 1){
+      html += `<div style="font-size:11px;font-weight:700;color:var(--muted);margin:12px 0 6px">通常データ（${normal.length}件）</div>`;
+      const showNormal = normal.slice(1, SHOW_LIMIT + 1);
+      showNormal.forEach(sv => { html += _buildSaveCard(sv, false); });
+      if(normal.length > SHOW_LIMIT + 1){
+        const hiddenCnt = normal.length - SHOW_LIMIT - 1;
+        html += `<button id="save-show-all-btn" onclick="_showAllSaves()" style="width:100%;padding:8px;background:transparent;border:1px solid var(--border);border-radius:8px;color:var(--muted);font-size:12px;cursor:pointer;margin-bottom:4px">すべて表示（あと${hiddenCnt}件）</button>`;
+        // 残りを非表示div に格納
+        let hiddenHtml = '';
+        normal.slice(SHOW_LIMIT + 1).forEach(sv => { hiddenHtml += _buildSaveCard(sv, false); });
+        html += `<div id="save-hidden-list" style="display:none">${hiddenHtml}</div>`;
+      }
+    } else if(normal.length === 0 && debug.length > 0){
+      // 通常データが1件もない場合は前回の続きの後ヘッダだけ出さない
+    }
+
+    // Debugデータ（折りたたみ）
+    if(debug.length > 0){
+      html += `<details style="margin-top:12px">
+        <summary style="font-size:11px;font-weight:700;color:#888;cursor:pointer;padding:4px 0;list-style:none">
+          🛠 Debugデータ（${debug.length}件）▸
+        </summary>
+        <div style="margin-top:6px">`;
+      debug.forEach(sv => { html += _buildSaveCard(sv, false); });
+      html += `</div></details>`;
+    }
+  }
+
+  // Debug自動削除設定
+  const curLimit = (typeof G !== 'undefined' && G.settings && G.settings.debugSaveLimit != null)
+    ? G.settings.debugSaveLimit : 20;
+  html += `<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+    <span style="font-size:10px;color:var(--muted)">Debugデータ自動削除:</span>
+    <input type="number" id="debug-save-limit-input" value="${curLimit}" min="1" max="100"
+      style="width:50px;padding:3px 6px;border:1px solid var(--border);border-radius:5px;font-size:11px;background:var(--bg);color:var(--text)"
+      onchange="_setDebugSaveLimit(this.value)">
+    <span style="font-size:10px;color:var(--muted)">件保持</span>
+  </div>`;
+
+  document.getElementById('start-modal-saves').innerHTML = html;
   document.getElementById('start-modal').style.display = 'flex';
+  // 保存用に saves をグローバルへ
+  window._allSaves = saves;
+}
+
+function _showAllSaves(){
+  const btn = document.getElementById('save-show-all-btn');
+  const list = document.getElementById('save-hidden-list');
+  if(btn) btn.remove();
+  if(list){ list.style.display = ''; }
+}
+
+function _renameSave(key, currentName){
+  const newName = prompt('セーブデータの名前を変更してください:', currentName);
+  if(newName === null) return;
+  const label = newName.trim() || currentName;
+  try {
+    const raw = localStorage.getItem(key);
+    if(!raw) return;
+    const d = JSON.parse(raw);
+    d.saveLabel = label;
+    localStorage.setItem(key, JSON.stringify(d));
+    // G が現在このキーなら同期
+    if(typeof G !== 'undefined' && getSaveKey() === key) G.saveLabel = label;
+    // 再描画
+    const saves = findAllSaves();
+    showStartModal(saves);
+  } catch(e){ alert('名前の変更に失敗しました'); }
+}
+
+function _deleteSave(key){
+  const sv = (window._allSaves||[]).find(s=>s.key===key);
+  const label = sv ? (sv.data.saveLabel || sv.data.playerName || key) : key;
+  if(!confirm(`「${label}」のセーブデータを削除しますか？`)) return;
+  localStorage.removeItem(key);
+  const saves = findAllSaves();
+  if(saves.length === 0){
+    document.getElementById('start-modal').style.display = 'none';
+    document.getElementById('intro-modal').style.display = 'flex';
+  } else {
+    showStartModal(saves);
+  }
+}
+
+function _setDebugSaveLimit(val){
+  const n = Math.max(1, Math.min(100, parseInt(val, 10) || 20));
+  // G が起動済みなら設定に保存
+  if(typeof G !== 'undefined' && G.settings){
+    G.settings.debugSaveLimit = n;
+    saveGame();
+  } else {
+    // 起動前でも localStorage に仮保存
+    try { localStorage.setItem('maikon-debug-save-limit', n); } catch(e){}
+  }
 }
 
 // ─────────── INIT ───────────
