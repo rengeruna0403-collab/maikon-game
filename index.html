@@ -4536,6 +4536,7 @@ const CASE_POOL = [
       {label:'ありがとうございます',cost:0,effects:{score:5,credit:3},label2:'信用度+3',storyTag:'成田との定期確認。着実な前進を認めてもらった。'},
     ]},
   { id:'ishikawa_event', sender:'石川（地域）', icon:'🌸', apCost:15, expireDays:14, category:'strategy',
+    minMonth:4, maxMonth:4, oncePerYear:true,
     expirePenalty:{rep:-8, news:'🌸 桜まつりへの参加期限が過ぎた。地域評判-8'},
     title:'地域イベントの協力依頼',
     body:'地区の石川さんから連絡がありました。\n「来月の桜まつりに舞昆茶屋として出店してもらえませんか？」',
@@ -4950,6 +4951,24 @@ const CASE_POOL = [
     choices:[
       {label:'「喜んで。まとめ割引もできます」と対応する',cost:0,effects:{score:15,rep:8,communityBond:6,storeBrand:5,money:32400,custUp:3,profile:{community:4,people:2}},label2:'地域評判++・まとめ売上',storyTag:'敬老の日に老人会15人分の舞昆をまとめて提供した。「地元の味」として選ばれた。'},
       {label:'「和紙袋入りでお包みします」と提案する',cost:0,effects:{score:10,rep:5,communityBond:4,money:24300,profile:{community:3}},label2:'贈答対応',storyTag:'敬老の日のご挨拶品として和紙袋入りを提案した。'},
+    ]},
+
+  // ── お中元・お歳暮（季節ギフト追加）──
+  { id:'gift_season_ochugen', repeatable:true, domain:'store', sender:'常連客', icon:'🎋', apCost:10, expireDays:21, category:'mgmt',
+    minMonth:7, maxMonth:8, oncePerYear:true,
+    title:'お中元に舞昆を贈りたい',
+    body:'夏の日差しが強い午後、常連のお客様が来店しました。\n\n「毎年お世話になっている方に\nお中元を贈りたくて。\n\n「体に優しくて、珍しいもの」を探していたら\n舞昆を思い出して。\n\n「暑い季節にもご飯が進む」って\n言ってもらえそうな気がして」',
+    choices:[
+      {label:'「夏向けのギフトセットをご用意できます」と提案する',cost:0,effects:{score:12,rep:5,storeBrand:6,money:10800,custUp:2,profile:{people:3,community:2}},label2:'ギフト売上・ブランド+',storyTag:'お中元に舞昆ギフトを提案した。「夏にご飯が進む味」として喜ばれた。'},
+      {label:'「和紙袋入りが見栄えがいいですよ」と提案する',cost:0,effects:{score:8,storeBrand:4,money:6480,profile:{people:2}},label2:'贈答向け提案',storyTag:'お中元に和紙袋入りを提案した。'},
+    ]},
+  { id:'gift_season_oseibo', repeatable:true, domain:'store', sender:'常連客', icon:'🎍', apCost:10, expireDays:21, category:'mgmt',
+    minMonth:11, maxMonth:12, oncePerYear:true,
+    title:'お歳暮に舞昆を選びました',
+    body:'年の瀬が近づいてきた頃、\n常連のお客様が少し改まった様子で来店しました。\n\n「今年もお歳暮に舞昆を選びました。\n\n毎年これを贈ると\n「また舞昆か、嬉しい」って言ってもらえるんです。\n\n「遠くに住んでいても、味でつながれる気がして」\n\nことしは少し多めに贈りたくて」',
+    choices:[
+      {label:'「まとめてご用意します。木箱入りもお選びいただけます」と提案する',cost:0,effects:{score:15,rep:7,storeBrand:8,communityBond:4,money:16200,custUp:3,profile:{people:3,community:3}},label2:'年末大口・ブランド++・地域絆+',storyTag:'お歳暮に木箱入りまとめ注文を提案した。「遠くにいても味でつながれる」という言葉が残った。'},
+      {label:'「和紙袋入りのセットがおすすめです」と提案する',cost:0,effects:{score:10,rep:5,storeBrand:5,money:9720,profile:{community:2}},label2:'贈答セット提案',storyTag:'お歳暮に和紙袋入りセットを提案した。'},
     ]},
 
   { id:'after_yamamoto_visit', conditionOnly:true, repeatable:true, domain:'community', sender:'山本真由美', icon:'👩', apCost:0, expireDays:30, category:'ops',
@@ -6917,6 +6936,10 @@ function generateWeeklyCases(){
     if(c.requireVacancy && !_hasVacancy) return false;
     if(c.menuProposal && !_canProposeNewMenu()) return false;
     if(c.id === 'narita_loan' && !G.staffUnlocked) return false;
+    // 季節・月フィルター
+    if(c.minMonth && G.month < c.minMonth) return false;
+    if(c.maxMonth && G.month > c.maxMonth) return false;
+    if(c.oncePerYear && G.cases.some(x => x.id === c.id && x.createdYear === G.year)) return false;
     if(c.repeatable && G.caseCooldowns?.[c.id]){
       const cd = CASE_COOLDOWN_DAYS[c.id] || 30;
       if(tdNow - G.caseCooldowns[c.id] < cd) return false;
@@ -7060,8 +7083,8 @@ function generateConditionCases(){
     const base = CASE_POOL.find(c => c.id === 'narita_review');
     if(base) G.cases.push({ ...base, createdDay:G.day, createdMonth:G.month, createdYear:G.year, resolved:false });
   }
-  // 1年後の経営者診断（経営開始360日後）
-  if(totalDays >= 360 && !G.cases.some(c => c.id === 'narita_diagnosis')){
+  // 1年目年度末の経営者診断（1年目3月25日以降・ゲームは4月開始なので3月=年度末）
+  if(G.year === 1 && G.month === 3 && G.day >= 25 && !G.cases.some(c => c.id === 'narita_diagnosis')){
     addCase(CASE_POOL.find(c => c.id === 'narita_diagnosis'));
   }
 
@@ -7124,26 +7147,33 @@ function generateConditionCases(){
       const sat = midori.satisfaction || 70;
 
       // ── みどり生活イベント（「人間として描く」シリーズ）──
+      // 採用直後14日間は家庭事情系案件をすべて抑制
+      const _midoriProtected = dw < 14;
+
       // 参観日早退（採用30日後・1回のみ）
-      if(dw >= 30 && !G.cases.some(c => c.id === 'midori_jido')){
+      if(!_midoriProtected && dw >= 30 && !G.cases.some(c => c.id === 'midori_jido')){
         const base = DOMAIN_CASES.find(c => c.id === 'midori_jido');
         if(base) addCase(base);
       }
-      // 夏休みの預け先（7〜8月 かつ 採用14日以上）
-      if(dw >= 14 && (G.month === 7 || G.month === 8) && !G.cases.some(c => c.id === 'midori_summer')){
+      // 夏休みの預け先（7〜8月 かつ 採用30日以上・クールダウン90日）
+      const _summerCooldown = G._midoriSummerDay || 0;
+      if(!_midoriProtected && dw >= 30 && (G.month === 7 || G.month === 8)
+          && totalDays - _summerCooldown >= 90 && !G.cases.some(c => c.id === 'midori_summer')){
         const base = DOMAIN_CASES.find(c => c.id === 'midori_summer');
-        if(base) addCase(base);
+        if(base){ addCase(base); G._midoriSummerDay = totalDays; }
       }
-      // 子どもの発熱（repeatable・7日ごとに確率発生）
+      // 子どもの発熱（repeatable・採用14日後から・クールダウン60日）
       const _sickCooldown = G._midoriSickDay || 0;
-      if(totalDays - _sickCooldown >= 60 && Math.random() < 0.15 && !G.cases.some(c => c.id === 'midori_sick' && !c.resolved)){
+      if(!_midoriProtected && totalDays - _sickCooldown >= 60 && Math.random() < 0.15
+          && !G.cases.some(c => c.id === 'midori_sick' && !c.resolved)){
         const base = DOMAIN_CASES.find(c => c.id === 'midori_sick');
         if(base){ addCase(base); G._midoriSickDay = totalDays; }
       }
-      // 繁忙日の残業（顧客20人超の日に発生・repeatable・7日ごと）
+      // 繁忙日の残業（顧客20人超・採用14日後から・クールダウン45日）
       const _otCooldown = G._midoriOtDay || 0;
       const _todayGuests = (G.stores[0].newCustomers||0) + (G.stores[0].regulars||0);
-      if(_todayGuests >= 20 && totalDays - _otCooldown >= 14 && !G.cases.some(c => c.id === 'midori_overtime' && !c.resolved)){
+      if(!_midoriProtected && _todayGuests >= 20 && totalDays - _otCooldown >= 45
+          && !G.cases.some(c => c.id === 'midori_overtime' && !c.resolved)){
         const base = DOMAIN_CASES.find(c => c.id === 'midori_overtime');
         if(base){ addCase(base); G._midoriOtDay = totalDays; }
       }
@@ -7288,6 +7318,14 @@ function generateConditionCases(){
     // 9月：敬老の日
     if(_gMonth === 9 && !G.cases.some(c=>c.id==='gift_season_keiro' && !c.resolved && (c.createdYear===G.year))){
       addCase(CASE_POOL.find(c=>c.id==='gift_season_keiro'));
+    }
+    // 7〜8月：お中元
+    if((_gMonth === 7 || _gMonth === 8) && !G.cases.some(c=>c.id==='gift_season_ochugen' && !c.resolved && (c.createdYear===G.year))){
+      addCase(CASE_POOL.find(c=>c.id==='gift_season_ochugen'));
+    }
+    // 11〜12月：お歳暮
+    if((_gMonth === 11 || _gMonth === 12) && !G.cases.some(c=>c.id==='gift_season_oseibo' && !c.resolved && (c.createdYear===G.year))){
+      addCase(CASE_POOL.find(c=>c.id==='gift_season_oseibo'));
     }
   }
 
@@ -7443,11 +7481,12 @@ function generateConditionCases(){
   // 法人案件（ギフト伏線解決後 or 未採用の場合・45日間隔）
   if(ch.takahashi.level >= 2 && (G.cases.some(c=>c.id==='midori_gift_foreshadow' && c.resolved) || !G.staffUnlocked) && charReady('takahashi',45) && !G.cases.some(c=>c.id==='chr_takahashi_houjin')) charCase('chr_takahashi_houjin');
   // クレーム（法人利用解決後・30日間隔）
-  if(G.cases.some(c=>c.id==='chr_takahashi_houjin' && c.resolved) && charReady('takahashi',30) && !G.cases.some(c=>c.id==='chr_takahashi_claim')) charCase('chr_takahashi_claim');
-  // 大口注文（クレーム解決後 level4以上・45日間隔）
-  if(ch.takahashi.level >= 4 && G.cases.some(c=>c.id==='chr_takahashi_claim' && c.resolved) && charReady('takahashi',45) && !G.cases.some(c=>c.id==='chr_takahashi_bulk')) charCase('chr_takahashi_bulk');
-  // 独立（level5以上 complete前・総経過360日以上・90日間隔）
-  if(ch.takahashi.level >= 5 && !ch.takahashi.complete && nowDay >= 360 && charReady('takahashi',90) && !G.cases.some(c=>c.id==='chr_takahashi_startup')) charCase('chr_takahashi_startup');
+  // クレーム（法人利用解決後・45日間隔に拡大）
+  if(G.cases.some(c=>c.id==='chr_takahashi_houjin' && c.resolved) && charReady('takahashi',45) && !G.cases.some(c=>c.id==='chr_takahashi_claim')) charCase('chr_takahashi_claim');
+  // 大口注文（クレーム解決後 level4以上・60日間隔に拡大・2年目以降のみ）
+  if(ch.takahashi.level >= 4 && G.year >= 2 && G.cases.some(c=>c.id==='chr_takahashi_claim' && c.resolved) && charReady('takahashi',60) && !G.cases.some(c=>c.id==='chr_takahashi_bulk')) charCase('chr_takahashi_bulk');
+  // 独立（level5以上 complete前・総経過360日以上・2年目以降・90日間隔）
+  if(ch.takahashi.level >= 5 && !ch.takahashi.complete && G.year >= 2 && nowDay >= 360 && charReady('takahashi',90) && !G.cases.some(c=>c.id==='chr_takahashi_startup')) charCase('chr_takahashi_startup');
   // エンディング（独立解決後・60日間隔）
   if(G.cases.some(c=>c.id==='chr_takahashi_startup' && c.resolved) && charReady('takahashi',60) && !G.cases.some(c=>c.id==='chr_takahashi_ending')) charCase('chr_takahashi_ending');
 
@@ -12124,6 +12163,32 @@ function _renderDevDashboard(){
     </div>
   </div>`;
 
+  // ── 今月発生可能な案件一覧 ──
+  const _allPools = [...(typeof DOMAIN_CASES!=='undefined'?DOMAIN_CASES:[]), ...CASE_POOL];
+  const _nowMonth = G.month;
+  const _nowYear  = G.year;
+  const _nowTotal = (_nowYear-1)*360+(_nowMonth-1)*30+G.day;
+  const _seasonRows = _allPools.filter(c => c.minMonth || c.maxMonth || c.oncePerYear).map(c => {
+    const inMonth = (!c.minMonth || _nowMonth >= c.minMonth) && (!c.maxMonth || _nowMonth <= c.maxMonth);
+    const alreadyThisYear = c.oncePerYear && G.cases.some(x => x.id === c.id && x.createdYear === _nowYear);
+    const active  = G.cases.some(x => x.id === c.id && !x.resolved);
+    const giftOk  = !c.domain || c.domain !== 'store' || (G.stores[0]?.giftLevel||0) >= 1;
+    const status  = active ? '🟡対応中' : alreadyThisYear ? '✅今年済' : !inMonth ? '🔒月外' : !giftOk ? '🔒ギフト未解放' : '🟢発生可';
+    const color   = active ? '#ffd700' : alreadyThisYear ? '#666' : !inMonth ? '#444' : !giftOk ? '#444' : '#90EE90';
+    const monthRange = [c.minMonth, c.maxMonth].filter(Boolean).join('〜') + '月';
+    return `<div style="display:flex;gap:6px;align-items:center;padding:3px 0;border-bottom:1px solid #222">
+      <span style="color:${color};font-size:10px;flex-shrink:0;width:72px">${status}</span>
+      <span style="color:#aaa;font-size:9px;flex-shrink:0;width:36px">${monthRange}</span>
+      <span style="font-size:10px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${c.id}</span>
+    </div>`;
+  });
+  const seasonalCasesSection = `
+  <div style="margin-bottom:10px">
+    <div style="font-size:11px;font-weight:700;color:#87CEEB;margin-bottom:6px">📅 季節・月限定案件（${_nowYear}年${_nowMonth}月）</div>
+    ${_seasonRows.length ? _seasonRows.join('') : '<div style="color:#555;font-size:10px">月限定案件なし</div>'}
+    <div style="margin-top:6px;font-size:9px;color:#555">🟢=今月発生可 🟡=対応中 ✅=今年済 🔒=条件外</div>
+  </div>`;
+
   const html = `<div class="dev-dashboard-overlay" style="position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:9999;overflow-y:auto;padding:16px 12px" onclick="if(event.target===this)this.remove()">
     <div style="max-width:420px;margin:0 auto;background:#12121f;color:#e0e0e0;border-radius:16px;padding:16px;font-size:12px;font-family:monospace">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
@@ -12151,6 +12216,7 @@ function _renderDevDashboard(){
       ${profileSection}
       ${flagSection}
       ${actionSection}
+      ${seasonalCasesSection}
       <div style="padding:6px 0;color:#333;font-size:10px;text-align:center">?debug=1 で表示 ／ タップ外で閉じる</div>
     </div>
   </div>`;
