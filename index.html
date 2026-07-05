@@ -568,8 +568,9 @@ let G = {
   launchedMenus: [],       // [{id,name,type,icon,seasonal,seasonDays,launchedDay,_launchedSeason,_launchedYear,sales,_expired}]
   menuArchive: [],         // [{...launchedMenu, _archivedSeason, _archivedYear, _wasStandalone, _relaunchOffered}]
   _menuSeasonProposed: {}, // {'2年目-spring': true} — 同シーズン内の重複提案防止
-  _bentoSeasonProposed: {}, // {'1年-春': true} — 弁当提案の季節重複防止
+  _bentoSeasonProposed: {}, // 旧フラグ（後方互換）
   _lastBentoEventDay: 0,   // 前回弁当案件発生日（60日クールダウン）
+  seasonalBentoStatus: {}, // {'1年_春': {offered,accepted,declined,developed,productId}} 年×季節の状態管理
   unlockedProducts: ['kuro_maikon', 'ginger_maikon'], // 会話で解放された商品ID一覧
   unlockedEatInMenus: [],  // 会話で解放されたイートインメニューID一覧
   caseCooldowns: {}, // repeatable案件の再出現クールダウン { id: lastResolvedDay }
@@ -1997,8 +1998,17 @@ function _processPendingMenuLaunches(){
       _s.menu = _s.menu || [];
       _s.menu.push(p.name);
     }
-    // CRMフラグ：弁当解放
-    if(p.isBento){ G._bentoUnlocked = true; G._bentoLaunched = true; }
+    // CRMフラグ：弁当解放 + seasonalBentoStatus を completed に更新
+    if(p.isBento){
+      G._bentoUnlocked = true; G._bentoLaunched = true;
+      if(p._bentoStatusKey){
+        G.seasonalBentoStatus = G.seasonalBentoStatus || {};
+        G.seasonalBentoStatus[p._bentoStatusKey] = Object.assign(
+          G.seasonalBentoStatus[p._bentoStatusKey] || {},
+          { developed: true }
+        );
+      }
+    }
     console.log(`[MenuLaunch] launched: ${p.name} (${p.id}) type=${p.type} isBento=${!!p.isBento} sourceEvent=${p.sourceEventId||p.sourceEvent||'?'}`);
     // 商品解放演出キューに積む（notify→モーダルカード）
     G._productRevealQueue = G._productRevealQueue || [];
@@ -3801,6 +3811,11 @@ function getBentoSeason(month){
   return '冬'; // 12, 1, 2
 }
 
+// 弁当状態管理のキー生成
+function _getBentoStatusKey(year, season){
+  return (year !== undefined ? year : G.year) + '年_' + (season || getBentoSeason());
+}
+
 // 弁当提案の可否チェック
 function _canProposeBento(){
   if(!G.started || G.tut.phase !== 'done') return false;
@@ -3810,9 +3825,12 @@ function _canProposeBento(){
   if((G.pendingMenuLaunches||[]).some(p => p.isBento)) return false;
   // 未処理の弁当案件がある
   if(G.cases.some(c => (c.id||'').startsWith('bento_request') && !c.resolved)) return false;
-  // 同シーズン同年は1回のみ
-  const _key = G.year + '年-' + getBentoSeason();
-  if((G._bentoSeasonProposed||{})[_key]) return false;
+  // seasonalBentoStatus で今年この季節の状態を確認
+  const _key = _getBentoStatusKey();
+  const _st = (G.seasonalBentoStatus||{})[_key] || {};
+  if(_st.offered)   return false; // 提案済み
+  if(_st.declined)  return false; // 見送り済み
+  if(_st.developed) return false; // 開発済み
   // 前回の弁当案件から60日以上（初回のみ30日）
   const _td = (G.year-1)*360 + (G.month-1)*30 + G.day;
   const _minGap = (G._lastBentoEventDay||0) === 0 ? 30 : 60;
@@ -7543,13 +7561,21 @@ function generateConditionCases(){
       // ── お弁当開発フロー（季節循環型・動的生成） ──
       if(_canProposeBento()){
         const _bs = getBentoSeason();
+        const _statusKey = _getBentoStatusKey(G.year, _bs);
         // 秋(9-10月)は松茸 or 栗をランダム選択
         let _bentoInfo = SEASONAL_BENTO_MAP[G.month] || { id:'bento_maikon', name:'舞昆弁当', icon:'🍱', desc:'舞昆の旨みが詰まったお弁当です。' };
         if(G.month === 9 || G.month === 10){
           _bentoInfo = Math.random() < 0.5
-            ? { id:'bento_kuri',     name:'栗ごはん舞昆弁当', icon:'🍂', desc:'秋の味覚・栗ごはんに舞昆をのせた秋の贅沢弁当。ほっこりとした甘みが広がります。' }
-            : { id:'bento_matsutake', name:'松茸舞昆弁当',    icon:'🍄', desc:'香り高い松茸と舞昆の贅沢な組み合わせ。秋限定の特別なお弁当です。' };
+            ? { id:'bento_kuri',      name:'栗ごはん舞昆弁当', icon:'🍂', desc:'秋の味覚・栗ごはんに舞昆をのせた秋の贅沢弁当。ほっこりとした甘みが広がります。' }
+            : { id:'bento_matsutake', name:'松茸舞昆弁当',     icon:'🍄', desc:'香り高い松茸と舞昆の贅沢な組み合わせ。秋限定の特別なお弁当です。' };
         }
+        // 状態を「提案済み」に更新（案件生成時点で記録）
+        G.seasonalBentoStatus = G.seasonalBentoStatus || {};
+        G.seasonalBentoStatus[_statusKey] = {
+          offered: true, accepted: false, declined: false, developed: false,
+          productId: _bentoInfo.id, productName: _bentoInfo.name, season: _bs,
+        };
+        G._lastBentoEventDay = totalDays;
         // 季節に応じた要望文バリエーション
         const _occ = G.month===4||G.month===5?'お花見':G.month>=7&&G.month<=8?'夏のお出かけ':G.month>=9&&G.month<=10?'紅葉散策':'散歩';
         const _event = G.month>=9&&G.month<=10?'敬老会':G.month===12||G.month===1?'新年会':G.month>=4&&G.month<=5?'春の集まり':'地域の集まり';
@@ -7571,17 +7597,18 @@ function generateConditionCases(){
             apCost: 10, expireDays: 21, category: 'mgmt',
             title: `${_bentoInfo.name}の販売リクエスト`,
             body: _body,
-            _bentoTarget: _bentoInfo,
             choices: [
               { label:`「${_bentoInfo.name}」を開発する（¥80,000）`, cost:80000,
-                effects:{ score:5, startBentoDev:true, _bentoTarget:_bentoInfo, profile:{risk:1} },
+                effects:{ score:5, startBentoDev:true, _bentoTarget:_bentoInfo, _bentoStatusKey:_statusKey, profile:{risk:1} },
                 label2:'開発開始・14日後に完成', storyTag:`「${_bentoInfo.name}」の開発を始めた。` },
               { label:'次のシーズンに検討する', cost:0,
-                effects:{ score:3, _bentoDeferSeason:_bs, profile:{finance:1} },
-                label2:'課題として記録', storyTag:'弁当販売は来シーズンの課題にした。' },
+                effects:{ score:3, profile:{finance:1},
+                  _bentoSkipSeason:{ key:_statusKey, season:_bs, name:_bentoInfo.name, reason:'deferred' } },
+                label2:'今年は見送り・翌年の同季節に再提案', storyTag:'弁当販売は翌年の同じ季節に持ち越した。' },
               { label:'今は難しいと伝える', cost:0,
-                effects:{ score:-3, storeSat:-5 },
-                label2:'常連客がっかり・満足度-5', storyTag:'弁当販売を断った。' },
+                effects:{ score:-3, storeSat:-5,
+                  _bentoSkipSeason:{ key:_statusKey, season:_bs, name:_bentoInfo.name, reason:'refused' } },
+                label2:'今年は見送り・常連客がっかり', storyTag:'弁当販売を断った。常連さんが少し残念そうだった。' },
             ],
           });
         }
@@ -9310,11 +9337,13 @@ function chooseEvent(idx, useFatigue){
       while(_cMonth > 12){ _cMonth -= 12; _cYear++; }
       _bentoInfo = SEASONAL_BENTO_MAP[_cMonth] || SEASONAL_BENTO_MAP[G.month] || { id:'bento_maikon', name:'舞昆弁当', icon:'🍱', desc:'舞昆の旨みが詰まったお弁当です。' };
     }
-    // シーズン記録（同シーズン再提案防止）
-    const _bs = getBentoSeason();
-    G._bentoSeasonProposed = G._bentoSeasonProposed || {};
-    G._bentoSeasonProposed[G.year + '年-' + _bs] = true;
-    G._lastBentoEventDay = _td;
+    // seasonalBentoStatus を「accepted」に更新
+    const _statusKey = fx._bentoStatusKey || _getBentoStatusKey();
+    G.seasonalBentoStatus = G.seasonalBentoStatus || {};
+    G.seasonalBentoStatus[_statusKey] = Object.assign(
+      G.seasonalBentoStatus[_statusKey] || {},
+      { offered:true, accepted:true, declined:false, developed:false, productId:_bentoInfo.id, productName:_bentoInfo.name }
+    );
     G._bentoDevDay = _td;
     G.pendingMenuLaunches = G.pendingMenuLaunches || [];
     if(!G.pendingMenuLaunches.some(p => p.isBento)){
@@ -9329,18 +9358,27 @@ function chooseEvent(idx, useFatigue){
         launchDay: _td + 14,
         sourceEventId: 'bento_request',
         description: _bentoInfo.desc,
+        _bentoStatusKey: _statusKey,
       });
-      console.log(`[BentoDev] scheduled: ${_bentoInfo.name} launchDay=${_td+14}`);
+      console.log(`[BentoDev] scheduled: ${_bentoInfo.name} launchDay=${_td+14} statusKey=${_statusKey}`);
     }
     addStory(`季節のお弁当「${_bentoInfo.name}」の開発を始めた。14日後に完成する予定だ。`, 'normal');
     notify(`🍱 お弁当開発スタート（14日後に「${_bentoInfo.name}」完成予定）`, 'gold');
     addHistory('🍱', `「${_bentoInfo.name}」開発中（14日後に完成）`);
   }
-  // 「次のシーズンに検討する」を選んだ場合はそのシーズンをスキップ
-  if(fx._bentoDeferSeason){
-    G._bentoSeasonProposed = G._bentoSeasonProposed || {};
-    G._bentoSeasonProposed[G.year + '年-' + fx._bentoDeferSeason] = true;
-    G._lastBentoEventDay = (G.year-1)*360 + (G.month-1)*30 + G.day;
+  // 見送り・断り（今年その季節は再提案しない・翌年は候補に戻る）
+  if(fx._bentoSkipSeason){
+    const _sk = fx._bentoSkipSeason;
+    G.seasonalBentoStatus = G.seasonalBentoStatus || {};
+    G.seasonalBentoStatus[_sk.key] = Object.assign(
+      G.seasonalBentoStatus[_sk.key] || {},
+      { declined:true, declineReason:_sk.reason }
+    );
+    const _msg = _sk.reason === 'deferred'
+      ? `今年の${_sk.season}の「${_sk.name}」は見送ることにした。また来年、季節が巡ってきたら検討できる。`
+      : `今年の${_sk.season}の「${_sk.name}」はタイミングが合わなかった。翌年に改めて考えよう。`;
+    addStory(_msg, 'normal');
+    notify(`🍱 ${_sk.name}（${_sk.season}）を今年は見送り`, 'normal');
   }
   if(fx.unlockProduct){
     G.unlockedProducts = G.unlockedProducts || [];
@@ -12705,12 +12743,24 @@ function _renderDevDashboard(){
         const _pmRows = _pmList.map(p => {
           const daysLeft = p.launchDay - _tdPm;
           const ready = daysLeft <= 0;
-          return `<div style="font-size:10px;padding:1px 0;color:${ready?'#90EE90':'#FFB347'}">${ready?'🚀':'⏳'} ${p.name} → ${ready?'本日発動！':`${daysLeft}日後`} [${p.sourceEventId||p.sourceEvent||'?'}] id=${p.id}</div>`;
+          const bentoTag = p.isBento ? ' 🍱' : '';
+          return `<div style="font-size:10px;padding:1px 0;color:${ready?'#90EE90':'#FFB347'}">${ready?'🚀':'⏳'} ${p.name}${bentoTag} → ${ready?'本日発動！':`${daysLeft}日後`} [${p.sourceEventId||p.sourceEvent||'?'}] id=${p.id}</div>`;
+        });
+        // seasonalBentoStatus
+        const _sbs = G.seasonalBentoStatus || {};
+        const _sbsKeys = Object.keys(_sbs);
+        const _sbsRows = _sbsKeys.map(k => {
+          const s = _sbs[k];
+          const icons = [s.offered?'📢':'',s.accepted?'✅':'',s.declined?'❌':'',s.developed?'🎉':''].filter(Boolean).join('');
+          return `<div style="font-size:10px;padding:1px 0;color:#ccc">${icons} <b>${k}</b> ${s.productName||s.productId||'?'}</div>`;
         });
         return `<div style="margin-bottom:10px">
           <div style="font-size:11px;font-weight:700;color:#87CEEB;margin-bottom:6px">📋 pendingMenuLaunches（${_pmList.length}件）</div>
-          <div style="font-size:9px;color:#888;margin-bottom:4px">今日 totalDays=${_tdPm}</div>
+          <div style="font-size:9px;color:#888;margin-bottom:4px">今日 totalDays=${_tdPm} / lastBentoEvent=${G._lastBentoEventDay||0}</div>
           ${_pmRows.length ? _pmRows.join('') : '<div style="font-size:10px;color:#555">予約メニューなし</div>'}
+          <div style="margin-top:8px;font-size:11px;font-weight:700;color:#FFB347;margin-bottom:4px">🍱 seasonalBentoStatus（${_sbsKeys.length}件）</div>
+          <div style="font-size:9px;color:#888;margin-bottom:3px">📢提案 ✅受諾 ❌見送 🎉完成</div>
+          ${_sbsRows.length ? _sbsRows.join('') : '<div style="font-size:10px;color:#555">記録なし</div>'}
         </div>`;
       })()}
       ${(()=>{
