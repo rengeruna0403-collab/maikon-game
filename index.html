@@ -1716,6 +1716,9 @@ function renderTutMissionCard(){
 
   if(!hasMidori){
     const midoriCase = G.cases.find(c => c.id === 'midori_apply' && !c.resolved);
+    // みどり登場は1年目4月9日以降。それ以前はスタッフ採用目標を表示しない
+    const _midoriReachable = !(G.year === 1 && (G.month < 4 || (G.month === 4 && G.day < 9)));
+    if(!_midoriReachable) return '';
     goalTitle = 'スタッフを採用する';
     goalHint = midoriCase ? '📥 案件ボックスにみどりからの申し出が届いています' : '翌日へ進むと案件が届きます';
     goalColor = 'var(--gr)';
@@ -7786,9 +7789,12 @@ function renderTodayMood(){
 
   // 何もなければ舞昆らしい一言（季節）
   if(lines.length === 0){
+    const _storeOpen = G.stores[0] && G.stores[0].isOpen;
     const msgs = [
       { icon:'🌿', text:'今日も地域を育てる一日', sub:'地道に、丁寧に。それが舞昆の流儀。' },
-      { icon:'🍙', text:'おにぎりが売れた朝', sub:'小さな幸せが積み重なっていく。' },
+      _storeOpen
+        ? { icon:'🍙', text:'おにぎりが売れた朝', sub:'小さな幸せが積み重なっていく。' }
+        : { icon:'🏪', text:'開店準備中です', sub:'メニューと営業準備を整えましょう。' },
       { icon:'🌸', text:'桜橋区の空気が今日も清い', sub:'地域とともに歩んでいます。' },
     ];
     lines.push(msgs[G.day % msgs.length]);
@@ -10446,7 +10452,7 @@ function _ochawanHint(){
   if(ch.takahashi && ch.takahashi.met && nowDay-(ch.takahashi.lastCaseDay||0) >= 5) hints.push('高橋さんから連絡があるかもしれません。');
   if((s.regulars||0) >= 5) hints.push('常連さんが増えてきましたね。口コミが広がりそうです。');
   if(G.month >= 3 && G.month <= 5) hints.push('季節の変わり目、新しい出会いがあるかもしれません。');
-  if(G.year===1 && G.month >= 2) hints.push('もうすぐ1年目の終わり。あなたの歩みを振り返る時が来そうです。');
+  if(G.year===1 && G.month === 3) hints.push('もうすぐ1年目の終わり。あなたの歩みを振り返る時が来そうです。');
   const _def = ['今月は忙しくなりそうですね。','もうすぐ新しい出会いがあります。','焦らなくていいですよ。あなたのペースで。','じっくり育てると、いつか大きな花が咲きます。','小さなご縁が、やがて大きな絆になります。'];
   const pool = hints.length > 0 ? hints : _def;
   return pool[((G.day||1)+(G.month||1)*3) % pool.length];
@@ -10595,12 +10601,12 @@ function renderTodayAction(){
   // 3. 空室あり・募集未開始
   const _hasUnseekingVacant = G.buildings.some(b => b.rooms.some(r => !r.tenant && !r.seeking));
   if(_hasUnseekingVacant){
-    actions.push({ icon:'🏠', label:'空室募集を開始する', desc:'空き部屋の入居者を募集しましょう', onclick:"setTab('building')" });
+    actions.push({ icon:'🏠', label:'空室募集を開始する', desc:'空き部屋の入居者を募集しましょう', onclick:"setTab('apt');setTimeout(()=>{document.getElementById('apt-seek-anchor')?.scrollIntoView({behavior:'smooth'})},150)" });
   }
   // 4. 未対応案件あり（3件以内に収まる場合のみ）
   const _pendingCnt = G.cases.filter(c => !c.resolved).length;
   if(_pendingCnt > 0 && actions.length < 3){
-    actions.push({ icon:'📋', label:`案件に対応する（${_pendingCnt}件）`, desc:'未処理の案件があります', onclick:"setTab('cases')" });
+    actions.push({ icon:'📋', label:`案件に対応する（${_pendingCnt}件）`, desc:'未処理の案件があります', onclick:"document.getElementById('home-cases-anchor')?.scrollIntoView({behavior:'smooth'})" });
   }
   // 5. やることが何もない → 翌日へ
   if(actions.length === 0){
@@ -10647,7 +10653,7 @@ function renderHome(){
       </button>
       ${_day1Hint}
       ${renderTodayAction()}
-      ${renderCasesBox()}
+      <div id="home-cases-anchor">${renderCasesBox()}</div>
       ${renderUpcomingCard()}
       ${renderCashWarningBanner()}
       ${renderTodayMood()}
@@ -11174,7 +11180,7 @@ function renderApt(){
         </div>
       </div>
     </div>
-    <div class="card">
+    <div class="card" id="apt-seek-anchor">
       <div class="card-ttl">🏠 各部屋の住人</div>
       ${b.rooms.map((r,ri)=>`
         <div class="room-card ${r.tenant?'occ':'vac'}" onclick="openRentModal(${bi},${ri})">
