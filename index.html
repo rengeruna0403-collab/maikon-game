@@ -13699,27 +13699,54 @@ function showSaveRestoredBanner(){
 
 // ─────────── SOUND SYSTEM ───────────
 const SOUND_CFG = {
-  enabled: localStorage.getItem('maikon_sound') !== '0',
+  enabled:      localStorage.getItem('maikon_sound') !== '0',
+  masterVolume: 0.90,   // 全体マスター（コンプ後）
+  bgmVolume:    0.35,   // BGM（sfxより控えめ）
+  sfxVolume:    0.75,   // 効果音
   ctx: null,
+  sfxBus:  null,        // SFX用GainNode（コンプ経由）
+  bgmBus:  null,        // BGM用GainNode
+  compressor: null,     // DynamicsCompressorNode（割れ防止）
 };
 
 function _sCtx(){
   if(!SOUND_CFG.ctx || SOUND_CFG.ctx.state === 'closed'){
     try{ SOUND_CFG.ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e){ return null; }
+    // バス構成: osc → sfxBus/bgmBus → compressor → destination
+    const ctx = SOUND_CFG.ctx;
+    SOUND_CFG.compressor = ctx.createDynamicsCompressor();
+    SOUND_CFG.compressor.threshold.value = -6;
+    SOUND_CFG.compressor.knee.value = 6;
+    SOUND_CFG.compressor.ratio.value = 4;
+    SOUND_CFG.compressor.attack.value = 0.003;
+    SOUND_CFG.compressor.release.value = 0.15;
+    const masterGain = ctx.createGain();
+    masterGain.gain.value = SOUND_CFG.masterVolume;
+    SOUND_CFG.compressor.connect(masterGain);
+    masterGain.connect(ctx.destination);
+
+    SOUND_CFG.sfxBus = ctx.createGain();
+    SOUND_CFG.sfxBus.gain.value = SOUND_CFG.sfxVolume;
+    SOUND_CFG.sfxBus.connect(SOUND_CFG.compressor);
+
+    SOUND_CFG.bgmBus = ctx.createGain();
+    SOUND_CFG.bgmBus.gain.value = 0; // フェードイン用に0から始める
+    SOUND_CFG.bgmBus.connect(SOUND_CFG.compressor);
   }
   if(SOUND_CFG.ctx.state === 'suspended') SOUND_CFG.ctx.resume();
   return SOUND_CFG.ctx;
 }
 
+// osc→gain→sfxBus の汎用ヘルパー（volは0〜1のノート音量、sfxBusのゲインが掛かる）
 function _sfxTone(ctx, t, freq, dur, type, vol){
   try{
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.type = type || 'sine';
     osc.frequency.setValueAtTime(freq, t);
-    gain.gain.setValueAtTime(vol || 0.15, t);
+    gain.gain.setValueAtTime(vol || 0.5, t);
     gain.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    osc.connect(gain); gain.connect(ctx.destination);
+    osc.connect(gain); gain.connect(SOUND_CFG.sfxBus);
     osc.start(t); osc.stop(t + dur + 0.01);
   } catch(e){}
 }
@@ -13731,40 +13758,40 @@ function playSfx(type){
     if(!ctx) return;
     const t = ctx.currentTime;
     if(type === 'click'){
-      _sfxTone(ctx, t, 880, 0.07, 'sine', 0.1);
+      _sfxTone(ctx, t, 880, 0.08, 'sine', 0.55);
     } else if(type === 'notify'){
-      _sfxTone(ctx, t,      880, 0.35, 'sine', 0.15);
-      _sfxTone(ctx, t+0.06, 1108, 0.25, 'sine', 0.1);
+      _sfxTone(ctx, t,      880, 0.35, 'sine', 0.65);
+      _sfxTone(ctx, t+0.06, 1108, 0.28, 'sine', 0.50);
     } else if(type === 'warn'){
-      _sfxTone(ctx, t,      220, 0.25, 'sawtooth', 0.08);
-      _sfxTone(ctx, t+0.15, 196, 0.25, 'sawtooth', 0.08);
+      _sfxTone(ctx, t,      220, 0.28, 'sawtooth', 0.40);
+      _sfxTone(ctx, t+0.15, 196, 0.28, 'sawtooth', 0.35);
     } else if(type === 'money'){
-      [0, 0.07, 0.14].forEach((d,i) => _sfxTone(ctx, t+d, [1047,1319,1568][i], 0.25, 'sine', 0.13));
+      [0, 0.07, 0.14].forEach((d,i) => _sfxTone(ctx, t+d, [1047,1319,1568][i], 0.28, 'sine', [0.60,0.55,0.65][i]));
     } else if(type === 'rep'){
-      _sfxTone(ctx, t,      523, 0.5, 'sine', 0.11);
-      _sfxTone(ctx, t+0.03, 659, 0.5, 'sine', 0.09);
-      _sfxTone(ctx, t+0.06, 784, 0.5, 'sine', 0.07);
+      _sfxTone(ctx, t,      523, 0.5, 'sine', 0.55);
+      _sfxTone(ctx, t+0.03, 659, 0.5, 'sine', 0.50);
+      _sfxTone(ctx, t+0.06, 784, 0.5, 'sine', 0.45);
     } else if(type === 'day'){
       const osc = ctx.createOscillator();
       const g = ctx.createGain();
       osc.type = 'sine';
       osc.frequency.setValueAtTime(120, t);
       osc.frequency.exponentialRampToValueAtTime(50, t+0.18);
-      g.gain.setValueAtTime(0.25, t);
+      g.gain.setValueAtTime(0.7, t);
       g.gain.exponentialRampToValueAtTime(0.0001, t+0.22);
-      osc.connect(g); g.connect(ctx.destination);
+      osc.connect(g); g.connect(SOUND_CFG.sfxBus);
       osc.start(t); osc.stop(t+0.25);
     } else if(type === 'tab'){
-      _sfxTone(ctx, t, 660, 0.05, 'sine', 0.08);
+      _sfxTone(ctx, t, 660, 0.06, 'sine', 0.45);
     } else if(type === 'monthly'){
-      [523, 587, 698, 784].forEach((f,i) => _sfxTone(ctx, t+i*0.18, f, 0.35, 'sine', 0.16));
+      [523, 587, 698, 784].forEach((f,i) => _sfxTone(ctx, t+i*0.18, f, 0.38, 'sine', [0.65,0.60,0.65,0.70][i]));
     } else if(type === 'ending'){
       const mel = [523,659,784,1047,784,1047,1175,1568];
       const drs = [0.18,0.18,0.18,0.36,0.1,0.14,0.14,0.55];
       let off = 0;
-      mel.forEach((f,i) => { _sfxTone(ctx, t+off, f, drs[i]+0.1, 'sine', 0.18); off += drs[i]; });
+      mel.forEach((f,i) => { _sfxTone(ctx, t+off, f, drs[i]+0.1, 'sine', 0.60); off += drs[i]; });
     } else if(type === 'unlock'){
-      [659,784,1047,1319,1568].forEach((f,i) => _sfxTone(ctx, t+i*0.07, f, 0.4, 'sine', 0.14));
+      [659,784,1047,1319,1568].forEach((f,i) => _sfxTone(ctx, t+i*0.07, f, 0.4, 'sine', [0.50,0.55,0.60,0.60,0.65][i]));
     }
   } catch(e){}
 }
@@ -13776,12 +13803,24 @@ let _bgmRunning = false;
 function startBgm(){
   if(_bgmRunning || !SOUND_CFG.enabled) return;
   _bgmRunning = true;
+  // BGMバスをフェードイン（爆音回避）
+  const ctx = _sCtx();
+  if(ctx && SOUND_CFG.bgmBus){
+    SOUND_CFG.bgmBus.gain.cancelScheduledValues(ctx.currentTime);
+    SOUND_CFG.bgmBus.gain.setValueAtTime(0, ctx.currentTime);
+    SOUND_CFG.bgmBus.gain.linearRampToValueAtTime(SOUND_CFG.bgmVolume, ctx.currentTime + 2.5);
+  }
   _bgmLoop();
 }
 
 function stopBgm(){
   _bgmRunning = false;
   if(_bgmTimer){ clearTimeout(_bgmTimer); _bgmTimer = null; }
+  // フェードアウト
+  if(SOUND_CFG.bgmBus && SOUND_CFG.ctx){
+    SOUND_CFG.bgmBus.gain.cancelScheduledValues(SOUND_CFG.ctx.currentTime);
+    SOUND_CFG.bgmBus.gain.linearRampToValueAtTime(0, SOUND_CFG.ctx.currentTime + 0.8);
+  }
 }
 
 function _bgmLoop(){
@@ -13789,22 +13828,18 @@ function _bgmLoop(){
   try{
     const ctx = _sCtx();
     if(!ctx){ _bgmRunning = false; return; }
-    // よな抜き長音階 (C D F G A)
     const scale = [261.6, 293.7, 349.2, 392.0, 440.0, 523.2, 587.3, 698.5, 784.0, 880.0];
     const mel   = [0, 2, 3, 5, 3, 2, 0, 2, 3, 9, 8, 5, 3, 2, 0, 2];
     const beat  = 0.38;
-    const masterGain = ctx.createGain();
-    masterGain.gain.setValueAtTime(0.06, ctx.currentTime);
-    masterGain.connect(ctx.destination);
     const t = ctx.currentTime + 0.05;
     mel.forEach((idx, i) => {
       const osc = ctx.createOscillator();
       osc.type = 'sine';
       osc.frequency.setValueAtTime(scale[idx], t + i * beat);
       const g = ctx.createGain();
-      g.gain.setValueAtTime(0.7, t + i * beat);
+      g.gain.setValueAtTime(0.75, t + i * beat);
       g.gain.exponentialRampToValueAtTime(0.0001, t + i * beat + beat * 0.85);
-      osc.connect(g); g.connect(masterGain);
+      osc.connect(g); g.connect(SOUND_CFG.bgmBus);
       osc.start(t + i * beat);
       osc.stop(t + i * beat + beat);
     });
