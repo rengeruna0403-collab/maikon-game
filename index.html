@@ -9929,6 +9929,10 @@ function openStore(si){
   notify('舞昆茶屋を再開しました！','gold');
   tutCompleteStep('open_store');
   updateHeader(); renderTab();
+  setTimeout(()=>{
+    const el = document.getElementById('menu-add-prompt');
+    if(el) el.scrollIntoView({ behavior:'smooth', block:'center' });
+  }, 150);
 }
 
 // ─── 全ステップ完了 → 自由経営解放 ───
@@ -11573,6 +11577,16 @@ function renderStore(){
       ${s.monthlyBonus>0?`<div style="font-size:11px;color:var(--gr);margin-top:6px">✓ 定期イベント収益 +${fmt(s.monthlyBonus)}/月</div>`:''}
       ` : `<div style="font-size:12px;color:var(--muted);margin-bottom:8px">営業再開後に売上データが表示されます</div>`}
     </div>
+
+    ${s.isOpen && (!s.menu || s.menu.length === 0) ? `
+    <div id="menu-add-prompt" style="background:linear-gradient(135deg,#FFF8E1,#FFFDE7);border:2px solid #FFC107;border-radius:14px;padding:16px;margin-bottom:10px;text-align:center">
+      <div style="font-size:22px;margin-bottom:6px">🍽</div>
+      <div style="font-size:14px;font-weight:700;color:#E65100;margin-bottom:4px">まだメニューがありません</div>
+      <div style="font-size:12px;color:#795548;margin-bottom:14px;line-height:1.6">まず看板メニューを追加して、<br>お客様を迎える準備をしましょう。</div>
+      <button class="btn btn-gr" style="width:100%;padding:12px;font-size:14px;font-weight:700" onclick="openMenuModal(${si})">
+        🍱 メニューを追加する
+      </button>
+    </div>` : ''}
 
     ${(()=>{
       // ── 🛍 商品コーナー ──
