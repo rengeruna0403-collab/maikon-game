@@ -5228,6 +5228,32 @@ const CASE_POOL = [
         effects:{ score:2 },
         label2:'—', storyTag:'今回は見送ることにした。' },
     ]},
+
+  { id:'unlock_shiro_maikon', conditionOnly:true, repeatable:false,
+    domain:'store', sender:'常連客', icon:'⬜', apCost:10, expireDays:21, category:'mgmt',
+    title:'「白い舞昆があるって本当ですか？」',
+    body:'常連のお客様が、めずらしそうに話しかけてきました。\n\n「舞昆って、白いのがあるって聞いたんですけど——\n\n「白白舞昆」という商品で、\n素材の色をそのまま活かした珍しいものらしいです。\n\n地域の方への贈り物にも使えると聞いて、\nぜひ置いてほしいなと思って」',
+    choices:[
+      { label:'白白舞昆を仕入れてみる（¥45,000）', cost:45000,
+        effects:{ score:12, rep:5, storeSat:8, unlockProduct:'shiro_maikon' },
+        label2:'白白舞昆が商品コーナーに加わります', storyTag:'白白舞昆を仕入れた。素材の色が活きた珍しい商品で、常連客に喜ばれた。' },
+      { label:'今は品揃えを絞っておく', cost:0,
+        effects:{ score:2 },
+        label2:'—', storyTag:'今回は見送ることにした。' },
+    ]},
+
+  { id:'unlock_karakuchi_maikon', conditionOnly:true, repeatable:false,
+    domain:'store', sender:'常連客', icon:'🌶', apCost:10, expireDays:21, category:'mgmt',
+    title:'「辛い舞昆が食べたいです」',
+    body:'若い常連のお客様が、目を輝かせて言いました。\n\n「舞昆って、辛いのもあるって知ってますか？\n\n「やみつき旨辛舞昆」という商品で——\n旨みと辛みのバランスが絶妙らしくて。\n\nうちのお父さんが辛いもの好きで、\n一緒に食べたいんです。置いてもらえませんか？」',
+    choices:[
+      { label:'旨辛舞昆を仕入れてみる（¥38,000）', cost:38000,
+        effects:{ score:12, storeSat:8, custRegular:2, unlockProduct:'karakuchi_maikon' },
+        label2:'やみつき旨辛舞昆が商品コーナーに加わります', storyTag:'旨辛舞昆を仕入れた。辛いもの好きの常連客に大好評だった。' },
+      { label:'今は品揃えを絞っておく', cost:0,
+        effects:{ score:2 },
+        label2:'—', storyTag:'今回は見送ることにした。' },
+    ]},
 ];
 
 // ──────── 大家業・舞昆茶屋 案件プール ────────
@@ -7465,56 +7491,91 @@ function generateConditionCases(){
     addCase(CASE_POOL.find(c => c.id === 'narita_diagnosis'));
   }
 
-  // ── たもぎ茸舞昆 商品解放イベント ──────────────────────────
-  const _hasTamogi = (G.unlockedProducts||[]).includes('tamogitake_maikon');
-  const _s0Open = G.stores[0] && G.stores[0].isOpen;
-  // メイン（7日目以降・開店済み・未解放）
-  if(_s0Open && !_hasTamogi && totalDays >= 7
-     && !G.cases.some(c => c.id === 'unlock_tamogitake_maikon')){
-    const _tb = DOMAIN_CASES.find(c => c.id === 'unlock_tamogitake_maikon');
-    if(_tb) addCase(_tb);
-  }
-  // 試食フォロー（B選択3日後）
-  if(!_hasTamogi && G._tamogitakeTastingDay && totalDays >= G._tamogitakeTastingDay
-     && !G.cases.some(c => c.id === 'follow_tamogitake_tasting')){
-    const _tf = DOMAIN_CASES.find(c => c.id === 'follow_tamogitake_tasting');
-    if(_tf) addCase(_tf);
-  }
-  // 再提案（C選択30日後）
-  if(!_hasTamogi && G._tamogitakeRetryDay && totalDays >= G._tamogitakeRetryDay
-     && !G.cases.some(c => c.id === 'unlock_tamogitake_retry')){
-    const _tr = DOMAIN_CASES.find(c => c.id === 'unlock_tamogitake_retry');
-    if(_tr) addCase(_tr);
-  }
+  // ── 商品解放イベント ──────────────────────────
+  {
+    const _uProd = G.unlockedProducts || [];
+    const _hasTamogi = _uProd.includes('tamogitake_maikon');
+    const _s0Open = s0 && s0.isOpen;
 
-  // ── 商品種類拡充イベント ──
-  const _uProd = G.unlockedProducts || [];
-  // 山椒舞昆：1年目4月以降・客数10以上・たもぎ茸解放済み
-  if(!_uProd.includes('sansho_maikon') && G.month >= 4 && (s0.customers||0) >= 10
-     && _uProd.includes('tamogitake_maikon')
-     && !G.cases.some(c => c.id === 'unlock_sansho_maikon')){
-    const _cs = DOMAIN_CASES.find(c => c.id === 'unlock_sansho_maikon');
-    if(_cs) addCase(_cs);
-  }
-  // 明太風帆立舞昆：みどり採用後・店舗Lv2以上・2年目以降
-  if(!_uProd.includes('mentai_hotate') && G.staffUnlocked && G.year >= 2
-     && (s0.level||1) >= 2
-     && !G.cases.some(c => c.id === 'unlock_mentai_hotate')){
-    const _cm = DOMAIN_CASES.find(c => c.id === 'unlock_mentai_hotate');
-    if(_cm) addCase(_cm);
-  }
-  // 松茸舞昆：高橋アーク法人契約以降・1年目6月以降
-  if(!_uProd.includes('matsutake_maikon') && G.month >= 6
-     && G.cases.some(c => c.id === 'chr_takahashi_houjin' && c.resolved)
-     && !G.cases.some(c => c.id === 'unlock_matsutake_maikon')){
-    const _ck = DOMAIN_CASES.find(c => c.id === 'unlock_matsutake_maikon');
-    if(_ck) addCase(_ck);
-  }
-  // わさび舞昆：2年目以降・客数20以上
-  if(!_uProd.includes('wasabi_maikon') && G.year >= 2 && (s0.customers||0) >= 20
-     && !G.cases.some(c => c.id === 'unlock_wasabi_maikon')){
-    const _cw = DOMAIN_CASES.find(c => c.id === 'unlock_wasabi_maikon');
-    if(_cw) addCase(_cw);
+    // ─ たもぎ茸専用フロー（最優先・独立）─
+    if(_s0Open && !_hasTamogi){
+      if(totalDays >= 7 && !G.cases.some(c => c.id === 'unlock_tamogitake_maikon')){
+        const _tb = CASE_POOL.find(c => c.id === 'unlock_tamogitake_maikon');
+        if(_tb) addCase(_tb);
+      }
+      if(G._tamogitakeTastingDay && totalDays >= G._tamogitakeTastingDay
+         && !G.cases.some(c => c.id === 'follow_tamogitake_tasting')){
+        const _tf = CASE_POOL.find(c => c.id === 'follow_tamogitake_tasting');
+        if(_tf) addCase(_tf);
+      }
+      if(G._tamogitakeRetryDay && totalDays >= G._tamogitakeRetryDay
+         && !G.cases.some(c => c.id === 'unlock_tamogitake_retry')){
+        const _tr = CASE_POOL.find(c => c.id === 'unlock_tamogitake_retry');
+        if(_tr) addCase(_tr);
+      }
+    }
+
+    // ─ 拡充商品解放（1イベントずつ・抑制チェック）─
+    if(_hasTamogi){
+      const _unlockIds = ['unlock_sansho_maikon','unlock_mentai_hotate','unlock_matsutake_maikon',
+                          'unlock_wasabi_maikon','unlock_shiro_maikon','unlock_karakuchi_maikon'];
+      const _hasActiveUnlock = G.cases.some(c => _unlockIds.includes(c.id) && !c.resolved);
+      const _hasPendingLaunch = (G.pendingMenuLaunches||[]).length > 0;
+
+      const _suppressReasons = [];
+      if(_hasActiveUnlock)   _suppressReasons.push('解放イベント進行中');
+      if(_hasPendingLaunch)  _suppressReasons.push('メニュー予約中');
+
+      if(!_hasActiveUnlock && !_hasPendingLaunch){
+        const _cust = s0.customers || 0;
+        const _lv   = s0.level || 1;
+        const _gLv  = s0.giftLevel || 0;
+        const _rep  = (G.regions[0]||{}).reputation || 0;
+        const _isAutumn   = G.month >= 9 && G.month <= 11;
+        const _takahashi  = G.cases.some(c => c.id === 'chr_takahashi_houjin' && c.resolved);
+        const _kimura     = G.cases.some(c => (c.id||'').startsWith('chr_kimura') && c.resolved);
+
+        const _candidates = [];
+        // 山椒舞昆：たもぎ茸解放後・客数15以上・30日以上
+        if(!_uProd.includes('sansho_maikon') && totalDays >= 30 && _cust >= 15
+           && !G.cases.some(c => c.id === 'unlock_sansho_maikon'))
+          _candidates.push('unlock_sansho_maikon');
+        // 明太風帆立舞昆：みどり採用後・ギフト棚解放・90日以上
+        if(!_uProd.includes('mentai_hotate') && G.staffUnlocked && _gLv >= 1
+           && totalDays >= 90 && !G.cases.some(c => c.id === 'unlock_mentai_hotate'))
+          _candidates.push('unlock_mentai_hotate');
+        // 松茸舞昆：（秋かつギフト棚解放）または高橋法人契約済み
+        if(!_uProd.includes('matsutake_maikon')
+           && ((_isAutumn && _gLv >= 1) || _takahashi)
+           && !G.cases.some(c => c.id === 'unlock_matsutake_maikon'))
+          _candidates.push('unlock_matsutake_maikon');
+        // わさび舞昆：店舗Lv3以上 or（2年目・客数20以上）
+        if(!_uProd.includes('wasabi_maikon') && (_lv >= 3 || (G.year >= 2 && _cust >= 20))
+           && !G.cases.some(c => c.id === 'unlock_wasabi_maikon'))
+          _candidates.push('unlock_wasabi_maikon');
+        // 白白舞昆：地域評価60以上・180日以上
+        if(!_uProd.includes('shiro_maikon') && _rep >= 60 && totalDays >= 180
+           && !G.cases.some(c => c.id === 'unlock_shiro_maikon'))
+          _candidates.push('unlock_shiro_maikon');
+        // やみつき旨辛舞昆：木村イベント解決後 or（2年目・客数30以上）
+        if(!_uProd.includes('karakuchi_maikon') && (_kimura || (G.year >= 2 && _cust >= 30))
+           && !G.cases.some(c => c.id === 'unlock_karakuchi_maikon'))
+          _candidates.push('unlock_karakuchi_maikon');
+
+        if(_candidates.length > 0){
+          const _pick = _candidates[0]; // 最初の1件だけ追加
+          const _base = CASE_POOL.find(c => c.id === _pick);
+          if(_base) addCase(_base);
+          G._productUnlockDebug = `候補[${_candidates.join('/')}] → ${_pick} 追加`;
+        } else {
+          G._productUnlockDebug = `候補なし（解放済み: ${_uProd.join(',')||'なし'}）`;
+        }
+      } else {
+        G._productUnlockDebug = `抑制: ${_suppressReasons.join(' / ')}`;
+      }
+    } else {
+      G._productUnlockDebug = 'たもぎ茸未解放（序盤フロー中）';
+    }
   }
 
   // ── メニュー寿命チェック（3ヶ月同じメニューで案件発生）──
@@ -12898,7 +12959,14 @@ function _renderDevDashboard(){
         </div>`;
       })()}
       ${(()=>{
-        // 滞納系イベント対象入居者
+        // 商品解放ステータス
+        const _allProdIds = ['kuro_maikon','ginger_maikon','tamogitake_maikon','sansho_maikon',
+          'mentai_hotate','matsutake_maikon','wasabi_maikon','shiro_maikon','karakuchi_maikon'];
+        const _unlockedP = G.unlockedProducts || [];
+        const _lockedP   = _allProdIds.filter(id => !_unlockedP.includes(id));
+        const _pud = G._productUnlockDebug || '（まだ評価未実行）';
+        const _pudColor = _pud.includes('追加') ? '#90EE90' : _pud.includes('抑制') ? '#FFB347' : '#888';
+        // 商品解放デバッグ
         const _tenantEventIds = ['rent_late_1','rent_late_month','rent_hardship','noise_midnight'];
         const _tenantEventRows = _tenantEventIds.map(id => {
           const c = G.cases.find(x => x.id === id && !x.resolved);
@@ -12917,6 +12985,10 @@ function _renderDevDashboard(){
         const _bcd = G._boardCandidateDebug || '（まだ評価未実行）';
         const _bcdColor = _bcd.startsWith('除外') ? '#FF6B6B' : _bcd.startsWith('候補') ? '#90EE90' : '#888';
         return `<div style="margin-bottom:10px">
+          <div style="font-size:11px;font-weight:700;color:#90EE90;margin-bottom:4px">🛍 商品解放ステータス</div>
+          <div style="font-size:9px;color:#888;margin-bottom:2px">解放済み(${_unlockedP.length}): ${_unlockedP.join(' / ')||'なし'}</div>
+          <div style="font-size:9px;color:#555;margin-bottom:3px">未解放(${_lockedP.length}): ${_lockedP.join(' / ')||'なし'}</div>
+          <div style="font-size:10px;color:${_pudColor};margin-bottom:8px">${_pud}</div>
           <div style="font-size:11px;font-weight:700;color:#F0A060;margin-bottom:4px">🏠 滞納イベント対象入居者</div>
           ${_allTenants.length > 0
             ? `<div style="font-size:9px;color:#888;margin-bottom:3px">現入居者: ${_allTenants.join(' / ')}</div>`
