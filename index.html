@@ -5343,29 +5343,29 @@ const DOMAIN_CASES = [
     ]},
 
   // ③ 家賃関連（ops→mgmt→strategy, AP 5-25）
-  { id:'rent_late_1', repeatable:true, domain:'landlord', sender:'入居者', icon:'💰', apCost:5, expireDays:10, category:'ops',
+  { id:'rent_late_1', requireTenant:true, repeatable:true, domain:'landlord', sender:'入居者', icon:'💰', apCost:5, expireDays:10, category:'ops',
     expirePenalty:{score:-3, news:'💰 家賃未払いを放置した。'},
     title:'家賃の振込が確認できません',
-    body:'今月の家賃が振り込まれていません。\n\n入居者の山口さんへ確認の連絡が必要です。\n（3日が支払日、現在5日）',
+    body:'今月の家賃が振り込まれていません。\n\n{{TENANT_ROOM}}の{{TENANT_NAME}}へ確認の連絡が必要です。\n（3日が支払日、現在5日）',
     choices:[
       {label:'すぐに連絡する',cost:0,effects:{score:7,credit:1},label2:'迅速対応',storyTag:'すぐに確認の連絡をした。振込忘れだった。'},
       {label:'もう数日待つ',cost:0,effects:{score:3},label2:'様子見',storyTag:'数日様子を見ることにした。'},
     ]},
 
-  { id:'rent_late_month', repeatable:true, domain:'landlord', sender:'入居者', icon:'⚠️', apCost:15, expireDays:7, category:'mgmt',
+  { id:'rent_late_month', requireTenant:true, repeatable:true, domain:'landlord', sender:'入居者', icon:'⚠️', apCost:15, expireDays:7, category:'mgmt',
     expirePenalty:{credit:-3, news:'⚠️ 家賃滞納対応を放置した。信用度低下。'},
     title:'家賃滞納1か月',
-    body:'山口さんの家賃が1か月滞納しています。\n\n連絡を取ったところ、「仕事が変わって\n今月は厳しい」とのことです。',
+    body:'{{TENANT_ROOM}}の{{TENANT_NAME}}の家賃が1か月滞納しています。\n\n連絡を取ったところ、「仕事が変わって\n今月は厳しい」とのことです。',
     choices:[
       {label:'分割払いを提案する',cost:0,effects:{score:8,rep:3,profile:{people:3}},label2:'関係維持・評判+3',storyTag:'分割払いを提案した。誠実な対応が信頼につながった。'},
       {label:'保証会社へ連絡する',cost:0,effects:{score:5,credit:2},label2:'信用度+2',storyTag:'保証会社への連絡手続きを開始した。'},
       {label:'督促状を送る',cost:0,effects:{score:3,rep:-2},label2:'評判-2',storyTag:'督促状を送付した。関係が硬直化するかもしれない。'},
     ]},
 
-  { id:'rent_hardship', repeatable:true, domain:'landlord', sender:'入居者', icon:'😔', apCost:20, expireDays:14, category:'mgmt',
+  { id:'rent_hardship', requireTenant:true, repeatable:true, domain:'landlord', sender:'入居者', icon:'😔', apCost:20, expireDays:14, category:'mgmt',
     expirePenalty:{rep:-5, news:'😔 生活困窮者への対応を放置した。'},
     title:'生活困窮による家賃支払い相談',
-    body:'102号室の入居者より相談が来ました。\n\n「先月から仕事を失いました。\n今月の家賃が払えそうにありません。\n相談に乗っていただけますか」',
+    body:'{{TENANT_ROOM}}の入居者より相談が来ました。\n\n「先月から仕事を失いました。\n今月の家賃が払えそうにありません。\n相談に乗っていただけますか」',
     choices:[
       {label:'行政の支援制度を一緒に調べる',cost:0,effects:{score:15,rep:8,profile:{community:4,people:3}},label2:'評判+8・地域信頼',storyTag:'一緒に支援制度を調べた。「頼りになる大家さん」と思われた。'},
       {label:'1か月の猶予を与える',cost:0,effects:{score:8,profile:{people:2}},label2:'人道的判断',storyTag:'1か月の支払猶予を認めた。'},
@@ -5373,9 +5373,9 @@ const DOMAIN_CASES = [
     ]},
 
   // ④ 騒音トラブル（ops AP5-10）
-  { id:'noise_midnight', repeatable:true, caseType:'problem', domain:'landlord', sender:'入居者', icon:'🔊', apCost:5, category:'ops',
+  { id:'noise_midnight', requireTenant:true, repeatable:true, caseType:'problem', domain:'landlord', sender:'入居者', icon:'🔊', apCost:5, category:'ops',
     title:'深夜の騒音苦情',
-    body:'102号室から緊急連絡が届きました。\n\n「隣の部屋から深夜0時を過ぎても\n大きな声や音楽が聞こえます。\n眠れなくて本当に困っています」',
+    body:'{{TENANT_ROOM}}から緊急連絡が届きました。\n\n「隣の部屋から深夜0時を過ぎても\n大きな声や音楽が聞こえます。\n眠れなくて本当に困っています」',
     escalates:[
       { days:7,  effect:{rep:-4}, title:'騒音トラブルが長引いている', body:'最初の苦情から1週間が経ちました。\n\n放置された住民同士の関係が悪化しています。\n「大家さんに言っても何もしてくれない」という声も。', news:'🔊 騒音トラブルを放置。住民間の不満が高まっている。' },
       { days:14, effect:{rep:-8}, title:'退去を検討しています', body:'苦情を出した入居者から連絡がありました。\n\n「2週間待ちましたが、改善がありません。\n正直、他の物件を探し始めています。\nここに住み続けるのが辛くなってきました。」', news:'🔊 騒音放置が深刻化。入居者が退去を検討中。' },
@@ -6916,8 +6916,26 @@ let _casePoolIdx = 0;
 let _schedStaging = false;
 let _schedRaw     = []; // ステージングされた候補
 
+// 現在の入居者からランダム1名を返す。入居者がいない場合は null
+function getRandomCurrentTenant(){
+  const pool = [];
+  for(const b of G.buildings || []){
+    for(const r of b.rooms || []){
+      if(r.tenant && r.tenant.name){
+        pool.push({ name: r.tenant.name, room: r.num + '号室', num: r.num });
+      }
+    }
+  }
+  if(pool.length === 0) return null;
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+
 function addCase(caseData){
   if(!caseData) return;
+  // requireTenant: 入居者がいない場合は追加しない
+  if(caseData.requireTenant && !G.buildings.some(b => (b.rooms||[]).some(r => r.tenant))){
+    return;
+  }
   // repeatable でない案件は解決済み含めて重複をブロック
   if(caseData.repeatable){
     if(G.cases.some(c => c.id === caseData.id && !c.resolved)) return;
@@ -6935,6 +6953,16 @@ function addCase(caseData){
   if(typeof caseData.bodyFn === 'function'){
     entry.body = caseData.bodyFn();
     delete entry.bodyFn;
+  }
+  // 入居者プレースホルダー置換（{{TENANT_NAME}} / {{TENANT_ROOM}}）
+  if(entry.body && (entry.body.includes('{{TENANT_NAME}}') || entry.body.includes('{{TENANT_ROOM}}'))){
+    const _t = getRandomCurrentTenant();
+    if(_t){
+      entry._tenantName = _t.name;
+      entry._tenantRoom = _t.room;
+      entry.body  = entry.body.replace(/\{\{TENANT_NAME\}\}/g, _t.name+'さん').replace(/\{\{TENANT_ROOM\}\}/g, _t.room);
+      if(entry.title) entry.title = entry.title.replace(/\{\{TENANT_NAME\}\}/g, _t.name+'さん').replace(/\{\{TENANT_ROOM\}\}/g, _t.room);
+    }
   }
   // スケジューラのステージングモード中はキューへ溜める
   if(_schedStaging){
@@ -7282,6 +7310,7 @@ function generateWeeklyCases(){
     if(G.cases.some(x => x.id === c.id && !x.resolved)) return false;
     if(c.requireStaff && !G.staffUnlocked) return false;
     if(c.requireVacancy && !_hasVacancy) return false;
+    if(c.requireTenant && !G.buildings.some(b => (b.rooms||[]).some(r => r.tenant))) return false;
     if(c.menuProposal && !_canProposeNewMenu()) return false;
     if(c.id === 'narita_loan' && !G.staffUnlocked) return false;
     // 季節・月フィルター
@@ -12869,13 +12898,31 @@ function _renderDevDashboard(){
         </div>`;
       })()}
       ${(()=>{
+        // 滞納系イベント対象入居者
+        const _tenantEventIds = ['rent_late_1','rent_late_month','rent_hardship','noise_midnight'];
+        const _tenantEventRows = _tenantEventIds.map(id => {
+          const c = G.cases.find(x => x.id === id && !x.resolved);
+          if(!c) return null;
+          const disp = c._tenantRoom && c._tenantName
+            ? `${c._tenantRoom} / ${c._tenantName}さん`
+            : c._tenantRoom ? c._tenantRoom
+            : c._tenantName ? c._tenantName+'さん'
+            : '（名前取得済み）';
+          return `<div style="font-size:10px;color:#90EE90;padding:1px 0">📋 ${id}: ${disp}</div>`;
+        }).filter(Boolean);
+        const _allTenants = (G.buildings||[]).flatMap(b=>(b.rooms||[]).filter(r=>r.tenant).map(r=>`${r.num}号室:${r.tenant.name}`));
         const _ns2 = G._naritaStore2Debug || '（まだ評価未実行）';
         const _nmg = G._naritaMgrDebug   || '（まだ評価未実行）';
         const _dbColor = t => t.includes('除外') ? '#FF6B6B' : t.includes('候補') ? '#90EE90' : '#888';
         const _bcd = G._boardCandidateDebug || '（まだ評価未実行）';
         const _bcdColor = _bcd.startsWith('除外') ? '#FF6B6B' : _bcd.startsWith('候補') ? '#90EE90' : '#888';
         return `<div style="margin-bottom:10px">
-          <div style="font-size:11px;font-weight:700;color:#87CEEB;margin-bottom:4px">🏪 成田・店舗拡大フェーズ</div>
+          <div style="font-size:11px;font-weight:700;color:#F0A060;margin-bottom:4px">🏠 滞納イベント対象入居者</div>
+          ${_allTenants.length > 0
+            ? `<div style="font-size:9px;color:#888;margin-bottom:3px">現入居者: ${_allTenants.join(' / ')}</div>`
+            : '<div style="font-size:10px;color:#FF6B6B">候補除外：入居者なし</div>'}
+          ${_tenantEventRows.length ? _tenantEventRows.join('') : '<div style="font-size:10px;color:#555">進行中の滞納系案件なし</div>'}
+          <div style="margin-top:8px;font-size:11px;font-weight:700;color:#87CEEB;margin-bottom:4px">🏪 成田・店舗拡大フェーズ</div>
           <div style="font-size:10px;color:${_dbColor(_ns2)};margin-bottom:2px">${_ns2}</div>
           <div style="font-size:10px;color:${_dbColor(_nmg)}">${_nmg}</div>
           <div style="margin-top:8px;font-size:11px;font-weight:700;color:#DDA0DD;margin-bottom:4px">🗳️ 自治会役員就任の打診</div>
