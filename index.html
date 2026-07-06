@@ -6126,13 +6126,13 @@ const DOMAIN_CASES = [
       {label:'今回は見送る',cost:0,effects:{score:1,profile:{finance:1}},label2:'様子見',storyTag:'今回は見送った。'},
     ]},
 
-  { id:'com_board_candidate', repeatable:false, domain:'community', sender:'自治会長', icon:'🗳️', apCost:25, expireDays:21, category:'strategy',
+  { id:'com_board_candidate', conditionOnly:true, repeatable:true, oncePerYear:true, domain:'community', sender:'自治会長', icon:'🗳️', apCost:25, expireDays:21, category:'strategy',
     title:'自治会役員就任の打診',
-    body:'自治会長の石川さんから連絡が来ました。\n\n「地域のために尽力していただいていますね。\n次期の自治会役員として\nご参加いただけないでしょうか？\n若い経営者の視点が必要です」',
+    body:'自治会長の石川さんから、改まった様子で連絡が来ました。\n\n「この1年、地域のために動いてくださった姿を\nずっと見ていました。\n\n次期の自治会役員として、\n力を貸していただけませんか？\n\n地域に根ざした経営者だからこそ、\nあなたの視点が必要なんです」',
     choices:[
-      {label:'引き受ける（コミット大）',cost:0,effects:{score:25,rep:15,profile:{community:6}},label2:'評判+15・地域共生型の頂点',storyTag:'自治会役員を引き受けた。「地域の一員」として認められた。'},
-      {label:'「検討させてください」と伝える',cost:0,effects:{score:8,rep:5},label2:'検討中',storyTag:'前向きに検討すると伝えた。'},
-      {label:'丁重に断る',cost:0,effects:{score:3,rep:-3,profile:{finance:1}},label2:'評判-3',storyTag:'断った。石川さんは残念そうだった。'},
+      {label:'引き受ける（コミット大）',cost:0,effects:{score:25,rep:15,communityBond:8,profile:{community:6}},label2:'評判+15・地域共生型の頂点',storyTag:'自治会役員を引き受けた。「地域の一員」として認められた。'},
+      {label:'「前向きに考えさせてください」と伝える',cost:0,effects:{score:8,rep:5},label2:'検討中',storyTag:'前向きに検討すると伝えた。石川さんは「ゆっくり考えてください」と言った。'},
+      {label:'丁重にお断りする',cost:0,effects:{score:3,rep:-3,profile:{finance:1},_setCooldown:{id:'com_board_candidate',extra:0}},label2:'評判-3・180日クールダウン',storyTag:'断った。石川さんは残念そうだったが、「またいつか」と言って帰っていった。'},
     ]},
 
   { id:'com_stamp_rally', repeatable:true, domain:'community', sender:'商店街事務局', icon:'🎫', apCost:10, expireDays:14, category:'ops',
@@ -7066,6 +7066,8 @@ const CASE_COOLDOWN_DAYS = {
   gift_season_haha:  365,
   gift_season_chichi:365,
   gift_season_keiro: 365,
+  // 地域役員
+  com_board_candidate: 180,
 };
 
 // ═══════════════════════════════════════════════════════════════
@@ -7727,6 +7729,42 @@ function generateConditionCases(){
     _addSeasonalGift('gift_season_keiro',   _gMonth === 9);                        // 9月：敬老の日
     _addSeasonalGift('gift_season_ochugen', _gMonth === 7 || _gMonth === 8);       // 7〜8月：お中元
     _addSeasonalGift('gift_season_oseibo',  _gMonth === 11 || _gMonth === 12);     // 11〜12月：お歳暮
+  }
+
+  // ── 自治会役員就任の打診（条件付きトリガー）──
+  {
+    G.seasonalEventStatus = G.seasonalEventStatus || {};
+    const _boardKey = `${G.year}_com_board_candidate`;
+    const _boardAlreadyThis = !!G.seasonalEventStatus[_boardKey];
+    const _boardUnresolved = G.cases.some(c => c.id === 'com_board_candidate' && !c.resolved);
+    if(!_boardAlreadyThis && !_boardUnresolved){
+      const _reg0 = G.regions[0] || {};
+      const _bRep  = _reg0.reputation || 0;
+      const _bBond = _reg0.communityBond || 0;
+      const _bCommEvents = G.cases.filter(c => c.domain === 'community' && c.resolved).length;
+      const _bCooldown = (G.caseCooldowns||{})['com_board_candidate'] || 0;
+      const _bCooldownOk = totalDays - _bCooldown >= 180;
+      // 発生除外チェック
+      const _bExclude = [];
+      if(G.year === 1 && G.month >= 4 && G.month <= 9) _bExclude.push('1年目4〜9月は除外期間');
+      if(_bCommEvents < 2) _bExclude.push(`地域イベント参加数不足(${_bCommEvents}/2)`);
+      if(!_bCooldownOk) _bExclude.push(`断り後クールダウン中(残${180-(totalDays-_bCooldown)}日)`);
+      // A or B の条件
+      const _bCondA = totalDays >= 360;
+      const _bCondB = _bRep >= 80 && _bBond >= 70 && _bCommEvents >= 2;
+      if(!_bCondA && !_bCondB) _bExclude.push(`条件未達(totalDays:${totalDays}/360 or rep:${_bRep}/80+bond:${_bBond}/70)`);
+      // 大型コミュニティ案件との同日チェック
+      const _bBigEvents = ['com_empty_shop','com_kids_cafeteria','com_rep_neighbor'];
+      if(G.cases.some(c => _bBigEvents.includes(c.id) && !c.resolved)) _bExclude.push('他の大型地域案件が進行中');
+      // デバッグ保存
+      G._boardCandidateDebug = _bExclude.length > 0
+        ? `除外: ${_bExclude.join(' / ')}`
+        : `候補（rep:${_bRep} bond:${_bBond} events:${_bCommEvents} days:${totalDays}）`;
+      if(_bExclude.length === 0){
+        G.seasonalEventStatus[_boardKey] = true;
+        addCase(CASE_POOL.find(c => c.id === 'com_board_candidate'));
+      }
+    }
   }
 
   // ── みどり・成田をご縁ノートに反映 ──
@@ -12760,6 +12798,14 @@ function _renderDevDashboard(){
             return `<div style="margin-top:8px;font-size:11px;font-weight:700;color:#98FB98;margin-bottom:4px">🎁 seasonalEventStatus（${_sesKeys.length}件）</div>
             ${_sesRows.length ? _sesRows.join('') : '<div style="font-size:10px;color:#555">記録なし</div>'}`;
           })()}
+        </div>`;
+      })()}
+      ${(()=>{
+        const _bcd = G._boardCandidateDebug || '（まだ評価未実行）';
+        const _bcdColor = _bcd.startsWith('除外') ? '#FF6B6B' : _bcd.startsWith('候補') ? '#90EE90' : '#888';
+        return `<div style="margin-bottom:10px">
+          <div style="font-size:11px;font-weight:700;color:#DDA0DD;margin-bottom:4px">🗳️ 自治会役員就任の打診</div>
+          <div style="font-size:10px;color:${_bcdColor}">${_bcd}</div>
         </div>`;
       })()}
       ${(()=>{
