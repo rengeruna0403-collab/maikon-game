@@ -370,6 +370,7 @@ body.large-text #app{zoom:1.2;transform-origin:top center}
           <span>社史</span>
         </button>
         <button id="large-text-btn" onclick="toggleLargeText()" title="文字を大きくする" style="display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);border-radius:99px;width:36px;height:36px;cursor:pointer;color:#fff;font-size:16px;opacity:0.6">🔠</button>
+        <button id="sound-toggle-btn" onclick="toggleSound()" title="サウンドON/OFF" style="display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);border-radius:99px;width:36px;height:36px;cursor:pointer;color:#fff;font-size:16px;opacity:0.6">🔊</button>
       </div>
     </div>
   </div>
@@ -820,6 +821,7 @@ function toggleLargeText(){
   }
 })();
 function notify(msg,type=''){
+  playSfx(type==='warn'?'warn':'notify');
   let stack=document.getElementById('notif-stack');
   if(!stack){ stack=document.createElement('div'); stack.id='notif-stack'; document.body.appendChild(stack); }
   const el=document.createElement('div');
@@ -1461,6 +1463,7 @@ function _nextTutScene(){
       G.tut.phase='done'; G.started=true;
       _injectFirstCase();
       updateHeader(); setTab('home');
+      startBgm();
     }
     return;
   }
@@ -2159,6 +2162,7 @@ function normalizeDate(){
 }
 
 function advanceDay(){
+  playSfx('day');
   G.tut._day1HintDone = true; // 初日ヒントは翌日へ進むと同時に消す
   console.log('[advanceDay] start day=' + G.day + ' month=' + G.month + ' year=' + G.year + ' G.activeEvent=' + JSON.stringify(G.activeEvent&&(G.activeEvent.id||G.activeEvent)) + ' advancing=' + G.isAdvancingDay + ' monthly=' + G.processingMonthly);
   // ① 同期的二重実行防止
@@ -2542,6 +2546,7 @@ function getOchawanQuote(monthProfit){
 
 function showMonthlyMeeting(monthProfit, promotions, ownerRankUp){
   if(G.autoTesting){ afterMonthlyMeeting(); return; }
+  playSfx('monthly');
   hideLoadingOverlay();
   // 月初の季節あいさつ（モーダルが開く前に一瞬表示）
   const _seasonGreet = {spring:'🌸 春の月が始まりました',summer:'🌿 夏の月が始まりました',autumn:'🍂 秋の月が始まりました',winter:'⛄ 冬の月が始まりました'};
@@ -2971,6 +2976,7 @@ function _injectEndingCSS(){
 function showEnding(stage){
   stage = stage || 1;
   _injectEndingCSS();
+  playSfx('ending');
   G.gameEnded = true;
   G.activeEvent = 'ending';
   document.getElementById('event-modal').style.display = 'flex';
@@ -8335,6 +8341,7 @@ function generateRoomApplicationCases(){
 function resolveCase(idx){
   const c = G.cases[idx];
   if(!c || c.resolved) return;
+  playSfx('click');
   G.activeEvent = c;
   showEventModal(c);
 }
@@ -9384,6 +9391,9 @@ function showFloatingEffect(text, type){
 // 案件選択後にふわっと浮かぶ数値変化エフェクト
 function showEffectList(fx, cost){
   _injectEffectCSS();
+  if(fx.unlockProduct)                 playSfx('unlock');
+  else if(fx.money && fx.money > 0)    playSfx('money');
+  else if(fx.rep > 0 || fx.charMeet || fx.charLevel || fx.charComplete) playSfx('rep');
   const lines = [];
   if(cost > 0)                         lines.push({ t:'💰 資金 −' + fmt(cost),        c:'neg' });
   if(fx.money && fx.money > 0)         lines.push({ t:'💰 資金 +' + fmt(fx.money),    c:'pos' });
@@ -10984,6 +10994,9 @@ function updateHeader(){
     goenCount.textContent = metCount;
     goenCount.style.background = metCount > 0 ? '#b8860b' : 'rgba(255,255,255,.3)';
   }
+  // サウンドボタン同期
+  const sndBtn = document.getElementById('sound-toggle-btn');
+  if(sndBtn && typeof SOUND_CFG !== 'undefined') sndBtn.textContent = SOUND_CFG.enabled ? '🔊' : '🔇';
   // DEBUGボタン
   const dbgBtn = document.getElementById('h-debug-btn');
   if(dbgBtn) dbgBtn.style.display = DEV_MODE ? 'block' : 'none';
@@ -10997,6 +11010,7 @@ function updateHeader(){
 
 // ─────────── TAB ───────────
 function setTab(tab){
+  playSfx('tab');
   G.tab=tab;
   const navMap={home:'home',store:'store',apt:'apt',region:'region',staff:'staff',story:'story',finance:'fin'};
   Object.keys(navMap).forEach(t=>{
@@ -13502,6 +13516,7 @@ function continueGame(key){
     updateHeader();
     renderTab();
     showSaveRestoredBanner();
+    startBgm();
     // 既存セーブ読み込み時のみ「おかえり！」を表示
     setTimeout(()=>{ notify('🍚 おかえり！ホームの「翌日へ進む」でゲームを進めてね','gold'); }, 600);
   } else {
@@ -13681,6 +13696,145 @@ function showSaveRestoredBanner(){
   document.body.appendChild(b);
   setTimeout(()=>b.remove(), 2500);
 }
+
+// ─────────── SOUND SYSTEM ───────────
+const SOUND_CFG = {
+  enabled: localStorage.getItem('maikon_sound') !== '0',
+  ctx: null,
+};
+
+function _sCtx(){
+  if(!SOUND_CFG.ctx || SOUND_CFG.ctx.state === 'closed'){
+    try{ SOUND_CFG.ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e){ return null; }
+  }
+  if(SOUND_CFG.ctx.state === 'suspended') SOUND_CFG.ctx.resume();
+  return SOUND_CFG.ctx;
+}
+
+function _sfxTone(ctx, t, freq, dur, type, vol){
+  try{
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = type || 'sine';
+    osc.frequency.setValueAtTime(freq, t);
+    gain.gain.setValueAtTime(vol || 0.15, t);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.start(t); osc.stop(t + dur + 0.01);
+  } catch(e){}
+}
+
+function playSfx(type){
+  if(!SOUND_CFG.enabled) return;
+  try{
+    const ctx = _sCtx();
+    if(!ctx) return;
+    const t = ctx.currentTime;
+    if(type === 'click'){
+      _sfxTone(ctx, t, 880, 0.07, 'sine', 0.1);
+    } else if(type === 'notify'){
+      _sfxTone(ctx, t,      880, 0.35, 'sine', 0.15);
+      _sfxTone(ctx, t+0.06, 1108, 0.25, 'sine', 0.1);
+    } else if(type === 'warn'){
+      _sfxTone(ctx, t,      220, 0.25, 'sawtooth', 0.08);
+      _sfxTone(ctx, t+0.15, 196, 0.25, 'sawtooth', 0.08);
+    } else if(type === 'money'){
+      [0, 0.07, 0.14].forEach((d,i) => _sfxTone(ctx, t+d, [1047,1319,1568][i], 0.25, 'sine', 0.13));
+    } else if(type === 'rep'){
+      _sfxTone(ctx, t,      523, 0.5, 'sine', 0.11);
+      _sfxTone(ctx, t+0.03, 659, 0.5, 'sine', 0.09);
+      _sfxTone(ctx, t+0.06, 784, 0.5, 'sine', 0.07);
+    } else if(type === 'day'){
+      const osc = ctx.createOscillator();
+      const g = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(120, t);
+      osc.frequency.exponentialRampToValueAtTime(50, t+0.18);
+      g.gain.setValueAtTime(0.25, t);
+      g.gain.exponentialRampToValueAtTime(0.0001, t+0.22);
+      osc.connect(g); g.connect(ctx.destination);
+      osc.start(t); osc.stop(t+0.25);
+    } else if(type === 'tab'){
+      _sfxTone(ctx, t, 660, 0.05, 'sine', 0.08);
+    } else if(type === 'monthly'){
+      [523, 587, 698, 784].forEach((f,i) => _sfxTone(ctx, t+i*0.18, f, 0.35, 'sine', 0.16));
+    } else if(type === 'ending'){
+      const mel = [523,659,784,1047,784,1047,1175,1568];
+      const drs = [0.18,0.18,0.18,0.36,0.1,0.14,0.14,0.55];
+      let off = 0;
+      mel.forEach((f,i) => { _sfxTone(ctx, t+off, f, drs[i]+0.1, 'sine', 0.18); off += drs[i]; });
+    } else if(type === 'unlock'){
+      [659,784,1047,1319,1568].forEach((f,i) => _sfxTone(ctx, t+i*0.07, f, 0.4, 'sine', 0.14));
+    }
+  } catch(e){}
+}
+
+// BGM: looping Japanese pentatonic (C D F G A — よな抜き)
+let _bgmTimer = null;
+let _bgmRunning = false;
+
+function startBgm(){
+  if(_bgmRunning || !SOUND_CFG.enabled) return;
+  _bgmRunning = true;
+  _bgmLoop();
+}
+
+function stopBgm(){
+  _bgmRunning = false;
+  if(_bgmTimer){ clearTimeout(_bgmTimer); _bgmTimer = null; }
+}
+
+function _bgmLoop(){
+  if(!_bgmRunning || !SOUND_CFG.enabled) return;
+  try{
+    const ctx = _sCtx();
+    if(!ctx){ _bgmRunning = false; return; }
+    // よな抜き長音階 (C D F G A)
+    const scale = [261.6, 293.7, 349.2, 392.0, 440.0, 523.2, 587.3, 698.5, 784.0, 880.0];
+    const mel   = [0, 2, 3, 5, 3, 2, 0, 2, 3, 9, 8, 5, 3, 2, 0, 2];
+    const beat  = 0.38;
+    const masterGain = ctx.createGain();
+    masterGain.gain.setValueAtTime(0.06, ctx.currentTime);
+    masterGain.connect(ctx.destination);
+    const t = ctx.currentTime + 0.05;
+    mel.forEach((idx, i) => {
+      const osc = ctx.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(scale[idx], t + i * beat);
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0.7, t + i * beat);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + i * beat + beat * 0.85);
+      osc.connect(g); g.connect(masterGain);
+      osc.start(t + i * beat);
+      osc.stop(t + i * beat + beat);
+    });
+    const loopMs = Math.round(mel.length * beat * 1000) + 300;
+    _bgmTimer = setTimeout(() => { if(_bgmRunning) _bgmLoop(); }, loopMs);
+  } catch(e){ _bgmRunning = false; }
+}
+
+function toggleSound(){
+  SOUND_CFG.enabled = !SOUND_CFG.enabled;
+  localStorage.setItem('maikon_sound', SOUND_CFG.enabled ? '1' : '0');
+  const btn = document.getElementById('sound-toggle-btn');
+  if(btn) btn.textContent = SOUND_CFG.enabled ? '🔊' : '🔇';
+  if(SOUND_CFG.enabled){ startBgm(); playSfx('notify'); }
+  else { stopBgm(); }
+}
+
+// ユーザー操作でAudioContextをアンロック（スマホ対応）
+document.addEventListener('click', function _audioUnlock(){
+  if(SOUND_CFG.enabled){ const c = _sCtx(); if(c && c.state === 'suspended') c.resume(); }
+  document.removeEventListener('click', _audioUnlock);
+}, { once: true, capture: true });
+
+// 初期化時にサウンドボタンの表示を同期
+window.addEventListener('DOMContentLoaded', () => {
+  const btn = document.getElementById('sound-toggle-btn');
+  if(btn) btn.textContent = SOUND_CFG.enabled ? '🔊' : '🔇';
+});
+
+// ─────────── END SOUND SYSTEM ───────────
 
 init();
 _initDebugViewport();
