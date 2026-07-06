@@ -11076,9 +11076,7 @@ function renderTodayAction(){
   if(ap >= 30 && actions.length < 3){
     const _apActions = [];
     if(store && store.isOpen)
-      _apActions.push({ icon:'🏪', label:'店舗を見回る', desc:'店の様子を確認し、売上アップのヒントを探す', onclick:"setTab('store')" });
-    if(G.buildings.length > 0)
-      _apActions.push({ icon:'🏢', label:'物件を見回る', desc:'入居者の様子を確認する', onclick:"setTab('apt')" });
+      _apActions.push({ icon:'🏪', label:'店舗を整える', desc:'店の様子を確認し、売上アップのヒントを探す', onclick:"setTab('store')" });
     _apActions.push({ icon:'🌿', label:'地域へ出る', desc:'地域活動で評判を高める', onclick:"setTab('region');setTimeout(()=>{document.getElementById('region-activity-anchor')?.scrollIntoView({behavior:'smooth',block:'start'})},200)" });
     if(store && store.isOpen && (store.customers||0) > 0)
       _apActions.push({ icon:'☕', label:'常連さんと話す', desc:'常連客との交流がご縁を生む', onclick:"setTab('store')" });
