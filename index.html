@@ -1192,6 +1192,7 @@ function buildTutOpening(){
   return [
   { type:'tut3_step1' },
   { type:'tut3_step2' },
+  { type:'tut3_brand' },
   { type:'tut3_step3' },
   ];
 }
@@ -1279,7 +1280,7 @@ function _renderTutScene(){
   // ─── 新3ステップチュートリアル ───
   if(sc.type==='tut3_step1'){
     body.innerHTML=`
-      <div class="tut-header"><div class="tut-chapter">STEP 1 / 3</div><div class="tut-title">ようこそ！</div></div>
+      <div class="tut-header"><div class="tut-chapter">STEP 1 / 4</div><div class="tut-title">ようこそ！</div></div>
       <div class="tut-body">
         <div class="tut-speaker"><div class="tut-avatar" style="animation:tutFadeIn .5s ease .1s both">🍚</div>
           <div><div class="tut-name" style="font-size:13px;font-weight:700;color:var(--text)">お茶碗マン</div>
@@ -1299,7 +1300,7 @@ function _renderTutScene(){
     return;
   } else if(sc.type==='tut3_step2'){
     body.innerHTML=`
-      <div class="tut-header"><div class="tut-chapter">STEP 2 / 3</div><div class="tut-title">画面の使い方</div></div>
+      <div class="tut-header"><div class="tut-chapter">STEP 2 / 4</div><div class="tut-title">画面の使い方</div></div>
       <div class="tut-body">
         <div class="tut-speaker"><div class="tut-avatar">🍚</div>
           <div><div class="tut-name" style="font-size:13px;font-weight:700;color:var(--text)">お茶碗マン</div></div></div>
@@ -1316,9 +1317,31 @@ function _renderTutScene(){
         <button class="tut-next" onclick="_nextTutScene()">次へ →</button>
       </div>`;
     return;
+  } else if(sc.type==='tut3_brand'){
+    body.innerHTML=`
+      <div class="tut-header"><div class="tut-chapter">STEP 3 / 4</div><div class="tut-title">舞昆のこと</div></div>
+      <div class="tut-body">
+        <div class="tut-speaker">
+          <div class="tut-avatar" style="animation:tutFadeIn .5s ease .1s both">🍚</div>
+          <div><div class="tut-name" style="font-size:13px;font-weight:700;color:var(--text)">お茶碗マン</div>
+          <div style="font-size:10px;color:var(--muted)">経営の相棒</div></div>
+        </div>
+        <div class="tut-text">「舞昆には、実はたくさんの種類があるんですよ。<br><br>通販、百貨店の催事、贈答用……<br>全国でいろんな商品が親しまれています。」</div>
+        <div style="background:linear-gradient(135deg,#FFF8E1,#FFF3CD);border-radius:14px;padding:14px 16px;margin:12px 0;border:1px solid #FFD54F">
+          <div style="font-size:12px;font-weight:700;color:#E65100;margin-bottom:10px;text-align:center">🏪 このお店の立ち位置</div>
+          <div style="display:flex;flex-direction:column;gap:7px;font-size:13px;color:var(--text)">
+            <div style="display:flex;align-items:flex-start;gap:8px"><span style="color:var(--gr);font-weight:700;flex-shrink:0">✓</span><span>舞昆本社の商品を仕入れて販売する、<strong>地域の取扱店</strong></span></div>
+            <div style="display:flex;align-items:flex-start;gap:8px"><span style="color:var(--gr);font-weight:700;flex-shrink:0">✓</span><span>最初は定番の舞昆のみ。でも、それが始まり</span></div>
+            <div style="display:flex;align-items:flex-start;gap:8px"><span style="color:var(--gr);font-weight:700;flex-shrink:0">✓</span><span>お客様の声・スタッフの提案・本社からの案内で<br>少しずつ品揃えを増やしていける</span></div>
+          </div>
+        </div>
+        <div class="tut-text">「常連さんから<br><em>「こんな舞昆ありませんか？」</em><br><br>そんな声が届くたびに、新しい商品を仕入れるかどうか考えることになります。<br><br>新しい商品が増えるたびに、<br>このまちのお客様とのご縁も広がっていきますよ。」</div>
+        <button class="tut-next" onclick="_nextTutScene()">次へ →</button>
+      </div>`;
+    return;
   } else if(sc.type==='tut3_step3'){
     body.innerHTML=`
-      <div class="tut-header"><div class="tut-chapter">STEP 3 / 3</div><div class="tut-title">ゲームの流れ</div></div>
+      <div class="tut-header"><div class="tut-chapter">STEP 4 / 4</div><div class="tut-title">ゲームの流れ</div></div>
       <div class="tut-body">
         <div class="tut-speaker"><div class="tut-avatar">🍚</div>
           <div><div class="tut-name" style="font-size:13px;font-weight:700;color:var(--text)">お茶碗マン</div></div></div>
