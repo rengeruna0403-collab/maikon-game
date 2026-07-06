@@ -3620,7 +3620,7 @@ const PRODUCT_CATALOG = {
   tamogi_maikon:         { name:'たもぎ茸舞昆',           icon:'🟩', type:'product', seasonal:false, description:'希少なたもぎ茸の香りと昆布の旨みが際立つ一品。' },
   // 将来解放予定
   matsutake_maikon:      { name:'松茸舞昆',                icon:'🎋', type:'product', seasonal:true,  season:'autumn', description:'香り高い松茸と舞昆の贅沢な組み合わせ。秋の特別品。' },
-  sansho_maikon:         { name:'山椒舞昆',                icon:'🌿', type:'product', seasonal:false, description:'山椒のピリリとした辛みがアクセント。ご飯が止まりません。' },
+  sansho_maikon:         { name:'山椒舞昆',                icon:'🌿', type:'product', seasonal:false, description:'旅先でも人気の個性派。山椒のピリリとした香りがご飯を引き立てます。' },
   mentai_hotate:         { name:'明太風帆立舞昆',          icon:'🟥', type:'product', seasonal:false, description:'個性的な辛みと帆立の旨みが印象的な一品。' },
 };
 
@@ -3637,7 +3637,7 @@ const UNLOCKED_PRODUCT_CATALOG = {
   wasabi_maikon:       { name:'極旨わさび舞昆',       icon:'🌱', desc:'わさびのツンとした辛みがクセになる',                 ratio:0.18, stars:4 },
   shiitake_maikon:     { name:'椎茸舞昆',             icon:'🍄', desc:'椎茸の旨みが凝縮。お茶漬けにも相性抜群',             ratio:0.22, stars:4 },
   karakuchi_maikon:    { name:'やみつき旨辛舞昆',     icon:'🌶', desc:'旨みと辛みのバランスが絶妙',                         ratio:0.17, stars:4 },
-  shiro_maikon:        { name:'白白舞昆',             icon:'⬜', desc:'素材の色を活かした珍しい白い舞昆',                   ratio:0.12, stars:3 },
+  shiro_maikon:        { name:'白白舞昆',             icon:'⬜', desc:'かつおでんぶの優しい甘み。甘口でお子様にも人気。GABA配合',  ratio:0.13, stars:4 },
   chirimen_sansho:     { name:'ちりめん山椒',         icon:'🐟', desc:'ちりめんじゃこ×山椒の王道惣菜',                     ratio:0.21, stars:4 },
   tororo_konbu:        { name:'とろろ昆布',           icon:'💚', desc:'出汁にも料理にも使えるとろろ昆布',                   ratio:0.14, stars:3 },
   dashi_pack:          { name:'だしパック',           icon:'📦', desc:'プロの味を家庭で。昆布×かつお節のだし',             ratio:0.16, stars:4 },
@@ -5192,15 +5192,15 @@ const CASE_POOL = [
   // ─── 商品種類拡充イベント ───
   { id:'unlock_sansho_maikon', conditionOnly:true, repeatable:false,
     domain:'store', sender:'常連客', icon:'🌿', apCost:10, expireDays:21, category:'mgmt',
-    title:'「山椒舞昆も好きなんです」',
-    body:'常連の方が嬉しそうに話しかけてきました。\n\n「舞昆って色々な種類があるんですね。\n前に別のお店で山椒舞昆を食べたことがあって——\n山椒のピリリとした香りが忘れられないんです。\n\nこちらでも扱う予定はありますか？」',
+    title:'「山椒舞昆、こちらにもありますか？」',
+    body:'常連の方が、旅行の話をしながら言いました。\n\n「先月、京都に行ったんですけど、\nお土産屋さんで山椒舞昆を見つけて。\n\n試食したら山椒のピリリとした香りが忘れられなくて。\n\n舞昆ブランドの商品らしいので、\nこちらでも置いていただけると嬉しいんですが」',
     choices:[
       { label:'山椒舞昆を仕入れてみる（¥40,000）', cost:40000,
         effects:{ score:12, storeSat:8, custRegular:2, unlockProduct:'sansho_maikon' },
-        label2:'山椒舞昆が商品コーナーに加わります', storyTag:'山椒舞昆を仕入れることにした。常連客が喜んでくれた。' },
-      { label:'今は難しいと伝える', cost:0,
+        label2:'山椒舞昆が商品コーナーに加わります', storyTag:'旅先で出会った味——山椒舞昆を仕入れることにした。地元でも楽しめる舞昆の世界が広がった。' },
+      { label:'今は品揃えを絞っておく', cost:0,
         effects:{ score:3 },
-        label2:'—', storyTag:'今回は見送ることにした。' },
+        label2:'—', storyTag:'今回は見送ることにした。いつか扱ってみたい。' },
     ]},
 
   { id:'unlock_mentai_hotate', conditionOnly:true, repeatable:false,
@@ -5244,12 +5244,12 @@ const CASE_POOL = [
 
   { id:'unlock_shiro_maikon', conditionOnly:true, repeatable:false,
     domain:'store', sender:'常連客', icon:'⬜', apCost:10, expireDays:21, category:'mgmt',
-    title:'「白い舞昆があるって本当ですか？」',
-    body:'常連のお客様が、めずらしそうに話しかけてきました。\n\n「舞昆って、白いのがあるって聞いたんですけど——\n\n「白白舞昆」という商品で、\n素材の色をそのまま活かした珍しいものらしいです。\n\n地域の方への贈り物にも使えると聞いて、\nぜひ置いてほしいなと思って」',
+    title:'「甘口の舞昆、置いてもらえませんか？」',
+    body:'お子さん連れの常連のお客様が、少し遠慮がちに聞いてきました。\n\n「舞昆の公式通販を見ていたら、\n「白白（パクパク）舞昆」という商品があって。\n\nかつおでんぶの優しい甘みで、\n子どもでも食べやすいって書いてあって。\n\nうちの子、舞昆は好きなんですが\n少し辛いのが苦手で——\n\nこちらでも扱っていただけたら嬉しいんですが」',
     choices:[
       { label:'白白舞昆を仕入れてみる（¥45,000）', cost:45000,
-        effects:{ score:12, rep:5, storeSat:8, unlockProduct:'shiro_maikon' },
-        label2:'白白舞昆が商品コーナーに加わります', storyTag:'白白舞昆を仕入れた。素材の色が活きた珍しい商品で、常連客に喜ばれた。' },
+        effects:{ score:12, rep:5, storeSat:8, communityBond:3, unlockProduct:'shiro_maikon' },
+        label2:'白白舞昆が商品コーナーに加わります', storyTag:'白白（パクパク）舞昆を仕入れた。かつおでんぶの甘みが子どもにも大人気になった。舞昆の世界が広がった。' },
       { label:'今は品揃えを絞っておく', cost:0,
         effects:{ score:2 },
         label2:'—', storyTag:'今回は見送ることにした。' },
@@ -5257,12 +5257,12 @@ const CASE_POOL = [
 
   { id:'unlock_karakuchi_maikon', conditionOnly:true, repeatable:false,
     domain:'store', sender:'常連客', icon:'🌶', apCost:10, expireDays:21, category:'mgmt',
-    title:'「辛い舞昆が食べたいです」',
-    body:'若い常連のお客様が、目を輝かせて言いました。\n\n「舞昆って、辛いのもあるって知ってますか？\n\n「やみつき旨辛舞昆」という商品で——\n旨みと辛みのバランスが絶妙らしくて。\n\nうちのお父さんが辛いもの好きで、\n一緒に食べたいんです。置いてもらえませんか？」',
+    title:'「旨辛舞昆、こちらにもありますか？」',
+    body:'常連の方が、百貨店の催事の話をしながら言いました。\n\n「先日、百貨店の催事で舞昆のブースが出ていて。\n\n「やみつき旨辛舞昆」を試食したんですが——\n旨みと辛みのバランスが絶妙で、\nご飯がどんどん進んじゃって。\n\nうちの主人も辛いもの好きなので、\nぜひここでも扱ってもらえたら嬉しいんですが」',
     choices:[
       { label:'旨辛舞昆を仕入れてみる（¥38,000）', cost:38000,
         effects:{ score:12, storeSat:8, custRegular:2, unlockProduct:'karakuchi_maikon' },
-        label2:'やみつき旨辛舞昆が商品コーナーに加わります', storyTag:'旨辛舞昆を仕入れた。辛いもの好きの常連客に大好評だった。' },
+        label2:'やみつき旨辛舞昆が商品コーナーに加わります', storyTag:'百貨店催事で話題になった旨辛舞昆を仕入れた。舞昆ブランドの幅広さをあらためて感じた。' },
       { label:'今は品揃えを絞っておく', cost:0,
         effects:{ score:2 },
         label2:'—', storyTag:'今回は見送ることにした。' },
@@ -7447,12 +7447,12 @@ function generateConditionCases(){
     addCase(CASE_POOL.find(c => c.id === 'tenant_request'));
   }
 
-  // ── 成田「まず広告を」（開店後7日・メニューあり）──
+  // ── 成田「まず認知を」（開店後3日・看板商品1品以上）──
   const s0 = G.stores[0];
   if(s0.isOpen && s0.menu && s0.menu.length > 0){
-    const openDay = G.tut.tutCompletedDay || ((G.year-1)*360 + (G.month-1)*30 + G.day - 7);
+    const openDay = G.tut.tutCompletedDay || ((G.year-1)*360 + (G.month-1)*30 + G.day - 3);
     const today0 = (G.year-1)*360 + (G.month-1)*30 + G.day;
-    if(today0 >= openDay + 7 && !G.cases.some(c => c.id === 'narita_first_ad')){
+    if(today0 >= openDay + 3 && !G.cases.some(c => c.id === 'narita_first_ad')){
       addCase(CASE_POOL.find(c => c.id === 'narita_first_ad'));
     }
   }
@@ -7759,8 +7759,9 @@ function generateConditionCases(){
   const _totalRooms = _rooms.length;
   const _isFull = _vacantCount === 0 && _totalRooms > 0;
 
-  // Phase 1：「まず満室に」（30日後・空き部屋あり・1回のみ）
-  if(totalDays >= 30 && _vacantCount > 0 && !G.cases.some(c => c.id === 'narita_fullhouse_goal')){
+  // Phase 1：「まず満室に」（5日後・空き部屋あり・募集開始済み・1回のみ）
+  const _seekingStarted = _rooms.some(r => r.seeking);
+  if(totalDays >= 5 && _vacantCount > 0 && _seekingStarted && !G.cases.some(c => c.id === 'narita_fullhouse_goal')){
     const base = DOMAIN_CASES.find(c => c.id === 'narita_fullhouse_goal');
     if(base) addCase(base);
   }
