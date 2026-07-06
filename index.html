@@ -1911,14 +1911,8 @@ function startGame(){
   G.tut.manualServes=0;
   G.tut.step=0;
   G.tut.stepsDone=[false,false,false,false,false];
-  // 2回目以降はチュートリアルをスキップしてゲーム開始
-  if(isTutDone()){
-    G.tut.phase='done'; G.started=true;
-    _injectFirstCase();
-    updateHeader(); setTab('home');
-    notify('🍚 おかえり！ホームの「翌日へ進む」でゲームを進めてね','gold');
-    return;
-  }
+  // 新規ゲームでは常にチュートリアルを開始（startFresh()でresetTutDone()済み）
+  // ※ isTutDone()が残存している場合の安全弁（通常は到達しない）
   showTutModal(buildTutOpening(),'はじめに','ようこそ');
 }
 
@@ -13246,19 +13240,21 @@ function continueGame(key){
   document.getElementById('intro-modal').style.display = 'none';
   const ok = loadGame(key);
   if(ok){
-    // G.tab が未設定の場合のフォールバック
     if(!G.tab) G.tab = 'home';
     updateHeader();
     renderTab();
     showSaveRestoredBanner();
+    // 既存セーブ読み込み時のみ「おかえり！」を表示
+    setTimeout(()=>{ notify('🍚 おかえり！ホームの「翌日へ進む」でゲームを進めてね','gold'); }, 600);
   } else {
-    // ロード失敗時：エラーを伝えてスタート画面に戻る
     alert('セーブデータの読み込みに失敗しました。\n最初から遊ぶを選択してください。');
     document.getElementById('start-modal').style.display = 'flex';
   }
 }
 
 function startFresh(){
+  // 新規ゲームでは必ずチュートリアルを最初から開始する
+  resetTutDone();
   document.getElementById('start-modal').style.display = 'none';
   document.getElementById('intro-modal').style.display = 'flex';
 }
