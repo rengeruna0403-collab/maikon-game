@@ -9501,6 +9501,38 @@ function dismissEventModal(){
   renderTab();
 }
 
+function _showApHintModal(){
+  const body = document.getElementById('event-modal-body');
+  body.innerHTML = `
+    <div style="position:relative">
+      <button onclick="document.getElementById('event-modal').style.display='none';G.activeEvent=null;showRegularChatModal();"
+        style="position:absolute;top:-4px;right:-4px;width:28px;height:28px;border-radius:50%;border:none;background:var(--bg2);color:var(--muted);font-size:16px;cursor:pointer;line-height:1;display:flex;align-items:center;justify-content:center">✕</button>
+    </div>
+    <div style="text-align:center;font-size:28px;margin-bottom:6px">🥣</div>
+    <div style="text-align:center;font-size:16px;font-weight:700;margin-bottom:4px;font-family:'Noto Serif JP',serif">APの使い方について</div>
+    <div style="text-align:center;font-size:11px;color:var(--muted);margin-bottom:16px">お茶碗マンより</div>
+    <div style="background:var(--warm);border:1px solid #DDD0B0;border-radius:12px;padding:16px 18px;font-size:14px;line-height:2.1;white-space:pre-wrap;color:var(--gr3)">APは毎日回復するものではありません。
+
+1週間ごとに少し回復し、
+月が変わると100まで回復します。
+
+そのため、全部を交流に使ってしまうと、
+大切な案件や地域活動に
+対応できなくなることもあります。
+
+「今日は常連さんと話す」
+「今日は地域活動を優先する」
+「今日は案件対応に集中する」
+
+どこにAPを使うかも、
+経営者の大切な判断ですよ。</div>
+    <button class="btn btn-gr" style="width:100%;margin-top:16px;padding:12px"
+      onclick="document.getElementById('event-modal').style.display='none';G.activeEvent=null;showRegularChatModal();">わかりました 🌿</button>
+  `;
+  document.getElementById('event-modal').style.display = 'flex';
+  G.activeEvent = { _apHint: true };
+}
+
 function showRegularChatModal(){
   const store = G.stores && G.stores[0];
   if(!store || !store.isOpen || (store.customers||0) <= 0){
@@ -9509,6 +9541,20 @@ function showRegularChatModal(){
   }
   const apCost = 5;
   if((G.ap||0) < apCost){ notify('APが足りません（必要AP: ' + apCost + '）','warn'); return; }
+  // 1日1回チェック
+  const _todayNum = (G.year-1)*360 + (G.month-1)*30 + G.day;
+  if(G._regularChatDoneDay === _todayNum){
+    notify('今日はもう常連さんと話しましたよ','warn');
+    return;
+  }
+  // 初回のみAPヒントモーダルを先に表示
+  if(!G._apHintShown){
+    G._apHintShown = true;
+    _showApHintModal();
+    return;
+  }
+  // 実行済みフラグをセット（モーダル表示前に確定）
+  G._regularChatDoneDay = _todayNum;
   const _variants = [
     '常連の方が、いつものカウンター席に座りました。\n\n「今日は何がおすすめですか？\n最近ちょっと食欲がなくて——\n\nでも舞昆だけはご飯が進むんですよね。\nどれにしようかな」',
     'なじみのお客さんが話しかけてきました。\n\n「ここに来ると、なんか落ち着くんですよ。\n\nいつも同じメニューを頼んでるんですけど、\nそれが逆にいいんですよね。\n\n「また来た」って感じが好きで」',
@@ -11370,14 +11416,16 @@ function renderTodayAction(){
     actions.push({ icon:'📋', label:`案件に対応する（${_pendingCnt}件）`, desc:'未処理の案件があります',
       onclick:"document.getElementById('home-cases-anchor')?.scrollIntoView({behavior:'smooth'})" });
   }
-  // 優先5: APが30以上余っている → 行動候補を提示
-  if(ap >= 30 && actions.length < 3){
+  // 優先5: APが20以上余っている → 行動候補を提示
+  if(ap >= 20 && actions.length < 3){
+    const _todayNum = (G.year-1)*360 + (G.month-1)*30 + G.day;
     const _apActions = [];
     if(store && store.isOpen)
       _apActions.push({ icon:'🏪', label:'店舗を整える', desc:'店の様子を確認し、売上アップのヒントを探す', onclick:"setTab('store')" });
     _apActions.push({ icon:'🌿', label:'地域へ出る', desc:'地域活動で評判を高める', onclick:"setTab('region');setTimeout(()=>{document.getElementById('region-activity-anchor')?.scrollIntoView({behavior:'smooth',block:'start'})},200)" });
-    if(store && store.isOpen && (store.customers||0) > 0)
-      _apActions.push({ icon:'☕', label:'常連さんと話す', desc:'常連客との交流がご縁を生む', onclick:"showRegularChatModal()" });
+    // 常連さんとの交流：1日1回・AP20以上・来客あり・今日未実施
+    if(store && store.isOpen && (store.customers||0) > 0 && G._regularChatDoneDay !== _todayNum)
+      _apActions.push({ icon:'☕', label:'時間があれば常連さんと話す', desc:'今日1回限り・AP5消費', onclick:"showRegularChatModal()" });
     // シードで1つ選ぶ（日付ベースで変化する）
     const seed = G.day + G.month * 31;
     const pick = _apActions[seed % _apActions.length];
