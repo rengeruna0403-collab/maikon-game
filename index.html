@@ -571,6 +571,7 @@ let G = {
   _bentoSeasonProposed: {}, // 旧フラグ（後方互換）
   _lastBentoEventDay: 0,   // 前回弁当案件発生日（60日クールダウン）
   seasonalBentoStatus: {}, // {'1年_春': {offered,accepted,declined,developed,productId}} 年×季節の状態管理
+  seasonalEventStatus: {}, // {'1年_gift_season_chichi': true} 年×イベントIDの発生済みフラグ
   unlockedProducts: ['kuro_maikon', 'ginger_maikon'], // 会話で解放された商品ID一覧
   unlockedEatInMenus: [],  // 会話で解放されたイートインメニューID一覧
   caseCooldowns: {}, // repeatable案件の再出現クールダウン { id: lastResolvedDay }
@@ -7712,27 +7713,20 @@ function generateConditionCases(){
   }
   // 季節ギフト案件（月ベーストリガー・ギフトコーナー展開後）
   if((G.stores[0]?.giftLevel||0) >= 1){
+    G.seasonalEventStatus = G.seasonalEventStatus || {};
     const _gMonth = G.month;
-    // 5月：母の日
-    if(_gMonth === 5 && !G.cases.some(c=>c.id==='gift_season_haha' && !c.resolved && (c.createdYear===G.year))){
-      addCase(CASE_POOL.find(c=>c.id==='gift_season_haha'));
-    }
-    // 6月：父の日
-    if(_gMonth === 6 && !G.cases.some(c=>c.id==='gift_season_chichi' && !c.resolved && (c.createdYear===G.year))){
-      addCase(CASE_POOL.find(c=>c.id==='gift_season_chichi'));
-    }
-    // 9月：敬老の日
-    if(_gMonth === 9 && !G.cases.some(c=>c.id==='gift_season_keiro' && !c.resolved && (c.createdYear===G.year))){
-      addCase(CASE_POOL.find(c=>c.id==='gift_season_keiro'));
-    }
-    // 7〜8月：お中元
-    if((_gMonth === 7 || _gMonth === 8) && !G.cases.some(c=>c.id==='gift_season_ochugen' && !c.resolved && (c.createdYear===G.year))){
-      addCase(CASE_POOL.find(c=>c.id==='gift_season_ochugen'));
-    }
-    // 11〜12月：お歳暮
-    if((_gMonth === 11 || _gMonth === 12) && !G.cases.some(c=>c.id==='gift_season_oseibo' && !c.resolved && (c.createdYear===G.year))){
-      addCase(CASE_POOL.find(c=>c.id==='gift_season_oseibo'));
-    }
+    const _addSeasonalGift = (id, cond) => {
+      if(!cond) return;
+      const _key = `${G.year}_${id}`;
+      if(G.seasonalEventStatus[_key]) return; // 今年すでに発生済み
+      G.seasonalEventStatus[_key] = true;
+      addCase(CASE_POOL.find(c=>c.id===id));
+    };
+    _addSeasonalGift('gift_season_haha',    _gMonth === 5);                        // 5月：母の日
+    _addSeasonalGift('gift_season_chichi',  _gMonth === 6);                        // 6月：父の日
+    _addSeasonalGift('gift_season_keiro',   _gMonth === 9);                        // 9月：敬老の日
+    _addSeasonalGift('gift_season_ochugen', _gMonth === 7 || _gMonth === 8);       // 7〜8月：お中元
+    _addSeasonalGift('gift_season_oseibo',  _gMonth === 11 || _gMonth === 12);     // 11〜12月：お歳暮
   }
 
   // ── みどり・成田をご縁ノートに反映 ──
@@ -12753,6 +12747,19 @@ function _renderDevDashboard(){
           <div style="margin-top:8px;font-size:11px;font-weight:700;color:#FFB347;margin-bottom:4px">🍱 seasonalBentoStatus（${_sbsKeys.length}件）</div>
           <div style="font-size:9px;color:#888;margin-bottom:3px">📢提案 ✅受諾 ❌見送 🎉完成</div>
           ${_sbsRows.length ? _sbsRows.join('') : '<div style="font-size:10px;color:#555">記録なし</div>'}
+          ${(()=>{
+            const _ses = G.seasonalEventStatus || {};
+            const _sesKeys = Object.keys(_ses).sort();
+            const _labelMap = { gift_season_haha:'母の日', gift_season_chichi:'父の日', gift_season_keiro:'敬老の日', gift_season_ochugen:'お中元', gift_season_oseibo:'お歳暮' };
+            const _sesRows = _sesKeys.map(k => {
+              const parts = k.split('_gift_season_');
+              const label = parts.length === 2 ? (_labelMap['gift_season_'+parts[1]] || parts[1]) : k;
+              const yr = parts[0];
+              return `<div style="font-size:10px;padding:1px 0;color:#ccc">✅ <b>${yr}年</b> ${label}</div>`;
+            });
+            return `<div style="margin-top:8px;font-size:11px;font-weight:700;color:#98FB98;margin-bottom:4px">🎁 seasonalEventStatus（${_sesKeys.length}件）</div>
+            ${_sesRows.length ? _sesRows.join('') : '<div style="font-size:10px;color:#555">記録なし</div>'}`;
+          })()}
         </div>`;
       })()}
       ${(()=>{
