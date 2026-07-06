@@ -4654,6 +4654,15 @@ const CASE_POOL = [
       {label:'話を聞く（新目標：空き家取得）', cost:0, effects:{score:10, credit:3, unlockExpansion:true, profile:{risk:3}}, label2:'拡大フェーズへ移行', storyTag:'成田の提案を聞いた。次のステップが見えてきた。'},
       {label:'今は現状維持でいきます', cost:0, effects:{score:3, profile:{finance:2}}, label2:'いつでも再検討できます', storyTag:'拡大の提案は保留にした。今の経営を固める。'},
     ]},
+  { id:'narita_store2_proposal', conditionOnly:true, repeatable:false, domain:'bank', sender:'成田（銀行）', icon:'🏪', apCost:15, expireDays:30, category:'strategy',
+    expirePenalty:{credit:-2, news:'🏪 成田からの2号店提案を放置した。'},
+    title:'「そろそろ2号店を考えてもいい頃です」',
+    body:'成田さんが少し前のめりになって話し始めました。\n\n「本店の数字が安定してきましたね。\nよく続けてきました。\n\n次のステップとして、\n2号店の可能性を考えてみませんか。\n\nリスクはゼロではありませんが、\n今の体力なら選択肢に入れる時期です。\n\n急ぐ必要はありません。\nでも、頭の片隅に置いておいてください」',
+    choices:[
+      {label:'「前向きに考えています」と答える',cost:0,effects:{score:10,credit:3,naritaTrust:5,profile:{risk:3,finance:2}},label2:'信用+3・拡大意向を示す',storyTag:'成田から2号店の可能性を聞いた。選択肢として頭に入れることにした。'},
+      {label:'「今はまだ本店に集中したい」と答える',cost:0,effects:{score:5,naritaTrust:2,profile:{finance:3}},label2:'本店優先',storyTag:'成田の提案は保留にした。今の経営を固める。'},
+    ]},
+
   { id:'narita_loan', sender:'成田（銀行）', icon:'🏦', apCost:20, expireDays:30, category:'strategy',
     expirePenalty:{credit:-5, news:'🏦 融資の申込期限が過ぎた。機会を逃した。'},
     title:'追加融資の案内',
@@ -5014,10 +5023,10 @@ const CASE_POOL = [
     ]},
 
   // ── 成田パートナー案件（中盤〜終盤） ──
-  { id:'midgame_narita_manager', repeatable:true, domain:'bank', sender:'成田（銀行）', icon:'💼', apCost:5, expireDays:21, category:'strategy',
+  { id:'midgame_narita_manager', conditionOnly:true, repeatable:false, domain:'bank', sender:'成田（銀行）', icon:'💼', apCost:5, expireDays:21, category:'strategy',
     expirePenalty:{credit:-1, news:'💼 成田の経営アドバイスを聞き流した。'},
     title:'成田「3号店より、先に店長を育てましょう」',
-    body:'成田さんが珍しく真剣な顔で来ました。\n\n「次の展開を考えているなら、\nお金より先に"人"を整えた方がいい。\n\n店長候補がいないまま店舗だけ増やしても、\nオーナーが倒れるだけです。\n\n今の中で、誰かを育てていますか？」',
+    body:'成田さんが珍しく真剣な顔でやって来ました。\n\n「2号店を出してみて、\nどうですか。回っていますか？\n\n数字は見ています。\nでも——\n\n次の店を考えているなら、\nお金より先に"人"を整えた方がいい。\n\n店長候補がいないまま店舗だけ増やしても、\nオーナーが倒れるだけです。\n\n今の中で、誰かを育てていますか？」',
     choices:[
       {label:'「みどりを店長に育てることを考えています」と話す',cost:0,effects:{score:14,naritaTrust:5,midoriTrust:3,credit:2,profile:{people:4,finance:2}},label2:'人材育成・信用+',storyTag:'成田さんに人材育成の方針を話した。「それが正解です」と珍しく迷わず言ってくれた。'},
       {label:'「まず規模を広げてから考えます」と答える',cost:0,effects:{score:4,naritaTrust:-2},label2:'成田の信頼やや低下',storyTag:''},
@@ -7697,6 +7706,62 @@ function generateConditionCases(){
     }
   }
 
+  // ── 成田・店舗拡大フェーズトリガー ──
+  {
+    const _s0 = G.stores[0] || {};
+    const _s1 = G.stores[1];
+    const _reg0 = G.regions[0] || {};
+    const _cr = G.creditScore || 45;
+    const _rep = _reg0.reputation || 0;
+    const _staffCount = (G.staff || []).length;
+    const _has2nd = !!_s1;
+    const _2ndOpen = _has2nd && _s1.isOpen;
+
+    // ── 2号店提案 ──
+    const _s2pKey = `${G.year}_narita_store2_proposal`;
+    G.seasonalEventStatus = G.seasonalEventStatus || {};
+    if(!G.seasonalEventStatus[_s2pKey] && !G.cases.some(c => c.id === 'narita_store2_proposal')){
+      const _s2Reasons = [];
+      if(!_s0.isOpen)                                               _s2Reasons.push('本店未開店');
+      if(_s0.level < 2)                                             _s2Reasons.push(`本店Lv不足(${_s0.level||1}/2)`);
+      if(_cr < 50)                                                  _s2Reasons.push(`信用度不足(${Math.round(_cr)}/50)`);
+      if(_rep < 50)                                                 _s2Reasons.push(`地域評価不足(${_rep}/50)`);
+      if(!G.staffUnlocked && _staffCount < 1)                      _s2Reasons.push('スタッフ未採用');
+      if(G.year === 1 && G.month < 6)                              _s2Reasons.push('1年目6月未満');
+      if(_has2nd)                                                   _s2Reasons.push('2号店すでに存在');
+
+      G._naritaStore2Debug = _s2Reasons.length > 0
+        ? `2号店提案 除外: ${_s2Reasons.join(' / ')}`
+        : `2号店提案 候補（Lv:${_s0.level} cr:${Math.round(_cr)} rep:${_rep}）`;
+
+      if(_s2Reasons.length === 0){
+        G.seasonalEventStatus[_s2pKey] = true;
+        addCase(CASE_POOL.find(c => c.id === 'narita_store2_proposal'));
+      }
+    }
+
+    // ── 3号店より店長育成（midgame_narita_manager） ──
+    if(!G.cases.some(c => c.id === 'midgame_narita_manager')){
+      const _mgrReasons = [];
+      if(!_has2nd)                                                  _mgrReasons.push('2号店未出店');
+      if(_has2nd && !_2ndOpen)                                     _mgrReasons.push('2号店未開店');
+      if(_staffCount < 2)                                           _mgrReasons.push(`スタッフ数不足(${_staffCount}/2)`);
+      if(_cr < 70)                                                  _mgrReasons.push(`信用度不足(${Math.round(_cr)}/70)`);
+      if(_rep < 70)                                                 _mgrReasons.push(`地域評価不足(${_rep}/70)`);
+      if(G.year < 2)                                               _mgrReasons.push('2年目未満');
+      const _s2Days = G._store2OpenDay || 0;
+      if(_has2nd && totalDays - _s2Days < 60)                      _mgrReasons.push(`2号店出店から60日未満(${totalDays-_s2Days}日)`);
+
+      G._naritaMgrDebug = _mgrReasons.length > 0
+        ? `店長育成提案 除外: ${_mgrReasons.join(' / ')}`
+        : `店長育成提案 候補（staff:${_staffCount} cr:${Math.round(_cr)} rep:${_rep}）`;
+
+      if(_mgrReasons.length === 0){
+        addCase(CASE_POOL.find(c => c.id === 'midgame_narita_manager'));
+      }
+    }
+  }
+
   // ── 食の感覚イベント・季節ギフトトリガー ──
   const ch = G.characters || {};
   // 高橋さんの朝食台詞（level2以上・採用30日後・未発火）
@@ -10230,6 +10295,9 @@ function openNewStore(){
     customers:15, newCustomers:14, regulars:1, satisfaction:55,
     unitPrice:700, staffCost:0, ingredientCost:8000, rent:45000,
     menu:['たもぎ茸舞昆定食'],upgrades:[],level:1,monthlyBonus:0});
+  if(G.stores.length === 2){
+    G._store2OpenDay = (G.year-1)*360 + (G.month-1)*30 + G.day;
+  }
   scoreOwner(10,'new_store');
   addStory(`舞昆茶屋${id}号店が開業した。地域に新しい拠点が生まれた。`, 'highlight');
   addNews(`🏪 舞昆茶屋${id}号店 開業！`); notify(`🏪 ${id}号店 開業！誰に任せるか選んでください`,'gold'); updateHeader();
@@ -12801,10 +12869,16 @@ function _renderDevDashboard(){
         </div>`;
       })()}
       ${(()=>{
+        const _ns2 = G._naritaStore2Debug || '（まだ評価未実行）';
+        const _nmg = G._naritaMgrDebug   || '（まだ評価未実行）';
+        const _dbColor = t => t.includes('除外') ? '#FF6B6B' : t.includes('候補') ? '#90EE90' : '#888';
         const _bcd = G._boardCandidateDebug || '（まだ評価未実行）';
         const _bcdColor = _bcd.startsWith('除外') ? '#FF6B6B' : _bcd.startsWith('候補') ? '#90EE90' : '#888';
         return `<div style="margin-bottom:10px">
-          <div style="font-size:11px;font-weight:700;color:#DDA0DD;margin-bottom:4px">🗳️ 自治会役員就任の打診</div>
+          <div style="font-size:11px;font-weight:700;color:#87CEEB;margin-bottom:4px">🏪 成田・店舗拡大フェーズ</div>
+          <div style="font-size:10px;color:${_dbColor(_ns2)};margin-bottom:2px">${_ns2}</div>
+          <div style="font-size:10px;color:${_dbColor(_nmg)}">${_nmg}</div>
+          <div style="margin-top:8px;font-size:11px;font-weight:700;color:#DDA0DD;margin-bottom:4px">🗳️ 自治会役員就任の打診</div>
           <div style="font-size:10px;color:${_bcdColor}">${_bcd}</div>
         </div>`;
       })()}
