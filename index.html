@@ -3595,9 +3595,9 @@ const MENU_CATALOG = {
 const SEASONAL_BENTO_MAP = {
   1:  { id:'bento_shoga',    name:'生姜舞昆弁当',    icon:'🫚', desc:'生姜の温かみが冷えた日にやさしい舞昆弁当。じんわりと体を温めてくれます。' },
   2:  { id:'bento_shoga',    name:'生姜舞昆弁当',    icon:'🫚', desc:'生姜の温かみが冷えた日にやさしい舞昆弁当。じんわりと体を温めてくれます。' },
-  3:  { id:'bento_haru',     name:'春待ち舞昆弁当',  icon:'🌱', desc:'やわらかな春野菜と舞昆を合わせた、季節の変わり目にやさしいお弁当です。' },
-  4:  { id:'bento_sakura',   name:'桜舞昆弁当',      icon:'🌸', desc:'ほんのり甘い桜の香りと昆布の旨みが絶妙な春限定のお弁当です。' },
-  5:  { id:'bento_sakura',   name:'桜舞昆弁当',      icon:'🌸', desc:'ほんのり甘い桜の香りと昆布の旨みが絶妙な春限定のお弁当です。' },
+  3:  { id:'bento_sakura',   name:'桜舞昆弁当',      icon:'🌸', desc:'ほんのり甘い桜の香りと昆布の旨みが絶妙な春限定のお弁当です。' },
+  4:  { id:'bento_haru',     name:'春待ち舞昆弁当',  icon:'🌱', desc:'やわらかな春野菜と舞昆を合わせた、季節の変わり目にやさしいお弁当です。' },
+  5:  { id:'bento_haru',     name:'春待ち舞昆弁当',  icon:'🌱', desc:'やわらかな春野菜と舞昆を合わせた、季節の変わり目にやさしいお弁当です。' },
   6:  { id:'bento_ume',      name:'梅舞昆弁当',      icon:'🌿', desc:'梅の酸味が夏の始まりにさわやか。舞昆とのハーモニーが食欲をそそります。' },
   7:  { id:'bento_natsu',    name:'夏野菜舞昆弁当',  icon:'🌻', desc:'旬の夏野菜をたっぷり使った彩り豊かなお弁当。暑い夏にも食べやすい一品。' },
   8:  { id:'bento_natsu',    name:'夏野菜舞昆弁当',  icon:'🌻', desc:'旬の夏野菜をたっぷり使った彩り豊かなお弁当。暑い夏にも食べやすい一品。' },
@@ -3838,6 +3838,13 @@ function _canProposeBento(){
   if(_td - (G._lastBentoEventDay||0) < _minGap) return false;
   // シーズン開始5日以降（月初直後を避ける）
   if(G.day < 5) return false;
+  // 桜舞昆弁当は2年目以降・3月中旬〜下旬に限定（1年目4月開業直後に出ない）
+  const _thisBento = SEASONAL_BENTO_MAP[G.month];
+  if(_thisBento && _thisBento.id === 'bento_sakura'){
+    if(G.year < 2) return false;          // 1年目は出さない
+    if(G.month !== 3) return false;        // 3月提案のみ（4月以降は遅すぎ）
+    if(G.day < 10 || G.day > 25) return false; // 中旬〜下旬に限定（25日超えると14日後が5月に）
+  }
   return true;
 }
 const SEASON_STORE_THEME = {
@@ -5038,7 +5045,7 @@ const CASE_POOL = [
       {label:'「まず規模を広げてから考えます」と答える',cost:0,effects:{score:4,naritaTrust:-2},label2:'成田の信頼やや低下',storyTag:''},
     ]},
 
-  { id:'midgame_narita_people', repeatable:true, domain:'bank', sender:'成田（銀行）', icon:'🤝', apCost:5, expireDays:21, category:'strategy',
+  { id:'midgame_narita_people', conditionOnly:true, repeatable:false, domain:'bank', sender:'成田（銀行）', icon:'🤝', apCost:5, expireDays:21, category:'strategy',
     expirePenalty:{credit:-1, news:'🤝 成田の言葉を聞き流した。'},
     title:'成田「ここまで来たら、お金じゃなく人が会社を作る」',
     body:'成田さんが帰り際に、立ったままで言いました。\n\n「最初に会ったころから比べたら、\nあなたは随分変わりましたよ。\n\n数字は確かに良くなっている。\nでも、それより——\n\nお客さんや住民の顔が変わりましたよね。\n\nこれはお金では作れない。\n人が作るものです」',
@@ -7790,10 +7797,24 @@ function generateConditionCases(){
     const base = DOMAIN_CASES.find(c => c.id === 'narita_warning');
     if(base) addCase(base);
   }
-  // 哲学シリーズ（180日後・信用度50以上、順番に1つずつ）
-  if(totalDays >= 180 && credit >= 50){
+  // 「人が会社を作る」（中盤以降・みどり採用・店舗Lv2・信用度50・1年目7月以降）
+  if(!G.cases.some(c => c.id === 'midgame_narita_people')){
+    const _pplOk = []
+      .concat(G.staffUnlocked ? [] : ['みどり未採用'])
+      .concat((G.staff||[]).length >= 1 ? [] : ['スタッフ不在'])
+      .concat((G.stores[0]?.level||1) >= 2 ? [] : [`店舗Lv不足(${G.stores[0]?.level||1}/2)`])
+      .concat(credit >= 50 ? [] : [`信用度不足(${Math.round(credit)}/50)`])
+      .concat(totalDays >= 270 ? [] : [`経過日数不足(${totalDays}/270)`])
+      .concat(G.cases.some(c => c.id === 'narita_first_visit' && c.resolved) ? [] : ['初回面談未完了']);
+    if(_pplOk.length === 0){
+      const _pplBase = CASE_POOL.find(c => c.id === 'midgame_narita_people');
+      if(_pplBase) addCase(_pplBase);
+    }
+  }
+  // 哲学シリーズ（2年目以降・みどり採用・店舗Lv2・信用度55以上、順番に1つずつ）
+  const _philoCond = totalDays >= 360 && credit >= 55 && G.staffUnlocked && (G.stores[0]?.level||1) >= 2;
+  if(_philoCond){
     const philoIds = ['narita_why_hire','narita_about_community','narita_about_debt','narita_proudest','narita_three_years'];
-    // まだ追加されていない哲学案件を1つだけ追加
     for(const pid of philoIds){
       if(!G.cases.some(c => c.id === pid)){
         const base = DOMAIN_CASES.find(c => c.id === pid);
@@ -9454,6 +9475,51 @@ function dismissEventModal(){
   document.getElementById('event-modal').style.display='none';
   G.activeEvent = null;
   renderTab();
+}
+
+function showRegularChatModal(){
+  const store = G.stores && G.stores[0];
+  if(!store || !store.isOpen || (store.customers||0) <= 0){
+    notify('今日は常連さんがいないようです','warn');
+    return;
+  }
+  const apCost = 5;
+  if((G.ap||0) < apCost){ notify('APが足りません（必要AP: ' + apCost + '）','warn'); return; }
+  const _variants = [
+    '常連の方が、いつものカウンター席に座りました。\n\n「今日は何がおすすめですか？\n最近ちょっと食欲がなくて——\n\nでも舞昆だけはご飯が進むんですよね。\nどれにしようかな」',
+    'なじみのお客さんが話しかけてきました。\n\n「ここに来ると、なんか落ち着くんですよ。\n\nいつも同じメニューを頼んでるんですけど、\nそれが逆にいいんですよね。\n\n「また来た」って感じが好きで」',
+    '子ども連れのお客さんが嬉しそうに話してくれました。\n\n「子どもが「また舞昆食べたい」って言うから\n連れてきました。\n\n「うちの味」って思ってくれてるみたいで——\n\n作り手としては最高でしょ？（笑）」',
+    '常連の方が、少し照れながら言いました。\n\n「実は友達に「地元で一番いい店」って紹介したんです。\n\n「紹介した手前、来てもらわないといけないから\n頼みますよ」って（笑）\n\n……自分でも、そう思ってるんですよね」',
+    '仕事帰りらしい方が立ち寄ってくれました。\n\n「疲れてる日でも、ここに来たら\nなんか元気になれるんですよ。\n\n雰囲気かなあ……\nそれとも昆布の力かなあ（笑）」',
+  ];
+  const _body = _variants[Math.floor(Math.random() * _variants.length)];
+  const _tmpCase = {
+    id: '_regular_chat_tmp',
+    title: '常連さんとの会話',
+    body: _body,
+    domain: 'store',
+    sender: '常連客',
+    icon: '☕',
+    apCost: apCost,
+    expireDays: 1,
+    category: 'ops',
+    choices: [
+      { label:'ゆっくり話を聞く',
+        effects:{ score:5, custRegular:1, rep:1, communityBond:1 },
+        label2:'常連度+1・地域評価+1',
+        storyTag:'常連さんとゆっくり話した。日常の中にある、お店と人のつながりを感じた。' },
+      { label:'「またいつでも来てください」と伝える',
+        effects:{ score:3, custRegular:1, storeSat:2 },
+        label2:'常連度+1・店舗満足+2',
+        storyTag:'常連さんに挨拶した。短い言葉でも、顔見知りになることの大切さを感じた。' },
+      { label:'今日のおすすめを紹介する',
+        effects:{ score:4, custUp:1, storeBrand:2 },
+        label2:'客数+1・ブランド+2',
+        storyTag:'今日のおすすめを伝えた。お客さんは「それにします！」と笑顔になった。' },
+    ],
+  };
+  G.activeEvent = _tmpCase;
+  showEventModal(_tmpCase);
 }
 
 function chooseEvent(idx, useFatigue){
@@ -11287,7 +11353,7 @@ function renderTodayAction(){
       _apActions.push({ icon:'🏪', label:'店舗を整える', desc:'店の様子を確認し、売上アップのヒントを探す', onclick:"setTab('store')" });
     _apActions.push({ icon:'🌿', label:'地域へ出る', desc:'地域活動で評判を高める', onclick:"setTab('region');setTimeout(()=>{document.getElementById('region-activity-anchor')?.scrollIntoView({behavior:'smooth',block:'start'})},200)" });
     if(store && store.isOpen && (store.customers||0) > 0)
-      _apActions.push({ icon:'☕', label:'常連さんと話す', desc:'常連客との交流がご縁を生む', onclick:"setTab('store')" });
+      _apActions.push({ icon:'☕', label:'常連さんと話す', desc:'常連客との交流がご縁を生む', onclick:"showRegularChatModal()" });
     // シードで1つ選ぶ（日付ベースで変化する）
     const seed = G.day + G.month * 31;
     const pick = _apActions[seed % _apActions.length];
