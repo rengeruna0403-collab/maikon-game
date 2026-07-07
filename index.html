@@ -736,10 +736,17 @@ let G = {
 };
 
 // ─────────── HELPERS ───────────
+function safeNumber(v, fallback){
+  if(fallback === undefined) fallback = 0;
+  if(v === null || v === undefined || v === '') return fallback;
+  const n = Number(String(v).replace(/[¥,円]/g, ''));
+  return Number.isFinite(n) ? n : fallback;
+}
 function fmt(n){
-  if(n>=10000000) return '¥'+Math.round(n/1000000)+'M';
-  if(n>=100000) return '¥'+Math.round(n/10000)+'万';
-  return '¥'+n.toLocaleString();
+  const v = safeNumber(n);
+  if(v>=10000000) return '¥'+Math.round(v/1000000)+'M';
+  if(v>=100000) return '¥'+Math.round(v/10000)+'万';
+  return '¥'+v.toLocaleString();
 }
 function fmtShort(n){
   if(n>=10000000) return Math.round(n/1000000)+'M';
@@ -11087,6 +11094,8 @@ function trainStaff(id,skill){
 
 // ─────────── HEADER ───────────
 function updateHeader(){
+  G.money = safeNumber(G.money, 0);
+  G.receivables = safeNumber(G.receivables, 0);
   const moneyEl = document.getElementById('h-money');
   moneyEl.textContent = fmt(G.money);
   moneyEl.style.color = G.money < 0 ? '#FF6B6B' : '#fff';
@@ -12748,6 +12757,20 @@ function _renderDevDashboard(){
   const totalDays = (G.year-1)*360 + (G.month-1)*30 + G.day;
   const midori = G.staff.find(s => s.name === '佐々木みどり');
 
+  // ── 💴 財務状態 ──
+  const _isMoneyNaN = !Number.isFinite(G.money);
+  const _isRecvNaN  = !Number.isFinite(G.receivables);
+  const financeSection = _devSection('💴 財務状態' + (_isMoneyNaN ? ' ⚠️NaN!' : ''), [
+    {label:'現金 (G.money)',     value: _isMoneyNaN ? '⚠️ NaN!' : fmt(G.money), bar: _isMoneyNaN ? 0 : Math.min(G.money, 5000000), barMax:5000000, barColor: G.money < 0 ? '#FF6B6B' : '#90EE90'},
+    {label:'売掛金 (receivables)',value: _isRecvNaN  ? '⚠️ NaN!' : fmt(G.receivables)},
+    {label:'月次売上',            value: fmt(G.lastMonthlySales || 0)},
+    {label:'現金マイナス日数',    value: (G.cashNegativeDays||0)+'日', flag: (G.cashNegativeDays||0)===0},
+    {divider:true},
+    {label:'isAdvancingDay',      value: String(!!G.isAdvancingDay),   flag: !G.isAdvancingDay},
+    {label:'processingMonthly',   value: String(!!G.processingMonthly), flag: !G.processingMonthly},
+    {label:'activeEvent',         value: G.activeEvent ? (G.activeEvent.id || String(G.activeEvent)) : 'null', flag: !G.activeEvent},
+  ]);
+
   // ── 📈 プレイヤー指標 ──
   const playerSection = _devSection('📈 プレイヤー指標', [
     {label:'信用度',        bar:G.creditScore||0, barMax:100, barColor:'#64B5F6', value:fmtNum(G.creditScore||0)+'/100'},
@@ -13076,6 +13099,7 @@ function _renderDevDashboard(){
       ${editorSection}
       ${typeSection}
       ${eventSection}
+      ${financeSection}
       ${playerSection}
       ${charSection}
       ${midoriSection}
@@ -13627,6 +13651,14 @@ function _pruneDebugSaves(){
 }
 
 function _normalizeSaveData(){
+  // 現金フィールドの復元（cash/moneyどちらかから、どちらも壊れていれば初期値）
+  const rawMoney = G.money ?? G.cash;
+  G.money = safeNumber(rawMoney, 1500000);
+  if(!Number.isFinite(G.money) || G.money === 0 && !G.started){
+    G.money = 1500000;
+  }
+  G.receivables = safeNumber(G.receivables, 0);
+
   // 古いセーブデータの不足フィールドを補完
   G.pendingMenuLaunches  ||= [];
   G.pendingBentoLaunches ||= [];
