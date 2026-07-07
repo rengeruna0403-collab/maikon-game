@@ -13626,6 +13626,48 @@ function _pruneDebugSaves(){
   } catch(e){}
 }
 
+function _normalizeSaveData(){
+  // 古いセーブデータの不足フィールドを補完
+  G.pendingMenuLaunches  ||= [];
+  G.pendingBentoLaunches ||= [];
+  G.resolvedEvents       ||= {};
+  G.eventCooldowns       ||= {};
+  G.seasonalEventStatus  ||= {};
+  G.seasonalBentoStatus  ||= {};
+  G.cases                ||= [];
+  G.stores               ||= [];
+  G.buildings            ||= [];
+  G.staff                ||= [];
+  G.unlockedProducts     ||= [];
+  G.tut                  ||= {};
+  G.settings             ||= {};
+}
+
+function _resetRuntimeFlags(){
+  // セーブしてはいけない一時フラグをロード後に必ずリセット
+  G.activeEvent        = null;
+  G.processingMonthly  = false;
+  G.isAdvancingDay     = false;
+  G.modalOpen          = false;
+  G.autoTesting        = false;
+  G.debugJumping       = false;
+  G.pendingModal       = null;
+  G.yearEndReviewShown = false;
+  G.freeMode           = false;
+  // イベントモーダルを確実に閉じる
+  const evModal = document.getElementById('event-modal');
+  if(evModal) evModal.style.display = 'none';
+  console.log('[Load] runtime flags reset', {
+    activeEvent: G.activeEvent,
+    processingMonthly: G.processingMonthly,
+    isAdvancingDay: G.isAdvancingDay,
+    modalOpen: G.modalOpen,
+    year: G.year,
+    month: G.month,
+    day: G.day
+  });
+}
+
 function loadGame(key){
   try {
     const raw = localStorage.getItem(key || getSaveKey());
@@ -13633,6 +13675,8 @@ function loadGame(key){
     const saved = JSON.parse(raw);
     if(!saved || !saved.started) return false;
     G = saved;
+    _normalizeSaveData();
+    _resetRuntimeFlags();
     return true;
   } catch(e) {
     return false;
