@@ -9754,6 +9754,17 @@ function getMidoriSuccessRate(){
   return Math.min(0.95, 0.5 + (skill / 100) * 0.45);
 }
 
+function getStaffCapacity(){
+  // スタッフ構成に応じた1日の来客上限
+  const _hasMidori     = G.staff.some(s => s.name === '佐々木みどり');
+  const _hasLunchStaff = G.staff.some(s => s.type === 'lunchStaff');
+  const _hasArubaito   = G.staff.some(s => s.type === 'arubaito');
+  if(_hasLunchStaff && _hasArubaito) return 62;
+  if(_hasLunchStaff || _hasArubaito) return 48;
+  if(_hasMidori) return 33;
+  return 20;
+}
+
 function delegateToMidori(){
   const ev = G.activeEvent;
   if(!ev) return;
@@ -9772,9 +9783,14 @@ function delegateToMidori(){
     if(fx.rep)     G.regions[0].reputation = Math.min(100, G.regions[0].reputation + Math.ceil(fx.rep * scale));
     if(fx.storeSat) G.stores[0].satisfaction = Math.min(100, G.stores[0].satisfaction + Math.ceil(fx.storeSat * scale));
     if(fx.custUp){
-      const up = Math.max(1, Math.round(fx.custUp * scale * 0.5));
-      G.stores[0].newCustomers = (G.stores[0].newCustomers||0) + up;
-      G.stores[0].customers = (G.stores[0].newCustomers||0) + (G.stores[0].regulars||0);
+      const up = Math.max(1, Math.round(fx.custUp * scale * 0.35));
+      const _cap = getStaffCapacity();
+      const _cur = (G.stores[0].newCustomers||0) + (G.stores[0].regulars||0);
+      const _actualUp = Math.min(up, Math.max(0, _cap - _cur));
+      if(_actualUp > 0){
+        G.stores[0].newCustomers = (G.stores[0].newCustomers||0) + _actualUp;
+        G.stores[0].customers = (G.stores[0].newCustomers||0) + (G.stores[0].regulars||0);
+      }
     }
     const pct = Math.round(scale * 100);
     const storyText = ev.choices[0].storyTag
@@ -10067,17 +10083,28 @@ function chooseEvent(idx, useFatigue){
   if(fx.resilience)      G.resilience      = Math.max(0, Math.min(100, (G.resilience||0)      + fx.resilience));
   if(fx.storeSat) G.stores[0].satisfaction=Math.min(100,G.stores[0].satisfaction+fx.storeSat);
   if(fx.custUp){
-    // 序盤スケール：開店90日未満は30%、180日未満は60%、以降100%
+    // 序盤スケール：開店90日未満は15%、180日未満は35%、以降65%
     const _daysSinceOpen = (G.year-1)*360 + (G.month-1)*30 + G.day;
-    const _custScale = _daysSinceOpen < 90 ? 0.3 : _daysSinceOpen < 180 ? 0.6 : 1.0;
+    const _custScale = _daysSinceOpen < 90 ? 0.15 : _daysSinceOpen < 180 ? 0.35 : 0.65;
     const _scaledUp = Math.max(1, Math.round(fx.custUp * _custScale));
-    G.stores[0].newCustomers = (G.stores[0].newCustomers || G.stores[0].customers) + _scaledUp;
-    G.stores[0].customers = (G.stores[0].newCustomers||0) + (G.stores[0].regulars||0);
+    // スタッフ容量を超えない範囲で加算
+    const _cap = getStaffCapacity();
+    const _curTotal = (G.stores[0].newCustomers || G.stores[0].customers || 0) + (G.stores[0].regulars || 0);
+    const _actualUp = Math.min(_scaledUp, Math.max(0, _cap - _curTotal));
+    if(_actualUp > 0){
+      G.stores[0].newCustomers = (G.stores[0].newCustomers || G.stores[0].customers || 0) + _actualUp;
+      G.stores[0].customers = (G.stores[0].newCustomers||0) + (G.stores[0].regulars||0);
+    }
   }
   if(fx.custRegular){
-    G.stores[0].regulars = (G.stores[0].regulars || 0) + fx.custRegular;
-    G.stores[0].customers = (G.stores[0].newCustomers||G.stores[0].customers) + G.stores[0].regulars;
-    if(fx.custRegular > 0) setTimeout(() => showGrowthToast('👥 常連さんが増えました'), 400);
+    const _cap2 = getStaffCapacity();
+    const _curTotal2 = (G.stores[0].newCustomers || 0) + (G.stores[0].regulars || 0);
+    const _actualReg = Math.min(fx.custRegular, Math.max(0, _cap2 - _curTotal2));
+    if(_actualReg > 0){
+      G.stores[0].regulars = (G.stores[0].regulars || 0) + _actualReg;
+      G.stores[0].customers = (G.stores[0].newCustomers||G.stores[0].customers||0) + G.stores[0].regulars;
+      setTimeout(() => showGrowthToast('👥 常連さんが増えました'), 400);
+    }
   }
   if(fx.roomSat){
     const b=G.buildings[fx.roomSat.building];
@@ -10700,8 +10727,8 @@ function hireArubaito(){
     skills:{ service:35, cooking:25, management:10 },
     daysWorked:0, salary:60000, growthPts:0, nextLevel:40, burden:5, satisfaction:75,
   });
-  // 夕方営業安定による集客ボーナス
-  G.stores[0].newCustomers = (G.stores[0].newCustomers || 0) + 3;
+  // 夕方営業安定による集客ボーナス（小）
+  G.stores[0].newCustomers = (G.stores[0].newCustomers || 0) + 1;
   G.stores[0].customers = (G.stores[0].newCustomers||0) + (G.stores[0].regulars||0);
   G._arubaitoRejected = false;
   addStory('坂本大樹を夕方アルバイトとして採用した。週3日・17〜21時。みどりが帰る夕方以降も店が回るようになった。夕方の来客が増えてきた。','highlight');
@@ -10759,7 +10786,7 @@ function hireLunchStaff(){
     daysWorked:0, salary:75000, growthPts:0, nextLevel:40, burden:5, satisfaction:75,
   });
   G._lunchStaffHiredDay = (G.year-1)*360 + (G.month-1)*30 + G.day;
-  G.stores[0].newCustomers = (G.stores[0].newCustomers||0) + 2;
+  G.stores[0].newCustomers = (G.stores[0].newCustomers||0) + 1;
   G.stores[0].customers = (G.stores[0].newCustomers||0) + (G.stores[0].regulars||0);
   addStory('田村さくらを昼スタッフとして採用した。週4日・10〜15時。みどりと二人で昼のピークを支えてもらえる体制になった。','highlight');
   addNews('👩‍🍳 田村さくら 採用（週4日・10〜15時・月給¥75,000）');
