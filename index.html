@@ -7532,12 +7532,11 @@ function generateConditionCases(){
     addCase(CASE_POOL.find(c => c.id === 'tenant_request'));
   }
 
-  // ── 成田「まず認知を」（開店後3日・看板商品1品以上）──
+  // ── ① 成田「まず認知を」（4月2日〜・開店済み・メニュー1品以上・チュートリアル後）──
+  // 4/2〜4/4頃に発火するよう totalDays>=2 で判定。tutCompletedDay依存を廃止。
   const s0 = G.stores[0];
-  if(s0.isOpen && s0.menu && s0.menu.length > 0){
-    const openDay = G.tut.tutCompletedDay || ((G.year-1)*360 + (G.month-1)*30 + G.day - 3);
-    const today0 = (G.year-1)*360 + (G.month-1)*30 + G.day;
-    if(today0 >= openDay + 3 && !G.cases.some(c => c.id === 'narita_first_ad')){
+  if(s0.isOpen && s0.menu && s0.menu.length > 0 && G.tut.phase === 'done' && totalDays >= 2){
+    if(!G.cases.some(c => c.id === 'narita_first_ad')){
       addCase(CASE_POOL.find(c => c.id === 'narita_first_ad'));
     }
   }
@@ -7837,12 +7836,12 @@ function generateConditionCases(){
   const _totalRooms = _rooms.length;
   const _isFull = _vacantCount === 0 && _totalRooms > 0;
 
-  // Phase 1：「まず満室に」（店舗開店済み・空き部屋あり・募集開始済み・1回のみ）
+  // Phase 1：「まず満室に」（4月5日〜・店舗開店済み・空き部屋あり・募集開始済み・1回のみ）
   // ※満室の場合は発火しない。満室達成後にケースが残っていたら自動スキップ。
   const _seekingStarted = _rooms.some(r => r.seeking) || _occupiedCount > 0;
   const _storeOpen = (G.stores||[]).some(s => s.isOpen);
   const _fullhouseExists = G.cases.some(c => c.id === 'narita_fullhouse_goal');
-  if(_storeOpen && _seekingStarted && !_fullhouseExists){
+  if(_storeOpen && _seekingStarted && !_fullhouseExists && totalDays >= 5){
     if(_vacantCount > 0){
       // 空き部屋あり → 通常通り案件追加
       const base = DOMAIN_CASES.find(c => c.id === 'narita_fullhouse_goal');
