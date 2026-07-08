@@ -6334,7 +6334,7 @@ const DOMAIN_CASES = [
 
   { id:'narita_next_location', conditionOnly:true, repeatable:false, domain:'bank', sender:'成田（銀行）', icon:'🗺️', apCost:10, expireDays:45, category:'strategy',
     title:'「次の場所を探す時期です」',
-    body:'成田が少し改まって言いました。\n\n「桜橋ハイツが満室になりましたね。\nよくここまで来ました。\n\n次のステップを話しましょう。\n\n空き家や空き地が出やすい地区が\n桜橋の東側にあります。\n今なら値段もそこまで高くない。\n\n「次の物件」を視野に入れる時期です。\n動くなら、早い方がいい」',
+    body:'成田が少し改まった様子で言いました。\n\n「桜橋ハイツ、ずっと満室が続いていますね。\n\nここまで安定して運営できるようになったのは、\n立派だと思います。\n\n収益も落ち着いてきました。\nこのまま守りを固めるのも、もちろん一つの選択です。\n\nただ——\nそろそろ次の物件を探し始めてもいい頃では、\nとも思っています。\n\n桜橋の東側には、\n空き家や空き地が出やすい地域があります。\n今なら価格もまだ落ち着いています。\n\n急がなくていい。でも、視野には入れておいてください」',
     choices:[
       { label:'「次の物件を探してみます」', cost:0,
         effects:{ score:12, credit:3, naritaTrust:8, unlockExpansion:true, profile:{ risk:4, finance:3 } },
@@ -8158,8 +8158,16 @@ function generateConditionCases(){
     _pendingFullhouse._autoSkipped = true;
     if(DEV_MODE) console.log('[Narita] narita_fullhouse_goal auto-skipped: already full');
   }
-  // Phase 2：「次の場所へ」（180日後・満室達成）
-  if(totalDays >= 180 && _isFull && !G.cases.some(c => c.id === 'narita_next_location')){
+  // 満室継続日数の記録（満室になった最初の日を記録、空き部屋が出たらリセット）
+  if(_isFull && !G._fullhouseStartDay){
+    G._fullhouseStartDay = totalDays;
+  } else if(!_isFull){
+    G._fullhouseStartDay = null;
+  }
+  // Phase 2：「次の場所へ」（満室を30日以上維持 + 180日経過 + 手元資金300万以上）
+  const _fullhouseDays = G._fullhouseStartDay ? totalDays - G._fullhouseStartDay : 0;
+  if(_isFull && _fullhouseDays >= 30 && totalDays >= 180 && G.money >= 3000000
+      && !G.cases.some(c => c.id === 'narita_next_location')){
     const base = DOMAIN_CASES.find(c => c.id === 'narita_next_location');
     if(base) addCase(base);
   }
