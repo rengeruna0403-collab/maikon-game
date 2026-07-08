@@ -5020,9 +5020,21 @@ const CASE_POOL = [
     title:'SNSに載せてもいいですか',
     body:'来店した若いお客さんが遠慮がちに聞きました。\n\n「あの、写真撮ってもいいですか？\nSNSに「舞昆いいですよ」って書きたくて。\nフォロワーが少しいるので……迷惑だったら断ってください」',
     choices:[
-      {label:'「ぜひお願いします」と喜ぶ',cost:0,effects:{score:10,custUp:3,storeBrand:4,rep:2,profile:{community:2}},label2:'口コミ拡散・ブランド+',storyTag:'SNSに投稿してもらった。「反応良かったです」と後日また来てくれた。',
-       followUp:{days:10,icon:'📱',sender:'SNSに投稿してくれたお客さん',title:'「POPを見て来ました」が増えています',body:'あの日の投稿のお客さんから連絡がありました。\n\n「先日投稿したら、保存数がすごくて。\n\n「どこにあるんですか？」ってDMが7件も来ました。\n\n昨日も「SNSで見ました」って人が来てましたよね？\n大阪の舞昆、ちゃんと広がってると思います」'}},
-      {label:'「商品のみでお願いします」と条件をつける',cost:0,effects:{score:5,custUp:1},label2:'',storyTag:''},
+      {label:'「ぜひお願いします」と喜ぶ',
+       cost:0,
+       effects:{score:6,storeBrand:3,snsPost:true,profile:{community:2}},
+       label2:'投稿OK・反応は投稿後に判明',
+       storyTag:'SNSへの投稿を快諾した。どれくらい反応があるかは、しばらく後にわかる。'},
+      {label:'「商品のみでお願いします」と条件をつける',
+       cost:0,
+       effects:{score:4,custUp:1},
+       label2:'最低限の拡散・効果は小',
+       storyTag:'商品のみという条件で承諾した。'},
+      {label:'「すみません、今日は遠慮させてください」と断る',
+       cost:0,
+       effects:{score:2},
+       label2:'拡散なし・影響なし',
+       storyTag:'今回は断った。お客さんは「そうですか」と笑顔で帰っていった。'},
     ]},
 
   // ── 大家業 ──
@@ -5805,8 +5817,16 @@ const DOMAIN_CASES = [
     title:'SNSに投稿したいと言われた',
     body:'若い女性客が「お店の雰囲気や商品を\nインスタに投稿してもいいですか？」と聞いてきました。\n\nSNSでの拡散チャンスです。',
     choices:[
-      {label:'ぜひ！と歓迎してフォトスポットを案内',cost:0,effects:{score:8,custUp:3,rep:4,profile:{community:1}},label2:'客数+3・評判+4',storyTag:'SNS投稿を歓迎した。フォロワーからの来店が増えた。'},
-      {label:'ありがとうとだけ伝える',cost:0,effects:{score:4},label2:'ご縁に感謝',storyTag:'感謝を伝えた。'},
+      {label:'ぜひ！と歓迎してフォトスポットを案内',
+       cost:0,
+       effects:{score:6,storeBrand:3,snsPost:true,profile:{community:1}},
+       label2:'投稿OK・反応は投稿後に判明',
+       storyTag:'フォトスポットを案内して投稿を歓迎した。どれくらい広がるかは、しばらく後にわかる。'},
+      {label:'「ありがとうございます」とだけ伝える',
+       cost:0,
+       effects:{score:4,custUp:1},
+       label2:'ご縁に感謝・効果は小',
+       storyTag:'感謝を伝えた。投稿されたかもしれないが、特に何もしなかった。'},
     ]},
 
   // ② 商品開発（mgmt AP15）
@@ -10073,6 +10093,47 @@ function chooseEvent(idx, useFatigue){
       : `今年の${_sk.season}の「${_sk.name}」はタイミングが合わなかった。翌年に改めて考えよう。`;
     addStory(_msg, 'normal');
     notify(`🍱 ${_sk.name}（${_sk.season}）を今年は見送り`, 'normal');
+  }
+  if(fx.snsPost){
+    // SNS投稿抽選：地域評価・ブランド力で成功率に最大+12%ボーナス
+    const _rep   = (G.regions[0]||{}).reputation || 0;
+    const _brand = G.storeBrand || 0;
+    const _bonus = Math.min(12, Math.floor((_rep + _brand) / 10));
+    const _roll  = Math.random() * 100;
+    const _nowDay = (G.year-1)*360 + (G.month-1)*30 + G.day;
+    G.pendingFollowUps = G.pendingFollowUps || [];
+    if(_roll < 15 - _bonus * 0.3){
+      // ③ 反応なし（約15%、評判高いと少し減る）
+      G.pendingFollowUps.push({
+        triggerDay: _nowDay + 7,
+        icon:'📱', sender:'SNSに投稿してくれたお客さん',
+        title:'投稿、あまり伸びなかったみたいです',
+        body:'しばらく後、投稿してくれたお客さんからひとこと届きました。\n\n「あの写真、投稿したんですけど——\n\nいいねはついたんですが、\nそれほど広がらなくて。\n\nでもお店のこと、好きだから\nまた来ます！」\n\nSNSはいつも伸びるとは限らない。\nでも、また来てくれることの方が大事かもしれない。',
+        effects: null,
+      });
+      addStory('SNSに投稿してもらった。今回はあまり広がらなかったようだ。', 'normal');
+    } else if(_roll < 40 - _bonus * 0.5){
+      // ① 普通に伸びる（約60%）
+      G.pendingFollowUps.push({
+        triggerDay: _nowDay + 10,
+        icon:'📱', sender:'SNSに投稿してくれたお客さん',
+        title:'「SNSを見て来ました」が増えています',
+        body:'投稿してくれたお客さんから連絡がありました。\n\n「先日の投稿、じわじわ伸びてて。\n\n「どこにあるの？」ってコメントが\nいくつかついてました。\n\n昨日も「SNSで見ました」って人が\n来てましたよね？\n\n舞昆、少しずつ広がってると思います」',
+        effects:{ custBonusPerDay:1, custBonusDays:14, source:'sns_normal' },
+      });
+      addStory('SNSに投稿してもらった。じわじわと反応が来ている。', 'normal');
+    } else {
+      // ② 大きく伸びる（約25%、評判高いと増える）
+      G.pendingFollowUps.push({
+        triggerDay: _nowDay + 8,
+        icon:'🔥', sender:'SNSに投稿してくれたお客さん',
+        title:'投稿がバズりました！',
+        body:'投稿してくれたお客さんから興奮気味のメッセージが届きました。\n\n「あの写真、すごいことになってて！\n\n保存数がどんどん増えて、\n「どこにあるんですか？」って\nDMが10件以上来てます。\n\n「大阪に行ったら絶対行く」\nって書いてる人もいて——\n\nお店の名前、一気に広がりましたよ！」\n\n予想以上の反響だ。来週から来店が増えそうだ。',
+        effects:{ custBonusPerDay:3, custBonusDays:21, rep:3, source:'sns_big' },
+      });
+      addStory('SNSへの投稿が大きく広がった。来週から新規来店が増えそうだ。', 'highlight');
+      notify('🔥 SNS投稿が広がっています！来店が増えそうです', 'gold');
+    }
   }
   if(fx.unlockSeasonalGift && G.stores[0]){
     G.stores[0].seasonalGiftUnlocked = true;
