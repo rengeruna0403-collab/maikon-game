@@ -640,7 +640,7 @@ let G = {
     midori:    { met:false, level:0, notes:[], complete:false },  // みどり（採用後）
   },
   ap: 100,               // 行動力（毎朝リセット）
-  apMax: 100,            // 注意力上限
+  apMax: 60,             // 注意力上限（週20回復・最大3週分）
 
   stores: [{
     id:1, name:'舞昆茶屋1号店', region:'桜橋ハイツ1F',
@@ -805,7 +805,27 @@ function calcDailyRevenue(){
     const _custBonus = (G._tempCustBonuses||[]).filter(b => _td <= b.endDay).reduce((sum,b) => sum+b.amount, 0);
     const cTotal = (s.newCustomers||s.customers) + (s.regulars||0) + _custBonus;
     const up = s.unitPrice || 700;
-    rev += cTotal * up * revMult + (s.monthlyBonus||0)/30;
+    // ── スタッフ負担・満足度 → 接客品質 → 売上補正 ──
+    let staffMult = 1.0;
+    if(G.staffUnlocked && G.staff.length > 0){
+      const _midori = G.staff.find(st => st.name === '佐々木みどり');
+      if(_midori){
+        const _burden = _midori.burden || 0;
+        const _sat    = _midori.satisfaction || 70;
+        // 負担が高いと接客品質低下（最大-20%）
+        if(_burden > 80)      staffMult -= 0.20;
+        else if(_burden > 65) staffMult -= 0.10;
+        else if(_burden > 50) staffMult -= 0.04;
+        // 満足度が低いと接客品質低下（最大-12%）
+        if(_sat < 40)         staffMult -= 0.12;
+        else if(_sat < 55)    staffMult -= 0.06;
+        // 育成路線強化ボーナス（staffパス5pt以上）
+        if((_midori.skills.service||35) >= 60 && ((G._pathPts||{}).staff||0) >= 5)
+          staffMult += 0.05;
+      }
+    }
+    staffMult = Math.max(0.6, Math.min(1.1, staffMult));
+    rev += cTotal * up * revMult * staffMult + (s.monthlyBonus||0)/30;
     exp += s.ingredientCost + Math.round(s.rent/30);
   });
   G.buildings.forEach(b=>{
@@ -4740,8 +4760,8 @@ const CASE_POOL = [
     body:'開店から少し経ったある日、成田から電話がありました。\n\n「再開されたんですね。\n地域の方も気づいていないだけで、\n知ったら来たい人は多いと思います。\n\n小さくてもいいので、まず広告を打ってみませんか？」',
     choices:[
       { label:'地域新聞に広告を出す（¥50,000）', cost:50000,
-        effects:{ score:12, custUp:3, credit:1, profile:{finance:1}, charLevel:'narita', charNote:'開店直後に広告を勧めてくれた。素直に受け入れた。' },
-        label2:'客数+3・成田との関係', storyTag:'成田の提案で地域新聞に広告を出した。少しずつ顔を知ってもらえてきた。' },
+        effects:{ score:12, adRoll:true, credit:1, profile:{finance:1}, charLevel:'narita', charNote:'開店直後に広告を勧めてくれた。素直に受け入れた。' },
+        label2:'反響は後日判明・成田との関係', storyTag:'成田の提案で地域新聞に広告を出した。反響がどれくらい出るかは、しばらく後にわかる。' },
       { label:'SNSで自分で発信する（¥0）', cost:0,
         effects:{ score:8, custUp:1, profile:{risk:2} },
         label2:'客数+1・自力路線', storyTag:'まずは自分でSNS発信を試みた。反応は少ないが、動き始めた。' },
@@ -4862,7 +4882,13 @@ const CASE_POOL = [
     title:'地域NPOとの連携提案',
     body:'石川さんから「地域NPOと連携して、高齢者向けの昼食サービスを始めてみませんか？」と提案が来ました。',
     choices:[
-      {label:'連携する（¥30,000/月）',cost:30000,effects:{score:18,rep:10,monthlyBonus:8000,profile:{community:5}},label2:'定期収益+¥8,000・評判+10',storyTag:'NPOと連携して高齢者昼食サービスを開始した。地域に根ざした存在になってきた。'},
+      {label:'連携する（¥30,000/月）',cost:30000,
+       effects:{score:18, rep:6, monthlyBonus:5000, fatigue:12, profile:{community:5}},
+       label2:'評判+6・月次収益+¥5,000 / 効果は1〜2か月後に本格化',
+       storyTag:'NPOと連携して高齢者昼食サービスを開始した。最初は準備が大変だったが、少しずつ動き始めた。',
+       followUp:{days:45, icon:'🤝', sender:'石川（地域）', title:'NPO連携の効果が出てきています',
+         body:'石川さんから連絡が来ました。\n\n「連携を始めてからの変化、気づいていますか？\n\n「あのお店が高齢者の昼食を支えている」という話が\n地域の間で広まっています。\n\n口コミや紹介で、\n新しいお客様が少しずつ増えてきていますよ。\n\n地域に根を張る、というのは\nこういうことかもしれませんね」',
+         effects:{custRegular:2, rep:5, communityBond:8}}},
       {label:'様子を見てから判断する',cost:0,effects:{score:3,profile:{finance:2}},label2:'検討中',storyTag:'NPO連携は保留にした。'},
     ]},
   { id:'narita_diagnosis', conditionOnly:true, sender:'成田（銀行）', icon:'🔍', apCost:15, expireDays:30, category:'mgmt',
@@ -9989,8 +10015,20 @@ function getDelegateLevel(ev){
 function getMidoriSuccessRate(){
   const midori = G.staff.find(s => s.name === '佐々木みどり');
   if(!midori) return 0.67;
-  const skill = midori.skills.service || 35;
-  return Math.min(0.95, 0.5 + (skill / 100) * 0.45);
+  const skill   = midori.skills.service || 35;
+  const burden  = midori.burden || 0;
+  const sat     = midori.satisfaction || 70;
+  let rate = 0.5 + (skill / 100) * 0.45;
+  // 負担が高いと成功率低下
+  if(burden > 80)      rate -= 0.18;
+  else if(burden > 65) rate -= 0.08;
+  else if(burden > 50) rate -= 0.03;
+  // 満足度が低いと成功率低下
+  if(sat < 40)         rate -= 0.10;
+  else if(sat < 55)    rate -= 0.04;
+  // 育成路線パスボーナス（staffパス5pt以上）
+  if(((G._pathPts||{}).staff||0) >= 5) rate += 0.07;
+  return Math.min(0.95, Math.max(0.25, rate));
 }
 
 function getStaffCapacity(){
@@ -10449,6 +10487,45 @@ function chooseEvent(idx, useFatigue){
       });
       addStory('SNSへの投稿が大きく広がった。来週から新規来店が増えそうだ。', 'highlight');
       notify('🔥 SNS投稿が広がっています！来店が増えそうです', 'gold');
+    }
+  }
+  // ── 広告投資抽選（adRoll）──
+  // 「大反響」30% / 「普通」55% / 「不発」15% の3段階。地域評判・ブランドで確率補正。
+  if(fx.adRoll){
+    const _rep2   = (G.regions[0]||{}).reputation || 0;
+    const _brand2 = G.storeBrand || 0;
+    const _bonus2 = Math.min(10, Math.floor((_rep2 + _brand2) / 15));
+    const _roll2  = Math.random() * 100;
+    const _nd2    = (G.year-1)*360 + (G.month-1)*30 + G.day;
+    G.pendingFollowUps = G.pendingFollowUps || [];
+    if(_roll2 < 15 - _bonus2){
+      // 不発（約15%）
+      G.pendingFollowUps.push({
+        triggerDay: _nd2 + 7, icon:'📋', sender:'成田（銀行）',
+        title:'広告の反響、今回は薄かったようです',
+        body:'成田さんから連絡が来ました。\n\n「今回の広告、数字を見ると\n反響がいつもより薄かったようです。\n\n媒体との相性もありますし、\n時期の問題もある。\n\n一度やってみないとわからないことも多いので、\n次に活かしましょう」',
+        effects: null,
+      });
+      addStory('広告を打った。今回はあまり反響がなかった。次回の参考にする。', 'normal');
+    } else if(_roll2 < 70 - _bonus2 * 0.5){
+      // 普通（約55%）
+      G.pendingFollowUps.push({
+        triggerDay: _nd2 + 10, icon:'📋', sender:'成田（銀行）',
+        title:'広告の効果が出てきています',
+        body:'成田さんから報告が届きました。\n\n「広告を出した後から、\n新規のお客様が少しずつ増えていますね。\n\n「チラシを見て来ました」という方も\n数名いるようです。\n\n堅実な効果が出ています」',
+        effects:{ custBonusPerDay:1, custBonusDays:14, source:'ad_normal' },
+      });
+      addStory('広告を打った。じわじわと新規の来店が増えている。', 'normal');
+    } else {
+      // 大反響（約30%）
+      G.pendingFollowUps.push({
+        triggerDay: _nd2 + 8, icon:'🎯', sender:'成田（銀行）',
+        title:'広告の反響が予想以上です！',
+        body:'成田さんから興奮気味の連絡が来ました。\n\n「今回の広告、思った以上に反響があります。\n\n「新聞で見ました」「折り込みで知りました」\nという方が続いていて——\n\nこれは地域での認知度が上がっている証拠ですね。\nタイミングと媒体がうまく合いました」',
+        effects:{ custBonusPerDay:2, custBonusDays:21, rep:3, source:'ad_big' },
+      });
+      addStory('広告への反響が大きかった。「見ました」と言ってくれる新規のお客様が増えている。', 'highlight');
+      notify('🎯 広告の反響が広がっています！', 'gold');
     }
   }
   if(fx.unlockSeasonalGift && G.stores[0]){
