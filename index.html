@@ -639,7 +639,7 @@ let G = {
     narita:    { met:true,  level:1, notes:[], complete:false },  // 成田（開始から）
     midori:    { met:false, level:0, notes:[], complete:false },  // みどり（採用後）
   },
-  ap: 100,               // 行動力（毎朝リセット）
+  ap: 60,                // 行動力
   apMax: 60,             // 注意力上限（週20回復・最大3週分）
 
   stores: [{
@@ -9893,12 +9893,22 @@ function closeFollowUp(){
       G._tempCustBonuses.push({ amount: _fx.custBonusPerDay, endDay: _td + _fx.custBonusDays, source: _fx.source || 'followup' });
       notify(`🛍 ${_fx.custBonusDays}日間、来店客が増えそうです`, 'gold');
     }
-    if(_fx.rep)         G.regions[0].reputation = Math.min(100, (G.regions[0].reputation||0) + _fx.rep);
-    if(_fx.score)       scoreOwner(_fx.score, 'followup');
+    if(_fx.rep)           G.regions[0].reputation = Math.min(100, (G.regions[0].reputation||0) + _fx.rep);
+    if(_fx.score)         scoreOwner(_fx.score, 'followup');
+    if(_fx.communityBond) G.communityBond = Math.min(100, (G.communityBond||0) + _fx.communityBond);
+    if(_fx.storeSat && G.stores[0])
+      G.stores[0].satisfaction = Math.min(100, (G.stores[0].satisfaction||70) + _fx.storeSat);
+    if(_fx.customerLoyalty)
+      G.customerLoyalty = Math.min(100, (G.customerLoyalty||0) + _fx.customerLoyalty);
     if(_fx.custRegular && G.stores[0]){
-      G.stores[0].regulars = (G.stores[0].regulars||0) + _fx.custRegular;
-      G.stores[0].customers = (G.stores[0].newCustomers||G.stores[0].customers||0) + G.stores[0].regulars;
-      notify(`👥 地域活動のご縁で常連さんが${_fx.custRegular}人増えました`, 'gold');
+      const _cap3 = getStaffCapacity();
+      const _cur3 = (G.stores[0].newCustomers||0) + (G.stores[0].regulars||0);
+      const _reg3 = Math.min(_fx.custRegular, Math.max(0, _cap3 - _cur3));
+      if(_reg3 > 0){
+        G.stores[0].regulars = (G.stores[0].regulars||0) + _reg3;
+        G.stores[0].customers = (G.stores[0].newCustomers||G.stores[0].customers||0) + G.stores[0].regulars;
+        notify(`👥 地域活動のご縁で常連さんが${_reg3}人増えました`, 'gold');
+      }
     }
   }
   renderTab();
@@ -10033,6 +10043,7 @@ function getMidoriSuccessRate(){
 
 function getStaffCapacity(){
   // スタッフ構成に応じた1日の来客上限
+  if(!G.staff || !G.staff.length) return 20;
   const _hasMidori     = G.staff.some(s => s.name === '佐々木みどり');
   const _hasLunchStaff = G.staff.some(s => s.type === 'lunchStaff');
   const _hasArubaito   = G.staff.some(s => s.type === 'arubaito');
@@ -13683,7 +13694,7 @@ function _renderDevDashboard(){
     {label:'地域ご縁',      bar:G.communityBond||0, barMax:100, barColor:'#F48FB1', value:G.communityBond||0},
     {label:'経営耐性',      bar:G.resilience||0, barMax:100, barColor:'#90CAF9', value:G.resilience||0},
     {divider:true},
-    {label:'AP',            bar:G.ap||0, barMax:G.apMax||100, barColor:'#FFCC80', value:`${G.ap}/${G.apMax}`},
+    {label:'AP',            bar:G.ap||0, barMax:G.apMax||60, barColor:'#FFCC80', value:`${G.ap}/${G.apMax||60}`},
     {label:'疲労',          bar:G.fatigue||0, barMax:120, barColor:'#FF6B6B', value:(G.fatigue||0)+'/120'},
     {label:'経過日数',      value:totalDays+'日'},
     {label:'フェーズ',      value:'第'+G.phase+'部'},
@@ -14211,7 +14222,7 @@ function _devApplyEditor(){
   if(brand   !== null) G.storeBrand = Math.min(100, Math.max(0, brand));
   if(bond    !== null) G.communityBond = Math.min(100, Math.max(0, bond));
   if(loyalty !== null) G.customerLoyalty = Math.min(100, Math.max(0, loyalty));
-  if(ap      !== null) G.ap = Math.min(G.apMax||100, Math.max(0, ap));
+  if(ap      !== null) G.ap = Math.min(G.apMax||60, Math.max(0, ap));
   if(fatigue !== null) G.fatigue = Math.min(120, Math.max(0, fatigue));
   updateHeader();
   renderTab();
