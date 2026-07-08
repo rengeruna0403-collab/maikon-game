@@ -9603,7 +9603,8 @@ function chooseEvent(idx, useFatigue){
   const ev=G.activeEvent;
   const choice=ev.choices[idx];
   const fx=choice.effects;
-  if(choice.cost>0 && choice.cost>G.money){notify('資金が不足しています','warn');return;}
+  const _choiceCost = safeNumber(choice.cost, 0);
+  if(_choiceCost > 0 && _choiceCost > G.money){notify('資金が不足しています','warn');return;}
   // case-level AP cost（みどり採用で半減）
   const apCostRaw = ev.apCost || 0;
   const apCost = apCostRaw > 0 && G.staffUnlocked ? Math.ceil(apCostRaw * 0.5) : apCostRaw;
@@ -9618,7 +9619,7 @@ function chooseEvent(idx, useFatigue){
   }
   // choice-level extra AP (e.g. 面談)
   if(choice.ap>0 && !useAP(choice.ap, ev.title)) return;
-  G.money-=choice.cost;
+  if(_choiceCost > 0) G.money -= _choiceCost;
   G.totalDecisions = (G.totalDecisions||0) + 1;
   if(fx.hireStaff) G.totalHires = (G.totalHires||0) + 1;
   if(fx.money > 0 && ev.id === 'narita_loan') G.loanCount = (G.loanCount||0) + 1;
