@@ -4739,7 +4739,7 @@ const ISSUE_CARDS = [
   { id:'vacancy_spike', icon:'🚪', title:'空室が増えています',
     body:'入居率が下がっています。近隣の物件と比べて賃料が高めかもしれません。',
     choices:[
-      {label:'賃料を5%下げる',cost:0,effects:{score:5,rep:3},label2:'入居促進・評判+3',storyTag:'賃料を見直して入居者を呼び込む戦略にした。'},
+      {label:'賃料を5%下げる',cost:0,effects:{score:5,rep:3,reduceRent:0.05},label2:'入居促進・評判+3',storyTag:'賃料を見直して入居者を呼び込む戦略にした。'},
       {label:'リノベーションで魅力を上げる（¥150,000〜）',cost:150000,effects:{score:10,rep:5},label2:'物件価値UP',storyTag:'リノベーションで物件の魅力を高めた。'},
       {label:'今の賃料で粘る',cost:0,effects:{score:-2},label2:'現状維持',storyTag:'賃料は据え置いた。入居者が来るのを待つ。'},
     ]},
@@ -5088,7 +5088,7 @@ const CASE_POOL = [
       {label:'文書で注意する',cost:0,effects:{score:6,rep:2,roomSat:4},label2:'',storyTag:''},
     ]},
 
-  { id:'midgame_vacancy_rate', repeatable:true, domain:'landlord', sender:'成田（銀行）', icon:'🏦', apCost:10, expireDays:21, category:'strategy',
+  { id:'midgame_vacancy_rate', repeatable:true, requireVacancy:true, maxOccupancyPct:0.84, domain:'landlord', sender:'成田（銀行）', icon:'🏦', apCost:10, expireDays:21, category:'strategy',
     expirePenalty:{credit:-1, news:'🏦 空室対策の提案を無視した。'},
     title:'空室率が気になります',
     body:'成田さんから連絡が来ました。\n\n「今の空室率を見ていると、少し気になる数字が出ています。\n地域の高齢化が進む中で、入居者属性を少し工夫するだけで改善できると思いますが——」',
@@ -7864,6 +7864,7 @@ function generateWeeklyCases(){
       return false;
     }
     if(c.requireVacancy && !_hasVacancy) return false;
+    if(c.maxOccupancyPct !== undefined && totalRooms() > 0 && occupiedRooms()/totalRooms() > c.maxOccupancyPct) return false;
     if(c.requireTenant && !G.buildings.some(b => (b.rooms||[]).some(r => r.tenant))) return false;
     if(c.menuProposal && !_canProposeNewMenu()) return false;
     if(c.id === 'narita_loan' && !G.staffUnlocked) return false;
@@ -8772,8 +8773,8 @@ function generateConditionCases(){
   // ep8: エンディング（level7以上 2年目以降）
   if(_nishi.level >= 7 && !_nishi.complete && G.year >= 2 && nishiReady() && !G.cases.some(c=>c.id==='chr_nishimura_8')) charCase('chr_nishimura_8');
 
-  // ── 夏祭り出店依頼（年1回・4〜8月限定）──
-  const _summerMonth = G.month >= 4 && G.month <= 8;
+  // ── 夏祭り出店依頼（年1回・7〜8月限定）──
+  const _summerMonth = G.month >= 7 && G.month <= 8;
   const _summerAlreadyThisYear = G.cases.some(c => c.id === 'summer_event' && c._spawnYear === G.year);
   if(_summerMonth && !_summerAlreadyThisYear){
     const _base = CASE_POOL.find(c => c.id === 'summer_event') || (()=>{
@@ -10896,6 +10897,14 @@ function chooseEvent(idx, useFatigue){
       removed = true;
     }
     if(!removed) addNews('📦 退去手続きを完了した（空室なし）');
+  }
+
+  // 賃料5%引き下げ
+  if(fx.reduceRent){
+    G.buildings.forEach(b => (b.rooms||[]).forEach(r => {
+      r.rent = Math.max(30000, Math.round(r.rent * (1 - fx.reduceRent)));
+    }));
+    addNews(`📉 全室の賃料を${Math.round(fx.reduceRent*100)}%引き下げた`);
   }
 
   G.activeEvent=null;
