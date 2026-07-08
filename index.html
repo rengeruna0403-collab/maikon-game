@@ -2709,8 +2709,69 @@ function _advisorCard(emoji, name, color, message){
     </div>`;
 }
 
+function _midoriAdvice(topic, days){
+  // 新人(0-29日)・慣れてきた(30-89日)・中堅(90-179日)・ベテラン(180-359日)・独立視点(360日+)
+  const lv = days < 30 ? 0 : days < 90 ? 1 : days < 180 ? 2 : days < 360 ? 3 : 4;
+
+  if(topic === 'expansion'){
+    return [
+      '「……新しいお店、ですか。\nまだ私、今のお店でいっぱいで（笑）」',
+      '「お客さんが増えてきましたよね。\nでも私一人だと、もう一つは不安かも……」',
+      '「増やすなら、誰を連れていくかが先ですね。\n今の常連さんを残してあげたいです」',
+      '「2号店、私はできると思います。\nただ、教える時間と体力が必要です。\nスタッフの採用から考えないと」',
+      '「正直に言うと——\n私がいなくてもここが回るようになってから、\n増やした方がいいと思います」',
+    ][lv];
+  }
+  if(topic === 'cash'){
+    return [
+      '「お金のこと、私には難しいですが……\nお客さんは来てくれてる気がします」',
+      '「ランチの時間帯が少し空いてますよね。\nそこを工夫したら変わるかも？」',
+      '「常連さんが来る日とこない日のパターン、\n少し見えてきました。\n月曜が薄いですね」',
+      '「仕入れのタイミング、見直せそうです。\n先週、余った分があって——\nもったいなくて」',
+      '「経費の感覚、最近つかめてきました。\nここさえ絞れれば、という項目があります」',
+    ][lv];
+  }
+  if(topic === 'vacancy'){
+    return [
+      '「お店のお客さん、近くに住んでる方が多いですよ。\nお部屋のこと、聞いてみましょうか？」',
+      '「「近くにいい部屋ないかな」って言ってた方がいました。\n声かけてみますね」',
+      '「常連さんにさりげなく聞いてみます。\n口コミで決まること、意外と多いので」',
+      '「入居の相談、お店経由で来たこともありますよね。\nもう少し仕組みにしてもいいかも」',
+      '「地域のつながりが財産ですね。\nお部屋も「人づて」が一番早いと思います」',
+    ][lv];
+  }
+  if(topic === 'understaffed'){
+    return [
+      '「私、もっと頑張ります。\nでも……一人だと限界がある、かも……」',
+      '「正直、最近少し疲れています……\nでも、もう少し続けます」',
+      '「誰かもう一人いると全然違います。\nシフトに余裕が出ると、お客さんへの対応も変わって」',
+      '「採用なら、私が一次面接を手伝います。\n見るべきポイント、少し分かってきました」',
+      '「育てる側の視点で考えると——\n最初の1ヶ月で分かることがあります。\n私に任せてもらえますか」',
+    ][lv];
+  }
+  if(topic === 'staff_morale'){
+    return [
+      '「私も最初は不安でした。\nでも、続けてよかったです」',
+      '「声をかけてもらえると、すごく違います。\n小さいことでも」',
+      '「少し話を聞いてあげてください。\n私がフォローできることもあります」',
+      '「スタッフが疲れてるとき、先に気づくのは私の役目ですね。\nもう少し見ておきます」',
+      '「チームとして動けるようになってきた実感があります。\nでも、声がけは続けてほしいです。\nそれが全部の土台なので」',
+    ][lv];
+  }
+  // general
+  return [
+    '「今日もお店、楽しかったです。\nお客さんが笑顔で帰ってくれるのが、\n一番嬉しくて」',
+    '「リピーターの方が少しずつ増えてる気がします。\n「あの店員さんにまた会いたい」って言ってくれた方がいて……嬉しかったです」',
+    '「常連さんの顔を覚えてきました。\n「先週と違う」ってわかるようになって。\n接客が楽しくなってきました」',
+    '「お店のことを、自分のこととして考えるようになってきました。\n最近特に。\nありがたいと思って」',
+    '「ここで学んだことが、全部、自分の中に積み重なってます。\nどこかで形にしたい——そう思ってます」',
+  ][lv];
+}
+
 function generateAdvisoryAdvice(topic){
   const hasMidori = G.staff.some(s => s.name === '佐々木みどり');
+  const midoriStaff = G.staff.find(s => s.name === '佐々木みどり');
+  const midoriDays = midoriStaff ? (midoriStaff.daysWorked || 0) : 0;
   const monthlyProfit = G.monthRevenue - G.monthExpense;
   const allRooms = G.buildings.flatMap(b => b.rooms);
   const vacancyCount = allRooms.filter(r => !r.tenant).length;
@@ -2726,47 +2787,35 @@ function generateAdvisoryAdvice(topic){
       ? '「私なら、もう少し待ちます。<br>利益は出ていますが、<br>2号店の開業コストを考えると<strong>あと2〜3ヶ月の積み上げ</strong>が欲しい」'
       : '「まだ少し早いですね。<br>今の収支では、2号店の固定費を<br>支えるだけの余力がありません」';
     advice.narita = readyMsg;
-    advice.midori = hasMidori
-      ? '「今の人数だと、正直、お店を増やすのは不安です…。<br>私が異動すれば1号店が心配で、<br>新しいスタッフを採るなら育てる時間も要ります」'
-      : '（みどりさんがいれば、現場の意見を聞けます）';
+    advice.midori = hasMidori ? _midoriAdvice('expansion', midoriDays) : '（スタッフを採用すると現場の声が聞けます）';
     advice.tanaka = '「新しいお店ができると、若い人も来てくれるかもね。<br>でも、今のお店の雰囲気も好きよ。<br>あせらなくていいんじゃない？」';
     advice.ochawan = '「挑戦は経営の醍醐味だよ！<br>でもね、準備も経営だよ。<br>成田さんが"待て"と言うなら、少し聞いてみるのも手だよ」';
   } else if(topic === 'cash'){
     advice.narita = '「支出の内訳を分解してみましょう。<br>人件費・賃料・仕入れ—<br>どれが膨らんでいますか？<br>感覚ではなく、数字で見てください」';
-    advice.midori = hasMidori
-      ? '「お客さんは少しずつ増えてると思います。<br>もう少し待ってもらえませんか…。<br>メニューを増やしたら変わるかもしれません」'
-      : '（スタッフを採用すると、現場の視点が加わります）';
+    advice.midori = hasMidori ? _midoriAdvice('cash', midoriDays) : '（スタッフを採用すると現場の声が聞けます）';
     advice.tanaka = '「大変そうね。でも、あのお店には来たい人がいるのよ。<br>値段を少し上げても、私は来るわよ」';
     advice.ochawan = '「ピンチの時こそ、削るものと守るものを決めよう。<br>全部守ろうとすると、全部失うことになるよ」';
   } else if(topic === 'vacancy'){
     advice.narita = `「空室率${vacancyRate}%は見過ごせません。<br>賃料設定か募集条件を変えてみましょう。<br>1室空くと月${fmt(Math.round(allRooms[0]?.rent||50000))}の損失です」`;
-    advice.midori = hasMidori
-      ? '「お店にいらっしゃるお客さんに<br>「いい部屋ありますよ」って声かけてみましょうか？<br>口コミで決まることもありますよ」'
-      : '（スタッフがいると、口コミ紹介が生まれやすくなります）';
+    advice.midori = hasMidori ? _midoriAdvice('vacancy', midoriDays) : '（スタッフを採用すると現場の声が聞けます）';
     advice.tanaka = '「知り合いで引っ越し考えてる方がいるわ。<br>声かけてみましょうか。<br>地域のつながりって、意外と使えるのよ」';
     advice.ochawan = '「空室は"チャンス待ち中"ってことだよ。<br>焦って安くするより、どんな人に来てほしいかを<br>考えてみよう」';
   } else if(topic === 'understaffed'){
     const store = G.stores.find(s => (s._understaffedDays||0) >= 7);
     const sname = store?.name || '店舗';
     advice.narita = `「${sname}の人手不足は経営リスクです。<br>閉店だけが選択肢ではありません。<br><strong>縮小してでも続ける</strong>か、<strong>人を入れてから拡大</strong>するか。どちらですか？」`;
-    advice.midori = hasMidori
-      ? `「正直、今のままでは長くは続きません。<br>私が行けば1号店が…どうしたらいいんでしょう。<br>でも、誰かが行かないといけないですよね」`
-      : '（みどりさんがいれば、現場調整の選択肢が増えます）';
+    advice.midori = hasMidori ? _midoriAdvice('understaffed', midoriDays) : '（スタッフを採用すると現場の声が聞けます）';
     advice.tanaka = `「${sname}、最近元気がないみたいね。<br>無理しないで、ゆっくり立て直せばいいわよ。<br>常連は待ってるから」`;
     advice.ochawan = '「大きくすることより、今あるものを守るのも<br>立派な経営だよ。<br>縮小運営という選択肢、使ってみてもいいかもね」';
   } else if(topic === 'staff_morale'){
     const s = G.staff.find(st => (st.satisfaction||70) < 55);
     advice.narita = '「スタッフの満足度は離職リスクに直結します。<br>給与か、労働環境か、将来ビジョンか—<br>何が足りていませんか？」';
-    advice.midori = hasMidori
-      ? `「${s?.name||'スタッフ'}さん、最近少し元気がないですよね。<br>何か話してみましょうか。<br>話を聞くだけでも変わることがあります」`
-      : '（みどりさんがいれば、スタッフのフォローを任せられます）';
+    advice.midori = hasMidori ? _midoriAdvice('staff_morale', midoriDays) : '（スタッフを採用すると現場の声が聞けます）';
     advice.tanaka = '「働いてる方が嬉しそうだと、こっちも嬉しくなるの。<br>お店の雰囲気って、スタッフさんから出るのよね」';
     advice.ochawan = '「人が辞めると、採用コストは倍になる。<br>研修や面談に使った時間より、<br>離職した後の方が大変だよ」';
   } else {
     advice.narita = '「順調ですね。ただ、経営は油断した瞬間に崩れます。<br>今のうちに次の一手を考えておくといい頃合いです。<br>何か気になることはありますか？」';
-    advice.midori = hasMidori
-      ? '「最近、お客さんの笑顔が増えた気がします。<br>リピーターも少しずつ増えて…ありがたいですね。<br>このままみんなで頑張りましょう」'
-      : '（スタッフがいると、現場の安心感が生まれます）';
+    advice.midori = hasMidori ? _midoriAdvice('general', midoriDays) : '（スタッフを採用すると現場の声が聞けます）';
     advice.tanaka = '「ここに来るのが毎日の楽しみなの。<br>長く続けてね。お願いよ」';
     advice.ochawan = '「いい調子！でも油断は禁物だよ。<br>うまくいってる時ほど、次の課題を探す習慣を<br>つけておくといいよ」';
   }
@@ -6347,20 +6396,20 @@ const DOMAIN_CASES = [
 
   { id:'chr_yamamoto_2', conditionOnly:true, repeatable:false, domain:'community', character:'yamamoto',
     sender:'山本真由美', icon:'👩', apCost:5, expireDays:21, category:'ops',
-    title:'山本さんからご報告',
-    body:'山本さんがお店に立ち寄ってくれました。\n\n「先日ありがとうございました。\n子どもが……なんと、食べたんです。\n\n不思議なんですよ。\n他のものは残すのに、\nここのおにぎりだけは残さないんです。\n\n毎朝のことだから本当に助かってます」',
+    title:'山本さんから「食べた」の一言',
+    body:'山本さんが小走りで来た。\n\n「……先生、食べたんです。\n\n昨日の朝ご飯、舞昆のおにぎり作ったら——\n全部、食べた。\n\n残さず、全部。\n\n「おかわり」って言ったんです。\nあの子が、ですよ？」\n\n彼女は少し声が震えていた。',
     choices:[
-      {label:'「それは嬉しいです！どの商品でしたか？」と聞く',cost:0,effects:{score:10,rep:4,charLevel:'yamamoto',charNote:'「朝ごはんに舞昆のおにぎりが助かる」と言った',custUp:2,profile:{people:3}},label2:'ご縁+1・来客+2',storyTag:'山本さんの子どもが舞昆を気に入ってくれた。朝ごはんに活躍していると聞いた。'},
-      {label:'「それは嬉しいですね」と喜ぶ',cost:0,effects:{score:7,rep:3,charLevel:'yamamoto',charNote:'「朝ごはんに舞昆のおにぎりが助かる」と言った'},label2:'ご縁+1',storyTag:'山本さんと話した。'},
+      {label:'「よかった。またお口に合うものを一緒に探しましょう」と伝える',cost:0,effects:{score:10,rep:4,charLevel:'yamamoto',charNote:'「おかわりと言った」朝ごはんに舞昆おにぎりが全部食べられた',custUp:1,profile:{people:3}},label2:'ご縁+1・来客+1',storyTag:'山本さんの子どもが舞昆おにぎりを全部食べた。「おかわり」と言ったと聞いた。'},
+      {label:'「お子さんの笑顔が見えるようですね」と答える',cost:0,effects:{score:7,charLevel:'yamamoto',rep:3,profile:{people:2}},label2:'ご縁+1',storyTag:'山本さんの喜びを一緒に感じた。'},
     ]},
 
   { id:'chr_yamamoto_3', conditionOnly:true, repeatable:false, domain:'community', character:'yamamoto',
-    sender:'山本真由美', icon:'👩', apCost:10, expireDays:21, category:'mgmt',
-    title:'山本さんから贈答品の相談',
-    body:'山本さんが相談に来ました。\n\n「来月、義理のお母さんの誕生日があって。\n遠方なんですが、舞昆を贈り物にしたいんです。\n喜んでもらえると思って。\nどのセットがおすすめですか？」',
+    sender:'山本真由美', icon:'👩', apCost:10, expireDays:21, category:'ops',
+    title:'子どもが自分で来てくれた',
+    body:'放課後、小さな来客があった。\n\n「……舞昆のおにぎり、ください。\nお母さんが作ってくれるやつ」\n\n山本さんの子どもだった。ランドセルを背負ったまま、一人で来ていた。\n\n「おかあさん、まだ仕事だから。\n自分で来てもいいって言ってたから」\n\nカウンターに百円玉を並べた。',
     choices:[
-      {label:'ラインナップを丁寧に説明して一緒に選ぶ',cost:0,effects:{score:12,rep:5,charLevel:'yamamoto',charNote:'「お義母さんへの贈り物に舞昆を選んだ」',custUp:1,profile:{people:3,community:1}},label2:'ご縁+1・贈答文化',storyTag:'山本さんと一緒に贈答セットを選んだ。「これにします」と嬉しそうだった。'},
-      {label:'「定番のたもぎ茸舞昆セットがよく出ます」とすすめる',cost:0,effects:{score:9,rep:4,charLevel:'yamamoto',charNote:'「定番セットを贈ることにした」'},label2:'ご縁+1',storyTag:'定番セットをすすめた。喜んでくれた。'},
+      {label:'「よく来てくれたね」と話しかけ、おにぎりを握る',cost:0,effects:{score:15,rep:5,charLevel:'yamamoto',charNote:'子どもが一人でお店に来た。「お母さんが作ってくれるやつ」と注文した',custUp:1,communityBond:5,customerLoyalty:4,profile:{people:4,community:2}},label2:'ご縁+1・地域絆+5',storyTag:'山本さんの子どもが一人でお店に来た。「お母さんが作ってくれるやつ」と言った。'},
+      {label:'おにぎりと一緒に小袋の舞昆をつける',cost:0,effects:{score:12,charLevel:'yamamoto',rep:4,storeBrand:2,profile:{people:3}},label2:'ご縁+1・ブランド+2',storyTag:'子どもにおにぎりと一緒に舞昆を持たせた。'},
     ]},
 
   // ── 鈴木先生（38歳・小学校教員）アーク ──
@@ -6472,11 +6521,12 @@ const DOMAIN_CASES = [
     ]},
 
   { id:'chr_yamamoto_referral', conditionOnly:true, repeatable:false, domain:'store', character:'yamamoto',
-    sender:'山本真由美の紹介', icon:'🎀', apCost:5, expireDays:21, category:'ops',
-    title:'山本さんがPTA仲間に紹介してくれた',
-    body:'山本さんからうれしい連絡が届きました。\n\n「PTA仲間に舞昆のこと話したら、\n3人が贈答用に買いたいって言ってます！\n来週一緒に行っていいですか？」',
+    sender:'山本真由美', icon:'🎀', apCost:5, expireDays:21, category:'ops',
+    title:'お友達のお母さんも来てくれました',
+    body:'山本さんが少し照れながら来てくれた。\n\n「子どもが友達に「うちのお気に入りのお店」って話したらしくて。\n\nそのお母さんから「一緒に行ってもいい？」って連絡来て。\n\n今日、3人で来ようと思うんですけど——いいですか？」',
     choices:[
-      {label:'「ぜひ！歓迎します」と答える',cost:0,effects:{score:14,custUp:4,rep:5,profile:{community:3,people:2}},label2:'来客+4・評判+5',storyTag:'山本さんがPTA仲間を連れてきてくれた。紹介の輪が広がった。'},
+      {label:'「もちろんです。嬉しいです」と答える',cost:0,effects:{score:14,custUp:4,rep:5,charLevel:'yamamoto',profile:{community:3,people:2}},label2:'ご縁+1・来客+4・評判+5',storyTag:'子どもの口コミでお友達のお母さんも来てくれることになった。'},
+      {label:'「歓迎します」と伝えておすすめを用意する',cost:0,effects:{score:12,custUp:3,storeBrand:3,profile:{people:2}},label2:'来客+3・ブランド+3',storyTag:'3人でお店に来てくれることになった。おすすめを用意した。'},
     ]},
 
   { id:'chr_kimura_referral', conditionOnly:true, repeatable:false, domain:'store', character:'kimura',
@@ -6572,24 +6622,23 @@ const DOMAIN_CASES = [
   // 山本さん：子どもが少食→舞昆おにぎりだけ食べる・遠足・子ども食堂
   { id:'chr_yamamoto_4', conditionOnly:true, repeatable:false, domain:'store', character:'yamamoto',
     sender:'山本真由美', icon:'👩‍👧', apCost:0, category:'ops',
-    title:'山本さんの子どもが舞昆しか食べなかった',
-    body:'山本さんが不思議そうな顔で来てくれました。\n\n「うちの子、少食で困ってたんですけど。\n\n先週から舞昆のおにぎりを作ったら、\nそれだけはペロッと食べるんですよ。\n\n「なんで？」って聞いたら\n「なんかおいしい」って（笑）\n\n何が入ってるんですか？」',
+    title:'遠足のお弁当、完食でした',
+    body:'山本さんが興奮気味に話してくれた。\n\n「遠足に舞昆のおにぎり入れたんですよ。\n\n帰ってきたら弁当箱が空っぽで。\nしかも「クラスの子に分けてあげた」って言うんです。\n\n「それ何？」って聞かれたから、って。\n\n……私、泣きそうになりましたよ。\nあの子が、自分から「好き」って言ったんです」',
     choices:[
-      {label:'「昆布と発酵食品の旨みが効いているんです」と説明する',cost:0,effects:{score:12,rep:4,charLevel:'yamamoto',charNote:'「うちの子は舞昆おにぎりだけはペロッと食べる」と話してくれた',custUp:2,customerLoyalty:3,profile:{people:3,community:1}},storyTag:'山本さんの子どもが舞昆を気に入った。昆布の旨みが子どもにも届いた。'},
-      {label:'「お子さんに合う味だったのかもしれませんね」と伝える',cost:0,effects:{score:8,charLevel:'yamamoto',charNote:'子どもが舞昆おにぎりをよく食べると教えてくれた'},storyTag:'山本さんに話を聞いた。子どもが舞昆を好きになってくれた。'},
+      {label:'「それはすごい。子どもが紹介してくれるのが一番です」と伝える',cost:0,effects:{score:14,rep:5,charLevel:'yamamoto',charNote:'遠足で完食。クラスの子に舞昆を紹介してくれた',communityBond:4,customerLoyalty:5,profile:{people:3,community:3}},label2:'ご縁+1・絆+4',storyTag:'山本さんの子どもが遠足で完食し、クラスの子に舞昆を紹介した。'},
     ]},
 
   { id:'chr_yamamoto_5', conditionOnly:true, repeatable:false, domain:'store', character:'yamamoto',
     sender:'山本真由美', icon:'👩‍👧', apCost:0, category:'ops',
-    title:'山本さんが遠足のお弁当に舞昆を入れた',
-    body:'山本さんが嬉しそうに話してくれました。\n\n「先週、遠足だったんですけど。\n\n遠足のお弁当に入れたら、全部食べてきたんです。\n初めてです、完食は。\n\nクラスの子に「それ何？」って聞かれたみたいで、\n自分で説明してたらしくて。\n\n……なんか成長した気がして、うれしくなっちゃって」',
+    title:'子どもがひとりで勉強している',
+    body:'山本さんが立ち寄って、少し照れながら話してくれた。\n\n「最近、子どもが自分から「ご飯食べてから勉強する」って言うようになって。\n\n舞昆のおにぎり作ると、机に向かう前に「ありがとう」って言うんですよ。\n\n……以前は「食べない」って言ってたのに。\nご飯が食べられるようになったら、なんか落ち着いてきたみたいで」',
     choices:[
-      {label:'「それはとてもうれしいです。子どもが紹介してくれたんですね」と伝える',cost:0,effects:{score:14,rep:5,charLevel:'yamamoto',charNote:'遠足で子どもが舞昆を友達に紹介してくれた',communityBond:4,customerLoyalty:4,profile:{people:3,community:3}},storyTag:'山本さんの子どもが舞昆を友達に紹介した。食べることから広がる口コミ。'},
+      {label:'「食べることが、気持ちの土台になるんですね」と伝える',cost:0,effects:{score:10,rep:3,charLevel:'yamamoto',charNote:'子どもが自分から食べて勉強するようになったと話してくれた',customerLoyalty:3,profile:{people:3}},label2:'ご縁+1',storyTag:'山本さんの子どもが落ち着いてきた。食べることが変化の始まりだった。'},
     ]},
 
   { id:'chr_yamamoto_shokutaku', conditionOnly:true, repeatable:false, domain:'store', character:'yamamoto',
-    sender:'山本真由美', icon:'🍚', apCost:0, category:'ops',
-    title:'山本さんからのメッセージ',
+    sender:'山本真由美', icon:'🌙', apCost:0, category:'ops',
+    title:'夜に届いたメッセージ',
     body:'夜、スマホに短いメッセージが届いた。\n\n「今日も食べられない、って。\n\nため息ついてたら、\nお友達からもらった舞昆おにぎり、出してみたんです。\n\n子どもが、食べた。\n\n「これなら食べる」って。\n\nそしたら私、急に泣けてきて。\n\n……ありがとうございます」',
     choices:[
       {label:'既読にする',cost:0,effects:{score:18,charLevel:'yamamoto',charNote:'「これなら食べる」「ありがとうございます」夜に届いたメッセージ',customerLoyalty:8,communityBond:8,storeBrand:4,profile:{people:5,community:3}},
@@ -6671,37 +6720,37 @@ const DOMAIN_CASES = [
 
   { id:'chr_yamamoto_pta', conditionOnly:true, repeatable:false, domain:'community', character:'yamamoto',
     sender:'山本真由美', icon:'👩‍👧', apCost:15, category:'mgmt',
-    title:'山本さんからPTAイベントの相談',
-    body:'山本さんがPTA役員として相談に来ました。\n\n「学校で「地域の食文化を知ろう」という\nイベントを計画しているんですが。\n\n舞昆茶屋さんに協力いただけたりしますか？\n試食や説明をしていただけると……\n子どもたちが喜ぶと思って」',
+    title:'学校から食育の相談が来た',
+    body:'山本さんがPTA役員として来てくれた。\n\n「学校の給食委員会から「地域の食文化を知ろう」という\n授業を計画したいと言われていて。\n\n「もしよければ舞昆茶屋さんに来ていただけないか」って。\n先生も「子どもたちが興味を持てそうで」とおっしゃっています。\n\nどうでしょうか？」',
     choices:[
-      {label:'「ぜひ協力します」と快諾する',cost:0,effects:{score:18,rep:10,charLevel:'yamamoto',charNote:'PTAイベントに出店協力することになった',communityBond:6,custUp:5,profile:{community:4,people:3}},label2:'ご縁+1・評判+10・来客+5',storyTag:'PTAイベントに協力することになった。地域の子どもたちに舞昆を届けるチャンス。'},
-      {label:'「簡単な試食だけなら」と条件付きで協力する',cost:0,effects:{score:10,rep:6,charLevel:'yamamoto',charNote:'PTAイベントに試食だけ協力することにした',communityBond:3,custUp:2,profile:{community:2,people:2}},label2:'ご縁+1・評判+6',storyTag:'試食だけ協力することにした。'},
-      {label:'「今回は難しいです」と断る',cost:0,effects:{score:-3,charNote:'PTAイベントを断った'},label2:'評判-',storyTag:'PTAイベントの協力を断った。山本さんが少し残念そうだった。'},
+      {label:'「ぜひ協力します」と快諾する',cost:0,effects:{score:18,rep:10,charLevel:'yamamoto',charNote:'学校食育授業への協力を快諾した',communityBond:6,custUp:5,profile:{community:4,people:3}},label2:'ご縁+1・評判+10・来客+5',storyTag:'学校の食育授業に協力することになった。地域の子どもたちに舞昆を届けるチャンス。'},
+      {label:'「簡単な試食だけなら」と条件付きで応じる',cost:0,effects:{score:10,rep:6,charLevel:'yamamoto',charNote:'食育授業に試食だけ協力することにした',communityBond:3,custUp:2,profile:{community:2,people:2}},label2:'ご縁+1・評判+6',storyTag:'試食だけ協力することにした。'},
+      {label:'「今回は難しい」と断る',cost:0,effects:{score:-3,charNote:'食育授業への協力を断った'},label2:'評判-',storyTag:'食育授業の協力を断った。山本さんが少し残念そうだった。'},
     ]},
 
   { id:'chr_yamamoto_juken', conditionOnly:true, repeatable:false, domain:'community', character:'yamamoto',
     sender:'山本真由美', icon:'👩‍👧', apCost:5, category:'ops',
-    title:'山本さんの子どもが受験期に入った',
-    body:'山本さんが疲れた顔で来てくれました。\n\n「子どもが受験で……私も一緒に緊張してて。\n\nご飯作る余裕がない日も多くて。\n忙しい日はおにぎりだけになることもあって。\n\n冷蔵庫にあると安心します。\n「あれさえあれば食べられる」って\n子どもも言うようになって」',
+    title:'子どもがひとりで夜遅くまで',
+    body:'山本さんが少し疲れた顔で来てくれました。\n\n「最近、子どもが夜遅くまで机に向かっていて。\n\n私が声をかけると「大丈夫」って言うんですが、\nちゃんと食べてるか心配で。\n\n「夜、おにぎり作って置いといたら？」って友達に言われて。\n試してみたら——全部食べてたんです。\n\n机の上に空のラップだけ残って」',
     choices:[
-      {label:'「頑張っているんですね。陰ながら応援しています」と伝える',cost:0,effects:{score:10,rep:3,charLevel:'yamamoto',charNote:'子どもが受験期。「舞昆があれば食べられると子どもが言う」',customerLoyalty:4,profile:{people:3}},label2:'ご縁+1・ロイヤルティ+',storyTag:'受験期の山本さん家族に、舞昆が支えになっていた。'},
-      {label:'受験生向けのおにぎりセットを用意する',cost:0,effects:{score:14,rep:5,charLevel:'yamamoto',charNote:'受験生向けのおにぎりを準備した。「ありがとう」と言われた',custUp:2,storeBrand:2,profile:{people:3,community:1}},label2:'ご縁+1・来客+2',storyTag:'受験生向けセットを用意した。山本さんが「ありがとう」と目を細めてくれた。'},
+      {label:'「食べてくれているなら安心ですね」と伝える',cost:0,effects:{score:10,rep:3,charLevel:'yamamoto',charNote:'子どもが夜遅くまで机に向かっている。夜のおにぎりを全部食べた',customerLoyalty:4,profile:{people:3}},label2:'ご縁+1・ロイヤルティ+',storyTag:'山本さんの子どもが夜遅くまで頑張っている。舞昆おにぎりが静かに支えていた。'},
+      {label:'「夜食向けにちょうどいいものがあります」と案内する',cost:0,effects:{score:12,rep:4,charLevel:'yamamoto',charNote:'夜食向けの提案をした',custUp:1,storeBrand:2,profile:{people:3,community:1}},label2:'ご縁+1・来客+1',storyTag:'夜食向けの舞昆を案内した。山本さんが「助かります」と言ってくれた。'},
     ]},
 
   { id:'chr_yamamoto_pass', conditionOnly:true, repeatable:false, domain:'community', character:'yamamoto',
     sender:'山本真由美', icon:'🎉', apCost:0, category:'ops',
-    title:'山本さんの子どもが合格した',
-    body:'山本さんが明るい顔で飛び込んできました。\n\n「受かりました！ 第一志望！\n\n報告に来ずにはいられなくて。\n\n「お母さん、受験中ずっと舞昆のおにぎりを\n作ってくれたね」って子どもが言ってくれて。\n\n……なんかそれで泣いてしまって（笑）」',
+    title:'子どもが自分でおにぎりを作れるようになった',
+    body:'山本さんが嬉しそうに話してくれました。\n\n「この間、子どもが自分でおにぎりを作ってたんです。\n\n「舞昆、どこに入ってる？」って聞いてきて。\n\n私が作るの見てたんでしょうね。\nちゃんと形にはなってませんでしたけど（笑）、\n\n「美味しい」って言いながら食べてました。\n\n……なんか、ちゃんと育ってたんだなって」',
     choices:[
-      {label:'「おめでとうございます！」と一緒に喜ぶ',cost:0,effects:{score:15,rep:6,charLevel:'yamamoto',charNote:'子どもが第一志望合格。「受験中ずっと舞昆おにぎりを作ってくれた」と言ってくれたと教えてくれた',storeBrand:4,communityBond:4,profile:{people:3,community:2}},label2:'ご縁+1・ブランド+',storyTag:'山本さんの子どもが合格した。受験中の舞昆おにぎりを子どもが覚えていてくれた。'},
+      {label:'「それは嬉しい話ですね」と一緒に喜ぶ',cost:0,effects:{score:15,rep:5,charLevel:'yamamoto',charNote:'子どもが自分で舞昆おにぎりを作れるようになった',storeBrand:4,communityBond:4,profile:{people:3,community:2}},label2:'ご縁+1・ブランド+',storyTag:'山本さんの子どもが自分でおにぎりを作った。受け継がれていくものがある。'},
     ]},
 
   { id:'chr_yamamoto_ending', conditionOnly:true, repeatable:false, domain:'community', character:'yamamoto',
     sender:'山本真由美', icon:'🌸', apCost:0, category:'ops',
-    title:'山本さんから最後のご挨拶',
-    body:'春になり、山本さんが改まった様子で来てくれました。\n\n「子どもが来月から県外の大学に行きます。\n\nあの子の食生活が心配で——\nそれで、ここのものを持たせることにしました。\n\n「ご飯さえ炊けば大丈夫」って\n子ども自身が言ってくれて。\n\nあの頃、本当に助かりました。\nあなたのお店に出会えてよかったです」',
+    title:'ありがとうのかわりに',
+    body:'春になり、山本さんが来てくれた。\n\n「子どもが来月から県外の大学に行きます。\n\n持たせるものを選んでいたら、\n「絶対これ入れて」って舞昆を指差して。\n\n「お母さんが作ってくれたおにぎりの味、忘れたくないから」って。\n\n……ありがとう、って言うのも違う気がして。\n\nただ、ここに来たかったんです」',
     choices:[
-      {label:'「お子さんの新生活を応援しています」と伝える',cost:0,effects:{score:20,rep:8,charComplete:'yamamoto',charNote:'子どもが県外進学。舞昆を持たせることにした。ご縁完結。',storeBrand:6,communityBond:5,customerLoyalty:5,profile:{people:4,community:3}},label2:'🌸 山本さんとのご縁完結',storyTag:'山本さんの子どもが県外の大学へ。舞昆を持たせてもらった。'},
+      {label:'「またいつでも来てください。お子さんも」と伝える',cost:0,effects:{score:20,rep:8,charComplete:'yamamoto',charNote:'子どもが県外進学。「お母さんのおにぎりの味を忘れたくない」と言った。ご縁完結。',storeBrand:6,communityBond:5,customerLoyalty:5,profile:{people:4,community:3}},label2:'🌸 山本さんとのご縁完結',storyTag:'山本さんの子どもが県外へ。舞昆は「お母さんのおにぎりの味」として旅立った。'},
     ]},
 
   // ══════════════════════════════════════════════════════
@@ -8034,13 +8083,24 @@ function generateConditionCases(){
   if(ch.tanaka.level >= 4 && ch.tanaka.location === 'resident' && charReady('tanaka',30) && !ch.tanaka.complete && !G.cases.some(c=>c.id==='chr_tanaka_complete')) charCase('chr_tanaka_complete');
   if(ch.tanaka.complete && charReady('tanaka',30) && !G.cases.some(c=>c.id==='chr_tanaka_referral')) charCase('chr_tanaka_referral');
 
-  // ── 山本アーク（子ども食堂投資後に初対面イベント発火）──
-  // 間隔：45日。受験期は6か月後（180日）、合格は9か月後（270日）、エンディングは2年目以降
+  // 山本アーク トリガー（8段階・親子食育ストーリー）
   const _invYamamoto = G.regions && G.regions.some(r => r.investments && r.investments['子ども食堂']);
+  // Step1: 初回出会い（子ども食堂投資後）
   if(_invYamamoto && !ch.yamamoto.met && !G.cases.some(c=>c.id==='chr_yamamoto_1')) charCase('chr_yamamoto_1');
-  if(ch.yamamoto.met && ch.yamamoto.level >= 1 && charReady('yamamoto',45) && !G.cases.some(c=>c.id==='chr_yamamoto_2')) charCase('chr_yamamoto_2');
-  if(ch.yamamoto.level >= 2 && charReady('yamamoto',45) && !G.cases.some(c=>c.id==='chr_yamamoto_3')) charCase('chr_yamamoto_3');
-  if(ch.yamamoto.level >= 3 && charReady('yamamoto',60) && !ch.yamamoto.complete && !G.cases.some(c=>c.id==='chr_yamamoto_referral')) charCase('chr_yamamoto_referral');
+  // Step2: 「食べた」の一言（出会い後・level1以上・30日間隔）
+  if(ch.yamamoto.level >= 1 && charReady('yamamoto',30) && !G.cases.some(c=>c.id==='chr_yamamoto_2')) charCase('chr_yamamoto_2');
+  // Step3: 子ども本人が来店（level2以上・30日間隔）
+  if(ch.yamamoto.level >= 2 && charReady('yamamoto',30) && !G.cases.some(c=>c.id==='chr_yamamoto_3')) charCase('chr_yamamoto_3');
+  // Step4: 食卓メッセージ（level2以上・Step3解決後・21日間隔）
+  if(ch.yamamoto.level >= 2 && G.cases.some(c=>c.id==='chr_yamamoto_3' && c.resolved) && charReady('yamamoto',21) && !G.cases.some(c=>c.id==='chr_yamamoto_shokutaku')) charCase('chr_yamamoto_shokutaku');
+  // Step5: 遠足弁当完食（level3以上・Step4解決後・30日間隔）
+  if(ch.yamamoto.level >= 3 && G.cases.some(c=>c.id==='chr_yamamoto_shokutaku' && c.resolved) && charReady('yamamoto',30) && !G.cases.some(c=>c.id==='chr_yamamoto_4')) charCase('chr_yamamoto_4');
+  // Step6: 保護者口コミ（level3以上・Step5解決後・45日間隔）
+  if(ch.yamamoto.level >= 3 && G.cases.some(c=>c.id==='chr_yamamoto_4' && c.resolved) && charReady('yamamoto',45) && !G.cases.some(c=>c.id==='chr_yamamoto_referral')) charCase('chr_yamamoto_referral');
+  // Step7: 学校食育相談（level4以上・Step6解決後・60日間隔）
+  if(ch.yamamoto.level >= 4 && G.cases.some(c=>c.id==='chr_yamamoto_referral' && c.resolved) && charReady('yamamoto',60) && !G.cases.some(c=>c.id==='chr_yamamoto_pta')) charCase('chr_yamamoto_pta');
+  // Step8: エンディング（PTAイベント解決後・complete前・2年目以降・60日間隔）
+  if(G.cases.some(c=>c.id==='chr_yamamoto_pta' && c.resolved) && !ch.yamamoto.complete && G.year >= 2 && charReady('yamamoto',60) && !G.cases.some(c=>c.id==='chr_yamamoto_ending')) charCase('chr_yamamoto_ending');
 
   // ── 鈴木アーク ──
   if(ch.suzuki.met && ch.suzuki.level >= 1 && charReady('suzuki',21) && !G.cases.some(c=>c.id==='chr_suzuki_2')) charCase('chr_suzuki_2');
@@ -8065,10 +8125,6 @@ function generateConditionCases(){
   if(ch.kimura.met && ch.kimura.level >= 1 && ch.kimura.level < 2 && charReady('kimura',14) && !G.cases.some(c=>c.id==='chr_kimura_0b')) charCase('chr_kimura_0b');
   // 木村：実家の母に送る（level3以上、卒業前）
   if(ch.kimura.level >= 3 && !ch.kimura.complete && charReady('kimura',21) && !G.cases.some(c=>c.id==='chr_kimura_4')) charCase('chr_kimura_4');
-  // 山本：子どもが舞昆おにぎりだけ食べる（level2以上・45日間隔）
-  if(ch.yamamoto.level >= 2 && charReady('yamamoto',45) && !G.cases.some(c=>c.id==='chr_yamamoto_4')) charCase('chr_yamamoto_4');
-  // 山本：遠足で子どもが友達に紹介（level3以上・45日間隔）
-  if(ch.yamamoto.level >= 3 && charReady('yamamoto',45) && !G.cases.some(c=>c.id==='chr_yamamoto_5')) charCase('chr_yamamoto_5');
   // 高橋：東京出張で同僚が「それ何？」（転勤前・level2以上・45日間隔）
   if(ch.takahashi.level >= 2 && !G.cases.some(c=>c.id==='chr_takahashi_transfer' && c.resolved) && charReady('takahashi',45) && !G.cases.some(c=>c.id==='chr_takahashi_4')) charCase('chr_takahashi_4');
   // 高橋：「東京に来て1か月、大阪に帰った気がした」（転勤後・transfer解決後・60日間隔）
@@ -8099,16 +8155,7 @@ function generateConditionCases(){
   if(G.cases.some(c=>c.id==='chr_tanaka_hospital' && c.resolved) && charReady('tanaka',60) && !G.cases.some(c=>c.id==='chr_tanaka_final')) charCase('chr_tanaka_final');
 
   // ── 山本 追加エピソード ──
-  // PTAイベント（level3以上・60日間隔）
-  if(ch.yamamoto.level >= 3 && charReady('yamamoto',60) && !G.cases.some(c=>c.id==='chr_yamamoto_pta')) charCase('chr_yamamoto_pta');
-  // 受験期（level4以上・総経過180日以上・90日間隔）
-  if(ch.yamamoto.level >= 4 && nowDay >= 180 && charReady('yamamoto',90) && !G.cases.some(c=>c.id==='chr_yamamoto_juken')) charCase('chr_yamamoto_juken');
-  // 合格（受験期解決後・総経過270日以上・90日間隔）
-  if(G.cases.some(c=>c.id==='chr_yamamoto_juken' && c.resolved) && nowDay >= 270 && charReady('yamamoto',90) && !G.cases.some(c=>c.id==='chr_yamamoto_pass')) charCase('chr_yamamoto_pass');
-  // エンディング（合格後 complete前・2年目以降・60日間隔）
-  if(G.cases.some(c=>c.id==='chr_yamamoto_pass' && c.resolved) && !ch.yamamoto.complete && G.year >= 2 && charReady('yamamoto',60) && !G.cases.some(c=>c.id==='chr_yamamoto_ending')) charCase('chr_yamamoto_ending');
-  // 食卓シーン（level3以上・yamamoto_4解決後・45日間隔）
-  if(ch.yamamoto.level >= 3 && G.cases.some(c=>c.id==='chr_yamamoto_4' && c.resolved) && charReady('yamamoto',45) && !G.cases.some(c=>c.id==='chr_yamamoto_shokutaku')) charCase('chr_yamamoto_shokutaku');
+  // （chr_yamamoto_5はアーク整理により孤立イベントとして残存、トリガーなし）
 
   // ── 鈴木 追加エピソード ──
   // PTAイベント（level2以上・30日間隔）
