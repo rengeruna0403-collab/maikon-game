@@ -2241,7 +2241,7 @@ function advanceDay(){
   if(totalDaysNow2 > 0 && totalDaysNow2 % 7 === 0){
     checkFatiguePenalty();
     const before = G.ap;
-    G.ap = Math.min(G.apMax, G.ap + 30);
+    G.ap = Math.min(G.apMax, G.ap + 20);
     if(G.ap > before) notify(`🧠 週次AP回復 +${G.ap - before}（残 ${G.ap}）`);
   }
 
@@ -4857,7 +4857,7 @@ const CASE_POOL = [
       {label:'夜間営業を検討する（AP-10）',cost:0,ap:10,effects:{score:12,custUp:4,rep:4,profile:{community:2,risk:1}},label2:'客数+4・評判+4',storyTag:'常連客の意見を受けて夜間営業を検討した。'},
       {label:'昼間営業で質を高める方針を続ける',cost:0,effects:{score:5,profile:{finance:2}},label2:'方針維持',storyTag:'昼間営業の質を高めることで応えることにした。'},
     ]},
-  { id:'community_collab', sender:'石川（地域）', icon:'🤝', apCost:20, expireDays:21, category:'strategy',
+  { id:'community_collab', sender:'石川（地域）', icon:'🤝', apCost:25, expireDays:21, category:'strategy',
     expirePenalty:{rep:-5, news:'🤝 NPO連携の機会を逃した。地域評判-5'},
     title:'地域NPOとの連携提案',
     body:'石川さんから「地域NPOと連携して、高齢者向けの昼食サービスを始めてみませんか？」と提案が来ました。',
@@ -4974,7 +4974,7 @@ const CASE_POOL = [
   // ════════════════════════════════════
 
   // ── 店舗 ──
-  { id:'midgame_menu_renewal', repeatable:true, domain:'store', sender:'常連客', icon:'🍱', apCost:10, expireDays:21, category:'ops',
+  { id:'midgame_menu_renewal', repeatable:true, domain:'store', sender:'常連客', icon:'🍱', apCost:15, expireDays:21, category:'ops',
     expirePenalty:{rep:-2, news:'🍱 メニュー刷新の提案を放置した。常連の声が届いていない印象に。'},
     title:'メニューを見直してほしいとの声',
     body:'常連のお客さまから声がかかりました。\n\n「最近、ちょっとマンネリになってきた気がして。\n季節の食材とか、新しいものを試してもらえたら嬉しいな」',
@@ -4983,7 +4983,7 @@ const CASE_POOL = [
       {label:'「検討します」と答えてそのまま',cost:0,effects:{score:3,storeSat:-2},label2:'信頼やや低下',storyTag:''},
     ]},
 
-  { id:'midgame_peak_day', repeatable:true, domain:'store', sender:'スタッフ', icon:'🔥', apCost:5, expireDays:7, category:'ops',
+  { id:'midgame_peak_day', repeatable:true, domain:'store', sender:'スタッフ', icon:'🔥', apCost:10, expireDays:7, category:'ops',
     expirePenalty:{staffSat:-5, news:'🔥 繁忙期の対応を放置した。スタッフの疲弊が増している。'},
     title:'繁忙期の対応をどうするか',
     body:'スタッフから相談が来ました。\n\n「来週、地域のイベントと重なって、いつもの3倍近い来客が予想されます。\n臨時対応はどうしますか？」',
@@ -4992,7 +4992,7 @@ const CASE_POOL = [
       {label:'通常通り、できる範囲で対応する',cost:0,effects:{score:5,custUp:1},label2:'無理しない経営',storyTag:'通常通りで対応した。行列にはなったが、なんとか回せた。'},
     ]},
 
-  { id:'midgame_hygiene_check', repeatable:true, domain:'store', sender:'保健所', icon:'🧹', apCost:15, expireDays:14, category:'mgmt',
+  { id:'midgame_hygiene_check', repeatable:true, domain:'store', sender:'保健所', icon:'🧹', apCost:20, expireDays:14, category:'mgmt',
     expirePenalty:{rep:-5, credit:-2, news:'🧹 衛生管理の指摘を放置した。行政からの評価が下がった。'},
     title:'保健所から衛生管理の確認通知',
     bodyVariants:[
@@ -5062,7 +5062,7 @@ const CASE_POOL = [
       {label:'文書で注意する',cost:0,effects:{score:6,rep:2,roomSat:4},label2:'',storyTag:''},
     ]},
 
-  { id:'midgame_vacancy_rate', repeatable:true, domain:'landlord', sender:'成田（銀行）', icon:'🏦', apCost:5, expireDays:21, category:'strategy',
+  { id:'midgame_vacancy_rate', repeatable:true, domain:'landlord', sender:'成田（銀行）', icon:'🏦', apCost:10, expireDays:21, category:'strategy',
     expirePenalty:{credit:-1, news:'🏦 空室対策の提案を無視した。'},
     title:'空室率が気になります',
     body:'成田さんから連絡が来ました。\n\n「今の空室率を見ていると、少し気になる数字が出ています。\n地域の高齢化が進む中で、入居者属性を少し工夫するだけで改善できると思いますが——」',
@@ -5072,7 +5072,7 @@ const CASE_POOL = [
     ]},
 
   // ── 地域 ──
-  { id:'midgame_community_event', repeatable:true, domain:'community', sender:'商店街', icon:'🌸', apCost:15, expireDays:14, category:'ops',
+  { id:'midgame_community_event', repeatable:true, domain:'community', sender:'商店街', icon:'🌸', apCost:20, expireDays:14, category:'ops',
     expirePenalty:{rep:-3, communityBond:-3, news:'🌸 商店街イベントへの参加を断った。地域との距離が広がった。'},
     title:'商店街のイベントに参加しませんか',
     bodyFn: ()=>{
@@ -5101,7 +5101,7 @@ const CASE_POOL = [
        storyTag:'今回は参加を見送った。商店街の方に申し訳なさを感じた。'},
     ]},
 
-  { id:'midgame_local_paper', repeatable:true, domain:'community', sender:'地域紙', icon:'📰', apCost:10, expireDays:14, category:'ops',
+  { id:'midgame_local_paper', repeatable:true, domain:'community', sender:'地域紙', icon:'📰', apCost:15, expireDays:14, category:'ops',
     expirePenalty:{news:'📰 地域紙の取材依頼を断った。'},
     title:'地域紙の記者が取材に来ました',
     body:'地域の情報誌の記者が訪ねてきました。\n\n「「桜橋の味を守る人々」という特集を組んでいまして。\n舞昆茶屋さんのことを取り上げさせていただけませんか？」',
@@ -5124,7 +5124,7 @@ const CASE_POOL = [
        storyTag:'今回は断った。機会を逃した気がした。'},
     ]},
 
-  { id:'midgame_school_visit', repeatable:true, domain:'community', sender:'地元小学校', icon:'🏫', apCost:10, expireDays:14, category:'ops',
+  { id:'midgame_school_visit', repeatable:true, domain:'community', sender:'地元小学校', icon:'🏫', apCost:15, expireDays:14, category:'ops',
     expirePenalty:{rep:-2, communityBond:-2, news:'🏫 地元小学校の訪問授業を断った。'},
     title:'小学校から食育授業の依頼',
     body:'地元の小学校から連絡がありました。\n\n「3年生の食育授業で、地元の食材を学ぶ機会を設けています。\n舞昆についてお話しいただけませんか？\n子どもたちが楽しみにしています」',
@@ -5148,7 +5148,7 @@ const CASE_POOL = [
     ]},
 
   // ── スタッフ ──
-  { id:'midgame_staff_training', repeatable:true, requireStaff:true, domain:'staff', sender:'スタッフ', icon:'📚', apCost:10, expireDays:14, category:'ops',
+  { id:'midgame_staff_training', repeatable:true, requireStaff:true, domain:'staff', sender:'スタッフ', icon:'📚', apCost:15, expireDays:14, category:'ops',
     expirePenalty:{staffSat:-5, news:'📚 スタッフ研修の機会を逃した。'},
     title:'スタッフ研修の機会があります',
     body:'近くで接客マナー研修が開催されると案内が届きました。\n\n「参加費はかかりますが、うちのスタッフが受けると\n接客の質が一段上がると思います。\n現場を任せるにも、ちょうど良い機会かもしれません」',
@@ -5857,7 +5857,7 @@ const DOMAIN_CASES = [
     ]},
 
   // ③ 販促・地域連携（strategy AP15-25）
-  { id:'local_collab', repeatable:true, domain:'store', sender:'農家', icon:'🌾', apCost:20, expireDays:21, category:'strategy',
+  { id:'local_collab', repeatable:true, domain:'store', sender:'農家', icon:'🌾', apCost:25, expireDays:21, category:'strategy',
     title:'地元農家とのコラボ提案',
     body:'地元の若い農家・太田さんから連絡が来ました。\n\n「地元産の野菜を使った舞昆のコラボ商品を\n一緒に作りませんか？\n地産地消として話題になると思います」',
     choices:[
@@ -7247,6 +7247,178 @@ const DOMAIN_CASES = [
     ]},
 
   // ── 夕方人手不足（昼スタッフ採用後・店舗成長後）──
+  // ════════════════════════════════════
+  // フォークイベント（どちらかしか選べない経営判断）
+  // ════════════════════════════════════
+
+  { id:'fork_invest_season', repeatable:true, domain:'community', sender:'成田（銀行）', icon:'🔀',
+    apCost:20, expireDays:14, category:'strategy', oncePerYear:true,
+    expirePenalty:{news:'🔀 「この秋の投資先」を決める機会が過ぎた。'},
+    title:'「この秋、どちらに力を入れますか？」',
+    body:'成田さんが珍しく迷いを含んだ声で言いました。\n\n「この秋は、集中する先を一つ決めた方が良いと思っています。\n\n地域との関係をもっと深めるか。\n商品のラインを充実させるか。\n\n両方に少しずつ、では中途半端になりがちです。\nどちらを選びますか？」',
+    choices:[
+      {label:'地域活動に集中する（AP-20）',
+       cost:0,
+       effects:{score:12, rep:6, communityBond:8, fatigue:10, storeSat:-5},
+       label2:'地域評判+6・絆+8 / 商品開発は後回し',
+       storyTag:'地域活動を優先することに決めた。商品開発は次の季節に持ち越した。',
+       followUp:{days:30, icon:'🌸', sender:'石川（地域）', title:'地域活動が実を結んでいます',
+         body:'石川さんから連絡が来ました。\n\n「あなたが地域に出てくれているおかげで、\n商店街の皆さんの見る目が変わってきましたよ。\n\n「あの舞昆のお店」から「桜橋の人」へ。\n\n来月、自治会の懇親会に招待状を出しますね」',
+         effects:{custRegular:2, communityBond:5}}},
+      {label:'商品ラインの充実に集中する（¥50,000・AP-20）',
+       cost:50000,
+       effects:{score:12, storeBrand:8, custUp:3, fatigue:10},
+       label2:'ブランド+8・新規客+3 / 地域活動は後回し',
+       storyTag:'商品の充実に集中することに決めた。地域活動は来シーズンまで控えることにした。',
+       followUp:{days:25, icon:'🛍️', sender:'常連客', title:'新商品を楽しみにしているお客様が増えています',
+         body:'常連のお客さまから声がかかりました。\n\n「最近、商品のことに力が入っているのが伝わってきます。\n\n「次は何が出るんですか？」って、友人にも聞かれるくらいで。\n\n楽しみにしていますね」',
+         effects:{custBonusPerDay:1, custBonusDays:21, source:'product_focus'}}},
+      {label:'今は判断できない',
+       cost:0,
+       effects:{score:2},
+       label2:'保留・機会は次回に',
+       storyTag:'今季は保留にした。成田は「来春、また話しましょう」と言って帰った。'},
+    ]},
+
+  { id:'fork_budget_choice', repeatable:true, domain:'store', sender:'成田（銀行）', icon:'💰',
+    apCost:25, expireDays:10, category:'strategy', minMonth:5,
+    expirePenalty:{news:'💰 予算の使い道を決める機会が過ぎた。'},
+    title:'「今月の余剰資金、どこへ使いますか」',
+    body:'成田さんから月次報告のあとに言われました。\n\n「今月、手元に¥100,000ほど余裕が出そうですね。\n\n広告投資なら、すぐに来客数に返ってきます。\nスタッフ研修なら、半年後に接客品質が上がります。\n\nどちらも大切ですが——\n両方には足りません。どうしますか？」',
+    choices:[
+      {label:'広告投資に使う（¥80,000）',
+       cost:80000,
+       effects:{score:14, custUp:4, storeBrand:5, profile:{finance:2}},
+       label2:'新規客+4・ブランド+5（短期効果）',
+       storyTag:'広告投資を選んだ。2週間後から来客が少し増え始めた。'},
+      {label:'スタッフ研修に使う（¥80,000）',
+       cost:80000,
+       effects:{score:14, staffSat:12, midoriTrust:5, profile:{people:3}},
+       label2:'スタッフ満足+12・信頼+5（長期投資）',
+       storyTag:'スタッフ研修を選んだ。みどりが「また参加したいです」と帰ってきた。',
+       followUp:{days:45, icon:'📚', sender:'みどり（スタッフ）', title:'スタッフの接客が変わってきました',
+         body:'みどりから報告がありました。\n\n「先日の研修で、「聴く」ということを改めて学びました。\n\nお客様が「まあ聞いてよ」と言い出したとき、\n以前の私なら次の接客が気になっていた。\n\n今は「ちゃんと聴けている」という感覚があります。\n\n常連のお客様から「みどりさん、変わったね、いい意味で」\nって言ってもらいました」',
+         effects:{storeSat:8, customerLoyalty:5}}},
+      {label:'今月は貯めておく',
+       cost:0,
+       effects:{score:3},
+       label2:'キャッシュ維持・長期投資なし',
+       storyTag:'今月は貯えておくことにした。成田は「堅実ですね」と言った。'},
+    ]},
+
+  { id:'fork_community_or_expansion', repeatable:false, domain:'community', sender:'石川（地域）', icon:'🏘️',
+    apCost:20, expireDays:14, category:'strategy', minMonth:7,
+    expirePenalty:{news:'🏘️ 「地域か拡大か」の選択期限が過ぎた。'},
+    title:'「地域の縁か、隣町への一歩か」',
+    body:'石川さんから珍しく込み入った連絡が来ました。\n\n「来月末に「桜橋秋祭り」があります。\n今年は地域の人みんなで作るお祭りで、ぜひあなたにも参加してほしい。\n\nただ——同じ日に、隣町商工会から\n「合同フェアに出店しませんか？」というお誘いも来ているみたいですね。\n\nどちらも大切な機会です。\nでも、どちらかしか行けない。\n何を選びますか？」',
+    choices:[
+      {label:'地域の秋祭りに参加する（¥20,000・AP-20）',
+       cost:20000,
+       effects:{score:14, rep:8, communityBond:10, fatigue:15, custRegular:2, profile:{community:5}},
+       label2:'評判+8・絆+10・常連+2 / 体力消耗',
+       storyTag:'地域の秋祭りを選んだ。子どもも大人も集まる中で、舞昆を振る舞った。',
+       followUp:{days:21, icon:'🌾', sender:'石川（地域）', title:'お祭りのご縁が続いています',
+         body:'石川さんから連絡が来ました。\n\n「お祭りでのあなたの姿、みんなが覚えていますよ。\n\n「あの舞昆のお店の方、また出てほしい」\nという声が来ています。\n\n地域に根付いてきましたね」',
+         effects:{rep:5, communityBond:5, custRegular:1}}},
+      {label:'隣町フェアに出店する（¥40,000・AP-20）',
+       cost:40000,
+       effects:{score:14, custUp:5, storeBrand:7, fatigue:12, profile:{risk:2}},
+       label2:'新規客+5・ブランド+7（商圏拡大）',
+       storyTag:'隣町フェアへの出店を選んだ。石川さんには事情を説明した。新しい顔ぶれに舞昆を届けた。',
+       followUp:{days:18, icon:'🏘️', sender:'隣町フェア主催', title:'「あの舞昆、また食べたい」という声が届いています',
+         body:'フェア主催者から連絡が来ました。\n\n「舞昆茶屋さんのブースに、思ったより多くの方が立ち寄ってくださいました。\n\n「あれはどこで買えるの？」という問い合わせが数件入っています」',
+         effects:{custBonusPerDay:2, custBonusDays:21, source:'neighboring_fair'}}},
+      {label:'今年はどちらも見送る',
+       cost:0,
+       effects:{score:2, rep:-1},
+       label2:'評判微減・体力温存',
+       storyTag:'今年はどちらも見送った。来年、また機会があると自分に言い聞かせた。'},
+    ]},
+
+  // 競合他店（地域ケース放置が続くと発火）
+  { id:'rival_neighborhood', conditionOnly:true, repeatable:false, domain:'competitor', sender:'地域情報', icon:'⚠️',
+    apCost:20, expireDays:21, category:'strategy',
+    expirePenalty:{custDown:2, rep:-3, news:'⚠️ 競合他店への対応を後回しにした。お客様が流れ始めた。'},
+    title:'「近所に競合になりそうなお店が来ます」',
+    body:'商店街の組合長から電話が来ました。\n\n「実は——隣の空き店舗に、こだわりの発酵食品を扱うお店が入るそうです。\n\nSNSにも力を入れるとか。\n\nあなたのお店が地域でどれだけ根を張っているかが、勝負になりそうです。\n\n最近、地域のイベントにあまり顔を出せていなかったとしたら——\nこれは少し危ないかもしれません」',
+    choices:[
+      {label:'差別化と地域活動を強化する（¥60,000・AP-20）',
+       cost:60000,
+       effects:{score:15, rep:8, communityBond:8, storeBrand:5, fatigue:15},
+       label2:'評判+8・ブランド+5 / 今から巻き返し',
+       storyTag:'競合に備えて地域活動と差別化を強化した。'},
+      {label:'常連客との関係を深める',
+       cost:0,
+       effects:{score:10, customerLoyalty:8, communityBond:5},
+       label2:'ロイヤル客を守る・新規は後回し',
+       storyTag:'常連さんとの絆を大切にした。「他の店に行くつもりはないよ」という言葉が励みになった。'},
+      {label:'様子を見る',
+       cost:0,
+       effects:{score:3, rep:-2},
+       label2:'評判-2・リスク放置',
+       storyTag:'様子を見ることにした。'},
+    ]},
+
+  // ════════════════════════════════════
+  // パスマイルストーンイベント（conditionOnly、generateConditionCasesで発火）
+  // ════════════════════════════════════
+
+  { id:'path_community_milestone', conditionOnly:true, repeatable:false, domain:'community', sender:'石川（地域）', icon:'🌸',
+    apCost:0, expireDays:30, category:'mgmt',
+    title:'「地域の顔として知られています」',
+    body:'石川さんが来店してお茶を一杯飲みながら、静かに言いました。\n\n「あなた——知っていますか。\n\n商店街でもPTA役員の間でも、\nもう「あの舞昆の方」じゃないんです。\n\n「桜橋のあの人」になっています。\n\n名前も知らない人から、\n「よろしくお伝えください」って頼まれることが増えましたよ。\n\n地域に根を下ろした人間だけが持てる財産です」',
+    choices:[
+      {label:'「これからも続けていきます」と伝える',
+       cost:0,
+       effects:{score:20, rep:10, communityBond:12, custRegular:3, profile:{community:6}},
+       label2:'評判+10・常連+3・地域の顔として定着',
+       storyTag:'「これからも続けます」と答えた。石川さんは「じゃあ、地区の委員会にも顔を出してみてください」と笑った。'},
+    ]},
+
+  { id:'path_product_milestone', conditionOnly:true, repeatable:false, domain:'store', sender:'食品コーディネーター', icon:'🏆',
+    apCost:0, expireDays:30, category:'mgmt',
+    title:'「商品への哲学を感じます」',
+    body:'見慣れない名刺を持った方が来店しました。\n\n「フード系の編集者をしています。\n\nSNSで舞昆の記事を見て——\n商品の一つひとつに想いが込められているのが伝わってきて、\n直接話を聞きに来ました。\n\n「なぜこの商品を？」「なぜこの組み合わせを？」\n\nその理由が、他にない経営者さんだと感じています」',
+    choices:[
+      {label:'「少しお話しできますか」と時間を作る',
+       cost:0,
+       effects:{score:20, storeBrand:10, custUp:4, rep:6, profile:{community:4}},
+       label2:'ブランド+10・新規客+4・露出チャンス',
+       storyTag:'時間を作って話をした。後日、小さなメディアに取り上げてもらった。',
+       followUp:{days:21, icon:'📰', sender:'フード系メディア', title:'記事が出ました',
+         body:'取材してくれた編集者から連絡が来ました。\n\n「先日の記事、想像以上の反響でした。\n\n読者から「行ってみた」という報告が届いています。\n\nまた何かあれば声をかけてください」',
+         effects:{custBonusPerDay:2, custBonusDays:30, source:'media_feature'}}},
+    ]},
+
+  { id:'path_staff_milestone', conditionOnly:true, repeatable:false, domain:'staff', sender:'みどり（スタッフ）', icon:'🌿',
+    apCost:0, expireDays:21, category:'mgmt',
+    title:'「最近、一人で動けることが増えました」',
+    body:'みどりが業務終わりに声をかけてきました。\n\n「最近——気づいたことがあって。\n\n常連のお客様から「おかみさん、今日は?」って\n聞かれることが増えたんです。\n\n「おかみさん」。\n\n私のことを、そう呼んでいた。\n\n最初は「私?」って戸惑ったんですが——\n少しずつ、自分の居場所ができてきた気がして。\n\nこれも、機会をもらっているからだと思います」',
+    choices:[
+      {label:'「あなたのおかげで店が成り立っています」と伝える',
+       cost:0,
+       effects:{score:16, midoriTrust:10, staffSat:12, custRegular:1, profile:{people:5}},
+       label2:'信頼+10・満足+12・常連+1',
+       storyTag:'みどりに感謝を伝えた。みどりは「もっと頑張れます」と少し照れた顔で言った。'},
+    ]},
+
+  { id:'path_expansion_milestone', conditionOnly:true, repeatable:false, domain:'bank', sender:'成田（銀行）', icon:'💼',
+    apCost:0, expireDays:30, category:'strategy',
+    title:'「特別条件でのご提案があります」',
+    body:'成田さんが珍しく書類を手に持って現れました。\n\n「あなたの経営方針を見てきて——\n決断の根拠が、常に筋が通っています。\n\n今日は、本部の承認を得た特別条件での融資案をお持ちしました。\n\n¥200,000の追加枠で、金利が通常より0.5%低い。\n\n次の一手を考えているなら、選択肢に入れていただければと思いまして」',
+    choices:[
+      {label:'「ありがたく検討します」と受け取る',
+       cost:0,
+       effects:{score:18, credit:5, money:200000, naritaTrust:5, profile:{risk:2, finance:3}},
+       label2:'信用+5・特別融資¥200,000',
+       storyTag:'成田の特別融資提案を受け取った。「誠実な経営者には、銀行も応えます」と言われた。'},
+      {label:'今は必要ない、ありがとう',
+       cost:0,
+       effects:{score:8, naritaTrust:3, credit:2},
+       label2:'信用+2・自己資本路線維持',
+       storyTag:'丁重にお断りした。成田は「その判断も、あなたらしいですね」と笑った。'},
+    ]},
+
   { id:'staff_shortage', conditionOnly:true, repeatable:false, domain:'staff', sender:'成田', icon:'📋',
     apCost:0, expireDays:28, category:'ops',
     title:'「次は夕方の体制ですね」',
@@ -7379,6 +7551,8 @@ function checkCaseExpiry(){
       if(b){ const r = b.rooms[p.roomSat.room]; if(r && r.tenant) r.satisfaction = Math.max(0, r.satisfaction + p.roomSat.val); }
     }
     if(p.communityBond) G.communityBond = Math.max(0, (G.communityBond||0) + p.communityBond);
+    // 地域系ケースを放置した回数を追跡（競合他店トリガーに使用）
+    if(c.domain === 'community' && p.rep < 0) G._communityMisses = (G._communityMisses||0) + 1;
     if(p.custDown) G.stores.forEach(s => { s.newCustomers = Math.max(0, (s.newCustomers||0) - p.custDown); });
     if(p._setFlag) G[p._setFlag] = (G.year-1)*360+(G.month-1)*30+G.day;
     if(p._setCooldown){ G.caseCooldowns=G.caseCooldowns||{}; G.caseCooldowns[p._setCooldown.id]=(G.year-1)*360+(G.month-1)*30+G.day+(p._setCooldown.extra||0); }
@@ -7640,7 +7814,7 @@ function generateWeeklyCases(){
 
   const tdNow = (G.year-1)*360 + (G.month-1)*30 + G.day;
   const unresolved = G.cases.filter(c => !c.resolved);
-  const MAX_PENDING = 8;
+  const MAX_PENDING = 6;
 
   // 未処理案件が上限以上なら生成しない
   if(unresolved.length >= MAX_PENDING){
@@ -8677,6 +8851,71 @@ function generateConditionCases(){
       });
     }
   });
+
+  // ── 戦略パスマイルストーン解放 ──
+  const _pp = G._pathPts || {};
+  // 地域路線（community 8pt・60日経過）
+  if((_pp.community||0) >= 8 && totalDays >= 60 && !G.cases.some(c=>c.id==='path_community_milestone')){
+    const _b = DOMAIN_CASES.find(c=>c.id==='path_community_milestone');
+    if(_b) addCase(_b);
+  }
+  // 商品路線（product 8pt・60日経過）
+  if((_pp.product||0) >= 8 && totalDays >= 60 && !G.cases.some(c=>c.id==='path_product_milestone')){
+    const _b = DOMAIN_CASES.find(c=>c.id==='path_product_milestone');
+    if(_b) addCase(_b);
+  }
+  // スタッフ路線（staff 5pt・みどり採用・45日経過）
+  if((_pp.staff||0) >= 5 && G.staffUnlocked && totalDays >= 45 && !G.cases.some(c=>c.id==='path_staff_milestone')){
+    const _b = DOMAIN_CASES.find(c=>c.id==='path_staff_milestone');
+    if(_b) addCase(_b);
+  }
+  // 拡大路線（expansion 4pt・bank案件解決済み・90日経過）
+  if((_pp.expansion||0) >= 4 && totalDays >= 90
+      && G.cases.some(c=>c.domain==='bank' && c.resolved)
+      && !G.cases.some(c=>c.id==='path_expansion_milestone')){
+    const _b = DOMAIN_CASES.find(c=>c.id==='path_expansion_milestone');
+    if(_b) addCase(_b);
+  }
+
+  // ── 競合他店トリガー（地域ケース放置3回以上・60日経過） ──
+  if((G._communityMisses||0) >= 3 && totalDays >= 60
+      && !G.cases.some(c=>c.id==='rival_neighborhood')){
+    const _b = DOMAIN_CASES.find(c=>c.id==='rival_neighborhood');
+    if(_b) addCase(_b);
+  }
+
+  // ── フォーク投資イベント（秋・年1回・開業90日後） ──
+  {
+    const _forkKey = `${G.year}_fork_invest_season`;
+    G.seasonalEventStatus = G.seasonalEventStatus || {};
+    if(!G.seasonalEventStatus[_forkKey] && G.month >= 8 && G.month <= 10
+        && totalDays >= 90 && !G.cases.some(c=>c.id==='fork_invest_season' && !c.resolved)){
+      G.seasonalEventStatus[_forkKey] = true;
+      const _b = DOMAIN_CASES.find(c=>c.id==='fork_invest_season');
+      if(_b) addCase(_b);
+    }
+  }
+  // フォーク予算選択（5月以降・年2回まで・成田と面識後）
+  {
+    const _budKey = `${G.year}_${G.month}_fork_budget_choice`;
+    G.seasonalEventStatus = G.seasonalEventStatus || {};
+    if(!G.seasonalEventStatus[_budKey] && G.month >= 5
+        && G.cases.some(c=>c.domain==='bank' && c.resolved)
+        && !G.cases.some(c=>c.id==='fork_budget_choice' && !c.resolved)){
+      const _budCount = Object.keys(G.seasonalEventStatus).filter(k=>k.includes('fork_budget_choice')).length;
+      if(_budCount < 2 && Math.random() < 0.3){
+        G.seasonalEventStatus[_budKey] = true;
+        const _b = DOMAIN_CASES.find(c=>c.id==='fork_budget_choice');
+        if(_b) addCase(_b);
+      }
+    }
+  }
+  // フォーク・地域か拡大か（7月以降・1回のみ・開業150日後）
+  if(totalDays >= 150 && G.month >= 7
+      && !G.cases.some(c=>c.id==='fork_community_or_expansion')){
+    const _b = DOMAIN_CASES.find(c=>c.id==='fork_community_or_expansion');
+    if(_b) addCase(_b);
+  }
 
   // ── 再販候補チェック（昨年同シーズンのアーカイブメニュー） ──────
   const _curSeason = getSeason();
@@ -10492,6 +10731,15 @@ function chooseEvent(idx, useFatigue){
       }, 400);
     }
   }
+
+  // ─── 戦略パス追跡 ───
+  G._pathPts = G._pathPts || { community:0, product:0, staff:0, expansion:0 };
+  const _evDomain = ev.domain || '';
+  const _evCat = ev.category || '';
+  if(_evDomain === 'community') G._pathPts.community++;
+  else if(_evDomain === 'store' && (_evCat === 'strategy' || _evCat === 'mgmt')) G._pathPts.product++;
+  else if(_evDomain === 'staff') G._pathPts.staff++;
+  else if(_evDomain === 'bank' && _evCat === 'strategy') G._pathPts.expansion++;
 
   // 入居申込承認（bi/ri指定）
   if(fx.approveRoom){
@@ -13362,6 +13610,11 @@ function _renderDevDashboard(){
     {label:'疲労',          bar:G.fatigue||0, barMax:120, barColor:'#FF6B6B', value:(G.fatigue||0)+'/120'},
     {label:'経過日数',      value:totalDays+'日'},
     {label:'フェーズ',      value:'第'+G.phase+'部'},
+    {divider:true},
+    {label:'🌸 地域路線',   bar:((G._pathPts||{}).community||0), barMax:15, barColor:'#81C784', value:((G._pathPts||{}).community||0)+'pt'},
+    {label:'🛍️ 商品路線',   bar:((G._pathPts||{}).product||0),   barMax:15, barColor:'#FF8A65', value:((G._pathPts||{}).product||0)+'pt'},
+    {label:'👩 育成路線',   bar:((G._pathPts||{}).staff||0),     barMax:10, barColor:'#F48FB1', value:((G._pathPts||{}).staff||0)+'pt'},
+    {label:'💼 拡大路線',   bar:((G._pathPts||{}).expansion||0), barMax:10, barColor:'#64B5F6', value:((G._pathPts||{}).expansion||0)+'pt'},
   ]);
 
   // ── 👥 人物進行 ──
