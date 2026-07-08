@@ -11276,11 +11276,25 @@ function buildUpcomingEvents(){
     if(readyIn >= 1 && readyIn <= 5){ items.push({ icon:ci.icon, label:ci.name+'から連絡がありそうです', sub:'あと'+readyIn+'日ほど', daysLeft:readyIn, type:'character' }); break; }
   }
 
-  // ⑤ 空室募集中 → 内見予告
-  const _seekRooms = (G.buildings||[]).flatMap(b=>(b.rooms||[]).filter(r=>r.seeking&&!r.tenant));
+  // ⑤ 空室募集中 → 入居申込予告（実際のケース生成タイミングから逆算）
+  const _seekRooms = (G.buildings||[]).flatMap((b,bi) =>
+    (b.rooms||[]).map((r,ri) => ({r,bi,ri,b})).filter(({r}) => r.seeking && !r.tenant));
   if(_seekRooms.length > 0 && !items.some(i=>i.type==='room')){
-    const _rh = ((_seekRooms[0].num||'01').charCodeAt(1)||49) % 4;
-    items.push({ icon:'🏠', label:'空室にお問い合わせが届いています', sub:'あと'+(3+_rh)+'日ほどで内見予定', daysLeft:3+_rh, type:'room' });
+    // 既に申込ケースが pending かチェック
+    const {bi:_bi, ri:_ri} = _seekRooms[0];
+    const _existingApply = G.cases.some(c => c.id === `apply_${_bi}_${_ri}` && !c.resolved);
+    if(_existingApply){
+      // 既に案件ボックスに届いている
+      items.push({ icon:'🏠', label:'入居申込が届いています', sub:'案件ボックスを確認', daysLeft:0, type:'room' });
+    } else {
+      // generateRoomApplicationCases は毎日実行・確率55〜75%なので期待値は1〜2日
+      const _rep = (G.regions&&G.regions[0]) ? (G.regions[0].reputation||0) : 0;
+      const _applyChance = _rep >= 80 ? 0.75 : _rep >= 60 ? 0.65 : 0.55;
+      // 期待日数 = 1/確率（切り上げ、最大3日）
+      const _expectedDays = Math.min(3, Math.ceil(1 / _applyChance));
+      const _sub = _expectedDays <= 1 ? '明日にも申込が届きそうです' : `あと${_expectedDays}日ほどで申込予定`;
+      items.push({ icon:'🏠', label:'空室に問い合わせが来ています', sub:_sub, daysLeft:_expectedDays, type:'room' });
+    }
   }
 
   // ⑥ 店舗改装費用まであと少し
