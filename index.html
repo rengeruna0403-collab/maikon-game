@@ -7841,11 +7841,28 @@ function generateConditionCases(){
   const _totalRooms = _rooms.length;
   const _isFull = _vacantCount === 0 && _totalRooms > 0;
 
-  // Phase 1：「まず満室に」（5日後・空き部屋あり・募集開始済み・1回のみ）
-  const _seekingStarted = _rooms.some(r => r.seeking);
-  if(totalDays >= 5 && _vacantCount > 0 && _seekingStarted && !G.cases.some(c => c.id === 'narita_fullhouse_goal')){
-    const base = DOMAIN_CASES.find(c => c.id === 'narita_fullhouse_goal');
-    if(base) addCase(base);
+  // Phase 1：「まず満室に」（店舗開店済み・空き部屋あり・募集開始済み・1回のみ）
+  // ※満室の場合は発火しない。満室達成後にケースが残っていたら自動スキップ。
+  const _seekingStarted = _rooms.some(r => r.seeking) || _occupiedCount > 0;
+  const _storeOpen = (G.stores||[]).some(s => s.isOpen);
+  const _fullhouseExists = G.cases.some(c => c.id === 'narita_fullhouse_goal');
+  if(_storeOpen && _seekingStarted && !_fullhouseExists){
+    if(_vacantCount > 0){
+      // 空き部屋あり → 通常通り案件追加
+      const base = DOMAIN_CASES.find(c => c.id === 'narita_fullhouse_goal');
+      if(base) addCase(base);
+    } else if(_isFull){
+      // 最初から満室 or すでに満室達成 → この案件をスキップ済みとして記録し次Phaseへ
+      G.cases.push({ id:'narita_fullhouse_goal', resolved:true, _skipped:true,
+        createdYear:G.year, createdMonth:G.month, createdDay:G.day });
+    }
+  }
+  // 満室達成後にケースが未解決で残っていたら自動スキップ
+  const _pendingFullhouse = G.cases.find(c => c.id === 'narita_fullhouse_goal' && !c.resolved);
+  if(_pendingFullhouse && _isFull){
+    _pendingFullhouse.resolved = true;
+    _pendingFullhouse._autoSkipped = true;
+    if(DEV_MODE) console.log('[Narita] narita_fullhouse_goal auto-skipped: already full');
   }
   // Phase 2：「次の場所へ」（180日後・満室達成）
   if(totalDays >= 180 && _isFull && !G.cases.some(c => c.id === 'narita_next_location')){
