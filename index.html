@@ -11564,7 +11564,7 @@ function renderHome(){
       </div>` : '';
     return `
       <button class="adv-btn" onclick="advanceDay()">
-        🌿 翌日へ進む ——${getNextDayLabel()}
+        🌿 明日へ進む<br><span style="font-size:11px;font-weight:400;opacity:0.8">${getNextDayLabel()}へ</span>
       </button>
       ${_day1Hint}
       ${renderTodayAction()}
