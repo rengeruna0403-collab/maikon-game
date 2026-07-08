@@ -6119,11 +6119,39 @@ const DOMAIN_CASES = [
 
   { id:'midori_overtime', conditionOnly:true, repeatable:true, domain:'staff', sender:'みどり', icon:'⏰', apCost:0, expireDays:5, category:'ops',
     title:'繁忙日——みどりに残業を頼むか',
-    body:'今日は客足が多く、15時になってもまだ混んでいる。\n\nみどりが「そろそろ上がります」と声をかけてきた。\n娘の帰宅は16時。バス停まで迎えに行くはずだ。\n\nあと1時間、残ってもらえると助かる状況だが——',
+    body:'今日はお客様が多く、15時になってもまだ店内は混み合っている。\n\nみどりが「そろそろ失礼します」と声を掛けてきた。\n\n娘さんが学校から帰ってくる時間だ。\n家の鍵を開けて迎えるため、いつも時間どおりに帰っている。\n\nあと少しだけ手伝ってもらえれば助かる状況だが——',
     choices:[
-      {label:'「今日は上がってください。あとは自分でやります」と伝える',cost:0,effects:{score:8,staffSat:8,midoriTrust:4,resilience:3,profile:{people:3}},label2:'みどりの生活を優先・自分でカバー',storyTag:'みどりを定時で帰した。一人でなんとかやり切った。「小規模店舗の限界」をひしひしと感じた一日だった。'},
-      {label:'「30分だけお願いできますか」と頼む（追加賃金）',cost:1500,effects:{score:5,staffSat:3,profile:{finance:2}},label2:'みどりの協力・追加賃金¥1,500',storyTag:'みどりに30分残ってもらった。「次は人手を増やすことを考えないといけない」と感じた。'},
-      {label:'「無理しなくていいです」と言いながら様子を見る',cost:0,effects:{score:3,staffSat:4,resilience:2,profile:{people:2}},label2:'状況に任せる',storyTag:'みどりは自分で判断して少しだけ残ってくれた。でもこれに頼り続けるのは間違いだと思った。'},
+      {label:'「今日は上がってください。あとは自分でやります」と伝える',
+       cost:0,
+       effects:{score:8,staffSat:10,midoriTrust:5,resilience:3,profile:{people:3}},
+       label2:'みどりの家庭を優先・信頼+5',
+       storyTag:'みどりを定時で帰した。一人でなんとかやり切った。「小規模店舗の限界」をひしひしと感じた一日だったが、人を大切にできたことには満足している。'},
+      {label:'「30分だけお願いできますか」と頼む（追加賃金 ¥1,500）',
+       cost:1500,
+       effects:{score:4,staffSat:-5,midoriTrust:-2,resilience:1,profile:{finance:1}},
+       label2:'みどりの協力・信頼-2・疲労増',
+       storyTag:'みどりに30分残ってもらった。「ありがとうございます」と言いながらも、申し訳ない気持ちが残った。次は人手を増やすことを考えないといけない。',
+       followUp:{days:3,icon:'⏰',sender:'みどり',
+         title:'残業の翌日',
+         body:'翌日、みどりが少し疲れた様子で出勤してきた。\n\n「昨日は大丈夫でしたか？」と聞くと、\n「娘が心配して泣いてしまいまして……」と話してくれた。\n\n定時で帰れることが、彼女の家庭の安心につながっていることが、改めてわかった。',
+         effects:{midoriTrust:-1}}},
+    ]},
+
+  // みどり残業が重なった場合の限界イベント（3回以上残業依頼後に発火）
+  { id:'midori_overtime_limit', conditionOnly:true, repeatable:false, domain:'staff', sender:'みどり', icon:'😔', apCost:10, expireDays:14, category:'ops',
+    title:'「少し、ご相談があるんですが」',
+    body:'みどりが、珍しく閉店後に声を掛けてきました。\n\n「最近、残業が続いて……\n娘が「ママ帰ってこない」って言うようになって。\n\n働き方を少し変えることって、できますか？」\n\n大切なスタッフが、限界に近づいている。',
+    choices:[
+      {label:'「ごめんなさい。今後は絶対に定時で帰してあげます」と約束する',
+       cost:0,
+       effects:{score:10,staffSat:12,midoriTrust:8,resilience:2,profile:{people:4}},
+       label2:'みどりとの信頼を取り戻す',
+       storyTag:'みどりに謝り、約束をした。「信じます」と言ってくれた。スタッフを守ることが、長く続く経営の土台だと思い直した。'},
+      {label:'「人を増やすことを検討します」と伝える',
+       cost:0,
+       effects:{score:7,staffSat:8,midoriTrust:4,profile:{people:2,finance:1}},
+       label2:'採用検討を約束',
+       storyTag:'「人を増やすことを考えている」と正直に話した。みどりは少しほっとした表情だった。'},
     ]},
 
   // ════════════════════════════════════
@@ -7764,6 +7792,12 @@ function generateConditionCases(){
           && !G.cases.some(c => c.id === 'midori_overtime' && !c.resolved)){
         const base = DOMAIN_CASES.find(c => c.id === 'midori_overtime');
         if(base){ addCase(base); G._midoriOtDay = totalDays; }
+      }
+      // みどり残業限界イベント（3回以上残業依頼・未発火）
+      if((G._midoriOvertimeCount || 0) >= 3
+          && !G.cases.some(c => c.id === 'midori_overtime_limit')){
+        const base = DOMAIN_CASES.find(c => c.id === 'midori_overtime_limit');
+        if(base) addCase(base);
       }
 
       // ── Phase 2：夕方人手不足（顧客25人超・アルバイト未採用）──
@@ -9739,6 +9773,10 @@ function chooseEvent(idx, useFatigue){
   const fx=choice.effects;
   const _choiceCost = safeNumber(choice.cost, 0);
   if(_choiceCost > 0 && _choiceCost > G.money){notify('資金が不足しています','warn');return;}
+  // みどり残業依頼カウント（「30分だけ」選択時のみカウント）
+  if(ev.id === 'midori_overtime' && idx === 1){
+    G._midoriOvertimeCount = (G._midoriOvertimeCount || 0) + 1;
+  }
   // case-level AP cost（みどり採用で半減）
   const apCostRaw = ev.apCost || 0;
   const apCost = apCostRaw > 0 && G.staffUnlocked ? Math.ceil(apCostRaw * 0.5) : apCostRaw;
