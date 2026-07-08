@@ -5306,7 +5306,7 @@ const CASE_POOL = [
   { id:'unlock_mentai_hotate', conditionOnly:true, repeatable:false,
     domain:'store', sender:'みどり', icon:'🐚', apCost:15, expireDays:21, category:'mgmt',
     title:'「新しい味を置いてみませんか？」',
-    body:'みどりが少し興奮気味に話してきました。\n\n「お客様から「帆立が好き」という声をよく聞くんです。\n\n舞昆の中に「明太風帆立舞昆」という商品があって——\n贅沢な帆立×明太の風味で、贈り物にも人気らしいです。\n\nぜひ試してみませんか？」',
+    body:'みどりが少し興奮気味に話してきました。\n\n「お客様から「帆立が好き」という声をよく聞くんです。\n\n舞昆の中に「明太風帆立舞昆」という商品があって——\n帆立の旨みと明太の風味が楽しめる商品だそうで、贈り物にも人気らしいです。\n\nぜひ試してみませんか？」',
     choices:[
       { label:'明太風帆立舞昆を仕入れる（¥60,000）', cost:60000,
         effects:{ score:15, storeSat:10, custUp:3, unlockProduct:'mentai_hotate' },
@@ -7637,11 +7637,16 @@ function generateConditionCases(){
       const _hasActiveUnlock = G.cases.some(c => _unlockIds.includes(c.id) && !c.resolved);
       const _hasPendingLaunch = (G.pendingMenuLaunches||[]).length > 0;
 
+      const _lastUnlockDay = G._lastProductUnlockDay || 0;
+      const _cooldownDays = 30;
+      const _inCooldown = _lastUnlockDay > 0 && totalDays < _lastUnlockDay + _cooldownDays;
+
       const _suppressReasons = [];
       if(_hasActiveUnlock)   _suppressReasons.push('解放イベント進行中');
       if(_hasPendingLaunch)  _suppressReasons.push('メニュー予約中');
+      if(_inCooldown)        _suppressReasons.push(`商品導入クールタイム（あと${_lastUnlockDay + _cooldownDays - totalDays}日）`);
 
-      if(!_hasActiveUnlock && !_hasPendingLaunch){
+      if(!_hasActiveUnlock && !_hasPendingLaunch && !_inCooldown){
         const _cust = s0.customers || 0;
         const _lv   = s0.level || 1;
         const _gLv  = s0.giftLevel || 0;
@@ -9854,6 +9859,7 @@ function chooseEvent(idx, useFatigue){
     G.unlockedProducts = G.unlockedProducts || [];
     if(!G.unlockedProducts.includes(fx.unlockProduct)){
       G.unlockedProducts.push(fx.unlockProduct);
+      G._lastProductUnlockDay = (G.year-1)*360 + (G.month-1)*30 + G.day;
       const _pc = UNLOCKED_PRODUCT_CATALOG[fx.unlockProduct];
       const _pName = _pc ? _pc.name : fx.unlockProduct;
       notify(`🛍 「${_pName}」が商品コーナーに加わりました！`, 'gold');
