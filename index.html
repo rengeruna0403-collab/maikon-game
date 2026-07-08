@@ -6070,11 +6070,23 @@ const DOMAIN_CASES = [
     ]},
 
   { id:'staff_new_training', requireStaff:true, repeatable:false, domain:'staff', sender:'みどり', icon:'🎓', apCost:15, expireDays:21, category:'mgmt',
-    title:'「新人教育を担当させてほしい」',
-    body:'みどりから打診がありました。\n\n「もし新しいスタッフが入ったら、\n私が教える側をやってみたいんです。\nそれで良ければ……」\n\n主任候補としての自覚が芽生えてきた。',
+    title:'「さくらさんの教育、私にやらせてもらえますか」',
+    body:'みどりが少し緊張した様子で話しかけてきた。\n\n「さくらさん、一生懸命なんですが\nまだ昼のピーク時に戸惑うことがあって。\n\n私が横について教えれば、\n2週間くらいで一人で動けるようになると思います。\n\n……教える側って、初めてで不安なんですけど、\nやってみてもいいですか？」\n\n頼もしくなってきた。',
     choices:[
-      {label:'任せる（主任候補として正式に認める）',cost:0,effects:{score:18,staffSat:15,profile:{people:5}},label2:'スタッフ大成長・主任候補確定',storyTag:'みどりに新人教育を任せた。「責任感が全然違います」と自分でも感じているようだった。'},
-      {label:'「まずは自分の仕事を磨いてから」と伝える',cost:0,effects:{score:6,staffSat:-5},label2:'みどり少し残念',storyTag:'今は自分磨きが先と伝えた。'},
+      {label:'任せる（主任候補として正式に認める）',
+       cost:0,
+       effects:{score:18,staffSat:15,midoriTrust:4,profile:{people:5}},
+       label2:'みどり大成長・主任候補確定',
+       storyTag:'みどりに新人教育を任せた。さくらさんが少しずつ独り立ちし始め、みどりの表情が変わった。「責任感が全然違います」と自分でも感じているようだった。',
+       followUp:{days:14,icon:'🎓',sender:'みどり',
+         title:'さくらさん、戦力になってきました',
+         body:'みどりから報告がありました。\n\n「さくらさん、すごく早く覚えてくれて。\n\n今日、私が手を離しても\n昼のレジと接客を一人でこなしてくれました。\n\n教えるって、こんなに嬉しいものなんですね。\n……私、主任になりたいって、思い始めています」\n\nみどりの中で、何かが変わった。',
+         effects:{midoriTrust:3,staffSat:5}}},
+      {label:'「まずは自分の仕事を磨いてから」と伝える',
+       cost:0,
+       effects:{score:6,staffSat:-5,midoriTrust:-2},
+       label2:'みどり少し残念',
+       storyTag:'今は自分磨きが先と伝えた。みどりは「……そうですね」と頷いたが、少し寂しそうだった。'},
     ]},
 
   { id:'staff_self_resolve', requireStaff:true, repeatable:false, domain:'staff', sender:'みどり', icon:'🏆', apCost:5, expireDays:14, category:'ops',
@@ -7200,18 +7212,32 @@ const DOMAIN_CASES = [
         label2:'評判-5・満足度-8', storyTag:'謝るしかなかった。夕方体制の見直しが急務だ。' },
     ]},
 
-  // ── Phase 2：夕方人手不足 ──
+  // ── 昼の人手不足（みどり採用後・顧客増加時）──
+  { id:'lunch_staff_shortage', conditionOnly:true, repeatable:false, domain:'staff', sender:'みどり', icon:'⏰',
+    apCost:0, expireDays:28, category:'ops',
+    title:'「昼の時間帯、ちょっと厳しくなってきました」',
+    body:'みどりが少し困った顔で話しかけてきた。\n\n「最近、11時から13時ごろが特にお客様が多くて。\n私一人では追いつかなくて——\n\nレジとお茶出しを同時にやると、\nどうしても待たせてしまうんです。\n\n昼の時間帯だけでも、もう一人いると\nずいぶん違うと思うんですが……」\n\n昼のピーク時間帯の人手不足が、限界に近づいている。',
+    choices:[
+      { label:'昼スタッフを募集する（週4日・10〜15時）', cost:0, ap:5,
+        effects:{ score:5, hireLunchStaff:true },
+        label2:'昼の体制を強化', storyTag:'昼勤務のスタッフを募集することにした。みどりの負担が減り、昼のピークを乗り越えられるようになりそうだ。' },
+      { label:'しばらくみどりと二人で頑張る', cost:0,
+        effects:{ score:-2, fatigue:12, staffSat:-5, storeSat:-4 },
+        label2:'みどり負担増・疲労+12', storyTag:'採用は見送った。みどりには申し訳ないが、しばらく二人で乗り切るしかない。' },
+    ]},
+
+  // ── 夕方人手不足（昼スタッフ採用後・店舗成長後）──
   { id:'staff_shortage', conditionOnly:true, repeatable:false, domain:'staff', sender:'成田', icon:'📋',
     apCost:0, expireDays:28, category:'ops',
-    title:'「そろそろ夕方の人手が必要では」',
-    body:'来客が増えてきた。\n昼のピーク時、何度か列ができている。\n\n成田さんが言った。\n\n「みどりさんは15時上がりですよね。\n夕方以降、あなた一人で回していますか。\n\nこのままお客さんが増えると、\n対応しきれなくなります。\n\n夕方だけのアルバイトを一人、\n入れてみてはどうでしょう。\n週3日・17時から21時で\n月給は6万円ほど。\n\nみどりさんの体制は\nそのままで構いません」',
+    title:'「次は夕方の体制ですね」',
+    body:'成田さんが立ち寄って言った。\n\n「昼の人手は整いましたね。\nみどりさんと新しい方でうまく回っているようです。\n\nただ——\n15時以降はまだお一人ですよね？\n\nこのままお客さんが増えてくると、\n夕方以降に限界が来ると思います。\n\n夕方だけのアルバイトを一人、\n入れてみてはどうでしょう。\n週3日・17時から21時で\n月給は6万円ほど。\n\n昼夜それぞれに人が揃う体制になります」',
     choices:[
-      { label:'アルバイトを募集する（週3・夕方のみ・月給¥60,000）', cost:0, ap:5,
+      { label:'夕方アルバイトを募集する（週3・17〜21時・月給¥60,000）', cost:0, ap:5,
         effects:{ score:5, hireArubaito:true },
-        label2:'夕方体制へ', storyTag:'夕方アルバイトを採用することにした。みどりと二人で昼夜をカバーできる体制へ。' },
+        label2:'夕方体制へ', storyTag:'夕方アルバイトを採用することにした。昼はみどりと昼スタッフ、夕方は坂本でカバーする体制へ。' },
       { label:'しばらく一人で回す', cost:0,
         effects:{ score:-2, fatigue:10, storeSat:-5 },
-        label2:'疲労+10・満足度-5', storyTag:'採用は見送った。夕方は引き続きワンオペが続く。' },
+        label2:'疲労+10・満足度-5', storyTag:'採用は見送った。夕方は引き続きオーナーが一人で対応する。' },
     ]},
 ];
 
@@ -7938,12 +7964,28 @@ function generateConditionCases(){
         if(base) addCase(base);
       }
 
-      // ── Phase 2：夕方人手不足（顧客25人超・アルバイト未採用）──
-      const _hasArubaito = G.staff.some(s => s.type === 'arubaito');
+      // ── Phase 1.5：昼の人手不足（顧客18人超・みどり採用済み・昼スタッフ未採用）──
+      const _hasLunchStaff = G.staff.some(s => s.type === 'lunchStaff');
+      const _hasArubaito   = G.staff.some(s => s.type === 'arubaito');
       const _totalGuestsP2 = (G.stores[0].newCustomers||0) + (G.stores[0].regulars||0);
-      if(_totalGuestsP2 >= 25 && !_hasArubaito && !G.cases.some(c => c.id === 'staff_shortage')){
+      if(_totalGuestsP2 >= 18 && !_hasLunchStaff
+          && !G.cases.some(c => c.id === 'lunch_staff_shortage')){
+        const base = DOMAIN_CASES.find(c => c.id === 'lunch_staff_shortage');
+        if(base) addCase(base);
+      }
+      // ── Phase 2：夕方人手不足（昼スタッフ採用後・顧客28人超・店舗Lv2以上）──
+      if(_hasLunchStaff && _totalGuestsP2 >= 28 && (G.stores[0].level||1) >= 2
+          && !_hasArubaito && !G.cases.some(c => c.id === 'staff_shortage')){
         const base = DOMAIN_CASES.find(c => c.id === 'staff_shortage');
         if(base) addCase(base);
+      }
+      // ── みどり新人教育イベント（昼スタッフ採用14日後・未発火）──
+      if(_hasLunchStaff && G._lunchStaffHiredDay !== undefined){
+        const _daysSinceLunch = totalDays - G._lunchStaffHiredDay;
+        if(_daysSinceLunch >= 14 && !G.cases.some(c => c.id === 'staff_new_training')){
+          const base = DOMAIN_CASES.find(c => c.id === 'staff_new_training');
+          if(base) addCase(base);
+        }
       }
 
       // ── お弁当開発フロー（季節循環型・動的生成） ──
@@ -9977,7 +10019,8 @@ function chooseEvent(idx, useFatigue){
   if(fx.newBuilding && G.money>0) addBuilding();
   if(fx.hireStaff === 'midori'){ hireMidori(); }
   if(fx.showMidoriInterview){ setTimeout(showMidoriInterviewModal, 400); }
-  if(fx.hireArubaito){ setTimeout(showArubaitoModal, 400); }
+  if(fx.hireArubaito){    setTimeout(showArubaitoModal,    400); }
+  if(fx.hireLunchStaff){ setTimeout(showLunchStaffModal, 400); }
   if(fx.startBentoDev){
     const _td = (G.year-1)*360 + (G.month-1)*30 + G.day;
     // 案件から渡された商品情報を優先、なければ完成月で決定
@@ -10553,6 +10596,63 @@ function hireArubaito(){
   addStory('坂本大樹を夕方アルバイトとして採用した。週3日・17〜21時。みどりが帰る夕方以降も店が回るようになった。夕方の来客が増えてきた。','highlight');
   addNews('🧑‍🎓 坂本大樹 採用（週3日・17〜21時・月給¥60,000）');
   notify('坂本大樹を採用！夕方の来客が増えやすくなりました', 'gold');
+  renderTab();
+}
+
+// ─── 昼スタッフ採用モーダル ───
+function showLunchStaffModal(){
+  const body = document.getElementById('event-modal-body');
+  body.innerHTML = `
+    <div style="padding:4px">
+      <div style="text-align:center;font-size:32px;margin-bottom:8px">👩‍🍳</div>
+      <div style="font-size:16px;font-weight:700;text-align:center;margin-bottom:6px;font-family:'Noto Serif JP',serif">田村 さくら（28歳）</div>
+      <div style="background:var(--warm);border-radius:10px;padding:12px;margin-bottom:12px;font-size:13px;line-height:1.9">
+        「子どもが幼稚園に通いはじめたので、<br>
+        午前中から昼過ぎなら働けるんです。<br>
+        飲食の経験はカフェで2年ほど。<br>
+        <strong>みどりさんに教えてもらいながら、頑張ります</strong>」
+      </div>
+      <div style="background:var(--bg2);border-radius:8px;padding:8px 12px;margin-bottom:14px;font-size:11px;color:var(--muted)">
+        28歳・主婦 ／ 勤務：週4日 10:00〜15:00 ／ 希望月給 ¥75,000<br>
+        ※ 昼のピーク時間帯をカバー。みどりの負担が減り、接客品質が上がります
+      </div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <button class="choice-btn" onclick="hireLunchStaff()">
+          <div class="choice-lbl">👩‍🍳 採用する（週4日・10〜15時・月給 ¥75,000）</div>
+          <div class="choice-eff" style="color:var(--gr)">昼の体制が整う・みどりが新人教育に専念できる・月次固定費 +¥75,000</div>
+        </button>
+        <button class="choice-btn" onclick="rejectLunchStaff()">
+          <div class="choice-lbl">今回は見送る</div>
+          <div class="choice-eff" style="color:var(--orange)">昼のピーク対応はみどりとオーナーで継続・スタッフ負担が続く</div>
+        </button>
+      </div>
+    </div>`;
+  document.getElementById('event-modal').style.display = 'flex';
+}
+
+function rejectLunchStaff(){
+  document.getElementById('event-modal').style.display = 'none';
+  addStory('田村さくらの採用を見送った。昼のピーク対応はしばらくみどりとオーナーで乗り切ることになる。', 'normal');
+  renderTab();
+}
+
+function hireLunchStaff(){
+  document.getElementById('event-modal').style.display = 'none';
+  const nextId = (G.staff.length > 0 ? Math.max(...G.staff.map(s => s.id)) : 1) + 1;
+  G.staff.push({
+    id: nextId, name:'田村 さくら', emoji:'👩‍🍳', age:28, level:1, title:'新人', type:'lunchStaff',
+    store:'舞昆茶屋1号店',
+    bio:'28歳・主婦。週4日・10〜15時勤務。カフェ経験2年。みどりの指導のもと昼の接客を担う。',
+    dream:'「自分でもいつかカフェをやってみたい」',
+    skills:{ service:45, cooking:30, management:8 },
+    daysWorked:0, salary:75000, growthPts:0, nextLevel:40, burden:5, satisfaction:75,
+  });
+  G._lunchStaffHiredDay = (G.year-1)*360 + (G.month-1)*30 + G.day;
+  G.stores[0].newCustomers = (G.stores[0].newCustomers||0) + 2;
+  G.stores[0].customers = (G.stores[0].newCustomers||0) + (G.stores[0].regulars||0);
+  addStory('田村さくらを昼スタッフとして採用した。週4日・10〜15時。みどりと二人で昼のピークを支えてもらえる体制になった。','highlight');
+  addNews('👩‍🍳 田村さくら 採用（週4日・10〜15時・月給¥75,000）');
+  notify('田村さくらを採用！昼のピーク対応が安定します', 'gold');
   renderTab();
 }
 
