@@ -5959,7 +5959,7 @@ const DOMAIN_CASES = [
   // みどり・スタッフ成長【staff】
   // ════════════════════════════════════
 
-  { id:'staff_manual', repeatable:false, domain:'staff', sender:'みどり', icon:'📋', apCost:10, expireDays:14, category:'mgmt',
+  { id:'staff_manual', requireStaff:true, repeatable:false, domain:'staff', sender:'みどり', icon:'📋', apCost:10, expireDays:14, category:'mgmt',
     title:'「接客マニュアルが欲しいです」',
     body:'みどりから相談が来ました。\n\n「お客様への声のかけ方や\n試食の出し方、お断りのされ方など……\n基本的なことを確認したくて。\nマニュアルはありますか？」',
     choices:[
@@ -5968,7 +5968,7 @@ const DOMAIN_CASES = [
       {label:'「自分で工夫してみて」と伝える',cost:0,effects:{score:3,staffSat:-8},label2:'スタッフ萎縮',storyTag:'任せることにした。みどりは不安そうだった。'},
     ]},
 
-  { id:'staff_complaint_fear', repeatable:false, domain:'staff', sender:'みどり', icon:'😰', apCost:10, expireDays:14, category:'mgmt',
+  { id:'staff_complaint_fear', requireStaff:true, repeatable:false, domain:'staff', sender:'みどり', icon:'😰', apCost:10, expireDays:14, category:'mgmt',
     title:'「クレーム対応が怖いです」',
     body:'みどりから打ち明けられました。\n\n「先日お客様に強い口調で言われてから、\nクレームを受けるのがすごく怖くて……。\n何かコツはありますか？」',
     choices:[
@@ -5977,7 +5977,7 @@ const DOMAIN_CASES = [
       {label:'「慣れればできるよ」と軽く流す',cost:0,effects:{score:2,staffSat:-5},label2:'みどりの不安が続く',storyTag:'軽く返した。みどりの不安は解消されなかった。'},
     ]},
 
-  { id:'staff_product_study', repeatable:false, domain:'staff', sender:'みどり', icon:'📚', apCost:10, expireDays:14, category:'mgmt',
+  { id:'staff_product_study', requireStaff:true, repeatable:false, domain:'staff', sender:'みどり', icon:'📚', apCost:10, expireDays:14, category:'mgmt',
     title:'「商品知識を増やしたいです」',
     body:'みどりが相談してきました。\n\n「お客様に「この商品とこっち、どう違う？」って\n聞かれることが多くて、うまく答えられなくて。\n舞昆のことをもっとちゃんと知りたいです」',
     choices:[
@@ -5985,7 +5985,7 @@ const DOMAIN_CASES = [
       {label:'商品勉強会を社内でやる',cost:0,effects:{score:10,staffSat:8},label2:'スタッフ成長',storyTag:'社内勉強会を開いた。'},
     ]},
 
-  { id:'staff_analysis', repeatable:false, domain:'staff', sender:'みどり', icon:'📊', apCost:10, expireDays:21, category:'mgmt',
+  { id:'staff_analysis', requireStaff:true, repeatable:false, domain:'staff', sender:'みどり', icon:'📊', apCost:10, expireDays:21, category:'mgmt',
     title:'「売れ筋を分析してみました」',
     body:'みどりが自発的に調べた結果を持ってきました。\n\n「先月の売上を商品別に集計してみたら、\nたもぎ茸舞昆だけで売上の43%を占めていました。\n逆にこれは全然売れていないです」\n\nと手書きの表を見せてくれた。',
     choices:[
@@ -5993,7 +5993,7 @@ const DOMAIN_CASES = [
       {label:'「よく気づいたね」と褒めるだけ',cost:0,effects:{score:7,staffSat:6},label2:'承認',storyTag:'褒めた。もっと活かせたかもしれない。'},
     ]},
 
-  { id:'staff_gift_improve', repeatable:false, domain:'staff', sender:'みどり', icon:'🎀', apCost:15, expireDays:21, category:'mgmt',
+  { id:'staff_gift_improve', requireStaff:true, repeatable:false, domain:'staff', sender:'みどり', icon:'🎀', apCost:15, expireDays:21, category:'mgmt',
     title:'「ギフト包装を改善したいです」',
     body:'みどりから提案が来ました。\n\n「贈答でお買い上げのお客様が増えてきましたが、\n今の包装だと少し簡素すぎる気がします。\nきれいな包み方を勉強して\n喜んでいただけるようにしたいんですが」',
     choices:[
@@ -6001,7 +6001,7 @@ const DOMAIN_CASES = [
       {label:'YouTube見て自習してもらう',cost:0,effects:{score:6,staffSat:4},label2:'自己学習',storyTag:'自習を勧めた。みどりは熱心に練習していた。'},
     ]},
 
-  { id:'staff_order_challenge', repeatable:false, domain:'staff', sender:'みどり', icon:'📦', apCost:15, expireDays:14, category:'mgmt',
+  { id:'staff_order_challenge', requireStaff:true, repeatable:false, domain:'staff', sender:'みどり', icon:'📦', apCost:15, expireDays:14, category:'mgmt',
     title:'「発注業務に挑戦したいです」',
     body:'みどりから申し出がありました。\n\n「在庫管理や発注の仕組みを覚えたいんです。\nもし良ければ、次の発注から\n一緒にやらせてもらえますか？」',
     choices:[
@@ -6009,7 +6009,7 @@ const DOMAIN_CASES = [
       {label:'「まだ早い」と伝える',cost:0,effects:{score:3,staffSat:-8},label2:'みどりがっかり',storyTag:'まだ早いと伝えた。みどりはがっかりした様子だった。'},
     ]},
 
-  { id:'staff_new_training', repeatable:false, domain:'staff', sender:'みどり', icon:'🎓', apCost:15, expireDays:21, category:'mgmt',
+  { id:'staff_new_training', requireStaff:true, repeatable:false, domain:'staff', sender:'みどり', icon:'🎓', apCost:15, expireDays:21, category:'mgmt',
     title:'「新人教育を担当させてほしい」',
     body:'みどりから打診がありました。\n\n「もし新しいスタッフが入ったら、\n私が教える側をやってみたいんです。\nそれで良ければ……」\n\n主任候補としての自覚が芽生えてきた。',
     choices:[
@@ -6017,7 +6017,7 @@ const DOMAIN_CASES = [
       {label:'「まずは自分の仕事を磨いてから」と伝える',cost:0,effects:{score:6,staffSat:-5},label2:'みどり少し残念',storyTag:'今は自分磨きが先と伝えた。'},
     ]},
 
-  { id:'staff_self_resolve', repeatable:false, domain:'staff', sender:'みどり', icon:'🏆', apCost:5, expireDays:14, category:'ops',
+  { id:'staff_self_resolve', requireStaff:true, repeatable:false, domain:'staff', sender:'みどり', icon:'🏆', apCost:5, expireDays:14, category:'ops',
     title:'みどりがクレームを自主解決した',
     body:'みどりから報告が届きました。\n\n「さっきお客様から商品の件でご不満があったんですが、\n私の判断で交換対応させていただきました。\n事後報告になってしまい、すみません」\n\nみどりが自分で判断して動いた。',
     choices:[
@@ -6033,7 +6033,7 @@ const DOMAIN_CASES = [
       {label:'「あともう少し実績を積もう」と伝える',cost:0,effects:{score:8,staffSat:3},label2:'次回に持ち越し',storyTag:'もう少し実績を積んでからと伝えた。'},
     ]},
 
-  { id:'staff_conflict', repeatable:true, domain:'staff', sender:'みどり', icon:'⚡', apCost:20, expireDays:7, category:'mgmt',
+  { id:'staff_conflict', requireStaff:true, repeatable:true, domain:'staff', sender:'みどり', icon:'⚡', apCost:20, expireDays:7, category:'mgmt',
     expirePenalty:{staffSat:-10, news:'⚡ スタッフ間の対立を放置した。'},
     title:'スタッフ同士が対立しています',
     body:'みどりから深刻な相談が来ました。\n\n「新しいスタッフさんとうまくいっていなくて。\nシフトの組み方とか、接客スタイルの違いで\n何度かぶつかっていて……」',
@@ -6042,7 +6042,7 @@ const DOMAIN_CASES = [
       {label:'「大人なんだから自分たちで解決して」と伝える',cost:0,effects:{score:3,staffSat:-12},label2:'問題悪化のリスク',storyTag:'自分たちで解決するよう求めた。関係が硬直化した。'},
     ]},
 
-  { id:'staff_raise', repeatable:true, domain:'staff', sender:'みどり', icon:'💰', apCost:15, expireDays:21, category:'mgmt',
+  { id:'staff_raise', requireStaff:true, repeatable:true, domain:'staff', sender:'みどり', icon:'💰', apCost:15, expireDays:21, category:'mgmt',
     expirePenalty:{staffSat:-8, news:'💰 昇給相談を放置した。みどりの不満が高まっている。'},
     title:'昇給の相談をしたいと言われた',
     body:'みどりから改まって相談がきました。\n\n「働き始めてから1年以上経ちました。\n責任も増えてきたので……\n少し給与のご相談をしたいのですが。\nいつか話せる時間いただけますか？」',
@@ -7426,7 +7426,10 @@ function generateWeeklyCases(){
   const _ok = c => {
     if(c.conditionOnly) return false;
     if(G.cases.some(x => x.id === c.id && !x.resolved)) return false;
-    if(c.requireStaff && !G.staffUnlocked) return false;
+    if(c.requireStaff && !G.staffUnlocked){
+      if(DEV_MODE) console.log(`[CaseFilter] ${c.id} 除外 — スタッフ相談：除外 / 理由：スタッフ未採用`);
+      return false;
+    }
     if(c.requireVacancy && !_hasVacancy) return false;
     if(c.requireTenant && !G.buildings.some(b => (b.rooms||[]).some(r => r.tenant))) return false;
     if(c.menuProposal && !_canProposeNewMenu()) return false;
