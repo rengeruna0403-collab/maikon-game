@@ -2954,7 +2954,7 @@ function showGoEnNote(){
             </div>
             <div style="flex:1;min-width:0">
               <div style="font-size:.68em;color:#bbb;margin-bottom:1px">${n.year}年${n.month}月${n.title ? ` · ${n.title}` : ''}</div>
-              <div style="font-size:.8em;color:#555;line-height:1.6">「${n.text}」</div>
+              <div style="font-size:.8em;color:#555;line-height:1.6">${n.text.startsWith('「') ? n.text : '「' + n.text + '」'}</div>
             </div>
           </div>`).join('')
       : `<div style="font-size:.78em;color:#ccc;padding:6px 0">まだ記録はありません</div>`;
@@ -3010,7 +3010,7 @@ function showGoEnNote(){
         <div style="margin-bottom:6px">${starRow(state)}</div>
         ${lastNote ? `<div style="font-size:.78em;background:${state.complete?'#f0f0f0':'#fff8e8'};border-radius:6px;padding:7px 10px;color:#555">
           <span style="color:#bbb;font-size:.85em">${lastNote.year}年${lastNote.month}月 ——</span><br>
-          「${lastNote.text}」
+          ${lastNote.text.startsWith('「') ? lastNote.text : '「' + lastNote.text + '」'}
         </div>` : ''}
       </div>`;
     });
