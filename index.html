@@ -5135,6 +5135,16 @@ const CASE_POOL = [
       {label:'「まず規模を広げてから考えます」と答える',cost:0,effects:{score:4,naritaTrust:-2},label2:'成田の信頼やや低下',storyTag:''},
     ]},
 
+  { id:'gift_seasonal_proposal', conditionOnly:true, repeatable:false, domain:'store', sender:'常連客', icon:'🌸', apCost:10, expireDays:21, category:'mgmt',
+    expirePenalty:{storeBrand:-2, news:'🌸 季節限定ギフトセットの提案を見送った。'},
+    title:'「季節ごとのギフトがあると嬉しいんですが」',
+    body:'ギフトを購入していただいた常連のお客様から、ひと言いただきました。\n\n「木箱のギフト、先日贈ったらとても喜ばれて。\n\n欲を言えば——\nお中元やお歳暮、季節ごとの贈り物にも\n対応してもらえると嬉しいんです。\n\n「この時期にしか買えない」ものって\n特別感がありますよね。\n\n季節限定のセットとか、いつか出してもらえますか？」',
+    choices:[
+      {label:'「ぜひ始めます。季節ごとの限定セットを作ります」',cost:30000,effects:{score:15,rep:6,storeBrand:8,communityBond:3,custUp:2,unlockSeasonalGift:true,profile:{finance:1,community:2}},label2:'🌸 季節限定セット販売開始・ブランド+8',storyTag:'季節限定ギフトセットの取り扱いを始めた。「この時期にしか買えない」という特別感が喜ばれた。'},
+      {label:'「少し先になりますが、検討します」',cost:0,effects:{score:5,profile:{finance:1}},label2:'将来の課題として持ち越し',storyTag:'季節限定ギフトの提案は持ち越した。いつか形にしたい。'},
+      {label:'「今は難しいです」と正直に伝える',cost:0,effects:{score:2,storeBrand:-2},label2:'ブランド微減',storyTag:'季節限定ギフトの提案を断った。'},
+    ]},
+
   { id:'midgame_narita_people', conditionOnly:true, repeatable:false, domain:'bank', sender:'成田（銀行）', icon:'🤝', apCost:5, expireDays:21, category:'strategy',
     expirePenalty:{credit:-1, news:'🤝 成田の言葉を聞き流した。'},
     title:'成田「ここまで来たら、お金じゃなく人が会社を作る」',
@@ -7998,6 +8008,18 @@ function generateConditionCases(){
       addCase(CASE_POOL.find(c=>c.id==='taste_midori_snack'));
     }
   }
+  // 季節限定セット提案（ギフトコーナー開設30日後・未解放・未提案）
+  {
+    const _s0g = G.stores[0];
+    if((_s0g?.giftLevel||0) >= 1 && !_s0g.seasonalGiftUnlocked && !G.cases.some(c => c.id === 'gift_seasonal_proposal')){
+      const _giftOpenDay = _s0g._giftCornerDay || 0;
+      if(totalDays >= _giftOpenDay + 30 && _giftOpenDay > 0){
+        const _sgBase = CASE_POOL.find(c => c.id === 'gift_seasonal_proposal');
+        if(_sgBase) addCase(_sgBase);
+      }
+    }
+  }
+
   // 季節ギフト案件（月ベーストリガー・ギフトコーナー展開後）
   if((G.stores[0]?.giftLevel||0) >= 1){
     G.seasonalEventStatus = G.seasonalEventStatus || {};
@@ -9822,6 +9844,12 @@ function chooseEvent(idx, useFatigue){
     addStory(_msg, 'normal');
     notify(`🍱 ${_sk.name}（${_sk.season}）を今年は見送り`, 'normal');
   }
+  if(fx.unlockSeasonalGift && G.stores[0]){
+    G.stores[0].seasonalGiftUnlocked = true;
+    notify('🌸 季節限定ギフトセットの販売を開始しました！', 'gold');
+    addStory('季節ごとの限定ギフトセット（お中元・お歳暮など）の取り扱いを始めた。', 'highlight');
+    addHistory('🌸', '季節限定ギフトセット販売開始');
+  }
   if(fx.unlockProduct){
     G.unlockedProducts = G.unlockedProducts || [];
     if(!G.unlockedProducts.includes(fx.unlockProduct)){
@@ -10553,14 +10581,15 @@ function expandGiftCorner(si){
   if(!useAP(10, 'ギフトコーナー展開')) return;
   G.money -= 50000;
   s.giftLevel = 1;
+  s._giftCornerDay = (G.year-1)*360 + (G.month-1)*30 + G.day; // 開設日（季節限定セット解放条件に使用）
   s.regulars = (s.regulars||0) + 2;
   s.newCustomers = (s.newCustomers||s.customers) + 3;
   s.customers = s.newCustomers + s.regulars;
   scoreOwner(12, 'gift_expand');
   G.creditScore = Math.min(100, (G.creditScore||45) + 2);
-  addStory('商品コーナーにギフトセットを並べた。「贈り物に」という客が増えてきた。', 'highlight');
-  addNews('🎁 ギフトコーナー展開！贈答需要に対応。常連+2・新規+3');
-  notify('ギフトコーナーを展開しました！法人需要に道が開けます', 'gold');
+  addStory('商品コーナーに木箱入りギフトセットを並べた。「贈り物に」という客が増えてきた。', 'highlight');
+  addNews('🎁 ギフトコーナー展開！木箱入りギフトセット販売開始。常連+2・新規+3');
+  notify('🎁 木箱入りギフトセットの販売を開始しました！', 'gold');
   saveGame(); renderTab();
 }
 
@@ -11878,7 +11907,7 @@ function renderStore(){
         { name:'舞昆', icon:'🧃', desc:'家庭用・定番', gift:false },
         { name:'舞昆（和紙袋入り）', icon:'🎴', desc:'赤富士柄・贈答・手土産向け', gift:false },
         { name:'木箱入りギフトセット', icon:'🎁', desc:'2種入り木箱・法人贈答向け', gift:true, giftMin:1 },
-        { name:'季節限定セット', icon:'🌸', desc:'お中元・お歳暮など挨拶品', gift:true, giftMin:1 },
+        { name:'季節限定セット', icon:'🌸', desc:'お中元・お歳暮など挨拶品', gift:true, giftMin:1, requireSeasonalGift:true },
         { name:'頒布会（だし・サプリ）', icon:'📬', desc:'定期便・リピーター向け', gift:true, giftMin:2 },
       ];
       const giftLevel = s.giftLevel || 0;
@@ -11935,7 +11964,7 @@ function renderStore(){
         <div style="font-size:10px;font-weight:700;color:var(--muted);margin-bottom:6px">パッケージ・ギフト</div>
         <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:12px">
           ${PRODUCT_LINEUP.map(p => {
-            const unlocked = !p.gift || giftLevel >= (p.giftMin || 1);
+            const unlocked = !p.gift || (giftLevel >= (p.giftMin || 1) && (!p.requireSeasonalGift || s.seasonalGiftUnlocked));
             return `<div style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;background:${unlocked?'var(--bg2)':'var(--bg)'};border:1px solid ${unlocked?'transparent':'var(--border)'};opacity:${unlocked?1:0.45}">
               <span style="font-size:18px">${p.icon}</span>
               <div style="flex:1">
