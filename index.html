@@ -3670,20 +3670,16 @@ const MENU_CATALOG = {
   seasonal_gift:    { name:'季節の小箱ギフト',   type:'product', icon:'🎁', seasonal:true,  seasonDays:90 },
 };
 
-// 季節ごとのお弁当マップ（月→弁当情報）
+// 季節ごとのお弁当マップ（シーズン名→弁当情報）
+// 春待ち:2/16〜3/15 / 桜:3/16〜4/10 / 新緑:5月 / 初夏:6〜7月 / 実り:9月 / 秋彩:10〜11月 / 冬ごもり:12月
 const SEASONAL_BENTO_MAP = {
-  1:  { id:'bento_shoga',    name:'生姜舞昆弁当',    icon:'🫚', desc:'生姜の温かみが冷えた日にやさしい舞昆弁当。じんわりと体を温めてくれます。' },
-  2:  { id:'bento_shoga',    name:'生姜舞昆弁当',    icon:'🫚', desc:'生姜の温かみが冷えた日にやさしい舞昆弁当。じんわりと体を温めてくれます。' },
-  3:  { id:'bento_sakura',   name:'桜舞昆弁当',      icon:'🌸', desc:'ほんのり甘い桜の香りと昆布の旨みが絶妙な春限定のお弁当です。' },
-  4:  { id:'bento_haru',     name:'春待ち舞昆弁当',  icon:'🌱', desc:'やわらかな春野菜と舞昆を合わせた、季節の変わり目にやさしいお弁当です。' },
-  5:  { id:'bento_haru',     name:'春待ち舞昆弁当',  icon:'🌱', desc:'やわらかな春野菜と舞昆を合わせた、季節の変わり目にやさしいお弁当です。' },
-  6:  { id:'bento_ume',      name:'梅舞昆弁当',      icon:'🌿', desc:'梅の酸味が夏の始まりにさわやか。舞昆とのハーモニーが食欲をそそります。' },
-  7:  { id:'bento_natsu',    name:'夏野菜舞昆弁当',  icon:'🌻', desc:'旬の夏野菜をたっぷり使った彩り豊かなお弁当。暑い夏にも食べやすい一品。' },
-  8:  { id:'bento_natsu',    name:'夏野菜舞昆弁当',  icon:'🌻', desc:'旬の夏野菜をたっぷり使った彩り豊かなお弁当。暑い夏にも食べやすい一品。' },
-  9:  { id:'bento_kuri',     name:'栗ごはん舞昆弁当', icon:'🍂', desc:'秋の味覚・栗ごはんに舞昆をのせた秋の贅沢弁当。ほっこりとした甘みが広がります。' },
-  10: { id:'bento_matsutake', name:'松茸舞昆弁当',   icon:'🍄', desc:'香り高い松茸と舞昆の贅沢な組み合わせ。秋限定の特別なお弁当です。' },
-  11: { id:'bento_kinoko',   name:'きのこ舞昆弁当',  icon:'🍄', desc:'数種のきのこをたっぷり使った舞昆弁当。秋の深まりを感じる風味豊かな一品。' },
-  12: { id:'bento_fuyu',     name:'冬の舞昆弁当',    icon:'⛄', desc:'体の芯から温まる冬の舞昆弁当。根菜をたっぷり使った滋味深い味わいです。' },
+  '春待ち':   { id:'bento_harumachi', name:'春待ち舞昆弁当',   icon:'🌱', desc:'春を待ちわびる頃、芽吹いた野菜と舞昆をやさしく合わせた、季節の変わり目に寄り添うお弁当です。' },
+  '桜':       { id:'bento_sakura',    name:'桜舞昆弁当',       icon:'🌸', desc:'ほんのり甘い桜の香りと昆布の旨みが絶妙に重なる、春限定のお弁当です。' },
+  '新緑':     { id:'bento_shinryoku', name:'新緑舞昆弁当',     icon:'🌿', desc:'爽やかな新緑の季節に合わせた、若葉のような清々しい旨みの舞昆弁当です。' },
+  '初夏':     { id:'bento_shoka',     name:'初夏舞昆弁当',     icon:'🌻', desc:'初夏の陽気にぴったり。さわやかな素材と舞昆の旨みがたっぷり詰まった季節の一品です。' },
+  '実り':     { id:'bento_minori',    name:'実り舞昆弁当',     icon:'🌾', desc:'実りの秋を感じる豊かな素材と舞昆の旨みが調和した、秋の恵みのお弁当です。' },
+  '秋彩':     { id:'bento_akiiro',    name:'秋彩舞昆弁当',     icon:'🍂', desc:'色づく秋の味覚をふんだんに使った、目にも舌にも楽しめる秋の彩り弁当です。' },
+  '冬ごもり': { id:'bento_fuyugo',   name:'冬ごもり舞昆弁当', icon:'⛄', desc:'体の芯から温まる根菜と舞昆をたっぷり使った、冬にやさしい滋養のお弁当です。' },
 };
 
 // ─── 統合商品カタログ（季節メニュー＋商品 / description付き） ────────
@@ -3879,16 +3875,20 @@ function getSeason(){
   return 'winter';
 }
 
-// 弁当用の細分季節（7区分）
-function getBentoSeason(month){
-  const m = month || G.month;
-  if(m === 3) return '春待ち';
-  if(m === 4 || m === 5) return '春';
-  if(m === 6) return '梅雨';
-  if(m === 7 || m === 8) return '夏';
-  if(m === 9 || m === 10) return '秋';
-  if(m === 11) return '晩秋';
-  return '冬'; // 12, 1, 2
+// 弁当用の季節判定（月+日ベース・7シーズン）
+// 春待ち:2/16〜3/15 / 桜:3/16〜4/10 / 新緑:5月 / 初夏:6〜7月 / 実り:9月 / 秋彩:10〜11月 / 冬ごもり:12月
+// 1月・2月前半・4月中旬〜末・8月は季節弁当シーズン外（null）
+function getBentoSeason(month, day){
+  const m = (month !== undefined) ? month : G.month;
+  const d = (day !== undefined) ? day : G.day;
+  if((m === 2 && d >= 16) || (m === 3 && d <= 15)) return '春待ち';
+  if((m === 3 && d >= 16) || (m === 4 && d <= 10)) return '桜';
+  if(m === 5) return '新緑';
+  if(m === 6 || m === 7) return '初夏';
+  if(m === 9) return '実り';
+  if(m === 10 || m === 11) return '秋彩';
+  if(m === 12) return '冬ごもり';
+  return null; // 1月・2月前半・4月中旬〜末・8月はシーズン外
 }
 
 // 弁当状態管理のキー生成
@@ -3899,31 +3899,25 @@ function _getBentoStatusKey(year, season){
 // 弁当提案の可否チェック
 function _canProposeBento(){
   if(!G.started || G.tut.phase !== 'done') return false;
+  // 1年目は季節弁当イベントなし（店舗基盤づくりの期間）
+  if(G.year < 2) return false;
   const s0 = G.stores[0];
   if(!s0 || !s0.isOpen || !s0.menu || s0.menu.length === 0) return false;
   // 開発待ち中は出さない
   if((G.pendingMenuLaunches||[]).some(p => p.isBento)) return false;
   // 未処理の弁当案件がある
   if(G.cases.some(c => (c.id||'').startsWith('bento_request') && !c.resolved)) return false;
+  // 現在が季節弁当シーズン外（1月・2月前半・4月中旬〜末・8月）
+  const _bs = getBentoSeason();
+  if(!_bs) return false;
+  // 月初4日以内は避ける（シーズン開始直後のバッファ）
+  if(G.day < 5) return false;
   // seasonalBentoStatus で今年この季節の状態を確認
-  const _key = _getBentoStatusKey();
+  const _key = _getBentoStatusKey(G.year, _bs);
   const _st = (G.seasonalBentoStatus||{})[_key] || {};
   if(_st.offered)   return false; // 提案済み
   if(_st.declined)  return false; // 見送り済み
   if(_st.developed) return false; // 開発済み
-  // 前回の弁当案件から60日以上（初回のみ30日）
-  const _td = (G.year-1)*360 + (G.month-1)*30 + G.day;
-  const _minGap = (G._lastBentoEventDay||0) === 0 ? 30 : 60;
-  if(_td - (G._lastBentoEventDay||0) < _minGap) return false;
-  // シーズン開始5日以降（月初直後を避ける）
-  if(G.day < 5) return false;
-  // 桜舞昆弁当は2年目以降・3月中旬〜下旬に限定（1年目4月開業直後に出ない）
-  const _thisBento = SEASONAL_BENTO_MAP[G.month];
-  if(_thisBento && _thisBento.id === 'bento_sakura'){
-    if(G.year < 2) return false;          // 1年目は出さない
-    if(G.month !== 3) return false;        // 3月提案のみ（4月以降は遅すぎ）
-    if(G.day < 10 || G.day > 25) return false; // 中旬〜下旬に限定（25日超えると14日後が5月に）
-  }
   return true;
 }
 const SEASON_STORE_THEME = {
@@ -7753,24 +7747,17 @@ function generateConditionCases(){
       if(_canProposeBento()){
         const _bs = getBentoSeason();
         const _statusKey = _getBentoStatusKey(G.year, _bs);
-        // 秋(9-10月)は松茸 or 栗をランダム選択
-        let _bentoInfo = SEASONAL_BENTO_MAP[G.month] || { id:'bento_maikon', name:'舞昆弁当', icon:'🍱', desc:'舞昆の旨みが詰まったお弁当です。' };
-        if(G.month === 9 || G.month === 10){
-          _bentoInfo = Math.random() < 0.5
-            ? { id:'bento_kuri',      name:'栗ごはん舞昆弁当', icon:'🍂', desc:'秋の味覚・栗ごはんに舞昆をのせた秋の贅沢弁当。ほっこりとした甘みが広がります。' }
-            : { id:'bento_matsutake', name:'松茸舞昆弁当',     icon:'🍄', desc:'香り高い松茸と舞昆の贅沢な組み合わせ。秋限定の特別なお弁当です。' };
-        }
+        const _bentoInfo = SEASONAL_BENTO_MAP[_bs] || { id:'bento_maikon', name:'舞昆弁当', icon:'🍱', desc:'舞昆の旨みが詰まったお弁当です。' };
         // 状態を「提案済み」に更新（案件生成時点で記録）
         G.seasonalBentoStatus = G.seasonalBentoStatus || {};
         G.seasonalBentoStatus[_statusKey] = {
           offered: true, accepted: false, declined: false, developed: false,
           productId: _bentoInfo.id, productName: _bentoInfo.name, season: _bs,
         };
-        G._lastBentoEventDay = totalDays;
         // 季節に応じた要望文バリエーション
-        const _occ = G.month===4||G.month===5?'お花見':G.month>=7&&G.month<=8?'夏のお出かけ':G.month>=9&&G.month<=10?'紅葉散策':'散歩';
-        const _event = G.month>=9&&G.month<=10?'敬老会':G.month===12||G.month===1?'新年会':G.month>=4&&G.month<=5?'春の集まり':'地域の集まり';
-        const _kid = G.month===5||G.month===6?'遠足':'お出かけ';
+        const _occ = (_bs==='桜'||_bs==='新緑')?'お花見':(_bs==='初夏')?'夏のお出かけ':(_bs==='秋彩')?'紅葉散策':'散歩';
+        const _event = (_bs==='秋彩'||_bs==='実り')?'敬老会':(_bs==='冬ごもり')?'新年会':(_bs==='桜'||_bs==='新緑')?'春の集まり':'地域の集まり';
+        const _kid = (_bs==='新緑'||_bs==='初夏')?'遠足':'お出かけ';
         const _bodies = [
           `常連のお客様から手紙が届きました。\n\n「舞昆茶屋のお弁当があれば\n会社にも持っていけるのに。\nテイクアウトはやってますか？」`,
           `お客様からひと言いただきました。\n\n「会議のお昼に舞昆茶屋さんのお弁当を\n持っていけたら最高なんですよね」`,
@@ -9737,7 +9724,7 @@ function chooseEvent(idx, useFatigue){
       let _cDay = G.day + 14, _cMonth = G.month, _cYear = G.year;
       while(_cDay > 30){ _cDay -= 30; _cMonth++; }
       while(_cMonth > 12){ _cMonth -= 12; _cYear++; }
-      _bentoInfo = SEASONAL_BENTO_MAP[_cMonth] || SEASONAL_BENTO_MAP[G.month] || { id:'bento_maikon', name:'舞昆弁当', icon:'🍱', desc:'舞昆の旨みが詰まったお弁当です。' };
+      _bentoInfo = SEASONAL_BENTO_MAP[getBentoSeason(_cMonth, _cDay)] || SEASONAL_BENTO_MAP[getBentoSeason()] || { id:'bento_maikon', name:'舞昆弁当', icon:'🍱', desc:'舞昆の旨みが詰まったお弁当です。' };
     }
     // seasonalBentoStatus を「accepted」に更新
     const _statusKey = fx._bentoStatusKey || _getBentoStatusKey();
