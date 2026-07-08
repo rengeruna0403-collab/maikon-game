@@ -4581,7 +4581,7 @@ const DAILY_EVENTS = [
    choices:[
      {label:'参加する（¥20,000）',cost:20000,effects:{score:15,rep:8,storeSat:5},
       label2:'地域評判+8・店舗満足度+5',storyTag:'小学校バザーに参加。子どもたちが舞昆定食を食べた。'},
-     {label:'今回は断る',cost:0,effects:{score:-2},label2:'わずかにオーナー度-2',storyTag:'バザーを断った。'},
+     {label:'今回は断る',cost:0,noAP:true,effects:{score:-2},label2:'わずかにオーナー度-2',storyTag:'バザーを断った。'},
    ]},
   {id:'tv', prob:.02, icon:'📺', title:'テレビ局から取材依頼',
    storyContext:'地方局のディレクターから連絡が来た。「地域再生の取り組みを紹介したい」',
@@ -4607,7 +4607,7 @@ const DAILY_EVENTS = [
       label2:'物件+1棟・地域の空き家問題に貢献',storyTag:'空き家を購入した。地域の空き家問題に向き合う決断だった。'},
      {label:'管理委託だけ引き受ける（¥100,000）',cost:100000,effects:{score:8,rep:6},
       label2:'地域評判+6',storyTag:'空き家の管理委託を引き受けた。小さな一歩だが確実な地域貢献だ。'},
-     {label:'今回は断る',cost:0,effects:{score:0},label2:'変化なし',storyTag:'空き家の相談を断った。'},
+     {label:'今回は断る',cost:0,noAP:true,effects:{score:0},label2:'変化なし',storyTag:'空き家の相談を断った。'},
    ]},
   {id:'senior', prob:.05, icon:'👴', title:'石田さんから老人会の提案',
    storyContext:'105号室の石田夫婦がやってきた。「ちょっとお願いがあるんですが……」',
@@ -4616,7 +4616,7 @@ const DAILY_EVENTS = [
      {label:'開放する（定期収益+¥15,000/月）',cost:0,
       effects:{score:15,rep:12,monthlyBonus:15000},
       label2:'定期収益追加・地域評判大幅UP',storyTag:'老人会の朝食交流会を受け入れた。毎月15名ほどの高齢者が集まるようになった。'},
-     {label:'今は難しい',cost:0,effects:{score:-4},label2:'石田さんがっかり',storyTag:'老人会の提案を断った。'},
+     {label:'今は難しい',cost:0,noAP:true,effects:{score:-4},label2:'石田さんがっかり',storyTag:'老人会の提案を断った。'},
    ]},
   {id:'ferment', prob:.04, icon:'🧫', title:'発酵教室の開催提案',
    storyContext:'料理研究家の女性から名刺を渡された。',
@@ -4655,7 +4655,7 @@ const SERVE_EVENTS = [
        label2:'店舗満足度+5・オーナー度+10',storyTag:'クレームを真摯に受け止め、レシピを統一した。'},
       {label:'「ご意見ありがとうございます」と伝える',cost:0,effects:{score:3,storeSat:-2},
        label2:'その場しのぎ',storyTag:'クレームをやり過ごした。'},
-      {label:'様子を見る',cost:0,effects:{score:-2,storeSat:-5},
+      {label:'様子を見る',cost:0,noAP:true,effects:{score:-2,storeSat:-5},
        label2:'不満が残る',storyTag:'クレームを放置した。口コミが少し悪化した。'},
     ]},
   { id:'kuchikomi', prob:.20, icon:'📱', title:'口コミが投稿された',
@@ -4748,7 +4748,7 @@ const ISSUE_CARDS = [
     choices:[
       {label:'出店する（¥50,000・AP-20）',cost:50000,ap:20,effects:{score:20,rep:12,custUp:5},label2:'評判+12・客数+5',storyTag:'夏祭りに出店した。地域の人に顔を覚えてもらえた。'},
       {label:'今年は見学だけする',cost:0,effects:{score:3,rep:2},label2:'評判+2',storyTag:'夏祭りを見学した。来年は出店できるかもしれない。'},
-      {label:'今回は断る',cost:0,effects:{score:-3},label2:'地域とのつながり薄れる',storyTag:'出店を断った。'},
+      {label:'今回は断る',cost:0,noAP:true,effects:{score:-3},label2:'地域とのつながり薄れる',storyTag:'出店を断った。'},
     ]},
 ];
 
@@ -4809,7 +4809,7 @@ const CASE_POOL = [
     choices:[
       {label:'出店する（¥50,000・AP-15）',cost:50000,ap:15,effects:{score:20,rep:12,custUp:3,profile:{community:4}},label2:'地域評判+12・客数+3',storyTag:'桜まつりに出店。地域に顔が売れた。'},
       {label:'今年は協賛だけする（¥20,000）',cost:20000,effects:{score:8,rep:5,profile:{community:2}},label2:'地域評判+5',storyTag:'桜まつりに協賛した。'},
-      {label:'今回は見送る',cost:0,effects:{score:-3,profile:{finance:1}},label2:'地域との距離が少し開く',storyTag:'地域イベントを断った。'},
+      {label:'今回は見送る',cost:0,noAP:true,effects:{score:-3,profile:{finance:1}},label2:'地域との距離が少し開く',storyTag:'地域イベントを断った。'},
     ]},
   { id:'ishikawa_parking', sender:'石川（地域）', icon:'🚗', apCost:15, expireDays:30, category:'mgmt',
     title:'駐車場の整備提案',
@@ -4850,7 +4850,7 @@ const CASE_POOL = [
     choices:[
       {label:'採用する（週4日・9〜15時・月給 ¥95,000）',cost:0,effects:{score:15,hireStaff:'midori',profile:{people:3}},label2:'午前〜昼の営業を支えてもらう',storyTag:'佐々木みどりを採用した。「週4日・9〜15時」という条件で、翌週から店に立ってくれることになった。'},
       {label:'一度面談してから決める（AP-10）',cost:0,ap:10,effects:{score:5,showMidoriInterview:true,profile:{people:2}},label2:'詳しく話を聞いてから判断する',storyTag:'みどりと面談の時間を取ることにした。'},
-      {label:'今は難しい',cost:0,effects:{score:-2,profile:{finance:2}},label2:'引き続き一人で続ける',storyTag:'みどりの申し出を断った。一人で続けることにした。'},
+      {label:'今は難しい',cost:0,noAP:true,effects:{score:-2,profile:{finance:2}},label2:'引き続き一人で続ける',storyTag:'みどりの申し出を断った。一人で続けることにした。'},
     ]},
 
   { id:'narita_suggest_hire', conditionOnly:true, sender:'成田（銀行）', icon:'💼', apCost:5, expireDays:21, category:'mgmt',
@@ -4858,7 +4858,7 @@ const CASE_POOL = [
     body:'成田から連絡が届きました。\n\n「最近、少し無理をされているようですね。\n決算書の数字だけでなく、経営者自身の余裕も\n大切な経営資源です。\n\nパートスタッフ一人でも入れると、\n午前の接客が安定します。\nみどりさん一人では限界もありますが、\nまず「店が回る体制」を作ることが先決です」',
     choices:[
       {label:'「考えてみます」と答える',cost:0,effects:{score:8,credit:1,profile:{people:1}},label2:'採用を前向きに検討',storyTag:'成田に「一人で抱え込みすぎている」と指摘された。人を雇うことを考え始めた。'},
-      {label:'「まだ自分でやれます」と答える',cost:0,effects:{score:3,profile:{finance:1}},label2:'自力継続',storyTag:'成田のアドバイスを断った。もう少し自分でやってみることにした。'},
+      {label:'「まだ自分でやれます」と答える',cost:0,noAP:true,effects:{score:3,profile:{finance:1}},label2:'自力継続',storyTag:'成田のアドバイスを断った。もう少し自分でやってみることにした。'},
     ]},
 
   { id:'midori_apply_retry', conditionOnly:true, character:'midori', sender:'佐々木みどり', icon:'👩', apCost:5, expireDays:14, category:'mgmt',
@@ -4868,7 +4868,7 @@ const CASE_POOL = [
     choices:[
       {label:'「採用します」と答える（週4日・9〜15時・月給 ¥95,000）',cost:0,effects:{score:18,hireStaff:'midori',profile:{people:4}},label2:'午前〜昼の営業を支えてもらう',storyTag:'みどりの再応募を受け入れた。「ありがとうございます」と深く頭を下げた。'},
       {label:'面談してから決める（AP-10）',cost:0,ap:10,effects:{score:6,showMidoriInterview:true,profile:{people:2}},label2:'面談して判断',storyTag:'みどりともう一度面談することにした。'},
-      {label:'「まだ難しい」と伝える',cost:0,effects:{score:-4,profile:{finance:2}},label2:'疲労は続く',storyTag:'再度断った。みどりは「わかりました」と静かに去った。'},
+      {label:'「まだ難しい」と伝える',cost:0,noAP:true,effects:{score:-4,profile:{finance:2}},label2:'疲労は続く',storyTag:'再度断った。みどりは「わかりました」と静かに去った。'},
     ]},
   { id:'regular_feedback', sender:'常連客代表', icon:'☕', apCost:10, expireDays:21, category:'ops',
     title:'常連さんからの意見',
@@ -5094,7 +5094,7 @@ const CASE_POOL = [
     body:'成田さんから連絡が来ました。\n\n「今の空室率を見ていると、少し気になる数字が出ています。\n地域の高齢化が進む中で、入居者属性を少し工夫するだけで改善できると思いますが——」',
     choices:[
       {label:'「どんな工夫が有効ですか？」と相談する',cost:0,effects:{score:10,credit:2,rep:3,naritaTrust:3,profile:{finance:2}},label2:'融資見込み改善',storyTag:'成田さんと空室対策を話し合った。入居者属性の見直しというアドバイスが参考になった。'},
-      {label:'「自分で考えます」と答える',cost:0,effects:{score:3},label2:'',storyTag:''},
+      {label:'「自分で考えます」と答える',cost:0,noAP:true,effects:{score:3},label2:'',storyTag:''},
     ]},
 
   // ── 地域 ──
@@ -5167,7 +5167,7 @@ const CASE_POOL = [
        label2:'評判+4 / 当日不在なし・効果は小さめ',
        storyTag:'サンプルと資料を学校へ届けた。授業には参加できなかったが、先生から「子どもたちが喜んでいます」と連絡が来た。'},
       {label:'今年は難しい',
-       cost:0,
+       cost:0, noAP:true,
        effects:{score:1,rep:-2,communityBond:-1},
        label2:'評判-2 / コストゼロ',
        storyTag:'今年は難しいと断った。来年こそ、と思った。'},
@@ -5180,7 +5180,7 @@ const CASE_POOL = [
     body:'近くで接客マナー研修が開催されると案内が届きました。\n\n「参加費はかかりますが、うちのスタッフが受けると\n接客の質が一段上がると思います。\n現場を任せるにも、ちょうど良い機会かもしれません」',
     choices:[
       {label:'研修に参加させる（¥20,000）',cost:20000,effects:{score:12,staffSat:10,storeSat:5,profile:{finance:1,people:2}},label2:'スタッフ成長・満足度+',storyTag:'スタッフを研修に参加させた。「視野が広がりました」と帰ってきた顔が少し違って見えた。'},
-      {label:'「今は余裕がない」と見送る',cost:0,effects:{score:2,staffSat:-2},label2:'',storyTag:''},
+      {label:'「今は余裕がない」と見送る',cost:0,noAP:true,effects:{score:2,staffSat:-2},label2:'',storyTag:''},
     ]},
 
   { id:'midgame_staff_dream', repeatable:true, requireStaff:true, domain:'staff', sender:'スタッフ', icon:'🌿', apCost:5, expireDays:21, category:'ops',
@@ -5361,7 +5361,7 @@ const CASE_POOL = [
                   unlockProduct:'tamogitake_maikon', unlockEatIn:'tamogitake_onigiri' },
         label2:'たもぎ茸舞昆が商品コーナーに加わります',
         storyTag:'ついに「たもぎ茸舞昆」を看板商品として前面に出すことにした。' },
-      { label:'やはり今回も見送る', cost:0,
+      { label:'やはり今回も見送る', cost:0, noAP:true,
         effects:{ score:0 },
         label2:'—', storyTag:'また見送ることにした。' },
     ]},
@@ -5375,7 +5375,7 @@ const CASE_POOL = [
       { label:'山椒舞昆を仕入れてみる（¥40,000）', cost:40000,
         effects:{ score:12, storeSat:8, custRegular:2, unlockProduct:'sansho_maikon' },
         label2:'山椒舞昆が商品コーナーに加わります', storyTag:'舞昆の直営店で出会った味——山椒舞昆を仕入れることにした。地元でも楽しめる舞昆の世界が広がった。' },
-      { label:'今は品揃えを絞っておく', cost:0,
+      { label:'今は品揃えを絞っておく', cost:0, noAP:true,
         effects:{ score:3 },
         label2:'—', storyTag:'今回は見送ることにした。いつか扱ってみたい。' },
     ]},
@@ -5388,7 +5388,7 @@ const CASE_POOL = [
       { label:'明太風帆立舞昆を仕入れる（¥60,000）', cost:60000,
         effects:{ score:15, storeSat:10, custUp:3, unlockProduct:'mentai_hotate' },
         label2:'明太風帆立舞昆が商品コーナーに加わります', storyTag:'明太風帆立舞昆を仕入れた。みどりも喜んでくれた。' },
-      { label:'今月は様子を見る', cost:0,
+      { label:'今月は様子を見る', cost:0, noAP:true,
         effects:{ score:4, staffSat:-3 },
         label2:'みどり少し残念', storyTag:'今月は見送ることにした。' },
     ]},
@@ -5414,7 +5414,7 @@ const CASE_POOL = [
       { label:'わさび舞昆を仕入れてみる（¥35,000）', cost:35000,
         effects:{ score:10, storeSat:6, custRegular:1, unlockProduct:'wasabi_maikon' },
         label2:'極旨わさび舞昆が商品コーナーに加わります', storyTag:'わさび舞昆を仕入れた。辛いもの好きの常連客に大人気になった。' },
-      { label:'今は品揃えを絞っておく', cost:0,
+      { label:'今は品揃えを絞っておく', cost:0, noAP:true,
         effects:{ score:2 },
         label2:'—', storyTag:'今回は見送ることにした。' },
     ]},
@@ -5427,7 +5427,7 @@ const CASE_POOL = [
       { label:'白白舞昆を仕入れてみる（¥45,000）', cost:45000,
         effects:{ score:12, rep:5, storeSat:8, communityBond:3, unlockProduct:'shiro_maikon' },
         label2:'白白舞昆が商品コーナーに加わります', storyTag:'白白（パクパク）舞昆を仕入れた。かつおでんぶの甘みが子どもにも大人気になった。舞昆の世界が広がった。' },
-      { label:'今は品揃えを絞っておく', cost:0,
+      { label:'今は品揃えを絞っておく', cost:0, noAP:true,
         effects:{ score:2 },
         label2:'—', storyTag:'今回は見送ることにした。' },
     ]},
@@ -5440,7 +5440,7 @@ const CASE_POOL = [
       { label:'旨辛舞昆を仕入れてみる（¥38,000）', cost:38000,
         effects:{ score:12, storeSat:8, custRegular:2, unlockProduct:'karakuchi_maikon' },
         label2:'やみつき旨辛舞昆が商品コーナーに加わります', storyTag:'百貨店催事で話題になった旨辛舞昆を仕入れた。舞昆ブランドの幅広さをあらためて感じた。' },
-      { label:'今は品揃えを絞っておく', cost:0,
+      { label:'今は品揃えを絞っておく', cost:0, noAP:true,
         effects:{ score:2 },
         label2:'—', storyTag:'今回は見送ることにした。' },
     ]},
@@ -5507,7 +5507,7 @@ const DOMAIN_CASES = [
     choices:[
       {label:'承認する',cost:0,effects:{score:8,rep:3,fillVacantRoom:{name:'佐藤 颯',age:30,type:'単身者',bio:'フリーランスのデザイナー。リモートワーク中心。静かな環境を好む。',dream:'「自分のペースで自由に働き続けたい」'}},label2:'空室解消',storyTag:'フリーランスの方の入居を承認した。'},
       {label:'追加書類を確認してから判断',cost:0,effects:{score:5,credit:1},label2:'信用度+1',storyTag:'慎重に書類を確認してから判断した。'},
-      {label:'見送る',cost:0,effects:{score:-3},label2:'空室継続',storyTag:'申込を断った。空室が続く。'},
+      {label:'見送る',cost:0,noAP:true,effects:{score:-3},label2:'空室継続',storyTag:'申込を断った。空室が続く。'},
     ]},
 
   { id:'apply_elderly', repeatable:true, requireVacancy:true, domain:'landlord', sender:'申込者', icon:'👴', apCost:10, expireDays:7, category:'ops',
@@ -5517,7 +5517,7 @@ const DOMAIN_CASES = [
     choices:[
       {label:'承認する（地域貢献）',cost:0,effects:{score:10,rep:5,profile:{community:3},fillVacantRoom:{name:'岡田 幸子',age:72,type:'高齢単身',bio:'年金暮らし。穏やかで近所づきあいを大切にする。',dream:'「静かに、安心して暮らしたい」'}},label2:'評判+5・地域共生',storyTag:'高齢者の入居を受け入れた。地域の見守りネットワークが広がった。'},
       {label:'見守りサービスの導入を条件に承認',cost:0,effects:{score:8,rep:3,profile:{community:2},fillVacantRoom:{name:'岡田 幸子',age:72,type:'高齢単身',bio:'年金暮らし。見守りサービス加入を条件に入居。',dream:'「静かに、安心して暮らしたい」'}},label2:'リスク低減',storyTag:'見守りサービスを条件に承認した。'},
-      {label:'見送る',cost:0,effects:{score:-5,rep:-2},label2:'評判-2',storyTag:'高齢者の申込を断った。'},
+      {label:'見送る',cost:0,noAP:true,effects:{score:-5,rep:-2},label2:'評判-2',storyTag:'高齢者の申込を断った。'},
     ]},
 
   { id:'apply_pet', repeatable:true, requireVacancy:true, domain:'landlord', sender:'申込者', icon:'🐱', apCost:10, expireDays:7, category:'ops',
@@ -5536,7 +5536,7 @@ const DOMAIN_CASES = [
     choices:[
       {label:'3,000円値下げに応じる',cost:0,effects:{score:8,rep:4,profile:{people:2}},label2:'関係維持・長期入居へ',storyTag:'家賃交渉に応じた。長期入居につながった。'},
       {label:'設備改善を提案して維持',cost:0,effects:{score:10,credit:1},label2:'信用度+1',storyTag:'値下げの代わりに設備改善を提案した。'},
-      {label:'断る（現状維持）',cost:0,effects:{score:-2,rep:-3},label2:'退去リスク上昇',storyTag:'家賃値下げを断った。退去を検討されるかもしれない。'},
+      {label:'断る（現状維持）',cost:0,noAP:true,effects:{score:-2,rep:-3},label2:'退去リスク上昇',storyTag:'家賃値下げを断った。退去を検討されるかもしれない。'},
     ]},
 
   // ② 契約・更新（mgmt AP10）
@@ -5554,8 +5554,8 @@ const DOMAIN_CASES = [
     title:'退去予告が届きました',
     body:'入居者から退去の意向が届きました。\n\n「来月末で退去します。\nお世話になりました」\n\n原状回復確認と次の入居者募集が必要です。',
     choices:[
-      {label:'退去手続きを速やかに進める',cost:0,effects:{score:8,credit:1},label2:'次の募集へ迅速移行',storyTag:'退去手続きをスムーズに進めた。'},
-      {label:'引き止めの提案をする',cost:0,effects:{score:5,rep:2},label2:'評判+2',storyTag:'引き止めを試みた。'},
+      {label:'退去手続きを速やかに進める',cost:0,effects:{score:8,credit:1,removeTenant:true},label2:'空室になります・次の募集へ',storyTag:'退去手続きをスムーズに進めた。部屋が空いた。'},
+      {label:'引き止めの提案をする',cost:0,effects:{score:5,rep:2},label2:'評判+2（退去は保留）',storyTag:'引き止めを試みた。'},
     ]},
 
   // ③ 家賃関連（ops→mgmt→strategy, AP 5-25）
@@ -5674,7 +5674,7 @@ const DOMAIN_CASES = [
     choices:[
       {label:'防犯カメラを設置する（¥80,000）',cost:80000,effects:{score:15,rep:8,profile:{community:2}},label2:'安全確保・評判+8',storyTag:'防犯カメラを設置した。入居者から感謝された。'},
       {label:'警察に相談し注意喚起を出す',cost:0,effects:{score:10,rep:5},label2:'評判+5',storyTag:'警察に相談し、入居者に注意喚起を出した。'},
-      {label:'様子を見る',cost:0,effects:{score:-5,rep:-5},label2:'評判-5・入居者不満',storyTag:'対応を先送りにした。入居者の不安が続いている。'},
+      {label:'様子を見る',cost:0,noAP:true,effects:{score:-5,rep:-5},label2:'評判-5・入居者不満',storyTag:'対応を先送りにした。入居者の不安が続いている。'},
     ]},
 
   { id:'common_light', repeatable:true, domain:'landlord', sender:'入居者', icon:'💡', apCost:5, expireDays:7, category:'ops',
@@ -5889,7 +5889,7 @@ const DOMAIN_CASES = [
     choices:[
       {label:'コラボ商品を開発する（¥100,000）',cost:100000,effects:{score:20,rep:10,custUp:6,profile:{community:5,risk:2}},label2:'評判+10・新商品・地域貢献',storyTag:'地元農家とのコラボ商品を開発した。「地域の宝」として紹介された。'},
       {label:'試験的に仕入れだけ試す（¥20,000）',cost:20000,effects:{score:10,rep:5,profile:{community:3}},label2:'リスク抑えつつ連携',storyTag:'試験的に地元産の仕入れを始めた。'},
-      {label:'今回は見送る',cost:0,effects:{score:2,profile:{finance:2}},label2:'機会は次回に',storyTag:'今回は見送った。'},
+      {label:'今回は見送る',cost:0,noAP:true,effects:{score:2,profile:{finance:2}},label2:'機会は次回に',storyTag:'今回は見送った。'},
     ]},
 
   { id:'ec_start', repeatable:true, domain:'store', sender:'成田（銀行）', icon:'🛒', apCost:25, expireDays:30, category:'strategy',
@@ -5938,7 +5938,7 @@ const DOMAIN_CASES = [
     choices:[
       {label:'差別化戦略を強化する（¥40,000）',cost:40000,effects:{score:12,storeSat:6,profile:{finance:2}},label2:'店舗満足+6・差別化',storyTag:'競合に対して差別化戦略を取った。'},
       {label:'常連客との関係を深める',cost:0,effects:{score:8,rep:4,profile:{community:2}},label2:'評判+4',storyTag:'常連客との絆で競合に対応した。'},
-      {label:'様子を見る',cost:0,effects:{score:3,profile:{finance:1}},label2:'現状維持',storyTag:'競合の動向を注視することにした。'},
+      {label:'様子を見る',cost:0,noAP:true,effects:{score:3,profile:{finance:1}},label2:'現状維持',storyTag:'競合の動向を注視することにした。'},
     ]},
 
   { id:'price_war_2', repeatable:true, domain:'competitor', sender:'地域情報', icon:'💴', apCost:15, expireDays:14, category:'strategy',
@@ -5956,7 +5956,7 @@ const DOMAIN_CASES = [
     body:'市役所から補助金の案内が届きました。\n\n「空き家を賃貸住宅に改修する場合、\n最大¥200,000の補助金が受けられます」',
     choices:[
       {label:'申請する（手続き費¥20,000）',cost:20000,effects:{score:12,credit:2,money:180000,profile:{community:2}},label2:'補助金+¥180,000・信用度+2',storyTag:'補助金を申請した。手続きに時間がかかったが、資金の足しになった。'},
-      {label:'今回は見送る',cost:0,effects:{score:3,profile:{finance:1}},label2:'来年度に持ち越し',storyTag:'今回の補助金申請は見送った。'},
+      {label:'今回は見送る',cost:0,noAP:true,effects:{score:3,profile:{finance:1}},label2:'来年度に持ち越し',storyTag:'今回の補助金申請は見送った。'},
     ]},
 
   { id:'disaster_drill', repeatable:true, domain:'admin', sender:'自治会', icon:'🚒', apCost:10, expireDays:14, category:'mgmt',
@@ -5975,7 +5975,7 @@ const DOMAIN_CASES = [
     choices:[
       {label:'すぐに注意する',cost:0,effects:{score:8,rep:3},label2:'問題解決・評判+3',storyTag:'騒音苦情にすぐ対応した。'},
       {label:'張り紙で周知する',cost:0,effects:{score:4},label2:'緩やかな対応',storyTag:'張り紙で注意喚起した。'},
-      {label:'様子を見る',cost:0,effects:{score:-2,rep:-2},label2:'評判-2',storyTag:'様子を見ることにした。'},
+      {label:'様子を見る',cost:0,noAP:true,effects:{score:-2,rep:-2},label2:'評判-2',storyTag:'様子を見ることにした。'},
     ]},
 
   { id:'garbage_complaint', repeatable:true, domain:'landlord', sender:'入居者', icon:'🗑️', apCost:5, expireDays:7, category:'ops',
@@ -6416,7 +6416,7 @@ const DOMAIN_CASES = [
        label2:'評判+4 / 疲労+12（一人で対応）',
        storyTag:'一人で地域清掃に参加した。少し疲れたが、顔見知りが増えた気がした。'},
       {label:'今回は見送る',
-       cost:0,
+       cost:0, noAP:true,
        effects:{score:1,rep:-1},
        label2:'評判-1 / 負担ゼロ',
        storyTag:'今回は見送った。来月は参加しようと思った。'},
@@ -6438,7 +6438,7 @@ const DOMAIN_CASES = [
        label2:'評判+4 / 負担なし・決定を保留',
        storyTag:'前向きに検討すると伝えた。石川さんは「ゆっくり考えてください」と言った。'},
       {label:'丁重にお断りする',
-       cost:0,
+       cost:0, noAP:true,
        effects:{score:3,rep:-3,profile:{finance:1},_setCooldown:{id:'com_board_candidate',extra:0}},
        label2:'評判-3 / 負担ゼロ・次の打診は来年以降',
        storyTag:'断った。石川さんは残念そうだったが、「またいつか」と言って帰っていった。'},
@@ -6460,7 +6460,7 @@ const DOMAIN_CASES = [
        label2:'評判+2 / 当日負担なし・効果は小',
        storyTag:'スタンプ台は置かず、マップへの掲載だけ参加した。来店につながるかは未知数だが、名前は出た。'},
       {label:'今回は見送る',
-       cost:0,
+       cost:0, noAP:true,
        effects:{score:1,rep:-1},
        label2:'評判-1 / 負担ゼロ',
        storyTag:'今回は見送った。'},
@@ -6490,7 +6490,7 @@ const DOMAIN_CASES = [
        label2:'評判+7 / 自分が2日間対応・疲労+18',
        storyTag:'自分で2日間、中学生を指導した。くたびれたが、「仕事ってこういうことなんだ」と真剣な顔で聞いてくれる姿が励みになった。'},
       {label:'今年は難しい',
-       cost:0,
+       cost:0, noAP:true,
        effects:{score:1,rep:-2},
        label2:'評判-2 / 負担ゼロ',
        storyTag:'今年は難しいと断った。来年こそは受け入れたいと思った。'},
@@ -6512,7 +6512,7 @@ const DOMAIN_CASES = [
        label2:'評判+5 / できる範囲・負担小',
        storyTag:'できる範囲で協力した。全力ではないが、つながりを切らさずにいられた。'},
       {label:'今回は資金的に難しい',
-       cost:0,
+       cost:0, noAP:true,
        effects:{score:3,rep:-1,profile:{finance:2}},
        label2:'評判-1 / 今は見送り',
        storyTag:'今回は断った。余裕ができたら、また声をかけてもらおうと思った。'},
@@ -6534,7 +6534,7 @@ const DOMAIN_CASES = [
        label2:'評判+4 / 疲労+8・様子見',
        storyTag:'今月だけ試しに参加した。喜んでもらえた。続けるか、来月考えよう。'},
       {label:'今回は難しい',
-       cost:0,
+       cost:0, noAP:true,
        effects:{score:1,rep:-1},
        label2:'評判-1 / 負担ゼロ',
        storyTag:'今回は難しいと断った。'},
@@ -7379,7 +7379,7 @@ const DOMAIN_CASES = [
        label2:'ロイヤル客を守る・新規は後回し',
        storyTag:'常連さんとの絆を大切にした。「他の店に行くつもりはないよ」という言葉が励みになった。'},
       {label:'様子を見る',
-       cost:0,
+       cost:0, noAP:true,
        effects:{score:3, rep:-2},
        label2:'評判-2・リスク放置',
        storyTag:'様子を見ることにした。'},
@@ -9025,7 +9025,7 @@ function generateRoomApplicationCases(){
            effects:{approveRoom:{bi, ri, applicant:{name:t.name, age:t.age, type:t.type}}, score:8},
            label2:'入居決定・空室解消',
            storyTag:`${t.name}を${b.name} ${r.num}号室に迎えた。`},
-          {label:'今回は見送る', cost:0,
+          {label:'今回は見送る', cost:0, noAP:true,
            effects:{score:-2},
            label2:'引き続き入居者を募集',
            storyTag:`${t.name}の申込を見送った。引き続き入居者を探す。`},
@@ -9268,8 +9268,12 @@ function renderCasesBox(){
 }
 
 function getMonthlyChallenge(){
-  const idx = (G.month - 1) % MONTHLY_CHALLENGES.length;
-  return MONTHLY_CHALLENGES[idx];
+  // 入居率が既に高い場合はocc70チャレンジを除外する
+  const _occ = totalRooms() > 0 ? occupiedRooms() / totalRooms() : 0;
+  const pool = MONTHLY_CHALLENGES.filter(c => !(c.id === 'occ70' && _occ >= 0.85));
+  if(pool.length === 0) return MONTHLY_CHALLENGES[0];
+  const idx = (G.month - 1) % pool.length;
+  return pool[idx];
 }
 
 function showMonthlyChallengeModal(challenge){
@@ -9844,6 +9848,14 @@ function _advanceDayCore(){
 
   G.day++;
   if(G.day>30){ G.day=1; G.month++; normalizeDate(); G._isMonthEnd=true; monthlyTick(); }
+  // メインストーリーエンディング（advanceDayと同じチェック：キャッシュ危機解決後も発火させる）
+  if(!G.gameEnded && !G.freeMode && G.tut.phase === 'done'){
+    if(G.year === 1 && G.month === 3 && G.day === 30){
+      G.gameEnded = true;
+      setTimeout(showMainStoryEnding, 800);
+      return;
+    }
+  }
   if(Math.random()<0.20 && !G.activeEvent) tryFireEvent();
 
   // ─── 後日談メール配信 ───
@@ -10336,10 +10348,10 @@ function chooseEvent(idx, useFatigue){
   if(ev.id === 'midori_overtime' && idx === 1){
     G._midoriOvertimeCount = (G._midoriOvertimeCount || 0) + 1;
   }
-  // case-level AP cost（みどり採用で半減）
+  // case-level AP cost（みどり採用で半減・noAP:trueの見送り選択肢は消費しない）
   const apCostRaw = ev.apCost || 0;
   const apCost = apCostRaw > 0 && G.staffUnlocked ? Math.ceil(apCostRaw * 0.5) : apCostRaw;
-  if(apCost > 0){
+  if(apCost > 0 && !choice.noAP){
     if(useFatigue && ev.category === 'ops'){
       const shortfall = Math.max(0, apCost - G.ap);
       G.ap = Math.max(0, G.ap - apCost);
@@ -10862,6 +10874,28 @@ function chooseEvent(idx, useFatigue){
       }
       if(placed) break;
     }
+  }
+
+  // 退去手続き完了：入居中のテナントを1室空ける（満足度最低の部屋を優先）
+  if(fx.removeTenant){
+    let removed = false;
+    let minSat = Infinity, minBi = -1, minRi = -1;
+    for(let bi = 0; bi < G.buildings.length; bi++){
+      for(let ri = 0; ri < G.buildings[bi].rooms.length; ri++){
+        const r = G.buildings[bi].rooms[ri];
+        if(r.tenant && (r.satisfaction||70) < minSat){
+          minSat = r.satisfaction||70; minBi = bi; minRi = ri;
+        }
+      }
+    }
+    if(minBi >= 0){
+      const _r = G.buildings[minBi].rooms[minRi];
+      addNews(`🚪 ${_r.tenant.name}が${G.buildings[minBi].name} ${_r.num}号室を退去した`);
+      _r.tenant = null; _r.seeking = false;
+      scoreOwner(-2, 'tenant_leave');
+      removed = true;
+    }
+    if(!removed) addNews('📦 退去手続きを完了した（空室なし）');
   }
 
   G.activeEvent=null;
