@@ -801,7 +801,9 @@ function calcDailyRevenue(){
     let revMult = 1;
     if(s._shortHours) revMult *= 0.70;
     if(s._lunchPause) revMult *= 0.80;
-    const cTotal = (s.newCustomers||s.customers) + (s.regulars||0);
+    const _td = (G.year-1)*360 + (G.month-1)*30 + G.day;
+    const _custBonus = (G._tempCustBonuses||[]).filter(b => _td <= b.endDay).reduce((sum,b) => sum+b.amount, 0);
+    const cTotal = (s.newCustomers||s.customers) + (s.regulars||0) + _custBonus;
     const up = s.unitPrice || 700;
     rev += cTotal * up * revMult + (s.monthlyBonus||0)/30;
     exp += s.ingredientCost + Math.round(s.rent/30);
@@ -5064,7 +5066,7 @@ const CASE_POOL = [
     },
     choices:[
       {label:'出店して舞昆を振る舞う（AP-15・¥30,000）',cost:30000,effects:{score:15,rep:8,communityBond:6,custUp:4,storeBrand:5,profile:{community:4}},label2:'評判+・絆+・新客+',storyTag:'マルシェに出店した。「舞昆って何？」という人が何人も足を止めてくれた。',
-       followUp:{days:14,icon:'🌸',sender:'商店街組合',title:'マルシェの翌週から来店が増えています',body:'商店街の方から連絡がありました。\n\n「先日のマルシェ、大好評でした。\n\n「あの舞昆のお店、どこにあるの？」という声が\n組合にも届いていて。\n\n今月から新しいお客さんが増えているのは\nきっとあの日のご縁だと思います」'}},
+       followUp:{days:14,icon:'🌸',sender:'商店街組合',title:'マルシェの翌週から来店が増えています',body:'商店街の方から連絡がありました。\n\n「先日のマルシェ、大好評でした。\n\n「あの舞昆のお店、どこにあるの？」\n\nという声が組合にも届いていて。\n\nマルシェの翌週から、\n実際にお店へ足を運んでくださる方が\n少しずつ増えているようです。\n\nあの日のご縁が、\n地域へ広がり始めていますね。」',effects:{custBonusPerDay:2, custBonusDays:30, source:'marche'}}},
       {label:'参加費だけ払って応援する（¥10,000）',cost:10000,effects:{score:6,rep:3,communityBond:2},label2:'',storyTag:''},
     ]},
 
@@ -9274,12 +9276,24 @@ function showFollowUpModal(f){
     <button class="btn btn-gr" style="width:100%;margin-top:16px;padding:12px" onclick="closeFollowUp()">閉じる</button>
   `;
   document.getElementById('event-modal').style.display = 'flex';
-  G.activeEvent = { _followUp: true };
+  G.activeEvent = { _followUp: true, _followUpEffects: f.effects || null };
 }
 
 function closeFollowUp(){
+  const _fx = G.activeEvent && G.activeEvent._followUpEffects;
   document.getElementById('event-modal').style.display = 'none';
   G.activeEvent = null;
+  // 後日談エフェクト適用
+  if(_fx){
+    const _td = (G.year-1)*360 + (G.month-1)*30 + G.day;
+    if(_fx.custBonusPerDay && _fx.custBonusDays){
+      G._tempCustBonuses = G._tempCustBonuses || [];
+      G._tempCustBonuses.push({ amount: _fx.custBonusPerDay, endDay: _td + _fx.custBonusDays, source: _fx.source || 'followup' });
+      notify(`🛍 ${_fx.custBonusDays}日間、来店客が増えそうです`, 'gold');
+    }
+    if(_fx.rep)    G.regions[0].reputation = Math.min(100, (G.regions[0].reputation||0) + _fx.rep);
+    if(_fx.score)  scoreOwner(_fx.score, 'followup');
+  }
   renderTab();
 }
 
