@@ -8475,12 +8475,16 @@ function getCaseAgeText(c){
   const now = (G.year-1)*360 + (G.month-1)*30 + G.day;
   const created = (c.createdYear-1)*360 + (c.createdMonth-1)*30 + (c.createdDay||1);
   const age = now - created;
-  // 経過を絵文字ドットで表現（数値は見せない）
-  if(age <= 1)  return { text:'🟢 今日届いた',       color:'var(--text)' };
-  if(age <= 5)  return { text:'🟡 数日経過',          color:'#888' };
-  if(age <= 10) return { text:'🟠 気にしている様子',  color:'var(--orange)' };
-  if(age <= 20) return { text:'🔴 返事を待っています',color:'#c62828' };
-  return               { text:'⚫ かなり前',           color:'#aaa' };
+  const expire = c.expireDays || 0;
+  const isExpired = expire > 0 && age > expire;
+  if(isExpired)  return { text:'⚫ 放置中',               color:'#888' };
+  if(age === 0)  return { text:'🟢 今日届いた',           color:'#43a047' };
+  if(age <= 2)   return { text:'🟡 気にしている様子',     color:'#f9a825' };
+  if(age <= 4)   return { text:'🟠 返事を待っています',   color:'var(--orange)' };
+  if(expire > 0 && expire - age <= 3)
+                 return { text:'🔴 かなり困っています',   color:'#c62828' };
+  if(age <= 7)   return { text:'🟠 返事を待っています',   color:'var(--orange)' };
+  return               { text:'🔴 かなり困っています',   color:'#c62828' };
 }
 
 function getCaseUrgencyBadge(c){
@@ -8488,23 +8492,24 @@ function getCaseUrgencyBadge(c){
   const now = (G.year-1)*360 + (G.month-1)*30 + G.day;
   const created = (c.createdYear-1)*360 + (c.createdMonth-1)*30 + (c.createdDay||1);
   const age = now - created;
+  const expire = c.expireDays || 0;
+  const isExpired = expire > 0 && age > expire;
 
   if(type === 'problem'){
     const level = c._escalateLevel || 0;
     if(level >= 2) return `<span style="font-size:9px;background:#e53935;color:#fff;border-radius:4px;padding:1px 5px;font-weight:700">深刻化</span>`;
     if(level >= 1) return `<span style="font-size:9px;background:var(--orange);color:#fff;border-radius:4px;padding:1px 5px;font-weight:700">悪化中</span>`;
-    if(age >= 7)   return `<span style="font-size:9px;background:var(--gold);color:#fff;border-radius:4px;padding:1px 5px;font-weight:700">放置中</span>`;
+    if(isExpired)  return `<span style="font-size:9px;background:#757575;color:#fff;border-radius:4px;padding:1px 5px;font-weight:700">放置中</span>`;
     return '';
   }
   if(type === 'relationship'){
-    if(age >= 14) return `<span style="font-size:9px;background:var(--orange);color:#fff;border-radius:4px;padding:1px 5px;font-weight:700">お待たせ中</span>`;
+    if(isExpired)  return `<span style="font-size:9px;background:#757575;color:#fff;border-radius:4px;padding:1px 5px;font-weight:700">放置中</span>`;
+    if(age >= 14)  return `<span style="font-size:9px;background:var(--orange);color:#fff;border-radius:4px;padding:1px 5px;font-weight:700">お待たせ中</span>`;
     return '';
   }
-  // strategy / opportunity — 数値カウントダウンは出さない
-  if(c.expireDays){
-    const remaining = c.expireDays - age;
-    if(remaining <= 5) return `<span style="font-size:9px;background:#e53935;color:#fff;border-radius:4px;padding:1px 5px;font-weight:700">返事を待っています</span>`;
-  }
+  // strategy / opportunity
+  if(isExpired)  return `<span style="font-size:9px;background:#757575;color:#fff;border-radius:4px;padding:1px 5px;font-weight:700">放置中</span>`;
+  if(expire > 0 && expire - age <= 3) return `<span style="font-size:9px;background:#e53935;color:#fff;border-radius:4px;padding:1px 5px;font-weight:700">締切間近</span>`;
   return '';
 }
 
