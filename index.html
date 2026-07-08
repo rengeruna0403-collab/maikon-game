@@ -2449,6 +2449,11 @@ function monthlyTick(){
     credit:    G.creditScore || 0,
     money:     G.money       || 0,
   };
+  // 顧客数推移の記録（客数減少イベントの判定に使用）
+  if(G.stores[0]){
+    G._prevMonthCustomers = G._thisMonthCustomers || null;
+    G._thisMonthCustomers = (G.stores[0].newCustomers||0) + (G.stores[0].regulars||0);
+  }
   // 縮小運営フラグの自動解除チェック
   const currentMonthIdx = (G.year-1)*12 + G.month;
   G.stores.forEach(store => {
@@ -4693,7 +4698,8 @@ const ISSUE_CARDS = [
     body:'先月と比べて来客数が減少しています。原因を考え、対応策を選んでください。',
     choices:[
       {label:'広告を打つ（¥30,000）',cost:30000,effects:{score:8,custUp:5,rep:3},label2:'客数+5・評判+3',storyTag:'客数減少に対し広告で対応した。'},
-      {label:'メニューを見直す（AP-15）',cost:0,ap:15,effects:{score:10,storeSat:8},label2:'店舗満足+8',storyTag:'メニューを改善して客足を呼び戻した。'},
+      {label:'メニューを見直す（AP-15）',cost:0,ap:15,effects:{score:10,storeSat:8},label2:'店舗満足+8',storyTag:'メニューを改善して客足を呼び戻した。',
+       followUp:{days:3,icon:'🍱',sender:'スタッフより',title:'メニュー見直しの手ごたえがありました',body:'スタッフから報告がありました。\n\n「人気商品の配置を変えたり、\n試食の出し方を工夫してみたところ——\n\nお客様が以前より商品をじっくり\n見てくださるようになりました。\n\n「これ、美味しそうですね」という声も\n少し増えた気がします。\n\n地道な改善が、少しずつ伝わっているようです。」',effects:{custBonusPerDay:1, custBonusDays:21, rep:2, score:5, source:'menu_review'}}},
       {label:'しばらく様子を見る',cost:0,effects:{score:-3},label2:'現状維持',storyTag:'客数減少を一時的なものと判断した。'},
     ]},
   { id:'staff_burnout', icon:'😰', title:'スタッフが疲弊しています',
@@ -8741,9 +8747,29 @@ function checkChallengeResult(challenge, monthProfit){
   return { success: false, title: challenge.title };
 }
 
+function _canShowCustDown(){
+  const totalDays = (G.year-1)*360 + (G.month-1)*30 + G.day;
+  // 開店60日未満 or 3ヶ月未満は除外
+  if(totalDays < 60) return false;
+  // 前月比15%以上の減少がなければ除外
+  const prev = G._prevMonthCustomers;
+  const curr = G._thisMonthCustomers;
+  if(!prev || !curr) return false;
+  if(curr >= prev * 0.85) return false;
+  // 来客増加バフ（マルシェ等）が有効中は除外
+  if(G._tempCustBonuses && G._tempCustBonuses.length > 0){
+    const _td = (G.year-1)*360 + (G.month-1)*30 + G.day;
+    if(G._tempCustBonuses.some(b => _td <= b.endDay)) return false;
+  }
+  return true;
+}
+
 function showIssueCardModal(){
   if(!G.started) return;
-  const card = ISSUE_CARDS[Math.floor(Math.random() * ISSUE_CARDS.length)];
+  // cust_down は条件を満たす場合のみ候補に含める
+  const eligible = ISSUE_CARDS.filter(c => c.id !== 'cust_down' || _canShowCustDown());
+  const pool = eligible.length > 0 ? eligible : ISSUE_CARDS.filter(c => c.id !== 'cust_down');
+  const card = pool[Math.floor(Math.random() * pool.length)];
   G.activeEvent = card;
   if(G.autoTesting){ _autoResolveEvent(); return; }
   showEventModal(card);
@@ -10006,6 +10032,7 @@ function chooseEvent(idx, useFatigue){
       sender: followUp.sender || ev.sender || '',
       title: followUp.title || '',
       body: followUp.body || '',
+      effects: followUp.effects || null,
     });
   }
 
