@@ -6121,20 +6121,30 @@ const DOMAIN_CASES = [
     title:'繁忙日——みどりに残業を頼むか',
     body:'今日はお客様が多く、15時になってもまだ店内は混み合っている。\n\nみどりが「そろそろ失礼します」と声を掛けてきた。\n\n娘さんが学校から帰ってくる時間だ。\n家の鍵を開けて迎えるため、いつも時間どおりに帰っている。\n\nあと少しだけ手伝ってもらえれば助かる状況だが——',
     choices:[
-      {label:'「今日は上がってください。あとは自分でやります」と伝える',
-       cost:0,
-       effects:{score:8,staffSat:10,midoriTrust:5,resilience:3,profile:{people:3}},
-       label2:'みどりの家庭を優先・信頼+5',
-       storyTag:'みどりを定時で帰した。一人でなんとかやり切った。「小規模店舗の限界」をひしひしと感じた一日だったが、人を大切にできたことには満足している。'},
-      {label:'「30分だけお願いできますか」と頼む（追加賃金 ¥1,500）',
-       cost:1500,
-       effects:{score:4,staffSat:-5,midoriTrust:-2,resilience:1,profile:{finance:1}},
-       label2:'みどりの協力・信頼-2・疲労増',
-       storyTag:'みどりに30分残ってもらった。「ありがとうございます」と言いながらも、申し訳ない気持ちが残った。次は人手を増やすことを考えないといけない。',
-       followUp:{days:3,icon:'⏰',sender:'みどり',
-         title:'残業の翌日',
-         body:'翌日、みどりが少し疲れた様子で出勤してきた。\n\n「昨日は大丈夫でしたか？」と聞くと、\n「娘が心配して泣いてしまいまして……」と話してくれた。\n\n定時で帰れることが、彼女の家庭の安心につながっていることが、改めてわかった。',
-         effects:{midoriTrust:-1}}},
+      { label:'「今日は上がってください」と伝える',
+        cost:0,
+        effects:{ score:6, staffSat:10, midoriTrust:5, storeSat:-6, resilience:3, profile:{ people:3 } },
+        label2:'信頼+5 / 人手不足で接客遅れ・満足-6',
+        storyTag:'みどりを定時で帰した。接客が少し遅れてお客様を待たせてしまったが、人を大切にできたことには満足している。',
+        followUp:{ days:2, icon:'⏰', sender:'お客様の声',
+          title:'定時帰宅の翌日',
+          body:'翌日、昨日来店されたお客様のひとりが「昨日ちょっと待ちましたけど、スタッフさんが一人で頑張ってたんですね。お疲れさまです」と言ってくれた。\n\n人を大切にする経営は、見ていてくれる人がいる。',
+          effects:{ rep:1 },
+          _chanceOnly: true }},
+      { label:'「30分だけお願いできますか」と頼む（追加賃金 ¥1,500）',
+        cost:1500,
+        effects:{ score:3, staffSat:-6, midoriTrust:-3, resilience:1, profile:{ finance:1 } },
+        label2:'混雑を乗り切れる / 信頼-3・ストレス増',
+        storyTag:'みどりに30分残ってもらった。助かったが、申し訳ない気持ちが残る。次は人手を増やすことを考えないといけない。',
+        followUp:{ days:3, icon:'😔', sender:'みどり',
+          title:'残業の翌日',
+          body:'みどりが少し疲れた様子で出勤してきた。\n\n「昨日は大丈夫でしたか？」と聞くと、\n「娘が心配して……帰ったら泣いてしまって」と小さく話してくれた。\n\n定時で帰れることが、彼女と娘の安心につながっていることが、改めてわかった。',
+          effects:{ midoriTrust:-1 }}},
+      { label:'「自分がやります。お先にどうぞ」と言って一人で対応する',
+        cost:0,
+        effects:{ score:5, staffSat:4, midoriTrust:2, fatigue:18, storeSat:-3, profile:{ people:2 } },
+        label2:'スタッフへの影響なし / 自分の疲労+18',
+        storyTag:'みどりを帰して、自分一人でなんとか乗り切った。体はきつかったが、頑張れたことに手応えを感じた。この判断が続くなら、人を増やすサインかもしれない。' },
     ]},
 
   // みどり残業が重なった場合の限界イベント（3回以上残業依頼後に発火）
@@ -9799,6 +9809,7 @@ function chooseEvent(idx, useFatigue){
   if(fx.score) scoreOwner(fx.score,'event');
   if(fx.profile) profileOwner(fx.profile);
   if(fx.rep) G.regions[0].reputation=Math.min(65,Math.max(0,G.regions[0].reputation+fx.rep));
+  if(fx.fatigue) addFatigue(fx.fatigue, ev.title);
   // ─── 隠し信頼・絆パラメータ ───
   if(fx.naritaTrust){     G.naritaTrust     = Math.max(0, Math.min(100, (G.naritaTrust||0)     + fx.naritaTrust));
     if(fx.naritaTrust > 2) setTimeout(()=>showGrowthToast('🤝 成田さんとの信頼が深まりました'), 700); }
