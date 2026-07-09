@@ -639,8 +639,8 @@ let G = {
     narita:    { met:true,  level:1, notes:[], complete:false },  // 成田（開始から）
     midori:    { met:false, level:0, notes:[], complete:false },  // みどり（採用後）
   },
-  ap: 60,                // 行動力
-  apMax: 60,             // 注意力上限（週20回復・最大3週分）
+  ap: 100,               // 行動力
+  apMax: 100,            // 注意力上限（週30回復・月初満タン回復）
 
   stores: [{
     id:1, name:'舞昆茶屋1号店', region:'桜橋ハイツ1F',
@@ -2261,7 +2261,7 @@ function advanceDay(){
   if(totalDaysNow2 > 0 && totalDaysNow2 % 7 === 0){
     checkFatiguePenalty();
     const before = G.ap;
-    G.ap = Math.min(G.apMax, G.ap + 20);
+    G.ap = Math.min(G.apMax, G.ap + 30);
     if(G.ap > before) notify(`🧠 週次AP回復 +${G.ap - before}（残 ${G.ap}）`);
   }
 
@@ -5132,24 +5132,24 @@ const CASE_POOL = [
        storyTag:'今回は参加を見送った。商店街の方に申し訳なさを感じた。'},
     ]},
 
-  { id:'midgame_local_paper', repeatable:true, domain:'community', sender:'地域紙', icon:'📰', apCost:15, expireDays:14, category:'ops',
+  { id:'midgame_local_paper', repeatable:true, domain:'community', sender:'地域紙', icon:'📰', apCost:3, expireDays:14, category:'ops',
     expirePenalty:{news:'📰 地域紙の取材依頼を断った。'},
     title:'地域紙の記者が取材に来ました',
     body:'地域の情報誌の記者が訪ねてきました。\n\n「「桜橋の味を守る人々」という特集を組んでいまして。\n舞昆茶屋さんのことを取り上げさせていただけませんか？」',
     choices:[
       {label:'取材を受ける（AP-10）',
-       cost:0,
+       cost:0, ap:7,
        effects:{score:13,rep:8,communityBond:5,storeBrand:6,fatigue:10,storeSat:-3,profile:{community:3}},
        label2:'評判+8・ブランド+6 / 取材対応で当日接客遅れ-3',
        storyTag:'地域紙の取材を受けた。写真撮影や質問対応で半日が過ぎたが、「伝えてもらえる」という手応えがあった。',
        followUp:{days:18,icon:'📰',sender:'地域紙・記者',title:'掲載号が出ました。反響が来ています',body:'記者の方からメッセージが届きました。\n\n「先日の特集号が出ました。\n\n読者から「舞昆茶屋に行ってみたい」という\n反響が届いています。\n\nあと、他紙の記者からも\n「うちでも取り上げたい」と問い合わせがありました。\n\n桜橋の味を守る人、として\n皆さんに届いているようです」',effects:{custBonusPerDay:1,custBonusDays:21,source:'local_paper'}}},
-      {label:'コメントだけ提供する（短時間）',
+      {label:'コメントだけ提供する（短時間・AP-3）',
        cost:0,
        effects:{score:6,rep:3,storeBrand:2,profile:{community:1}},
        label2:'評判+3 / 負担小・効果も小',
        storyTag:'短時間でコメントだけ提供した。掲載は小さなコラム欄だったが、名前は出た。'},
       {label:'「今は忙しいので」と断る',
-       cost:0,
+       cost:0, noAP:true,
        effects:{score:1,rep:-2},
        label2:'評判-2 / AP・売上への影響なし',
        storyTag:'今回は断った。機会を逃した気がした。'},
@@ -5275,7 +5275,7 @@ const CASE_POOL = [
       {label:'「和紙袋入りがおすすめです」と紹介する',cost:0,effects:{score:8,storeBrand:3,money:3240,profile:{people:2}},label2:'売上+・ブランド+',storyTag:'母の日に和紙袋入りを提案した。'},
     ]},
 
-  { id:'gift_season_chichi', repeatable:true, domain:'store', sender:'常連客', icon:'👔', apCost:10, expireDays:14, category:'mgmt',
+  { id:'gift_season_chichi', repeatable:true, domain:'store', sender:'常連客', icon:'👔', apCost:10, expireDays:14, category:'mgmt', minMonth:6, maxMonth:6, oncePerYear:true,
     title:'父の日に舞昆を贈りたい',
     body:'若いお客様が来店しました。\n\n「父の日に、\n実家の父に舞昆を送ろうと思って。\n\n父がお酒を飲むときに\nご飯のおかずが欲しいって言ってたから。\n\n「東京では手に入らない」って言ったら\n喜ぶかなと思って。」',
     choices:[
@@ -8769,8 +8769,8 @@ function generateConditionCases(){
   if(_nishi.level >= 2 && nishiReady() && !G.cases.some(c=>c.id==='chr_nishimura_3')) charCase('chr_nishimura_3');
   // ep4: 災害時協力（level3以上・30日以降）
   if(_nishi.level >= 3 && totalDays >= 30 && nishiReady() && !G.cases.some(c=>c.id==='chr_nishimura_4')) charCase('chr_nishimura_4');
-  // ep5: 地域イベント共闘（level4以上）
-  if(_nishi.level >= 4 && nishiReady() && !G.cases.some(c=>c.id==='chr_nishimura_5')) charCase('chr_nishimura_5');
+  // ep5: 地域イベント共闘（level4以上・7〜8月限定）
+  if(_nishi.level >= 4 && (G.month >= 7 && G.month <= 8) && nishiReady() && !G.cases.some(c=>c.id==='chr_nishimura_5')) charCase('chr_nishimura_5');
   // ep6: 変化の兆し（level5以上）
   if(_nishi.level >= 5 && nishiReady() && !G.cases.some(c=>c.id==='chr_nishimura_6')) charCase('chr_nishimura_6');
   // ep7: 認め合う（level6以上）
