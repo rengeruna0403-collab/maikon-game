@@ -3210,21 +3210,67 @@ function showYearReview(stage){
 // ─────────── ② メインストーリークリア ───────────
 function showMainStoryClear(stage){
   stage = stage || 1;
-  const hasMidori = G.staff.some(s => s.name === '佐々木みどり');
   const ch = G.characters || {};
+  const hasMidori = G.staff.some(s => s.name === '佐々木みどり');
+
+  // level に応じて3段階メッセージを返す
+  // lv: 0-2 → 会ったばかり, 3 → 関係が育ってきた, 4-5/complete → 深いご縁
+  function _lv(state){ return (state.complete || (state.level||0) >= 4) ? 3 : (state.level||0) >= 3 ? 2 : 1; }
+
+  const CHAR_MSGS = {
+    narita: s => [
+      '「また何かあれば相談してください。\nお店が軌道に乗るといいですね。」',
+      '「数字だけじゃない部分を、あなたは大切にしてきましたね。\nそれが伝わってきます。」',
+      '「最初は右も左も分からなかったあなたが、\nここまで経営を続けてこられました。\n\n数字よりも大事なものを、\nあなたは知っています。」',
+    ][_lv(s)-1],
+    midori: s => hasMidori ? [
+      '「働かせてもらって、ありがとうございます。\n娘のためにも、続けていきたいです。」',
+      '「ここで働けてよかったと、毎日思っています。」',
+      '「ここからが本当のスタートですね。\n\nわたしも、もっと頑張ります。」',
+    ][_lv(s)-1]
+    : '「またお茶でも飲みにきます。\nいつもありがとうございます。」',
+    tanaka: s => [
+      '「最近、ここに来るのが楽しみになってきました。」',
+      '「舞昆があると、ご飯がすすみます。\nありがとう。」',
+      '「あなたのおかげで、\nこの町にいることができました。」',
+    ][_lv(s)-1],
+    yamamoto: s => [
+      '「子どもたちもここのお弁当、\n気に入っています。」',
+      '「近くにこんなお店があって、\n本当に助かっています。」',
+      '「うちの子たちにとっても、ここは大切な場所になりました。\nこれからもよろしくお願いします。」',
+    ][_lv(s)-1],
+    suzuki: s => [
+      '「地域の子どもたちとの繋がりを\n大切にしてくれて、ありがとうございます。」',
+      '「学校でも、ここのことを話す子が\n増えてきました。」',
+      '「地域に根ざした経営をされていますね。\n子どもたちにとって、こういう場所が大切なんです。」',
+    ][_lv(s)-1],
+    takahashi: s => [
+      '「出張のたびに、ここのものを\n買って帰っています。」',
+      '「また新しい一年、\n一緒に頑張りましょう。」',
+      '「ここがあるから、この街に帰ってくる理由ができました。\n本当にそう思っています。」',
+    ][_lv(s)-1],
+    kimura: s => [
+      '「また来ます。\nありがとうございました。」',
+      '「ここで食べた舞昆の味、\nずっと覚えていると思います。」',
+      '「卒業しても、この街のことは忘れません。\nここで過ごした時間は、私の宝物です。」',
+    ][_lv(s)-1],
+    nishimura: s => [
+      '「まぁ、まだまだ若いな。\nこの商店街、そう簡単じゃないぞ。」',
+      '「少しずつ、分かってきたじゃないか。\nこの街のことが。」',
+      '「……認めてやる。あんたは本物だ。\nこの街を頼むよ。」',
+    ][_lv(s)-1],
+  };
+
+  const ORDER = ['narita','midori','tanaka','yamamoto','suzuki','takahashi','kimura','nishimura'];
   const msgs = [];
-  if(ch.narita && ch.narita.met)
-    msgs.push({icon:'💼',name:'成田（銀行員）',
-      line:'「最初は右も左も分からなかったあなたが、\nここまで経営を続けてこられました。\n\n数字よりも大事なものを、\nあなたは知っています。」'});
-  if(hasMidori)
-    msgs.push({icon:'🌿',name:'佐々木みどり',
-      line:'「ここからが本当のスタートですね。\n\nわたしも、もっと頑張ります。」'});
-  if(ch.takahashi && ch.takahashi.met)
-    msgs.push({icon:'👔',name:'高橋 亮',
-      line:'「また新しい一年、\n一緒に頑張りましょう。」'});
-  if(ch.tanaka && ch.tanaka.met)
-    msgs.push({icon:'🧓',name:'田中さん',
-      line:'「あなたのおかげで、\nこの町にいることができました。」'});
+  ORDER.forEach(key => {
+    const s = ch[key];
+    if(!s || !s.met) return;
+    const info = CHARACTERS[key];
+    const fn = CHAR_MSGS[key];
+    if(!fn) return;
+    msgs.push({ icon: info.icon, name: info.name, line: fn(s) });
+  });
 
   const msgHtml = msgs.map(m =>
     '<div style="background:var(--bg2);border-radius:10px;padding:12px 14px;margin-bottom:10px">'
@@ -3344,6 +3390,28 @@ function showEndingDiagnosis(stage){
     balanced:   '状況を読みながら偏らず判断を重ねてきた、バランス型のオーナータイプです。',
   };
 
+  // 「あなたが地域に残したもの」コメント
+  const _ppD = G._pathPts || {};
+  const _LEGACY = [
+    { key:'community', pts:_ppD.community||0, max:15,
+      text:'あなたがいたから、この街はもう少し温かくなりました。' },
+    { key:'product',   pts:_ppD.product||0,   max:15,
+      text:'舞昆の魅力を、地域の新しい楽しみに育てました。' },
+    { key:'staff',     pts:_ppD.staff||0,     max:10,
+      text:'あなたは、人が育つ店を残しました。' },
+    { key:'expansion', pts:_ppD.expansion||0, max:10,
+      text:'着実な経営で、あの場所に灯りを守り続けました。' },
+  ];
+  const _topLegacy = _LEGACY.slice().sort((a,b) => (b.pts/b.max) - (a.pts/a.max))[0];
+  const legacyText = (_topLegacy.pts > 0)
+    ? _topLegacy.text
+    : '舞昆茶屋をこの街に残してくれて、ありがとうございます。';
+  const legacyHtml =
+    '<div style="border-left:3px solid var(--gr3);background:var(--bg2);border-radius:0 10px 10px 0;padding:12px 14px;margin-bottom:14px">'
+    + '<div style="font-size:10px;color:var(--muted);letter-spacing:.05em;margin-bottom:6px">あなたが地域に残したもの</div>'
+    + '<div style="font-size:13px;color:var(--text);line-height:1.9">「' + legacyText + '」</div>'
+    + '</div>';
+
   const body = document.getElementById('event-modal-body');
   body.innerHTML =
     '<div style="padding:4px">'
@@ -3361,6 +3429,7 @@ function showEndingDiagnosis(stage){
         +'<div style="font-size:11px;color:var(--muted);margin-top:2px">季節のお弁当が新たな売上を生みました</div></div>'
         +'</div>'
       : '')
+    +legacyHtml
     +'<div style="background:var(--warm);border-radius:10px;padding:14px 16px;margin-bottom:14px">'
     +'<div style="font-size:10px;color:var(--muted);margin-bottom:8px;letter-spacing:.05em">あなたにおすすめの舞昆</div>'
     +'<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">'
