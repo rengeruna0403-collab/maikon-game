@@ -4966,7 +4966,7 @@ const CASE_POOL = [
     body:'開店から少し経ったある日、成田から電話がありました。\n\n「再開されたんですね。\n地域の方も気づいていないだけで、\n知ったら来たい人は多いと思います。\n\n小さくてもいいので、まず広告を打ってみませんか？」',
     choices:[
       { label:'地域新聞に広告を出す（¥50,000）', cost:50000,
-        effects:{ score:12, adRoll:true, credit:1, profile:{finance:1}, charLevel:'narita', charNote:'開店直後に広告を勧めてくれた。素直に受け入れた。' },
+        effects:{ score:12, adRoll:true, credit:1, profile:{finance:1}, charLevel:'narita', charNote:'「地域に知ってもらわないと始まらない」と言って広告を勧めてくれた。成田さんの言葉だ。' },
         label2:'反響は後日判明・成田との関係', storyTag:'成田の提案で地域新聞に広告を出した。反響がどれくらい出るかは、しばらく後にわかる。' },
       { label:'SNSで自分で発信する（¥0）', cost:0,
         effects:{ score:8, custUp:1, profile:{risk:2} },
@@ -6842,8 +6842,8 @@ const DOMAIN_CASES = [
     title:'田中さんから手紙が届いた',
     body:'田中さんから手書きの手紙が届きました。\n\n「舞昆を少しずつ食べるようにしています。\n料理を作る量が減ってきているのですが、\nご飯に乗せるだけでも食べられるのが助かります。\n\nところで——空いているお部屋はありますか？\n今の家が老朽化してきて……」',
     choices:[
-      {label:'「いつでも相談ください」とすぐに返事を書く',cost:0,effects:{score:12,rep:5,charLevel:'tanaka',charNote:'入居検討中と伝えてきた。返事を書いた',profile:{people:3}},label2:'ご縁+1・入居候補',storyTag:'田中さんに返事を書いた。「いつでも来てください」と。'},
-      {label:'次に会ったときに話を聞く',cost:0,effects:{score:6,charLevel:'tanaka',charNote:'入居検討中と伝えてきた'},label2:'ご縁+1',storyTag:'田中さんの手紙を受け取った。次回に詳しく聞くことにした。'},
+      {label:'「いつでも相談ください」とすぐに返事を書く',cost:0,effects:{score:12,rep:5,charLevel:'tanaka',charNote:'「いつでも声をかけてください」と返事を書いた。田中さんが入居を考えていると聞いた。',profile:{people:3}},label2:'ご縁+1・入居候補',storyTag:'田中さんに返事を書いた。「いつでも来てください」と。'},
+      {label:'次に会ったときに話を聞く',cost:0,effects:{score:6,charLevel:'tanaka',charNote:'入居を考えていると手紙に書いてあった。次に会ったとき話を聞くことにした。'},label2:'ご縁+1',storyTag:'田中さんの手紙を受け取った。次回に詳しく聞くことにした。'},
     ]},
 
   { id:'chr_tanaka_apply', conditionOnly:true, repeatable:false, domain:'landlord', character:'tanaka',
@@ -6851,8 +6851,8 @@ const DOMAIN_CASES = [
     title:'田中さんが入居を申し込んできた',
     body:'田中さんから正式に入居の申し込みが届きました。\n\n「先日お話しした通り、入居を検討させてください。\n年金暮らしですが、家賃はきちんとお支払いします。\n保証人は息子がなってくれます」\n\n年金収入：月14万／保証人あり',
     choices:[
-      {label:'承認する',cost:0,effects:{score:15,rep:6,charLevel:'tanaka',charNote:'入居が決まった',approveChar:'tanaka',profile:{people:4,community:2}},label2:'ご縁+1・田中さん入居',storyTag:'田中さんの入居を承認した。「よろしくお願いします」と頭を下げてくれた。'},
-      {label:'収入面が心配で保留にする',cost:0,effects:{score:5,charNote:'入居保留にした'},label2:'様子見',storyTag:'田中さんの入居を保留にした。'},
+      {label:'承認する',cost:0,effects:{score:15,rep:6,charLevel:'tanaka',charNote:'「よろしくお願いします」と深く頭を下げてくれた。田中さんの入居が決まった。',approveChar:'tanaka',profile:{people:4,community:2}},label2:'ご縁+1・田中さん入居',storyTag:'田中さんの入居を承認した。「よろしくお願いします」と頭を下げてくれた。'},
+      {label:'収入面が心配で保留にする',cost:0,effects:{score:5,charNote:'入居の返事を保留にした。田中さんの顔が少し曇った気がした。'},label2:'様子見',storyTag:'田中さんの入居を保留にした。'},
     ]},
 
   { id:'chr_tanaka_4', conditionOnly:true, repeatable:false, domain:'landlord', character:'tanaka',
@@ -6879,7 +6879,7 @@ const DOMAIN_CASES = [
     title:'山本さんから「食べた」の一言',
     body:'山本さんが小走りで来た。\n\n「……先生、食べたんです。\n\n昨日の朝ご飯、舞昆のおにぎり作ったら——\n全部、食べた。\n\n残さず、全部。\n\n「おかわり」って言ったんです。\nあの子が、ですよ？」\n\n彼女は少し声が震えていた。',
     choices:[
-      {label:'「よかった。またお口に合うものを一緒に探しましょう」と伝える',cost:0,effects:{score:10,rep:4,charLevel:'yamamoto',charNote:'「おかわりと言った」朝ごはんに舞昆おにぎりが全部食べられた',custUp:1,profile:{people:3}},label2:'ご縁+1・来客+1',storyTag:'山本さんの子どもが舞昆おにぎりを全部食べた。「おかわり」と言ったと聞いた。'},
+      {label:'「よかった。またお口に合うものを一緒に探しましょう」と伝える',cost:0,effects:{score:10,rep:4,charLevel:'yamamoto',charNote:'「おかわりって言ったんですよ！」と山本さんが嬉しそうに教えてくれた。',custUp:1,profile:{people:3}},label2:'ご縁+1・来客+1',storyTag:'山本さんの子どもが舞昆おにぎりを全部食べた。「おかわり」と言ったと聞いた。'},
       {label:'「お子さんの笑顔が見えるようですね」と答える',cost:0,effects:{score:7,charLevel:'yamamoto',rep:3,profile:{people:2}},label2:'ご縁+1',storyTag:'山本さんの喜びを一緒に感じた。'},
     ]},
 
@@ -6898,8 +6898,8 @@ const DOMAIN_CASES = [
     title:'地域清掃で教員の方と出会った',
     body:'地域清掃の後、一人の男性が話しかけてきました。\n\n「鈴木といいます。地元の小学校で教えています。\n舞昆茶屋さんのこと、子どもたちが教えてくれて。\n職業体験ってできますか？」',
     choices:[
-      {label:'「ぜひ！詳しくは相談させてください」と答える',cost:0,effects:{score:10,rep:5,charMeet:'suzuki',charNote:'職業体験の可能性を打診してきた',profile:{community:3,people:2}},label2:'ご縁スタート・地域連携',storyTag:'鈴木先生と出会った。地域と学校をつなぐきっかけになりそうだ。'},
-      {label:'「検討してみます」と答える',cost:0,effects:{score:6,rep:3,charMeet:'suzuki',charNote:'職業体験を前向きに検討している'},label2:'ご縁スタート',storyTag:'鈴木先生と話した。'},
+      {label:'「ぜひ！詳しくは相談させてください」と答える',cost:0,effects:{score:10,rep:5,charMeet:'suzuki',charNote:'「ぜひ！」と答えた。学校との連携が始まるかもしれない。先生が笑顔で帰っていった。',profile:{community:3,people:2}},label2:'ご縁スタート・地域連携',storyTag:'鈴木先生と出会った。地域と学校をつなぐきっかけになりそうだ。'},
+      {label:'「検討してみます」と答える',cost:0,effects:{score:6,rep:3,charMeet:'suzuki',charNote:'「検討してみます」と伝えた。鈴木先生が「待っています」と言っていた。'},label2:'ご縁スタート',storyTag:'鈴木先生と話した。'},
     ]},
 
   { id:'chr_suzuki_2', conditionOnly:true, repeatable:false, domain:'community', character:'suzuki',
@@ -6908,7 +6908,7 @@ const DOMAIN_CASES = [
     body:'鈴木先生から連絡が来ました。\n\n「「地域で働く人」という授業があります。\n30分でいいので、お店のことや働くことについて\n話してもらえませんか？\n\n先日、子どもたちが外を歩いているときに\nお店の前を通って「舞昆って何？」って\n興味津々で聞いてきたんです」',
     choices:[
       {label:'「喜んで行きます」と承諾する',cost:0,effects:{score:15,rep:8,charLevel:'suzuki',charNote:'小学校で授業をした。子どもたちが熱心に聞いてくれた',profile:{community:4,people:2}},label2:'ご縁+1・評判+8',storyTag:'小学校で授業をした。「舞昆って何？」と素直に聞く子どもたちに、一から説明した。'},
-      {label:'「今回は難しいですが次回に」と伝える',cost:0,noAP:true,effects:{score:4,charLevel:'suzuki',charNote:'次回への参加を前向きに返答した'},label2:'ご縁+1',storyTag:'次回参加することを伝えた。'},
+      {label:'「今回は難しいですが次回に」と伝える',cost:0,noAP:true,effects:{score:4,charLevel:'suzuki',charNote:'「次の機会にぜひ」と伝えた。鈴木先生は「楽しみにしています」と言ってくれた。'},label2:'ご縁+1',storyTag:'次回参加することを伝えた。'},
     ]},
 
   { id:'chr_suzuki_3', conditionOnly:true, repeatable:false, domain:'community', character:'suzuki',
@@ -7014,7 +7014,7 @@ const DOMAIN_CASES = [
     title:'木村さんの友人が来店した',
     body:'見知らぬ若い女性が入ってきました。\n\n「あの……木村さくらに聞いてきました。\n「絶対行って」って言われて。\n舞昆って何ですか？ 試食できますか？」',
     choices:[
-      {label:'丁寧に説明して試食してもらう',cost:0,effects:{score:10,custUp:2,charMeet:'kimura',charNote:'旅立った後も口コミでつながっている',profile:{people:2,community:1}},label2:'来客+2・口コミの力',storyTag:'木村さんの口コミで新しいお客様が来た。人から人へ、舞昆が伝わっていく。'},
+      {label:'丁寧に説明して試食してもらう',cost:0,effects:{score:10,custUp:2,charMeet:'kimura',charNote:'木村さんが紹介してくれたお客様が来てくれた。「あの子から聞いて」と言っていた。',profile:{people:2,community:1}},label2:'来客+2・口コミの力',storyTag:'木村さんの口コミで新しいお客様が来た。人から人へ、舞昆が伝わっていく。'},
     ]},
 
   { id:'chr_kimura_3', conditionOnly:true, repeatable:false, domain:'store', character:'kimura',
@@ -7203,9 +7203,9 @@ const DOMAIN_CASES = [
     title:'学校から食育の相談が来た',
     body:'山本さんがPTA役員として来てくれた。\n\n「学校の給食委員会から「地域の食文化を知ろう」という\n授業を計画したいと言われていて。\n\n「もしよければ舞昆茶屋さんに来ていただけないか」って。\n先生も「子どもたちが興味を持てそうで」とおっしゃっています。\n\nどうでしょうか？」',
     choices:[
-      {label:'「ぜひ協力します」と快諾する',cost:0,effects:{score:18,rep:10,charLevel:'yamamoto',charNote:'学校食育授業への協力を快諾した',communityBond:6,custUp:5,profile:{community:4,people:3}},label2:'ご縁+1・評判+10・来客+5',storyTag:'学校の食育授業に協力することになった。地域の子どもたちに舞昆を届けるチャンス。'},
-      {label:'「簡単な試食だけなら」と条件付きで応じる',cost:0,effects:{score:10,rep:6,charLevel:'yamamoto',charNote:'食育授業に試食だけ協力することにした',communityBond:3,custUp:2,profile:{community:2,people:2}},label2:'ご縁+1・評判+6',storyTag:'試食だけ協力することにした。'},
-      {label:'「今回は難しい」と断る',cost:0,noAP:true,effects:{score:-3,charNote:'食育授業への協力を断った'},label2:'評判-',storyTag:'食育授業の協力を断った。山本さんが少し残念そうだった。'},
+      {label:'「ぜひ協力します」と快諾する',cost:0,effects:{score:18,rep:10,charLevel:'yamamoto',charNote:'山本さんの紹介で食育授業に呼ばれた。「子どもたちに会えるのが楽しみです」と伝えた。',communityBond:6,custUp:5,profile:{community:4,people:3}},label2:'ご縁+1・評判+10・来客+5',storyTag:'学校の食育授業に協力することになった。地域の子どもたちに舞昆を届けるチャンス。'},
+      {label:'「簡単な試食だけなら」と条件付きで応じる',cost:0,effects:{score:10,rep:6,charLevel:'yamamoto',charNote:'「試食だけなら」と答えた。山本さんが「それだけでも嬉しいです」と言ってくれた。',communityBond:3,custUp:2,profile:{community:2,people:2}},label2:'ご縁+1・評判+6',storyTag:'試食だけ協力することにした。'},
+      {label:'「今回は難しい」と断る',cost:0,noAP:true,effects:{score:-3,charNote:'山本さんの誘いを断った。「また今度ぜひ」と言ったが、少し残念そうだった。'},label2:'評判-',storyTag:'食育授業の協力を断った。山本さんが少し残念そうだった。'},
     ]},
 
   { id:'chr_yamamoto_juken', conditionOnly:true, repeatable:false, domain:'community', character:'yamamoto',
@@ -7243,7 +7243,7 @@ const DOMAIN_CASES = [
     body:'鈴木先生から連絡が来ました。\n\n「PTA主催の「地域を知ろうウォーク」で、\n舞昆茶屋さんに立ち寄るコースを組みたくて。\n\n保護者と子どもたちが一緒に参加します。\n受け入れてもらえますか？」',
     choices:[
       {label:'「ぜひ来てください」と受け入れる',cost:0,effects:{score:16,rep:8,charLevel:'suzuki',charNote:'PTA主催ウォークで来店。保護者と子ども合わせて20人ほど来た',communityBond:5,custUp:6,profile:{community:4,people:2}},label2:'ご縁+1・来客+6・評判+8',storyTag:'PTAウォークで20人が来店した。子どもたちが「また来たい」と言ってくれた。'},
-      {label:'「簡単な見学なら」と受け入れる',cost:0,effects:{score:10,rep:5,charLevel:'suzuki',charNote:'PTAウォークの見学を受け入れた',communityBond:3,custUp:3},label2:'ご縁+1・来客+3',storyTag:'PTAウォークの見学を受け入れた。'},
+      {label:'「簡単な見学なら」と受け入れる',cost:0,effects:{score:10,rep:5,charLevel:'suzuki',charNote:'鈴木先生のPTAウォークを受け入れた。「子どもたちが楽しみにしています」と言っていた。',communityBond:3,custUp:3},label2:'ご縁+1・来客+3',storyTag:'PTAウォークの見学を受け入れた。'},
     ]},
 
   { id:'chr_suzuki_shokuiku', conditionOnly:true, repeatable:false, domain:'community', character:'suzuki',
@@ -7375,7 +7375,7 @@ const DOMAIN_CASES = [
     title:'木村さんがSNS投稿を申し出てくれた',
     body:'木村さんが少し照れながら言いました。\n\n「実は——おにぎりの写真、SNSに上げてもいいですか？\n\n見た目がよくて撮ったら、\n「それ何？ 黒いの何？」って\n友達に聞かれて。\n\nお店の許可が必要かなと思って先に聞きました」',
     choices:[
-      {label:'「ぜひ！ お店の名前も入れてもらえると嬉しいです」と伝える',cost:0,effects:{score:12,rep:6,charLevel:'kimura',charNote:'SNS投稿を申し出てくれた。快諾した',storeBrand:5,custUp:2,profile:{community:3,people:2}},label2:'ご縁+1・ブランド+・来客+2',storyTag:'木村さんがSNS投稿を申し出てくれた。若い人の目線で舞昆を伝えてくれる。'},
+      {label:'「ぜひ！ お店の名前も入れてもらえると嬉しいです」と伝える',cost:0,effects:{score:12,rep:6,charLevel:'kimura',charNote:'「SNSに載せてもいいですか」と木村さんが聞いてくれた。こちらこそ嬉しかった。',storeBrand:5,custUp:2,profile:{community:3,people:2}},label2:'ご縁+1・ブランド+・来客+2',storyTag:'木村さんがSNS投稿を申し出てくれた。若い人の目線で舞昆を伝えてくれる。'},
       {label:'「写真だけで大丈夫です。ありがとう」と伝える',cost:0,effects:{score:8,charLevel:'kimura',charNote:'SNSへの投稿を了承した',storeBrand:3,custUp:1},label2:'ご縁+1・ブランド+',storyTag:'SNS投稿を了承した。'},
     ]},
 
