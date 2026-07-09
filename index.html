@@ -5008,7 +5008,7 @@ const CASE_POOL = [
       {label:'ありがとうございます',cost:0,effects:{score:5,credit:3},label2:'信用度+3',storyTag:'成田との定期確認。着実な前進を認めてもらった。'},
     ]},
   { id:'ishikawa_event', sender:'石川（地域）', icon:'🌸', apCost:15, expireDays:14, category:'strategy',
-    minMonth:4, maxMonth:4, oncePerYear:true,
+    minMonth:3, maxMonth:3, oncePerYear:true,
     expirePenalty:{rep:-8, news:'🌸 桜まつりへの参加期限が過ぎた。地域評判-8'},
     title:'地域イベントの協力依頼',
     body:'地区の石川さんから連絡がありました。\n「来月の桜まつりに舞昆茶屋として出店してもらえませんか？」',
@@ -5471,7 +5471,7 @@ const CASE_POOL = [
     ]},
 
   // ── 季節のギフト案件 ──
-  { id:'gift_season_haha', repeatable:true, domain:'store', sender:'常連客', icon:'🌹', apCost:10, expireDays:14, category:'mgmt',
+  { id:'gift_season_haha', repeatable:true, domain:'store', sender:'常連客', icon:'🌹', apCost:10, expireDays:14, category:'mgmt', minMonth:5, maxMonth:5, oncePerYear:true,
     title:'母の日のギフトを探しています',
     body:'常連のお客様が相談してくれました。\n\n「来週、母の日なんですけど……\n離れて暮らしている母に、\n舞昆を贈りたいんです。\n\n「お母さんが喜ぶもの」って考えたら\n真っ先に思い浮かんで。\n\nギフト包装、できますか？」',
     choices:[
@@ -5487,7 +5487,7 @@ const CASE_POOL = [
       {label:'「まずは定番のパウチから試してみては」と提案する',cost:0,effects:{score:7,money:2160,custUp:1,profile:{people:2}},label2:'お試し購入',storyTag:'父の日のお試し購入を勧めた。'},
     ]},
 
-  { id:'gift_season_keiro', repeatable:true, domain:'store', sender:'常連客', icon:'🍁', apCost:10, expireDays:14, category:'mgmt',
+  { id:'gift_season_keiro', repeatable:true, domain:'store', sender:'常連客', icon:'🍁', apCost:10, expireDays:14, category:'mgmt', minMonth:9, maxMonth:9, oncePerYear:true,
     title:'敬老の日のご挨拶品に',
     body:'地域の方が相談しに来ました。\n\n「今年の敬老の日に、\n老人会のみなさんへのご挨拶品を探していて。\n\n「体に優しいもの」「地元のもの」\nという条件で考えたら\n舞昆しか思い浮かばなくて。\n\n15人分、まとめてお願いできますか？」',
     choices:[
@@ -6092,7 +6092,7 @@ const DOMAIN_CASES = [
     ]},
 
   // ③ 販促・地域連携（strategy AP15-25）
-  { id:'local_collab', repeatable:true, domain:'store', sender:'農家', icon:'🌾', apCost:25, expireDays:21, category:'strategy',
+  { id:'local_collab', repeatable:true, domain:'store', sender:'農家', icon:'🌾', apCost:25, expireDays:21, category:'strategy', minDay:60, minMonth:9, maxMonth:11,
     title:'地元農家とのコラボ提案',
     body:'地元の若い農家・太田さんから連絡が来ました。\n\n「地元産の野菜を使った舞昆のコラボ商品を\n一緒に作りませんか？\n地産地消として話題になると思います」',
     choices:[
@@ -6612,7 +6612,7 @@ const DOMAIN_CASES = [
       {label:'短時間だけ対応する',cost:0,effects:{score:6,rep:3},label2:'評判+3',storyTag:'簡単に挨拶した。'},
     ]},
 
-  { id:'com_cleanup', repeatable:true, domain:'community', sender:'自治会', icon:'🧹', apCost:5, expireDays:14, category:'ops',
+  { id:'com_cleanup', repeatable:true, domain:'community', sender:'自治会', icon:'🧹', apCost:5, expireDays:14, category:'ops', minDay:14,
     title:'地域清掃への参加募集',
     body:'自治会から地域清掃への参加案内が届きました。\n\n「月1回の地域清掃です。\n事業者の方にも参加いただけると助かります（2時間程度）」',
     choices:[
@@ -6681,7 +6681,7 @@ const DOMAIN_CASES = [
        storyTag:'今回は見送った。'},
     ]},
 
-  { id:'com_empty_shop', repeatable:false, domain:'community', sender:'商店街会長', icon:'🏚️', apCost:20, expireDays:21, category:'strategy',
+  { id:'com_empty_shop', repeatable:false, domain:'community', sender:'商店街会長', icon:'🏚️', apCost:20, expireDays:21, category:'strategy', minDay:90, minRep:30,
     title:'空き店舗活用会議に招かれた',
     body:'商店街会長から招待が来ました。\n\n「商店街の空き店舗問題を\n一緒に考えてほしいんです。\nあなたのような若い経営者の意見が聞きたい」',
     choices:[
@@ -6695,7 +6695,7 @@ const DOMAIN_CASES = [
          effects:{rep:2,source:'empty_shop_listen'}}},
     ]},
 
-  { id:'com_work_experience', repeatable:true, oncePerYear:true, domain:'community', sender:'中学校', icon:'🎒', apCost:15, expireDays:14, category:'mgmt',
+  { id:'com_work_experience', repeatable:true, oncePerYear:true, domain:'community', sender:'中学校', icon:'🎒', apCost:15, expireDays:14, category:'mgmt', minMonth:5, maxMonth:6,
     title:'中学生の職業体験受け入れ依頼',
     body:'近隣の中学校から依頼が届きました。\n\n「来月の職業体験学習で、\n舞昆茶屋さんで受け入れていただけますか？\n生徒3名、2日間です」',
     choices:[
@@ -6720,7 +6720,7 @@ const DOMAIN_CASES = [
        storyTag:'今年は難しいと断った。来年こそは受け入れたいと思った。'},
     ]},
 
-  { id:'com_kids_cafeteria', repeatable:false, domain:'community', sender:'NPO', icon:'🍱', apCost:20, expireDays:21, category:'strategy',
+  { id:'com_kids_cafeteria', repeatable:false, domain:'community', sender:'NPO', icon:'🍱', apCost:20, expireDays:21, category:'strategy', minDay:60, minRep:20,
     title:'子ども食堂への協力依頼',
     body:'地域のNPOから連絡が来ました。\n\n「月1回、子ども食堂を開いています。\n舞昆を使ったおにぎりを\n子どもたちに提供していただけませんか？」\n\n利益にはなりませんが、地域への貢献になります。',
     choices:[
@@ -6745,7 +6745,7 @@ const DOMAIN_CASES = [
        storyTag:'今回は断った。余裕ができたら、また声をかけてもらおうと思った。'},
     ]},
 
-  { id:'com_senior_lunch', repeatable:true, domain:'community', sender:'老人会', icon:'🍵', apCost:15, expireDays:14, category:'mgmt',
+  { id:'com_senior_lunch', repeatable:true, domain:'community', sender:'老人会', icon:'🍵', apCost:15, expireDays:14, category:'mgmt', minDay:60, minRep:20,
     title:'老人会の昼食会に出張販売の依頼',
     body:'老人会の会長から依頼が来ました。\n\n「月1回の昼食会に\n舞昆商品を持ってきてもらえませんか？\n皆さん、あなたのお店のファンなんです」',
     choices:[
@@ -6771,7 +6771,7 @@ const DOMAIN_CASES = [
        storyTag:'今回は難しいと断った。'},
     ]},
 
-  { id:'com_elderly_network', repeatable:false, domain:'community', sender:'地域包括支援センター', icon:'🤲', apCost:20, expireDays:21, category:'strategy',
+  { id:'com_elderly_network', repeatable:false, domain:'community', sender:'地域包括支援センター', icon:'🤲', apCost:20, expireDays:21, category:'strategy', minDay:90, minRep:30,
     title:'高齢者見守りネットワークへの参加依頼',
     body:'地域包括支援センターから連絡が来ました。\n\n「お店に来られる高齢のお客様の\n様子を見守っていただけませんか？\n変化があれば連絡をいただくだけでいいです」\n\n舞昆茶屋が地域インフラになる第一歩です。',
     choices:[
@@ -8103,6 +8103,9 @@ function generateWeeklyCases(){
     if(c.requireTenant && !G.buildings.some(b => (b.rooms||[]).some(r => r.tenant))) return false;
     if(c.menuProposal && !_canProposeNewMenu()) return false;
     if(c.id === 'narita_loan' && !G.staffUnlocked) return false;
+    // 経過日数・評判フィルター
+    if(c.minDay && tdNow < c.minDay) return false;
+    if(c.minRep && (G.regions[0]?.reputation||0) < c.minRep) return false;
     // 季節・月フィルター
     if(c.minMonth && G.month < c.minMonth) return false;
     if(c.maxMonth && G.month > c.maxMonth) return false;
