@@ -3349,15 +3349,24 @@ function showMainStoryClear(stage){
     const info = CHARACTERS[key];
     const fn = CHAR_MSGS[key];
     if(!fn) return;
-    msgs.push({ icon: info.icon, name: info.name, line: fn(s) });
+    const notes = s.notes || [];
+    const memory = notes.length > 0 ? notes[notes.length - 1] : null;
+    msgs.push({ icon: info.icon, name: info.name, line: fn(s), memory });
   });
 
-  const msgHtml = msgs.map(m =>
-    '<div style="background:var(--bg2);border-radius:10px;padding:12px 14px;margin-bottom:10px">'
-    +'<div style="font-size:10px;color:var(--muted);margin-bottom:6px">'+m.icon+' '+m.name+'</div>'
-    +'<div style="font-size:13px;line-height:2;white-space:pre-line">'+m.line+'</div>'
-    +'</div>'
-  ).join('');
+  const msgHtml = msgs.map(m => {
+    const memHtml = m.memory
+      ? '<div style="font-size:11px;color:#aaa;margin-bottom:2px">' + m.memory.year + '年' + m.memory.month + '月の記憶</div>'
+        + '<div style="font-size:12px;color:#888;line-height:1.7;font-style:italic;padding:6px 10px;background:var(--warm);border-radius:6px;margin-bottom:8px">'
+        + (m.memory.text.startsWith('「') ? m.memory.text : '「' + m.memory.text + '」')
+        + '</div>'
+      : '';
+    return '<div style="background:var(--bg2);border-radius:10px;padding:12px 14px;margin-bottom:10px">'
+      + '<div style="font-size:10px;color:var(--muted);margin-bottom:6px">' + m.icon + ' ' + m.name + '</div>'
+      + memHtml
+      + '<div style="font-size:13px;line-height:2;white-space:pre-line">' + m.line + '</div>'
+      + '</div>';
+  }).join('');
 
   const CCOLORS = ['#FFD700','#FF9800','#4CAF50','#E91E63','#2196F3','#9C27B0','#FF5722','#00BCD4'];
   const confHtml = CCOLORS.map((c,i)=>
