@@ -7987,8 +7987,10 @@ function generateConditionCases(){
     const alreadyRetry      = G.cases.some(c => c.id === 'midori_apply_retry');
     const applyClosed = G.cases.some(c => c.id === 'midori_apply' && c.resolved);
 
-    // 第1段階：4月9日固定でみどり応募（1年目4月9日以降）
-    const isApril8Plus = G.year === 1 && G.month === 4 && G.day >= 9;
+    // 第1段階：1年目4月9日相当（totalDays≥99）以降ならいつでもトリガー
+    // G.month===4 のみに限定すると、スケジューラ遅延でバックログ期限切れ後に
+    // 5月以降は再トリガーされないバグがあったため月制限を撤廃。
+    const isApril8Plus = G.year === 1 && today >= 99;
     if(isApril8Plus && !alreadyApply){
       addCase(CASE_POOL.find(c => c.id === 'midori_apply'));
     }
