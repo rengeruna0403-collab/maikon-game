@@ -3128,6 +3128,41 @@ function showYearReview(stage){
     +'</div>'
   ).join('');
 
+  // 「あなたが大切にしたこと」セクション
+  const _pp = G._pathPts || {};
+  const PATH_ITEMS = [
+    { key:'community', label:'🌱 地域との絆',   pts:_pp.community||0, max:15, color:'#81C784',
+      comment:'地域とのご縁を大切にした一年でした。' },
+    { key:'product',   label:'🎁 商品づくり',   pts:_pp.product||0,   max:15, color:'#FF8A65',
+      comment:'舞昆の魅力を広げる一年でした。' },
+    { key:'staff',     label:'👥 スタッフ育成', pts:_pp.staff||0,     max:10, color:'#F48FB1',
+      comment:'人を育てることに力を注いだ一年でした。' },
+    { key:'expansion', label:'💰 安定経営',     pts:_pp.expansion||0, max:10, color:'#64B5F6',
+      comment:'店を続けるための土台をしっかり築いた一年でした。' },
+  ];
+  const _topPath = PATH_ITEMS.slice().sort((a,b) => (b.pts/b.max) - (a.pts/a.max))[0];
+  const pathComment = (_topPath.pts > 0) ? _topPath.comment : 'この一年、あなたなりの経営を続けてきました。';
+  const pathBarsHtml = PATH_ITEMS.map(r =>
+    '<div style="margin-bottom:10px">'
+    + '<div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px">'
+    + '<span>' + r.label + '</span>'
+    + '<span style="color:var(--muted);font-size:10px">' + r.pts + 'pt</span>'
+    + '</div>'
+    + '<div style="height:7px;background:var(--border);border-radius:4px;overflow:hidden">'
+    + '<div id="pbar-' + r.key + '" data-pct="' + Math.min(100,Math.round((r.pts/r.max)*100)) + '"'
+    + ' style="height:100%;width:0;background:' + r.color + ';border-radius:4px;transition:width .6s ease"></div>'
+    + '</div>'
+    + '</div>'
+  ).join('');
+  const pathSectionHtml =
+    '<div style="background:var(--warm);border-radius:10px;padding:14px;margin-bottom:16px">'
+    + '<div style="font-size:10px;color:var(--muted);letter-spacing:.08em;margin-bottom:10px">あなたが大切にしたこと</div>'
+    + pathBarsHtml
+    + '<div style="font-size:12px;color:var(--text);line-height:1.8;padding-top:10px;border-top:1px solid var(--border);margin-top:4px">'
+    + pathComment
+    + '</div>'
+    + '</div>';
+
   const body = document.getElementById('event-modal-body');
   body.innerHTML =
     '<div style="padding:4px">'
@@ -3137,10 +3172,11 @@ function showYearReview(stage){
     +'<div style="font-size:11px;color:var(--muted);margin-top:4px">1年目 4月〜3月30日 の記録</div>'
     +'</div>'
     +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:14px">'+statsHtml+'</div>'
-    +'<div style="background:var(--bg2);border-radius:10px;padding:14px;margin-bottom:16px">'
+    +'<div style="background:var(--bg2);border-radius:10px;padding:14px;margin-bottom:14px">'
     +'<div style="font-size:10px;color:var(--muted);letter-spacing:.08em;margin-bottom:10px">この1年間の出来事</div>'
     +milestoneHtml
     +'</div>'
+    +pathSectionHtml
     +'<button class="btn" onclick="showMainStoryClear('+stage+')" style="width:100%;padding:14px;font-size:15px;background:var(--gold);color:#fff;border:none;border-radius:10px;font-weight:700">次へ →</button>'
     +'</div>';
 
@@ -3162,6 +3198,13 @@ function showYearReview(stage){
       }, 250 + i*130);
     });
   }, 200);
+  // パスバーが伸びる（統計カウントアップの後）
+  setTimeout(()=>{
+    PATH_ITEMS.forEach(r => {
+      const el = document.getElementById('pbar-' + r.key);
+      if(el) el.style.width = el.dataset.pct + '%';
+    });
+  }, 1400);
 }
 
 // ─────────── ② メインストーリークリア ───────────
