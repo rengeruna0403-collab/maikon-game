@@ -3091,7 +3091,21 @@ function showGoEnNote(){
       }
       const info  = CHARACTERS[key];
       const state = chars[key];
-      const lastNote = state.notes.length > 0 ? state.notes[state.notes.length-1] : null;
+      const allNotes = state.notes || [];
+      const recentNotes = allNotes.slice(-5);
+      const timelineHtml = recentNotes.length > 0
+        ? recentNotes.map((n, i) => `
+            <div style="display:flex;gap:8px;align-items:flex-start;padding:5px 0;${i < recentNotes.length-1 ? 'border-bottom:1px dashed #ede5d5' : ''}">
+              <div style="flex-shrink:0;margin-top:4px">
+                <div style="width:6px;height:6px;border-radius:50%;background:${i === recentNotes.length-1 ? '#c8a96e' : '#ddd'};margin:0 auto"></div>
+              </div>
+              <div style="flex:1;min-width:0">
+                <div style="font-size:.66em;color:#bbb;margin-bottom:1px">${n.year}年${n.month}月${n.title ? ` · ${n.title}` : ''}</div>
+                <div style="font-size:.78em;color:#555;line-height:1.5">${n.text.startsWith('「') ? n.text : '「' + n.text + '」'}</div>
+              </div>
+            </div>`).join('')
+        : `<div style="font-size:.76em;color:#ccc;padding:4px 0">まだ記録はありません</div>`;
+      const hasMore = allNotes.length > 5;
       html += `<div style="border:1px solid ${cardBorder(state)};border-radius:10px;padding:12px;margin-bottom:12px;background:${cardBg(state)};${state.complete?'opacity:.85':''}">
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:5px">
           <span style="font-size:1.4em">${info.icon}</span>
@@ -3102,11 +3116,9 @@ function showGoEnNote(){
           </div>
           <span style="font-size:.68em;color:${state.complete?'#bbb':'#888'};white-space:nowrap">${locLabel(key,state)}</span>
         </div>
-        <div style="margin-bottom:6px">${starRow(state)}</div>
-        ${lastNote ? `<div style="font-size:.78em;background:${state.complete?'#f0f0f0':'#fff8e8'};border-radius:6px;padding:7px 10px;color:#555">
-          <span style="color:#bbb;font-size:.85em">${lastNote.year}年${lastNote.month}月 ——</span><br>
-          ${lastNote.text.startsWith('「') ? lastNote.text : '「' + lastNote.text + '」'}
-        </div>` : ''}
+        <div style="margin-bottom:8px">${starRow(state)}</div>
+        <div style="font-size:.7em;color:#aaa;font-weight:700;margin-bottom:4px;letter-spacing:.04em">思い出の記録${hasMore ? `<span style="font-weight:400">（直近5件 / 全${allNotes.length}件）</span>` : ''}</div>
+        <div style="background:${state.complete?'#f0f0f0':'#fff8f0'};border-radius:8px;padding:8px 10px">${timelineHtml}</div>
       </div>`;
     });
   }
