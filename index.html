@@ -4724,7 +4724,7 @@ const ISSUE_CARDS = [
     choices:[
       {label:'広告を打つ（¥30,000）',cost:30000,effects:{score:8,custUp:5,rep:3},label2:'客数+5・評判+3',storyTag:'客数減少に対し広告で対応した。'},
       {label:'メニューを見直す（AP-15）',cost:0,ap:15,effects:{score:10,storeSat:8},label2:'店舗満足+8',storyTag:'メニューを改善して客足を呼び戻した。',
-       followUp:{days:3,icon:'🍱',sender:'スタッフより',title:'メニュー見直しの手ごたえがありました',body:'スタッフから報告がありました。\n\n「人気商品の配置を変えたり、\n試食の出し方を工夫してみたところ——\n\nお客様が以前より商品をじっくり\n見てくださるようになりました。\n\n「これ、美味しそうですね」という声も\n少し増えた気がします。\n\n地道な改善が、少しずつ伝わっているようです。」',effects:{custBonusPerDay:1, custBonusDays:21, rep:2, score:5, source:'menu_review'}}},
+       followUp:{days:3,icon:'🍱',sender:'スタッフ',title:'メニュー見直しの手ごたえがありました',body:'スタッフから報告がありました。\n\n「人気商品の配置を変えたり、\n試食の出し方を工夫してみたところ——\n\nお客様が以前より商品をじっくり\n見てくださるようになりました。\n\n「これ、美味しそうですね」という声も\n少し増えた気がします。\n\n地道な改善が、少しずつ伝わっているようです。」',effects:{custBonusPerDay:1, custBonusDays:21, rep:2, score:5, source:'menu_review'}}},
       {label:'しばらく様子を見る',cost:0,effects:{score:-3},label2:'現状維持',storyTag:'客数減少を一時的なものと判断した。'},
     ]},
   { id:'staff_burnout', icon:'😰', title:'スタッフが疲弊しています',
@@ -5142,7 +5142,7 @@ const CASE_POOL = [
        effects:{score:13,rep:8,communityBond:5,storeBrand:6,fatigue:10,storeSat:-3,profile:{community:3}},
        label2:'評判+8・ブランド+6 / 取材対応で当日接客遅れ-3',
        storyTag:'地域紙の取材を受けた。写真撮影や質問対応で半日が過ぎたが、「伝えてもらえる」という手応えがあった。',
-       followUp:{days:18,icon:'📰',sender:'地域紙・記者より',title:'掲載号が出ました。反響が来ています',body:'記者の方からメッセージが届きました。\n\n「先日の特集号が出ました。\n\n読者から「舞昆茶屋に行ってみたい」という\n反響が届いています。\n\nあと、他紙の記者からも\n「うちでも取り上げたい」と問い合わせがありました。\n\n桜橋の味を守る人、として\n皆さんに届いているようです」',effects:{custBonusPerDay:1,custBonusDays:21,source:'local_paper'}}},
+       followUp:{days:18,icon:'📰',sender:'地域紙・記者',title:'掲載号が出ました。反響が来ています',body:'記者の方からメッセージが届きました。\n\n「先日の特集号が出ました。\n\n読者から「舞昆茶屋に行ってみたい」という\n反響が届いています。\n\nあと、他紙の記者からも\n「うちでも取り上げたい」と問い合わせがありました。\n\n桜橋の味を守る人、として\n皆さんに届いているようです」',effects:{custBonusPerDay:1,custBonusDays:21,source:'local_paper'}}},
       {label:'コメントだけ提供する（短時間）',
        cost:0,
        effects:{score:6,rep:3,storeBrand:2,profile:{community:1}},
@@ -5295,7 +5295,7 @@ const CASE_POOL = [
   { id:'gift_season_ochugen', repeatable:true, domain:'store', sender:'常連客', icon:'🎋', apCost:10, expireDays:21, category:'mgmt',
     minMonth:7, maxMonth:8, oncePerYear:true,
     title:'お中元に舞昆を贈りたい',
-    body:'夏の日差しが強い午後、常連のお客様が来店しました。\n\n「毎年お世話になっている方に\nお中元を贈りたくて。\n\n「体に優しくて、珍しいもの」を探していたら\n舞昆を思い出して。\n\n「暑い季節にもご飯が進む」って\n言ってもらえそうな気がして」',
+    body:'夏の日差しが強い午後、常連のお客様が来店しました。\n\n「毎年お世話になっている方に\nお中元を贈りたくて。\n\n「体にやさしくて、気持ちが伝わるもの」を探していたら\n舞昆を思い出して。\n\n「暑い季節にもご飯が進む」って\n言ってもらえそうな気がして」',
     choices:[
       {label:'「夏向けのギフトセットをご用意できます」と提案する',cost:0,effects:{score:12,rep:5,storeBrand:6,money:10800,custUp:2,profile:{people:3,community:2}},label2:'ギフト売上・ブランド+',storyTag:'お中元に舞昆ギフトを提案した。「夏にご飯が進む味」として喜ばれた。'},
       {label:'「和紙袋入りが見栄えがいいですよ」と提案する',cost:0,effects:{score:8,storeBrand:4,money:6480,profile:{people:2}},label2:'贈答向け提案',storyTag:'お中元に和紙袋入りを提案した。'},
@@ -5303,7 +5303,7 @@ const CASE_POOL = [
   { id:'gift_season_oseibo', repeatable:true, domain:'store', sender:'常連客', icon:'🎍', apCost:10, expireDays:21, category:'mgmt',
     minMonth:11, maxMonth:12, oncePerYear:true,
     title:'お歳暮に舞昆を選びました',
-    body:'年の瀬が近づいてきた頃、\n常連のお客様が少し改まった様子で来店しました。\n\n「今年もお歳暮に舞昆を選びました。\n\n毎年これを贈ると\n「また舞昆か、嬉しい」って言ってもらえるんです。\n\n「遠くに住んでいても、味でつながれる気がして」\n\nことしは少し多めに贈りたくて」',
+    body:'年の瀬が近づいてきた頃、\n常連のお客様が少し改まった様子で来店しました。\n\n「今年もお歳暮に舞昆を選びました。\n\n毎年これを贈ると\n「舞昆だ！嬉しい」って言ってもらえるんです。\n\n「遠くに住んでいても、味でつながれる気がして」\n\nことしは少し多めに贈りたくて」',
     choices:[
       {label:'「まとめてご用意します。木箱入りもお選びいただけます」と提案する',cost:0,effects:{score:15,rep:7,storeBrand:8,communityBond:4,money:16200,custUp:3,profile:{people:3,community:3}},label2:'年末大口・ブランド++・地域絆+',storyTag:'お歳暮に木箱入りまとめ注文を提案した。「遠くにいても味でつながれる」という言葉が残った。'},
       {label:'「和紙袋入りのセットがおすすめです」と提案する',cost:0,effects:{score:10,rep:5,storeBrand:5,money:9720,profile:{community:2}},label2:'贈答セット提案',storyTag:'お歳暮に和紙袋入りセットを提案した。'},
@@ -6436,7 +6436,7 @@ const DOMAIN_CASES = [
        effects:{score:22,rep:14,communityBond:8,fatigue:20,profile:{community:6}},
        label2:'評判+14・絆+8 / 月次疲労+20・継続的な時間拘束',
        storyTag:'自治会役員を引き受けた。「地域の一員」として認められた。毎月の会議や調整が加わるが、地域に深く根を張っていく感覚がある。',
-       followUp:{days:60,icon:'🏘️',sender:'自治会長・石川より',title:'役員として動いた成果が出ています',body:'石川さんから連絡がありました。\n\n「先日の地域会議で、あなたが出してくれた意見が通りました。\n\n「舞昆さんが役員にいるなら、地域も安心だ」\nという声も増えています。\n\n地道な積み重ねが、地域全体の信頼になっています。\nこれからもよろしくお願いします。」',effects:{rep:5,custBonusPerDay:1,custBonusDays:30,source:'board_member'}}},
+       followUp:{days:60,icon:'🏘️',sender:'自治会長・石川',title:'役員として動いた成果が出ています',body:'石川さんから連絡がありました。\n\n「先日の地域会議で、あなたが出してくれた意見が通りました。\n\n「舞昆さんが役員にいるなら、地域も安心だ」\nという声も増えています。\n\n地道な積み重ねが、地域全体の信頼になっています。\nこれからもよろしくお願いします。」',effects:{rep:5,custBonusPerDay:1,custBonusDays:30,source:'board_member'}}},
       {label:'「前向きに考えさせてください」と伝える',
        cost:0,
        effects:{score:8,rep:4},
@@ -6488,7 +6488,7 @@ const DOMAIN_CASES = [
        effects:{score:16,rep:8,communityBond:5,staffSat:-5,profile:{community:4,people:3}},
        label2:'評判+8・絆+5 / みどり負担・staffSat-5',
        storyTag:'中学生を受け入れた。みどりが2日間丁寧に教えていた。「将来こういうお店をやりたい」と言った生徒がいた。みどりは少し疲れていたが、「やりがいがありました」と話してくれた。',
-       followUp:{days:30,icon:'🎒',sender:'中学校・担任より',title:'職業体験の後日談',body:'担任の先生からご連絡がありました。\n\n「体験後、参加した生徒が「舞昆を食べたことがない親にも食べてほしい」と言って、保護者を連れてきた子がいたそうです。\n\n「地域のお店ってこういうものだったんだ」と感じた生徒が多かったようです。\n\nありがとうございました。」',effects:{custBonusPerDay:1,custBonusDays:21,source:'work_experience'}}},
+       followUp:{days:30,icon:'🎒',sender:'中学校・担任',title:'職業体験の後日談',body:'担任の先生からご連絡がありました。\n\n「体験後、参加した生徒が「舞昆を食べたことがない親にも食べてほしい」と言って、保護者を連れてきた子がいたそうです。\n\n「地域のお店ってこういうものだったんだ」と感じた生徒が多かったようです。\n\nありがとうございました。」',effects:{custBonusPerDay:1,custBonusDays:21,source:'work_experience'}}},
       {label:'受け入れる（自分が担当）',
        cost:0,
        effects:{score:13,rep:7,communityBond:3,fatigue:18,profile:{community:3}},
@@ -6510,7 +6510,7 @@ const DOMAIN_CASES = [
        effects:{score:18,rep:11,communityBond:6,fatigue:10,profile:{community:6,people:2}},
        label2:'評判+11・絆+6 / 毎月¥10,000・疲労+10',
        storyTag:'子ども食堂に協力した。「舞昆のおにぎりが美味しい！」という子どもの声が届いた。お金も体力もかかるが、続けたいと思った。',
-       followUp:{days:45,icon:'🍱',sender:'NPO担当者より',title:'子ども食堂に来た保護者の方が',body:'NPOの担当者から連絡がありました。\n\n「先日の食堂で、「舞昆のおにぎりが美味しい」と言っていたお子さんが、\nお母さんを連れてお店に来てくれたそうです。\n\n「子ども食堂でいただいて、ぜひ買いたいと思って」と。\n\n地域の子どもたちへの貢献が、じわじわとお店への信頼に変わっていますね。」',effects:{custBonusPerDay:1,custBonusDays:30,rep:2,source:'kids_cafeteria'}}},
+       followUp:{days:45,icon:'🍱',sender:'NPO担当者',title:'子ども食堂に来た保護者の方が',body:'NPOの担当者から連絡がありました。\n\n「先日の食堂で、「舞昆のおにぎりが美味しい」と言っていたお子さんが、\nお母さんを連れてお店に来てくれたそうです。\n\n「子ども食堂でいただいて、ぜひ買いたいと思って」と。\n\n地域の子どもたちへの貢献が、じわじわとお店への信頼に変わっていますね。」',effects:{custBonusPerDay:1,custBonusDays:30,rep:2,source:'kids_cafeteria'}}},
       {label:'食材の一部だけ提供する（月¥3,000）',
        cost:3000,
        effects:{score:10,rep:5,communityBond:3,profile:{community:3}},
@@ -6532,7 +6532,7 @@ const DOMAIN_CASES = [
        effects:{score:14,rep:7,communityBond:5,fatigue:12,profile:{community:4}},
        label2:'評判+7・絆+5 / 移動コスト¥5,000・疲労+12',
        storyTag:'老人会の昼食会に毎月参加することにした。顔なじみの高齢者が増えた。体力的にはきついが、「来てくれるのを楽しみにしてるよ」という言葉が励みになった。',
-       followUp:{days:45,icon:'🍵',sender:'老人会・会長より',title:'常連さんがお店に来てくれました',body:'老人会の会長から連絡がありました。\n\n「昼食会でいつも顔を見ている方たちが、\n「一度お店にも行ってみたい」と話していまして。\n\n先日、数人でお邪魔したそうです。\n\n「あのお兄さん（お姉さん）のお店は行きやすい」\nと言っていました。\n\n月1回の積み重ねが、ちゃんと実を結んでいますね。」',effects:{custRegular:2,source:'senior_lunch'}}},
+       followUp:{days:45,icon:'🍵',sender:'老人会・会長',title:'常連さんがお店に来てくれました',body:'老人会の会長から連絡がありました。\n\n「昼食会でいつも顔を見ている方たちが、\n「一度お店にも行ってみたい」と話していまして。\n\n先日、数人でお邪魔したそうです。\n\n「あのお兄さん（お姉さん）のお店は行きやすい」\nと言っていました。\n\n月1回の積み重ねが、ちゃんと実を結んでいますね。」',effects:{custRegular:2,source:'senior_lunch'}}},
       {label:'今月だけ試しに参加する',
        cost:0,
        effects:{score:7,rep:4,communityBond:2,fatigue:8,profile:{community:2}},
@@ -11408,6 +11408,7 @@ function expandGiftCorner(si){
 function strengthenGiftCorner(si){
   const s = G.stores[si];
   if((s.giftLevel||0) < 1){ notify('先にギフトコーナーを展開してください','warn'); return; }
+  if(!s.seasonalGiftUnlocked){ notify('先に季節限定セットを展開してください','warn'); return; }
   if(G.money < 80000){ notify('資金が不足しています（¥80,000必要）','warn'); return; }
   if(!useAP(10, 'ギフトライン強化')) return;
   G.money -= 80000;
@@ -12787,10 +12788,11 @@ function renderStore(){
           <button class="btn btn-gr" style="width:100%;padding:9px;font-size:12px" onclick="expandGiftCorner(${si})">
             🎁 ギフトコーナーを展開する（¥50,000・AP-10）
           </button>`:
-          giftLevel===1?`
+          giftLevel===1?(s.seasonalGiftUnlocked?`
           <button class="act-btn" style="width:100%;padding:9px;font-size:12px" onclick="strengthenGiftCorner(${si})">
             ✨ ギフトラインを強化する（¥80,000・法人対応UP）
-          </button>`:''}
+          </button>`:`
+          <div style="font-size:11px;color:var(--muted);text-align:center;padding:8px">🔒 季節限定セットを展開するとギフトラインを強化できます</div>`):''}
       </div>`;
     })()}
 
