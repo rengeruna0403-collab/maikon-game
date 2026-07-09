@@ -778,6 +778,56 @@ function totalBuildings(){return G.buildings.length}
 function totalStores(){return G.stores.length}
 function occupiedRooms(){return G.buildings.flatMap(b=>b.rooms).filter(r=>r.tenant).length}
 function totalRooms(){return G.buildings.flatMap(b=>b.rooms).length}
+// ─────────── 季節売上係数 ───────────
+const _SEASON_MULT = {
+   1:0.90,  2:0.85,  3:1.00,  4:1.05,  5:1.00,  6:1.05,
+   7:1.20,  8:1.10,  9:1.10, 10:0.95, 11:1.10, 12:1.30,
+};
+const _SEASON_MSG = {
+   1:'年始の贈答需要が一段落し、売上は落ち着いています。',
+   2:'一年で最も来店が少ない閑散期です。',
+   3:'年度末の手土産需要がある通常期です。',
+   4:'新生活のご挨拶需要で売上が少し伸びています。',
+   5:'母の日ギフトで通常期の需要があります。',
+   6:'父の日ギフトで来店・贈答が増えています。',
+   7:'お中元シーズン。贈答需要が高まっています。',
+   8:'帰省客のお土産需要が続いています。',
+   9:'敬老の日ギフトで需要が高まっています。',
+  10:'贈答の合間の落ち着き時期です。',
+  11:'お歳暮の早期需要が始まっています。',
+  12:'お歳暮・年末需要。一年で最も売上が伸びます。',
+};
+// ギフト相乗効果が乗る繁忙月
+const _GIFT_PEAK_MONTHS = new Set([7, 9, 11, 12]);
+
+function calcSeasonMult(month, store) {
+  const totalDays = (G.year-1)*360 + (G.month-1)*30 + G.day;
+  let base = _SEASON_MULT[month] || 1.0;
+  // 序盤緩和：通算60日未満（1年目5月末まで）は変動幅を40%に圧縮
+  if (totalDays < 60) base = 1.0 + (base - 1.0) * 0.4;
+
+  // ギフト相乗効果（繁忙月のみ）
+  let giftBonus = 0, seasonalGiftBonus = 0, giftStrengthenBonus = 0;
+  if (_GIFT_PEAK_MONTHS.has(month) && store) {
+    if ((store.giftLevel||0) >= 1)                                    giftBonus          = 0.08;
+    if (store.seasonalGiftUnlocked)                                   seasonalGiftBonus  = 0.05;
+    if ((store.giftLevel||0) >= 2 && (month === 7 || month === 12))  giftStrengthenBonus = 0.04;
+  }
+  const finalMult = base + giftBonus + seasonalGiftBonus + giftStrengthenBonus;
+
+  // デバッグ情報を保存（debug=1 のとき月末会議で表示）
+  G._lastSeasonDebug = {
+    month,
+    base:               Math.round(base * 100) / 100,
+    giftBonus,
+    seasonalGiftBonus,
+    giftStrengthenBonus,
+    finalMult:          Math.round(finalMult * 100) / 100,
+    earlyMitigation:    totalDays < 60,
+  };
+  return finalMult;
+}
+
 function calcDailyRevenue(){
   let rev=0, exp=0;
   G.stores.forEach(s=>{
@@ -825,7 +875,8 @@ function calcDailyRevenue(){
       }
     }
     staffMult = Math.max(0.6, Math.min(1.1, staffMult));
-    rev += cTotal * up * revMult * staffMult + (s.monthlyBonus||0)/30;
+    const seasonMult = calcSeasonMult(G.month, s);
+    rev += cTotal * up * revMult * staffMult * seasonMult + (s.monthlyBonus||0)/30;
     exp += s.ingredientCost + Math.round(s.rent/30);
   });
   G.buildings.forEach(b=>{
@@ -2651,6 +2702,22 @@ function showMonthlyMeeting(monthProfit, promotions, ownerRankUp){
         </div>`).join('')}
     </div>` : '';
 
+  // 季節傾向メッセージ（今月 = G.month）
+  const _sd = G._lastSeasonDebug || {};
+  const _seasonMsg = _SEASON_MSG[G.month] || '';
+  const _seasonInfoHtml = _seasonMsg ? `
+    <div style="border-left:3px solid #64B5F6;background:var(--bg2);border-radius:0 8px 8px 0;padding:9px 12px;margin-bottom:10px">
+      <div style="font-size:10px;color:var(--muted);letter-spacing:.05em;margin-bottom:3px">📅 今月の売上傾向</div>
+      <div style="font-size:12px;color:var(--text);line-height:1.8">${_seasonMsg}</div>
+      ${DEV_MODE ? `<div style="margin-top:6px;font-size:10px;color:var(--muted);font-family:monospace;background:rgba(0,0,0,.06);border-radius:4px;padding:5px 7px;line-height:1.9">
+        seasonMult: ${_sd.base||'—'}${_sd.earlyMitigation ? ' <span style="color:#FF9800">（序盤緩和中）</span>' : ''}<br>
+        giftBonus: +${_sd.giftBonus||0}<br>
+        seasonalGiftBonus: +${_sd.seasonalGiftBonus||0}<br>
+        ${(_sd.giftStrengthenBonus||0) > 0 ? `giftStrengthenBonus: +${_sd.giftStrengthenBonus}<br>` : ''}
+        finalSeasonMult: <strong>${_sd.finalMult||'—'}</strong>
+      </div>` : ''}
+    </div>` : '';
+
   console.log('[showMonthlyMeeting] open month popup');
   G.activeEvent = 'monthly_meeting';
   const body = document.getElementById('event-modal-body');
@@ -2659,6 +2726,7 @@ function showMonthlyMeeting(monthProfit, promotions, ownerRankUp){
       <div style="text-align:center;font-size:28px;margin-bottom:6px">📊</div>
       <div style="font-size:16px;font-weight:700;text-align:center;margin-bottom:10px;font-family:'Noto Serif JP',serif">月末評価会議</div>
       ${_changeSummary}
+      ${_seasonInfoHtml}
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:12px">
         <div style="background:var(--bg2);border-radius:8px;padding:8px;text-align:center;animation:_fxPop .5s cubic-bezier(.36,.07,.19,.97)">
           <div style="font-size:15px;font-weight:700;color:${monthProfit>=0?'var(--gr)':'var(--orange)'}">${monthProfit>=0?'+':''}${fmt(monthProfit)}</div>
@@ -5236,7 +5304,10 @@ const CASE_POOL = [
        cost:5000,
        effects:{score:6,rep:3,communityBond:2,profile:{community:1}},
        label2:'評判+3 / 当日の負担なし・効果小',
-       storyTag:'出店は難しかったが、チラシと試食品を預けた。ブースには「舞昆茶屋」の名前だけ並んだ。'},
+       storyTag:'出店は難しかったが、チラシと試食品を預けた。ブースには「舞昆茶屋」の名前だけ並んだ。',
+       followUp:{days:10,icon:'🌸',sender:'商店街組合',title:'チラシを見てきたお客様が増えています',
+         body:'商店街の方から連絡がありました。\n\n「マルシェに置いていただいたチラシ、\nけっこう手に取ってもらえたようで。\n\n「チラシで見たお店に行ってみた」という方が\n少しずつお店に来ているようです。\n\n小さな参加でも、ちゃんと届いていますね。」',
+         effects:{custBonusPerDay:1, custBonusDays:14, source:'marche_flyer'}}},
       {label:'今回は参加が難しい',
        cost:0, noAP:true,
        effects:{score:2,rep:-2,communityBond:-1},
@@ -6513,7 +6584,10 @@ const DOMAIN_CASES = [
     title:'自治会長から挨拶回りの案内',
     body:'自治会長の石川さんから案内が届きました。\n\n「新しく事業を始められた方に\nご挨拶に伺っています。\n一度お時間をいただけますか？」',
     choices:[
-      {label:'積極的に迎えて地域の話を聞く',cost:0,effects:{score:12,rep:8,profile:{community:4}},label2:'評判+8・地域ネットワーク開始',storyTag:'自治会長と初めてゆっくり話した。地域の歴史と課題を知った。'},
+      {label:'積極的に迎えて地域の話を聞く',cost:0,effects:{score:12,rep:8,profile:{community:4}},label2:'評判+8・地域ネットワーク開始',storyTag:'自治会長と初めてゆっくり話した。地域の歴史と課題を知った。',
+       followUp:{days:21,icon:'🏘️',sender:'自治会長・石川',title:'「あのお店の人、感じがよかったよ」と広まっています',
+         body:'石川さんから連絡がありました。\n\n「先日のご挨拶のこと、\n地域の方に話したんです。\n\n「あの舞昆茶屋の方、ちゃんと地域のことを聞いてくれた」って。\n\n地域の顔として、少しずつ覚えてもらえています。」',
+         effects:{rep:3,communityBond:2,source:'greeting'}}},
       {label:'短時間だけ対応する',cost:0,effects:{score:6,rep:3},label2:'評判+3',storyTag:'簡単に挨拶した。'},
     ]},
 
@@ -6531,7 +6605,10 @@ const DOMAIN_CASES = [
        cost:0,
        effects:{score:6,rep:4,communityBond:2,fatigue:12,profile:{community:2}},
        label2:'評判+4 / 疲労+12（一人で対応）',
-       storyTag:'一人で地域清掃に参加した。少し疲れたが、顔見知りが増えた気がした。'},
+       storyTag:'一人で地域清掃に参加した。少し疲れたが、顔見知りが増えた気がした。',
+       followUp:{days:30,icon:'🧹',sender:'自治会',title:'清掃で顔を覚えてもらえたようです',
+         body:'自治会の方から声がかかりました。\n\n「先日の清掃で一緒になった方が\n「あのお店の人、毎回来てくれるね」って言ってたよ。\n\n「顔を知ってると、入りやすい」って\nお店に来てくれた方もいるみたい。」',
+         effects:{custBonusPerDay:1, custBonusDays:10, source:'cleanup_solo'}}},
       {label:'今回は見送る',
        cost:0, noAP:true,
        effects:{score:1,rep:-1},
@@ -6587,8 +6664,14 @@ const DOMAIN_CASES = [
     title:'空き店舗活用会議に招かれた',
     body:'商店街会長から招待が来ました。\n\n「商店街の空き店舗問題を\n一緒に考えてほしいんです。\nあなたのような若い経営者の意見が聞きたい」',
     choices:[
-      {label:'参加して積極的に意見を出す',cost:0,effects:{score:18,rep:10,credit:2,profile:{community:5,risk:1}},label2:'評判+10・信用度+2',storyTag:'会議で積極的に発言した。「あなたに動いてもらいたい」と言われた。'},
-      {label:'話を聞くだけ参加する',cost:0,effects:{score:8,rep:5,profile:{community:2}},label2:'評判+5',storyTag:'参加して話を聞いた。'},
+      {label:'参加して積極的に意見を出す',cost:0,effects:{score:18,rep:10,credit:2,profile:{community:5,risk:1}},label2:'評判+10・信用度+2',storyTag:'会議で積極的に発言した。「あなたに動いてもらいたい」と言われた。',
+       followUp:{days:30,icon:'🏚️',sender:'商店街会長',title:'会議での発言が評判を呼んでいます',
+         body:'商店街会長から連絡が来ました。\n\n「先日の会議でのあなたの意見、\nほかの事業者にも広まっています。\n\n「若いのにしっかりしてる」って評判でね。\n\n信頼って、こういうところから積み上がるんですよ。」',
+         effects:{rep:4,credit:1,source:'empty_shop_active'}}},
+      {label:'話を聞くだけ参加する',cost:0,effects:{score:8,rep:5,profile:{community:2}},label2:'評判+5',storyTag:'参加して話を聞いた。',
+       followUp:{days:30,icon:'🏚️',sender:'商店街会長',title:'商店街での顔が広がっています',
+         body:'商店街会長からひとこと届きました。\n\n「先日の会議、来てくださってよかった。\n\nほかの店主に「舞昆さんも来てたよ」って\n話したら「あのお店知ってる」って声が出て。\n\n顔が広がるのも、地域経営の大事なことですよ。」',
+         effects:{rep:2,source:'empty_shop_listen'}}},
     ]},
 
   { id:'com_work_experience', repeatable:true, oncePerYear:true, domain:'community', sender:'中学校', icon:'🎒', apCost:15, expireDays:14, category:'mgmt',
@@ -6605,7 +6688,10 @@ const DOMAIN_CASES = [
        cost:0,
        effects:{score:13,rep:7,communityBond:3,fatigue:18,profile:{community:3}},
        label2:'評判+7 / 自分が2日間対応・疲労+18',
-       storyTag:'自分で2日間、中学生を指導した。くたびれたが、「仕事ってこういうことなんだ」と真剣な顔で聞いてくれる姿が励みになった。'},
+       storyTag:'自分で2日間、中学生を指導した。くたびれたが、「仕事ってこういうことなんだ」と真剣な顔で聞いてくれる姿が励みになった。',
+       followUp:{days:30,icon:'🎒',sender:'中学校・担任',title:'体験した生徒の親御さんが来てくれました',
+         body:'担任の先生からご連絡がありました。\n\n「体験後、「お父さんを連れて行きたい」と言った生徒がいて、\n先日、親子でお店に来てくださったそうです。\n\n「どんな場所か気になってた」とおっしゃっていたとのこと。\n\n2日間、本当にありがとうございました。」',
+         effects:{custBonusPerDay:1, custBonusDays:21, source:'work_experience_solo'}}},
       {label:'今年は難しい',
        cost:0, noAP:true,
        effects:{score:1,rep:-2},
@@ -6627,7 +6713,10 @@ const DOMAIN_CASES = [
        cost:3000,
        effects:{score:10,rep:5,communityBond:3,profile:{community:3}},
        label2:'評判+5 / できる範囲・負担小',
-       storyTag:'できる範囲で協力した。全力ではないが、つながりを切らさずにいられた。'},
+       storyTag:'できる範囲で協力した。全力ではないが、つながりを切らさずにいられた。',
+       followUp:{days:45,icon:'🍱',sender:'NPO担当者',title:'少しずつ、つながりが広がっています',
+         body:'NPOの担当者から連絡がありました。\n\n「毎月届く舞昆、子どもたちが楽しみにしています。\n\n先日、「どのお店からもらったの？」と聞かれたので\nお店のことを話したら、\n「行ってみたい」という声が出てきて。\n\n小さくても続けることが、信頼になっていきますね。」',
+         effects:{custBonusPerDay:1, custBonusDays:14, rep:1, source:'kids_cafeteria_partial'}}},
       {label:'今回は資金的に難しい',
        cost:0, noAP:true,
        effects:{score:3,rep:-1,profile:{finance:2}},
@@ -6649,7 +6738,10 @@ const DOMAIN_CASES = [
        cost:0,
        effects:{score:7,rep:4,communityBond:2,fatigue:8,profile:{community:2}},
        label2:'評判+4 / 疲労+8・様子見',
-       storyTag:'今月だけ試しに参加した。喜んでもらえた。続けるか、来月考えよう。'},
+       storyTag:'今月だけ試しに参加した。喜んでもらえた。続けるか、来月考えよう。',
+       followUp:{days:45,icon:'🍵',sender:'老人会・会長',title:'あの日会った方がお店に来てくれました',
+         body:'老人会の会長から連絡がありました。\n\n「先日の昼食会に来てくださった方が、\n「あのお店、行ってみようかな」って言っていて。\n\n先日、一人でふらりと来てくださったそうですよ。\n\n「顔を見知っているから入りやすかった」と\n言っていたそうです。」',
+         effects:{custRegular:1, source:'senior_lunch_trial'}}},
       {label:'今回は難しい',
        cost:0, noAP:true,
        effects:{score:1,rep:-1},
@@ -6671,7 +6763,10 @@ const DOMAIN_CASES = [
        cost:0,
        effects:{score:10,rep:6,communityBond:3,profile:{community:3}},
        label2:'評判+6 / 自分だけ対応・スタッフへの共有なし',
-       storyTag:'できる範囲で参加することにした。気になるお客様がいたら連絡する、という形で始める。'},
+       storyTag:'できる範囲で参加することにした。気になるお客様がいたら連絡する、という形で始める。',
+       followUp:{days:50,icon:'🤲',sender:'地域包括支援センター',title:'見守りを続けた結果が届いています',
+         body:'センターの担当者から連絡がありました。\n\n「あのご高齢の方、\n最近お店に立ち寄るのが習慣になっているようで。\n\n「行くと元気をもらえる」と話されているそうです。\n\nご近所の方も「一度行ってみようか」と\n話しているのを聞きました。\n\nできる範囲でも、続けることが力になります。」',
+         effects:{custRegular:1, rep:2, source:'elderly_network_partial'}}},
     ]},
 
   { id:'com_rep_neighbor', conditionOnly:true, repeatable:false, domain:'community', sender:'自治会長', icon:'🌟', apCost:5, expireDays:30, category:'ops',
