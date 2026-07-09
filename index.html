@@ -5215,7 +5215,7 @@ const CASE_POOL = [
       {label:'「検討します」と答えてそのまま',cost:0,effects:{score:3,storeSat:-2},label2:'信頼やや低下',storyTag:''},
     ]},
 
-  { id:'midgame_peak_day', repeatable:true, domain:'store', sender:'スタッフ', icon:'🔥', apCost:10, expireDays:7, category:'ops',
+  { id:'midgame_peak_day', repeatable:true, domain:'store', sender:'スタッフ', requireStaff:true, icon:'🔥', apCost:10, expireDays:7, category:'ops',
     expirePenalty:{staffSat:-5, news:'🔥 繁忙期の対応を放置した。スタッフの疲弊が増している。'},
     title:'繁忙期の対応をどうするか',
     body:'スタッフから相談が来ました。\n\n「来週、地域のイベントと重なって、いつもの3倍近い来客が予想されます。\n臨時対応はどうしますか？」',
@@ -6617,6 +6617,7 @@ const DOMAIN_CASES = [
     body:'自治会から地域清掃への参加案内が届きました。\n\n「月1回の地域清掃です。\n事業者の方にも参加いただけると助かります（2時間程度）」',
     choices:[
       {label:'参加する（みどりも一緒に）',
+       requireStaff:true,
        cost:0,
        effects:{score:8,rep:6,communityBond:4,staffSat:-3,fatigue:8,profile:{community:3}},
        label2:'評判+6・絆+4 / みどり負担・疲労+8',
@@ -8203,6 +8204,7 @@ function generateConditionCases(){
 
   // ── ① 成田「まず認知を」（4月2日〜・開店済み・メニュー1品以上・チュートリアル後）──
   // 4/2〜4/4頃に発火するよう totalDays>=2 で判定。tutCompletedDay依存を廃止。
+  const totalDays = (G.year-1)*360 + (G.month-1)*30 + G.day;
   const s0 = G.stores[0];
   if(s0.isOpen && s0.menu && s0.menu.length > 0 && G.tut.phase === 'done' && totalDays >= 2){
     if(!G.cases.some(c => c.id === 'narita_first_ad')){
@@ -8249,7 +8251,6 @@ function generateConditionCases(){
     }
   }
   // 四半期の経営確認（90日ごと・3ヶ月経過後）
-  const totalDays = (G.year-1)*360 + (G.month-1)*30 + G.day;
   if(totalDays >= 90 && totalDays % 90 === 0 && !G.cases.some(c => c.id === 'narita_review' && !c.resolved)){
     const base = CASE_POOL.find(c => c.id === 'narita_review');
     if(base) G.cases.push({ ...base, createdDay:G.day, createdMonth:G.month, createdYear:G.year, resolved:false });
