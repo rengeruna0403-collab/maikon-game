@@ -4741,7 +4741,7 @@ const DAILY_EVENTS = [
    choices:[
      {label:'受け入れる（月収益+¥30,000）',cost:0,effects:{score:12,rep:8,monthlyBonus:30000,custUp:5},
       label2:'定期収益+¥30,000・客数+5',storyTag:'発酵教室の開催を受け入れた。毎月10名の参加者が舞昆の魅力を知るようになった。'},
-     {label:'断る',cost:0,effects:{score:-2},label2:'機会を逃す',storyTag:'発酵教室の提案を断った。'},
+     {label:'断る',cost:0,noAP:true,effects:{score:-2},label2:'機会を逃す',storyTag:'発酵教室の提案を断った。'},
    ]},
   {id:'campaign', prob:.03, icon:'🛒', title:'現実の舞昆キャンペーン連動',
    storyContext:'スマホに通知。「舞昆公式サイトでたもぎ茸舞昆がキャンペーン中！」',
@@ -5174,7 +5174,7 @@ const CASE_POOL = [
        label2:'最低限の拡散・効果は小',
        storyTag:'商品のみという条件で承諾した。'},
       {label:'「すみません、今日は遠慮させてください」と断る',
-       cost:0,
+       cost:0, noAP:true,
        effects:{score:2},
        label2:'拡散なし・影響なし',
        storyTag:'今回は断った。お客さんは「そうですか」と笑顔で帰っていった。'},
@@ -5238,9 +5238,9 @@ const CASE_POOL = [
        label2:'評判+3 / 当日の負担なし・効果小',
        storyTag:'出店は難しかったが、チラシと試食品を預けた。ブースには「舞昆茶屋」の名前だけ並んだ。'},
       {label:'今回は参加が難しい',
-       cost:0,
+       cost:0, noAP:true,
        effects:{score:2,rep:-2,communityBond:-1},
-       label2:'評判-2 / AP・売上への影響なし',
+       label2:'評判-2 / 負担ゼロ',
        storyTag:'今回は参加を見送った。商店街の方に申し訳なさを感じた。'},
     ]},
 
@@ -5336,7 +5336,7 @@ const CASE_POOL = [
     choices:[
       {label:'「ぜひ始めます。季節ごとの限定セットを作ります」',cost:30000,effects:{score:15,rep:6,storeBrand:8,communityBond:3,custUp:2,unlockSeasonalGift:true,profile:{finance:1,community:2}},label2:'🌸 季節限定セット販売開始・ブランド+8',storyTag:'季節限定ギフトセットの取り扱いを始めた。「この時期にしか買えない」という特別感が喜ばれた。'},
       {label:'「少し先になりますが、検討します」',cost:0,effects:{score:5,profile:{finance:1}},label2:'将来の課題として持ち越し',storyTag:'季節限定ギフトの提案は持ち越した。いつか形にしたい。'},
-      {label:'「今は難しいです」と正直に伝える',cost:0,effects:{score:2,storeBrand:-2},label2:'ブランド微減',storyTag:'季節限定ギフトの提案を断った。'},
+      {label:'「今は難しいです」と正直に伝える',cost:0,noAP:true,effects:{score:2,storeBrand:-2},label2:'ブランド微減',storyTag:'季節限定ギフトの提案を断った。'},
     ]},
 
   { id:'midgame_narita_people', conditionOnly:true, repeatable:false, domain:'bank', sender:'成田（銀行）', icon:'🤝', apCost:5, expireDays:21, category:'strategy',
@@ -5643,7 +5643,7 @@ const DOMAIN_CASES = [
     body:'猫を飼っている方から入居申込が来ました。\n\n「小型の猫1匹です。退去時の原状回復費用として\n追加敷金を払います」',
     choices:[
       {label:'条件付き承認（追加敷金あり）',cost:0,effects:{score:8,fillVacantRoom:{name:'中村 あい',age:26,type:'単身者',bio:'猫を1匹飼う会社員。追加敷金を支払い入居。',dream:'「猫と一緒に穏やかに暮らしたい」'}},label2:'入居確保・リスク管理',storyTag:'ペット可条件で入居を承認した。'},
-      {label:'断る（ペット不可物件）',cost:0,effects:{score:3},label2:'方針維持',storyTag:'ペット不可の方針を守った。'},
+      {label:'断る（ペット不可物件）',cost:0,noAP:true,effects:{score:3},label2:'方針維持',storyTag:'ペット不可の方針を守った。'},
     ]},
 
   { id:'rent_negotiation', repeatable:true, domain:'landlord', sender:'入居者', icon:'💬', apCost:10, expireDays:14, category:'mgmt',
@@ -5888,7 +5888,7 @@ const DOMAIN_CASES = [
     choices:[
       {label:'導入する（月¥8,000）',cost:0,effects:{score:15,rep:8,monthlyBonus:-8000,profile:{risk:2}},label2:'入居者満足大幅UP・月コスト+¥8,000',storyTag:'共用Wi-Fiを導入した。入居率向上に貢献した。'},
       {label:'入居者の希望者だけ個別契約を案内',cost:0,effects:{score:6,rep:3},label2:'コスト抑制',storyTag:'個別契約を案内した。'},
-      {label:'今は見送る',cost:0,effects:{score:2,profile:{finance:2}},label2:'現状維持',storyTag:'Wi-Fi導入は見送った。'},
+      {label:'今は見送る',cost:0,noAP:true,effects:{score:2,profile:{finance:2}},label2:'現状維持',storyTag:'Wi-Fi導入は見送った。'},
     ]},
 
   { id:'elderly_care', repeatable:true, domain:'landlord', sender:'入居者', icon:'👴', apCost:15, expireDays:21, category:'mgmt',
@@ -6284,7 +6284,7 @@ const DOMAIN_CASES = [
     choices:[
       {label:'すぐに時間を作って話を聞く',cost:0,effects:{score:12,staffSat:10,profile:{people:3}},label2:'誠実な対応',storyTag:'すぐに面談の時間を作った。みどりは「ちゃんと向き合ってもらえた」と喜んだ。'},
       {label:'「業績が上がれば検討します」と伝える',cost:0,effects:{score:5,staffSat:-3},label2:'条件付き',storyTag:'業績連動で検討すると伝えた。'},
-      {label:'「今は難しい」とだけ伝える',cost:0,effects:{score:-3,staffSat:-12},label2:'不満蓄積・離職リスク',storyTag:'難しいと伝えた。みどりの表情が曇った。'},
+      {label:'「今は難しい」とだけ伝える',cost:0,noAP:true,effects:{score:-3,staffSat:-12},label2:'不満蓄積・離職リスク',storyTag:'難しいと伝えた。みどりの表情が曇った。'},
     ]},
 
   { id:'staff_want_independent', conditionOnly:true, repeatable:false, domain:'staff', sender:'みどり', icon:'🌟', apCost:20, expireDays:21, category:'strategy',
@@ -6693,7 +6693,7 @@ const DOMAIN_CASES = [
     body:'市役所の地域活性化担当者から連絡が来ました。\n\n「舞昆さんの取り組みを、\n地域活性化の成功事例として\n広報誌に掲載させていただけませんか？」',
     choices:[
       {label:'承諾する（掲載OK）',cost:0,effects:{score:20,rep:12,credit:3,profile:{community:5}},label2:'評判+12・信用度+3・地域代表へ',storyTag:'市の広報誌に掲載された。「あなたのような経営者が増えると、この地域は変わる」と言われた。'},
-      {label:'「もったいない気がして」と辞退する',cost:0,effects:{score:5,rep:2},label2:'謙虚な対応',storyTag:'辞退した。担当者は「またいつか」と言って帰った。'},
+      {label:'「もったいない気がして」と辞退する',cost:0,noAP:true,effects:{score:5,rep:2},label2:'謙虚な対応',storyTag:'辞退した。担当者は「またいつか」と言って帰った。'},
     ]},
 
   // ════════════════════════════════════
@@ -6790,7 +6790,7 @@ const DOMAIN_CASES = [
     body:'鈴木先生から連絡が来ました。\n\n「「地域で働く人」という授業があります。\n30分でいいので、お店のことや働くことについて\n話してもらえませんか？\n\n先日、子どもたちが外を歩いているときに\nお店の前を通って「舞昆って何？」って\n興味津々で聞いてきたんです」',
     choices:[
       {label:'「喜んで行きます」と承諾する',cost:0,effects:{score:15,rep:8,charLevel:'suzuki',charNote:'小学校で授業をした。子どもたちが熱心に聞いてくれた',profile:{community:4,people:2}},label2:'ご縁+1・評判+8',storyTag:'小学校で授業をした。「舞昆って何？」と素直に聞く子どもたちに、一から説明した。'},
-      {label:'「今回は難しいですが次回に」と伝える',cost:0,effects:{score:4,charLevel:'suzuki',charNote:'次回への参加を前向きに返答した'},label2:'ご縁+1',storyTag:'次回参加することを伝えた。'},
+      {label:'「今回は難しいですが次回に」と伝える',cost:0,noAP:true,effects:{score:4,charLevel:'suzuki',charNote:'次回への参加を前向きに返答した'},label2:'ご縁+1',storyTag:'次回参加することを伝えた。'},
     ]},
 
   { id:'chr_suzuki_3', conditionOnly:true, repeatable:false, domain:'community', character:'suzuki',
@@ -7087,7 +7087,7 @@ const DOMAIN_CASES = [
     choices:[
       {label:'「ぜひ協力します」と快諾する',cost:0,effects:{score:18,rep:10,charLevel:'yamamoto',charNote:'学校食育授業への協力を快諾した',communityBond:6,custUp:5,profile:{community:4,people:3}},label2:'ご縁+1・評判+10・来客+5',storyTag:'学校の食育授業に協力することになった。地域の子どもたちに舞昆を届けるチャンス。'},
       {label:'「簡単な試食だけなら」と条件付きで応じる',cost:0,effects:{score:10,rep:6,charLevel:'yamamoto',charNote:'食育授業に試食だけ協力することにした',communityBond:3,custUp:2,profile:{community:2,people:2}},label2:'ご縁+1・評判+6',storyTag:'試食だけ協力することにした。'},
-      {label:'「今回は難しい」と断る',cost:0,effects:{score:-3,charNote:'食育授業への協力を断った'},label2:'評判-',storyTag:'食育授業の協力を断った。山本さんが少し残念そうだった。'},
+      {label:'「今回は難しい」と断る',cost:0,noAP:true,effects:{score:-3,charNote:'食育授業への協力を断った'},label2:'評判-',storyTag:'食育授業の協力を断った。山本さんが少し残念そうだった。'},
     ]},
 
   { id:'chr_yamamoto_juken', conditionOnly:true, repeatable:false, domain:'community', character:'yamamoto',
@@ -7472,7 +7472,7 @@ const DOMAIN_CASES = [
          body:'フェア主催者から連絡が来ました。\n\n「舞昆茶屋さんのブースに、思ったより多くの方が立ち寄ってくださいました。\n\n「あれはどこで買えるの？」という問い合わせが数件入っています」',
          effects:{custBonusPerDay:2, custBonusDays:21, source:'neighboring_fair'}}},
       {label:'今年はどちらも見送る',
-       cost:0,
+       cost:0, noAP:true,
        effects:{score:2, rep:-1},
        label2:'評判微減・体力温存',
        storyTag:'今年はどちらも見送った。来年、また機会があると自分に言い聞かせた。'},
@@ -8410,7 +8410,7 @@ function generateConditionCases(){
                 effects:{ score:3, profile:{finance:1},
                   _bentoSkipSeason:{ key:_statusKey, season:_bs, name:_bentoInfo.name, reason:'deferred' } },
                 label2:'今年は見送り・翌年の同季節に再提案', storyTag:'弁当販売は翌年の同じ季節に持ち越した。' },
-              { label:'今は難しいと伝える', cost:0,
+              { label:'今は難しいと伝える', cost:0, noAP:true,
                 effects:{ score:-3, storeSat:-5,
                   _bentoSkipSeason:{ key:_statusKey, season:_bs, name:_bentoInfo.name, reason:'refused' } },
                 label2:'今年は見送り・常連客がっかり', storyTag:'弁当販売を断った。常連さんが少し残念そうだった。' },
@@ -9080,7 +9080,7 @@ function generateConditionCases(){
         { label:'今年も季節限定で販売する', cost:10000, ap:5,
           effects:{ score:12, storeSat:6, custRegular:1, _relaunchMenu:a.id },
           label2:'常連+1・満足+6・3日後に販売開始', storyTag:`昨年好評だった「${a.name}」を今年も季節限定で販売することにした。` },
-        { label:'今年は見送る', cost:0,
+        { label:'今年は見送る', cost:0, noAP:true,
           effects:{ score:3 },
           label2:'来年の楽しみに', storyTag:`「${a.name}」の再販は見送った。また来年の楽しみにする。` },
       ],
