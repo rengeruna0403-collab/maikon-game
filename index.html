@@ -6753,6 +6753,7 @@ const DOMAIN_CASES = [
        storyTag:'今月だけ試しに参加した。喜んでもらえた。続けるか、来月考えよう。',
        followUp:{days:45,icon:'🍵',sender:'老人会・会長',title:'あの日会った方がお店に来てくれました',
          body:'老人会の会長から連絡がありました。\n\n「先日の昼食会に来てくださった方が、\n「あのお店、行ってみようかな」って言っていて。\n\n先日、一人でふらりと来てくださったそうですよ。\n\n「顔を見知っているから入りやすかった」と\n言っていたそうです。」',
+         charTarget:'tanaka', charNoteText:'老人会でお会いした方が、一人でふらりとお店に来てくれた。「顔を見知ってたから入りやすかった」って。',
          effects:{custRegular:1, source:'senior_lunch_trial'}}},
       {label:'今回は難しい',
        cost:0, noAP:true,
@@ -6778,6 +6779,7 @@ const DOMAIN_CASES = [
        storyTag:'できる範囲で参加することにした。気になるお客様がいたら連絡する、という形で始める。',
        followUp:{days:50,icon:'🤲',sender:'地域包括支援センター',title:'見守りを続けた結果が届いています',
          body:'センターの担当者から連絡がありました。\n\n「あのご高齢の方、\n最近お店に立ち寄るのが習慣になっているようで。\n\n「行くと元気をもらえる」と話されているそうです。\n\nご近所の方も「一度行ってみようか」と\n話しているのを聞きました。\n\nできる範囲でも、続けることが力になります。」',
+         charTarget:'tanaka', charNoteText:'見守りを続けていたあの方が、お店に来ることを習慣にしてくれているそうだ。「行くと元気をもらえる」と話していると聞いた。',
          effects:{custRegular:1, rep:2, source:'elderly_network_partial'}}},
     ]},
 
@@ -10117,13 +10119,24 @@ function showFollowUpModal(f){
     <button class="btn btn-gr" style="width:100%;margin-top:16px;padding:12px" onclick="closeFollowUp()">閉じる</button>
   `;
   document.getElementById('event-modal').style.display = 'flex';
-  G.activeEvent = { _followUp: true, _followUpEffects: f.effects || null };
+  G.activeEvent = { _followUp: true, _followUpEffects: f.effects || null,
+    _followUpData: { charTarget: f.charTarget || null, charNoteText: f.charNoteText || null } };
 }
 
 function closeFollowUp(){
+  const _fuData = G.activeEvent && G.activeEvent._followUpData;
   const _fx = G.activeEvent && G.activeEvent._followUpEffects;
   document.getElementById('event-modal').style.display = 'none';
   G.activeEvent = null;
+  // 後日談をご縁ノートに保存
+  if(_fuData && _fuData.charTarget && _fuData.charNoteText){
+    G.characters = G.characters || {};
+    const _ch = G.characters[_fuData.charTarget];
+    if(_ch && _ch.met){
+      _ch.notes = _ch.notes || [];
+      _ch.notes.push({ year:G.year, month:G.month, text:_fuData.charNoteText });
+    }
+  }
   // 後日談エフェクト適用
   if(_fx){
     const _td = (G.year-1)*360 + (G.month-1)*30 + G.day;
