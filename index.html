@@ -3898,7 +3898,8 @@ function getSeason(){
   const m = G.month;
   if(m >= 4 && m <= 6) return 'spring';
   if(m >= 7 && m <= 9) return 'summer';
-  if(m >= 10 && m <= 12) return 'autumn';
+  if(m >= 10 && m <= 11) return 'autumn';
+  if(m === 12) return 'winter';
   return 'winter';
 }
 
@@ -4026,10 +4027,10 @@ function _renderStoreScene(s){
   // ── 商品棚（実商品ラインナップ・Lv連動） ──────────────────
   // 全商品定義（cat: 定番/個性/ギフト/関連/贈答）
   const _SHELF_ALL = [
-    // 定番舞昆（Lv1〜）
-    {icon:'🟫', label:'黒舞昆',   minLv:1, cat:'定番'},
-    {icon:'🟤', label:'生姜舞昆', minLv:1, cat:'定番'},
-    {icon:'🟩', label:'たもぎ茸', minLv:1, cat:'定番'},
+    // 定番舞昆（Lv1〜・解放制）
+    {icon:'🟫', label:'黒舞昆',   minLv:1, cat:'定番', productId:'kuro_maikon'},
+    {icon:'🟤', label:'生姜舞昆', minLv:1, cat:'定番', productId:'ginger_maikon'},
+    {icon:'🟩', label:'たもぎ茸', minLv:1, cat:'定番', productId:'tamogitake_maikon'},
     // 個性派・季節（Lv2〜）
     {icon:'🐚', label:'帆立明太', minLv:2, cat:'個性'},
     {icon:'🌿', label:'山椒',     minLv:2, cat:'個性'},
@@ -4045,7 +4046,11 @@ function _renderStoreScene(s){
     // 贈答品棚（Lv5〜）
     {icon:'🎀', label:'法人ギフト',minLv:5, cat:'贈答'},
   ];
-  const _allActive = _SHELF_ALL.filter(d => lv >= d.minLv);
+  const _unlockedProds = G.unlockedProducts || [];
+  const _allActive = _SHELF_ALL.filter(d => {
+    if(d.productId && !_unlockedProds.includes(d.productId)) return false;
+    return lv >= d.minLv;
+  });
 
   // 表示品数はスペースに合わせ4品固定、溢れは件数バッジで表現
   const _MAX_SHOW = 4;
@@ -4736,7 +4741,7 @@ const ISSUE_CARDS = [
       {label:'メニューを増やして対抗する（¥80,000〜）',cost:80000,effects:{score:8,custUp:3},label2:'客数+3',storyTag:'新メニューで対抗した。'},
       {label:'地域との関係で乗り越える',cost:0,effects:{score:10,rep:5},label2:'評判+5・地域密着',storyTag:'地域のつながりが競合への防御になると判断した。'},
     ]},
-  { id:'vacancy_spike', icon:'🚪', title:'空室が増えています',
+  { id:'vacancy_spike', requireVacancy:true, maxOccupancyPct:0.84, icon:'🚪', title:'空室が増えています',
     body:'入居率が下がっています。近隣の物件と比べて賃料が高めかもしれません。',
     choices:[
       {label:'賃料を5%下げる',cost:0,effects:{score:5,rep:3,reduceRent:0.05},label2:'入居促進・評判+3',storyTag:'賃料を見直して入居者を呼び込む戦略にした。'},
@@ -5150,7 +5155,7 @@ const CASE_POOL = [
        storyTag:'今回は断った。機会を逃した気がした。'},
     ]},
 
-  { id:'midgame_school_visit', repeatable:true, domain:'community', sender:'地元小学校', icon:'🏫', apCost:15, expireDays:14, category:'ops',
+  { id:'midgame_school_visit', repeatable:true, oncePerYear:true, domain:'community', sender:'地元小学校', icon:'🏫', apCost:15, expireDays:14, category:'ops',
     expirePenalty:{rep:-2, communityBond:-2, news:'🏫 地元小学校の訪問授業を断った。'},
     title:'小学校から食育授業の依頼',
     body:'地元の小学校から連絡がありました。\n\n「3年生の食育授業で、地元の食材を学ぶ機会を設けています。\n舞昆についてお話しいただけませんか？\n子どもたちが楽しみにしています」',
@@ -6474,12 +6479,12 @@ const DOMAIN_CASES = [
       {label:'話を聞くだけ参加する',cost:0,effects:{score:8,rep:5,profile:{community:2}},label2:'評判+5',storyTag:'参加して話を聞いた。'},
     ]},
 
-  { id:'com_work_experience', repeatable:true, domain:'community', sender:'中学校', icon:'🎒', apCost:15, expireDays:14, category:'mgmt',
+  { id:'com_work_experience', repeatable:true, oncePerYear:true, domain:'community', sender:'中学校', icon:'🎒', apCost:15, expireDays:14, category:'mgmt',
     title:'中学生の職業体験受け入れ依頼',
     body:'近隣の中学校から依頼が届きました。\n\n「来月の職業体験学習で、\n舞昆茶屋さんで受け入れていただけますか？\n生徒3名、2日間です」',
     choices:[
       {label:'受け入れる（みどりに担当を任せる）',
-       cost:0,
+       cost:0, requireStaff:true,
        effects:{score:16,rep:8,communityBond:5,staffSat:-5,profile:{community:4,people:3}},
        label2:'評判+8・絆+5 / みどり負担・staffSat-5',
        storyTag:'中学生を受け入れた。みどりが2日間丁寧に教えていた。「将来こういうお店をやりたい」と言った生徒がいた。みどりは少し疲れていたが、「やりがいがありました」と話してくれた。',
@@ -7300,7 +7305,7 @@ const DOMAIN_CASES = [
          body:'常連のお客さまから声がかかりました。\n\n「最近、商品のことに力が入っているのが伝わってきます。\n\n「次は何が出るんですか？」って、友人にも聞かれるくらいで。\n\n楽しみにしていますね」',
          effects:{custBonusPerDay:1, custBonusDays:21, source:'product_focus'}}},
       {label:'今は判断できない',
-       cost:0,
+       cost:0, noAP:true,
        effects:{score:2},
        label2:'保留・機会は次回に',
        storyTag:'今季は保留にした。成田は「来春、また話しましょう」と言って帰った。'},
@@ -9999,7 +10004,9 @@ function showEventModal(ev){
       </button>`;
     })() : ''}
     <div class="modal-choices">
-      ${ev.choices.map((c,i)=> apBlocked ? `
+      ${ev.choices.map((c,i)=> {
+        if(c.requireStaff && !G.staffUnlocked) return '';
+        return apBlocked ? `
         <button class="choice-btn" style="opacity:.4;pointer-events:none">
           <div class="choice-lbl">${c.label}</div>
           ${getChoiceImpactIcons(c)}
@@ -10013,8 +10020,8 @@ function showEventModal(ev){
         <button class="choice-btn" onclick="chooseEvent(${i})">
           <div class="choice-lbl">${c.label}</div>
           ${getChoiceImpactIcons(c)}
-        </button>`
-      ).join('')}
+        </button>`;
+      }).join('')}
     </div>
   `;
   document.getElementById('event-modal').style.display='flex';
@@ -10605,9 +10612,9 @@ function chooseEvent(idx, useFatigue){
       const _alreadyPending = G.pendingMenuLaunches.some(p => p.id === _pEntry.id);
       const _alreadyActive  = (G.launchedMenus||[]).some(m => m.id === _pEntry.id && !m._expired);
       if(!_alreadyPending && !_alreadyActive){
-        const _pmEntry = { id:_pEntry.id, name:_pEntry.name, type:_pEntry.type, icon:_pEntry.icon, seasonal:_pEntry.seasonal, seasonDays:_pEntry.seasonDays||0, launchDay:_tdPm+3, sourceEventId:event.id };
+        const _pmEntry = { id:_pEntry.id, name:_pEntry.name, type:_pEntry.type, icon:_pEntry.icon, seasonal:_pEntry.seasonal, seasonDays:_pEntry.seasonDays||0, launchDay:_tdPm+3, sourceEventId:ev.id };
         G.pendingMenuLaunches.push(_pmEntry);
-        console.log(`[MenuLaunch] scheduled: ${_pEntry.name} (${_pEntry.id}) launchDay=${_tdPm+3} from=${event.id}`);
+        console.log(`[MenuLaunch] scheduled: ${_pEntry.name} (${_pEntry.id}) launchDay=${_tdPm+3} from=${ev.id}`);
         notify(`📋 「${_pEntry.name}」の準備中です（3日後に販売開始）`, 'gold');
         _markMenuSeasonProposed();
       }
@@ -11512,7 +11519,7 @@ const APPLICANT_TYPES = [
     skills:{ service:[28,48], cooking:[35,58], management:[32,52] },
     salaryRange:[88000,118000],
     bios:['元会社員。地域のために何かしたい。丁寧に仕事をする。','料理好き。週4日程度なら元気に働ける。'] },
-  { type:'Uターン移住者', emoji:'🌿', ageRange:[28,42],
+  { type:'Uターン移住者', emoji:'🧑', ageRange:[28,42],
     skills:{ service:[22,42], cooking:[18,38], management:[18,35] },
     salaryRange:[95000,132000],
     bios:['故郷に戻ってきた。地域に根ざした仕事をしたい。','都市部での仕事経験あり。地元の魅力を再発見中。'] },
@@ -11550,6 +11557,7 @@ function generateApplicants(count=3){
 }
 
 function postJobAd(){
+  if(!G.staffUnlocked){ notify('まずみどりを採用してから一般募集ができます','warn'); return; }
   const cost = 30000;
   if(G.money < cost){ notify('資金不足','warn'); return; }
   if(!useAP(5, '求人広告掲載', ()=>postJobAd())) return;
@@ -11910,10 +11918,10 @@ function getPromotionReqs(level, s){
     }[level] || null;
   }
   return {
-    1: { label:'スタッフ→主任',       daysWorked:120, skills:{service:65},              satisfaction:70 },
-    2: { label:'主任→店長',           daysWorked:270, skills:{service:75,management:60},satisfaction:75 },
-    3: { label:'店長→エリア長',       daysWorked:450, skills:{management:70},           satisfaction:78 },
-    4: { label:'エリア長→独立オーナー',daysWorked:600, skills:{management:80},           satisfaction:80 },
+    1: { label:'スタッフ→主任',       daysWorked:180, skills:{service:65},              satisfaction:72 },
+    2: { label:'主任→店長',           daysWorked:330, skills:{service:75,management:60},satisfaction:75 },
+    3: { label:'店長→エリア長',       daysWorked:540, skills:{management:70},           satisfaction:78 },
+    4: { label:'エリア長→独立オーナー',daysWorked:720, skills:{management:80},           satisfaction:80 },
   }[level] || null;
 }
 
@@ -12179,13 +12187,8 @@ function buildUpcomingEvents(){
       // 既に案件ボックスに届いている
       items.push({ icon:'🏠', label:'入居申込が届いています', sub:'案件ボックスを確認', daysLeft:0, type:'room' });
     } else {
-      // generateRoomApplicationCases は毎日実行・確率55〜75%なので期待値は1〜2日
-      const _rep = (G.regions&&G.regions[0]) ? (G.regions[0].reputation||0) : 0;
-      const _applyChance = _rep >= 80 ? 0.75 : _rep >= 60 ? 0.65 : 0.55;
-      // 期待日数 = 1/確率（切り上げ、最大3日）
-      const _expectedDays = Math.min(3, Math.ceil(1 / _applyChance));
-      const _sub = _expectedDays <= 1 ? '明日にも申込が届きそうです' : `あと${_expectedDays}日ほどで申込予定`;
-      items.push({ icon:'🏠', label:'空室に問い合わせが来ています', sub:_sub, daysLeft:_expectedDays, type:'room' });
+      // 申込は毎日確率判定のため特定日は予測不能 → 日数は示さない
+      items.push({ icon:'🏠', label:'空室に問い合わせが来ています', sub:'近日中に申込が届く見込みです', daysLeft:3, type:'room' });
     }
   }
 
@@ -13185,9 +13188,9 @@ function renderStaff(){
       <div style="font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.7">
         求人広告を出すと応募者3人が集まります。スキルや希望給与を見て採用を判断してください。
       </div>
-      <button class="btn btn-gr" style="width:100%;padding:10px;font-size:13px" onclick="postJobAd()">
+      ${G.staffUnlocked ? `<button class="btn btn-gr" style="width:100%;padding:10px;font-size:13px" onclick="postJobAd()">
         📋 求人広告を出す <span style="font-size:11px;opacity:.8;margin-left:6px">AP-5 ・ ¥30,000</span>
-      </button>
+      </button>` : `<div style="background:var(--bg2);border-radius:8px;padding:10px 12px;font-size:12px;color:var(--muted);text-align:center">🔒 みどりを採用すると一般募集ができるようになります</div>`}
       ${G._applicants && G._applicants.length ? `
       <div style="margin-top:10px;background:#E8F5E9;border-radius:8px;padding:8px 10px;font-size:12px;color:var(--gr3)">
         📬 未対応の応募者が${G._applicants.length}名います
