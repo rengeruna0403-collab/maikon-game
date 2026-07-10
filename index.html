@@ -7731,7 +7731,8 @@ function addCase(caseData){
     if(G.cases.some(c => c.id === caseData.id)) return;
     if(_schedStaging && _schedRaw.some(r => r.id === caseData.id)) return;
   }
-  const entry = { ...caseData, createdDay: G.day, createdMonth: G.month, createdYear: G.year, resolved: false };
+  const _ctd = (G.year-1)*360 + (G.month-1)*30 + G.day;
+  const entry = { ...caseData, createdDay: G.day, createdMonth: G.month, createdYear: G.year, createdTotalDays: _ctd, resolved: false };
   // bodyVariants: 複数パターンからランダム選択
   if(caseData.bodyVariants && caseData.bodyVariants.length > 0){
     entry.body = caseData.bodyVariants[Math.floor(Math.random() * caseData.bodyVariants.length)];
@@ -8038,9 +8039,14 @@ function _schedProcess(){
     todayCats.add(cat);
   }
 
-  // 5. G.casesへ追加 & バックログから除去
+  // 5. G.casesへ追加 & バックログから除去（dispatch時に日付を現在日で上書き→「今日届いた」）
   const selectedIds = new Set(selected.map(m => m.c.id));
   for(const meta of selected){
+    const _now = (G.year-1)*360 + (G.month-1)*30 + G.day;
+    meta.c.createdDay        = G.day;
+    meta.c.createdMonth      = G.month;
+    meta.c.createdYear       = G.year;
+    meta.c.createdTotalDays  = _now;
     G.cases.push(meta.c);
     if(meta.c.addedCallback) meta.c.addedCallback();
     log.push(`✅ ${meta.c.id} [${meta.cat}/p${meta.pri}]${meta.person ? ' @'+meta.person : ''}`);
@@ -8255,7 +8261,7 @@ function generateConditionCases(){
   // 四半期の経営確認（90日ごと・3ヶ月経過後）
   if(totalDays >= 90 && totalDays % 90 === 0 && !G.cases.some(c => c.id === 'narita_review' && !c.resolved)){
     const base = CASE_POOL.find(c => c.id === 'narita_review');
-    if(base) G.cases.push({ ...base, createdDay:G.day, createdMonth:G.month, createdYear:G.year, resolved:false });
+    if(base) G.cases.push({ ...base, createdDay:G.day, createdMonth:G.month, createdYear:G.year, createdTotalDays:(G.year-1)*360+(G.month-1)*30+G.day, resolved:false });
   }
   // 1年目年度末の経営者診断（1年目3月25日以降・ゲームは4月開始なので3月=年度末）
   if(G.year === 1 && G.month === 3 && G.day >= 25 && !G.cases.some(c => c.id === 'narita_diagnosis')){
@@ -8592,7 +8598,7 @@ function generateConditionCases(){
     } else if(_isFull){
       // 最初から満室 or すでに満室達成 → この案件をスキップ済みとして記録し次Phaseへ
       G.cases.push({ id:'narita_fullhouse_goal', resolved:true, _skipped:true,
-        createdYear:G.year, createdMonth:G.month, createdDay:G.day });
+        createdYear:G.year, createdMonth:G.month, createdDay:G.day, createdTotalDays:(G.year-1)*360+(G.month-1)*30+G.day });
     }
   }
   // 満室達成後にケースが未解決で残っていたら自動スキップ
@@ -9025,7 +9031,12 @@ function generateConditionCases(){
       return DOMAIN_CASES ? DOMAIN_CASES.find(c => c.id === 'summer_event') : null;
     })();
     if(_base && !G.cases.some(c => c.id === 'summer_event' && !c.resolved)){
-      const _sc = Object.assign({}, _base, { _spawnYear: G.year });
+      const _sc = Object.assign({}, _base, {
+        _spawnYear: G.year,
+        createdDay: G.day, createdMonth: G.month, createdYear: G.year,
+        createdTotalDays: (G.year-1)*360+(G.month-1)*30+G.day,
+        resolved: false
+      });
       G.cases.push(_sc);
     }
   }
@@ -9298,14 +9309,18 @@ function getCaseType(c){
   return 'opportunity';
 }
 
-function getCaseAgeText(c){
-  const now = (G.year-1)*360 + (G.month-1)*30 + G.day;
+function _caseAge(c){
+  const nowTotal = (G.year-1)*360 + (G.month-1)*30 + G.day;
+  if(c.createdTotalDays !== undefined) return nowTotal - c.createdTotalDays;
   const created = (c.createdYear-1)*360 + (c.createdMonth-1)*30 + (c.createdDay||1);
-  const age = now - created;
+  const age = nowTotal - created;
+  return isNaN(age) || age < 0 ? 0 : age;
+}
+
+function getCaseAgeText(c){
+  const age = _caseAge(c);
   const expire = c.expireDays || 0;
   const isExpired = expire > 0 && age > expire;
-  // createdDate未設定などで NaN になった場合は当日扱い
-  if(isNaN(age) || age < 0) return { text:'🟢 今日届いた', color:'#43a047' };
   const isHuman = getCaseType(c) === 'relationship';
   if(isExpired)  return { text:'⚫ 放置中',               color:'#888' };
   if(age === 0)  return { text:'🟢 今日届いた',           color:'#43a047' };
@@ -9322,10 +9337,7 @@ function getCaseAgeText(c){
 
 function getCaseUrgencyBadge(c){
   const type = getCaseType(c);
-  const now = (G.year-1)*360 + (G.month-1)*30 + G.day;
-  const created = (c.createdYear-1)*360 + (c.createdMonth-1)*30 + (c.createdDay||1);
-  const age = now - created;
-  if(isNaN(age) || age < 0) return '';
+  const age = _caseAge(c);
   const expire = c.expireDays || 0;
   const isExpired = expire > 0 && age > expire;
 
