@@ -1602,7 +1602,7 @@ const TUT_STEPS = [
     guide:'ふむ。\nシャッターが閉まったままだね。\nここをどうするか、まず見てみるかい？',
     hint:'店舗タブ → 茶屋の様子を確認' },
   { key:'set_menu', tab:'store', label:'メニューを設定する',
-    guide:'店を開けてもお客様に出すものがない。\nたもぎ茸舞昆定食は昔から地域に馴染んでいるようだね。\nどんな商品を置いてみようか。',
+    guide:'店を開けてもお客様に出すものがない。\n黒舞昆は昔から地域に馴染んでいる味だよ。\nまずは一品、メニューを作ってみようか。',
     hint:'店舗タブ → メニューを追加' },
   { key:'vacancy', tab:'apt', label:'空室募集を出す',
     guide:'103号室、しばらく空いたままだね。\n賃料を決めて募集を出してみるかい？\n空室は収入にならない。でも焦らなくていい。',
@@ -11557,11 +11557,9 @@ function openMenuModal(si){
   const s=G.stores[si];
   const isTut = G.tut.phase==='playing' && !(G.tut.done && G.tut.done.menu);
   const _unlockedP = G.unlockedProducts || [];
-  const opts = isTut
-    ? MENU_OPTIONS.filter(m=>m.name.includes('たもぎ茸') && !s.menu.includes(m.name))
-    : MENU_OPTIONS.filter(m=>!s.menu.includes(m.name) && (!m.requireProduct || _unlockedP.includes(m.requireProduct)));
+  const opts = MENU_OPTIONS.filter(m=>!s.menu.includes(m.name) && (!m.requireProduct || _unlockedP.includes(m.requireProduct)));
   const tutNote = isTut
-    ? `<div style="background:var(--bg2);border-radius:8px;padding:8px 12px;margin-bottom:12px;font-size:12px;color:var(--gr3)">📌 ミッション：たもぎ茸舞昆定食を追加してください</div>`
+    ? `<div style="background:var(--bg2);border-radius:8px;padding:8px 12px;margin-bottom:12px;font-size:12px;color:var(--gr3)">📌 ミッション：メニューを1品追加してください</div>`
     : '';
   const rows=opts.map(m=>`
     <div class="fin-row">
@@ -11583,13 +11581,6 @@ function buyMenu(si,name,cost,sat,cust){
   if(!useAP(apCost, 'メニュー企画', ()=>buyMenu(si,name,cost,sat,cust))) return;
   const menuOpt = MENU_OPTIONS.find(m => m.name === name);
   const priceUp = menuOpt ? (menuOpt.priceUp || 0) : 0;
-  // メニューに必要な商品が未解放なら同時解放（チュートリアル整合）
-  if(menuOpt && menuOpt.requireProduct){
-    G.unlockedProducts = G.unlockedProducts || [];
-    if(!G.unlockedProducts.includes(menuOpt.requireProduct)){
-      G.unlockedProducts.push(menuOpt.requireProduct);
-    }
-  }
   G.money-=cost; G.stores[si].menu.push(name);
   // メニュー追加月を記録（寿命管理）
   G.stores[si].menuAddedMonth = G.stores[si].menuAddedMonth || {};
