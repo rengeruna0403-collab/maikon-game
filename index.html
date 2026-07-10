@@ -1041,7 +1041,9 @@ function getNPCStyleComment(){
     },
     people: {
       npc:'みどり', icon:'👩',
-      lines:['「みんな働きやすそうで、うれしいです。\n続けていける職場って、なかなかないんですよ。」',
+      lines:[(G.staff && G.staff.length > 1)
+               ? '「みんな働きやすそうで、うれしいです。\n続けていける職場って、なかなかないんですよ。」'
+               : '「安心して働けています。\n続けていける職場って、なかなかないんですよ。」',
               '「またスタッフの話をしてくれましたね。\nそういうオーナーさん、珍しいんですよ。」'],
     },
     community: {
@@ -6821,21 +6823,21 @@ const DOMAIN_CASES = [
 
   // ── 田中和夫（72歳・老人会）アーク ──
   { id:'chr_tanaka_1', conditionOnly:true, repeatable:false, domain:'community', character:'tanaka',
-    sender:'老人会', icon:'👴', apCost:5, expireDays:21, category:'ops',
-    title:'老人会に初めての顔見知り',
-    body:'老人会の昼食会で、一人の男性に話しかけられました。\n\n「田中と申します。一人暮らしでねぇ、こういう場があると助かります。\nところで……舞昆って何ですか？\nおにぎりのご飯についてる黒いのが気になって」',
+    sender:'お客さま', icon:'👴', apCost:0, expireDays:21, category:'ops',
+    title:'田中さんが来てくれた',
+    body:'一人の男性が店先で立ち止まっていました。\n\n「……すみません、少し見ていってもいいですか」\n\n白髪の方で、少し腰が曲がっています。\n声をかけると、田中さんと名乗ってくれました。\n\n「一人暮らしでねえ、朝ごはんに困ってて。\nここのおにぎり、この黒いの……昆布ですか？」',
     choices:[
-      {label:'「昆布の佃煮なんですよ」と丁寧に説明する',cost:0,effects:{score:8,rep:4,charMeet:'tanaka',charNote:'「昆布の佃煮なんですね」と納得した',profile:{people:2}},label2:'ご縁スタート・評判+4',storyTag:'田中さんと初めて話した。「昆布の佃煮」という言葉で少し理解してもらえた。'},
+      {label:'「そうです、昆布の佃煮なんですよ」と丁寧に説明する',cost:0,effects:{score:8,rep:4,charMeet:'tanaka',charNote:'「昆布の佃煮なんですね」と少し目を細めて頷いた',profile:{people:2}},label2:'ご縁スタート・評判+4',storyTag:'田中さんと初めて話した。「昆布の佃煮」という言葉で少し理解してもらえた。'},
       {label:'試食してもらう',cost:0,effects:{score:10,rep:5,charMeet:'tanaka',charNote:'試食して「思ったより柔らかい」と言った',profile:{people:3,community:1}},label2:'ご縁スタート・評判+5',storyTag:'田中さんに試食してもらった。「思ったより柔らかいですね」と言ってもらえた。'},
     ]},
 
   { id:'chr_tanaka_2', conditionOnly:true, repeatable:false, domain:'community', character:'tanaka',
-    sender:'老人会', icon:'👴', apCost:5, expireDays:21, category:'ops',
-    title:'地域住人の田中さんが来てくれた',
-    body:'田中さんが昼前にひとりで来店しました。\n\n「最近は朝作るのも面倒でねぇ。\n一人だと台所に立つ気がしないときもあって。\n\nここのおにぎりを買って帰れば、\n味噌汁だけ作れば朝ごはんになるから助かるんですよ。\n\n……このご飯に乗ってる黒いの、昆布ですか？」',
+    sender:'田中和夫', icon:'👴', apCost:5, expireDays:21, category:'ops',
+    title:'田中さんがまた来てくれた',
+    body:'田中さんが昼前にひとりで来店しました。\n\n「最近は朝作るのも面倒でねぇ。\n一人だと台所に立つ気がしないときもあって。\n\nここのおにぎりを買って帰れば、\n味噌汁だけ作れば朝ごはんになるから助かるんですよ。\n\n……先日の昆布、家で試したんです。\nご飯に乗せるだけなのに、不思議と食が進んで」',
     choices:[
-      {label:'「そうです、昆布の佃煮です。少量でご飯が進むので、一人のときでも食べやすいんですよ」',cost:0,effects:{score:10,rep:3,charLevel:'tanaka',charNote:'「少しずつ食べてみる」と言った',custUp:1},label2:'ご縁+1・来客+1',storyTag:'田中さんに昆布の佃煮だと伝えた。少量でも食が進むと話すと、「それなら試せるわ」と言ってくれた。'},
-      {label:'「そうです。きのこも入ってるんですよ——たもぎ茸って言って、香りが特徴で」',cost:0,effects:{score:8,rep:3,charLevel:'tanaka',charNote:'「きのこが入ってるの？」と目を丸くした'},label2:'ご縁+1・商品理解',storyTag:'田中さんに昆布ときのこの話をした。「へぇ、きのこまで」と興味を持ってくれた。'},
+      {label:'「それは嬉しいです。少量でもご飯が進むので、一人のときにちょうどいいんですよ」',cost:0,effects:{score:10,rep:3,charLevel:'tanaka',charNote:'「少しずつ食べてみる」と言った',custUp:1},label2:'ご縁+1・来客+1',storyTag:'田中さんに昆布の佃煮だと伝えた。少量でも食が進むと話すと、「それなら試せるわ」と言ってくれた。'},
+      {label:'「実はきのこも入ってるんですよ——たもぎ茸って言って、香りが特徴で」',cost:0,effects:{score:8,rep:3,charLevel:'tanaka',charNote:'「きのこが入ってるの？」と目を丸くした'},label2:'ご縁+1・商品理解',storyTag:'田中さんに昆布ときのこの話をした。「へぇ、きのこまで」と興味を持ってくれた。'},
     ]},
 
   { id:'chr_tanaka_3', conditionOnly:true, repeatable:false, domain:'community', character:'tanaka',
@@ -6895,7 +6897,7 @@ const DOMAIN_CASES = [
 
   // ── 鈴木先生（38歳・小学校教員）アーク ──
   { id:'chr_suzuki_1', conditionOnly:false, repeatable:false, domain:'community', character:'suzuki',
-    sender:'地域活動', icon:'👨‍🏫', apCost:5, expireDays:21, category:'ops',
+    sender:'地域活動', icon:'👨‍🏫', apCost:5, expireDays:21, category:'ops', minDay:60, minRep:20,
     title:'地域清掃で教員の方と出会った',
     body:'地域清掃の後、一人の男性が話しかけてきました。\n\n「鈴木といいます。地元の小学校で教えています。\n舞昆茶屋さんのこと、子どもたちが教えてくれて。\n職業体験ってできますか？」',
     choices:[
@@ -8849,7 +8851,7 @@ function generateConditionCases(){
   // 間隔：21日。入院・退院は60日以上かつ2年目以降
   const _storeHasMenu = G.stores.length > 0 && G.stores[0].menu && G.stores[0].menu.length > 0;
   if(_storeHasMenu && !ch.tanaka.met && !G.cases.some(c=>c.id==='chr_tanaka_1')) charCase('chr_tanaka_1');
-  if(ch.tanaka.met && ch.tanaka.level >= 1 && charReady('tanaka',21) && !G.cases.some(c=>c.id==='chr_tanaka_2')) charCase('chr_tanaka_2');
+  if(ch.tanaka.met && ch.tanaka.level >= 1 && G.cases.some(c=>c.id==='chr_tanaka_1' && c.resolved) && charReady('tanaka',21) && !G.cases.some(c=>c.id==='chr_tanaka_2')) charCase('chr_tanaka_2');
   if(ch.tanaka.level >= 2 && charReady('tanaka',21) && !G.cases.some(c=>c.id==='chr_tanaka_3')) charCase('chr_tanaka_3');
   // 田中入居申請：空き部屋募集中の枠がある場合のみ
   const _hasSeeking = G.buildings.some(b => b.rooms.some(r => r.seeking && !r.tenant));
@@ -8863,8 +8865,8 @@ function generateConditionCases(){
   const _invYamamoto = G.regions && G.regions.some(r => r.investments && r.investments['子ども食堂']);
   // Step1: 初回出会い（子ども食堂投資後）
   if(_invYamamoto && !ch.yamamoto.met && !G.cases.some(c=>c.id==='chr_yamamoto_1')) charCase('chr_yamamoto_1');
-  // Step2: 「食べた」の一言（出会い後・level1以上・30日間隔）
-  if(ch.yamamoto.level >= 1 && charReady('yamamoto',30) && !G.cases.some(c=>c.id==='chr_yamamoto_2')) charCase('chr_yamamoto_2');
+  // Step2: 「食べた」の一言（出会い後・yamamoto_1解決済み・30日間隔）
+  if(ch.yamamoto.met && G.cases.some(c=>c.id==='chr_yamamoto_1' && c.resolved) && charReady('yamamoto',30) && !G.cases.some(c=>c.id==='chr_yamamoto_2')) charCase('chr_yamamoto_2');
   // Step3: 子ども本人が来店（level2以上・30日間隔）
   if(ch.yamamoto.level >= 2 && charReady('yamamoto',30) && !G.cases.some(c=>c.id==='chr_yamamoto_3')) charCase('chr_yamamoto_3');
   // Step4: 食卓メッセージ（level2以上・Step3解決後・21日間隔）
@@ -9302,14 +9304,20 @@ function getCaseAgeText(c){
   const age = now - created;
   const expire = c.expireDays || 0;
   const isExpired = expire > 0 && age > expire;
+  // createdDate未設定などで NaN になった場合は当日扱い
+  if(isNaN(age) || age < 0) return { text:'🟢 今日届いた', color:'#43a047' };
+  const isHuman = getCaseType(c) === 'relationship';
   if(isExpired)  return { text:'⚫ 放置中',               color:'#888' };
   if(age === 0)  return { text:'🟢 今日届いた',           color:'#43a047' };
   if(age <= 2)   return { text:'🟡 気にしている様子',     color:'#f9a825' };
   if(age <= 4)   return { text:'🟠 返事を待っています',   color:'var(--orange)' };
   if(expire > 0 && expire - age <= 3)
-                 return { text:'🔴 かなり困っています',   color:'#c62828' };
+                 return isHuman
+                   ? { text:'🔴 かなり困っています',   color:'#c62828' }
+                   : { text:'🟠 締切間近',             color:'var(--orange)' };
   if(age <= 7)   return { text:'🟠 返事を待っています',   color:'var(--orange)' };
-  return               { text:'🔴 かなり困っています',   color:'#c62828' };
+  return isHuman ? { text:'🔴 かなり困っています',   color:'#c62828' }
+                 : { text:'🟠 しばらく経ちました',   color:'var(--orange)' };
 }
 
 function getCaseUrgencyBadge(c){
@@ -9317,6 +9325,7 @@ function getCaseUrgencyBadge(c){
   const now = (G.year-1)*360 + (G.month-1)*30 + G.day;
   const created = (c.createdYear-1)*360 + (c.createdMonth-1)*30 + (c.createdDay||1);
   const age = now - created;
+  if(isNaN(age) || age < 0) return '';
   const expire = c.expireDays || 0;
   const isExpired = expire > 0 && age > expire;
 
