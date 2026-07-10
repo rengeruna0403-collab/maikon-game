@@ -5537,7 +5537,7 @@ const CASE_POOL = [
     choices:[
       { label:'看板商品として前面に出す', cost:0, ap:5,
         effects:{ score:12, storeBrand:3, customerLoyalty:2,
-                  unlockProduct:'tamogitake_maikon', unlockEatIn:'tamogitake_onigiri' },
+                  unlockProduct:'tamogitake_maikon' },
         label2:'たもぎ茸舞昆が商品コーナーに加わります・AP-5',
         storyTag:'「たもぎ茸舞昆」を看板商品として前面に出すことにした。' },
       { label:'まず試食で反応を見る', cost:0, ap:3,
@@ -5557,7 +5557,7 @@ const CASE_POOL = [
     choices:[
       { label:'正式に販売を始める！', cost:0,
         effects:{ score:10, storeBrand:2, customerLoyalty:3,
-                  unlockProduct:'tamogitake_maikon', unlockEatIn:'tamogitake_onigiri' },
+                  unlockProduct:'tamogitake_maikon' },
         label2:'たもぎ茸舞昆が販売開始！',
         storyTag:'試食の好評を受けて、たもぎ茸舞昆の正式販売を始めた。' },
     ]},
@@ -5569,7 +5569,7 @@ const CASE_POOL = [
     choices:[
       { label:'看板商品として前面に出す', cost:0, ap:5,
         effects:{ score:12, storeBrand:3, customerLoyalty:2,
-                  unlockProduct:'tamogitake_maikon', unlockEatIn:'tamogitake_onigiri' },
+                  unlockProduct:'tamogitake_maikon' },
         label2:'たもぎ茸舞昆が商品コーナーに加わります',
         storyTag:'ついに「たもぎ茸舞昆」を看板商品として前面に出すことにした。' },
       { label:'やはり今回も見送る', cost:0, noAP:true,
@@ -11531,7 +11531,7 @@ function hireMidori(){
 
 // ─────────── STORE ACTIONS ───────────
 const MENU_OPTIONS=[
-  {name:'たもぎ茸舞昆定食',cost:80000,sat:8,cust:2,priceUp:200},
+  {name:'たもぎ茸舞昆定食', requireProduct:'tamogitake_maikon', cost:80000,sat:8,cust:2,priceUp:200},
   {name:'黒舞昆おにぎり',cost:40000,sat:5,cust:1,priceUp:100},
   {name:'梅舞昆茶漬け',cost:60000,sat:7,cust:1,priceUp:150},
   {name:'昆布茶セット',cost:30000,sat:4,cust:1,priceUp:80},
@@ -11556,9 +11556,10 @@ const RENOV_OPTIONS=[
 function openMenuModal(si){
   const s=G.stores[si];
   const isTut = G.tut.phase==='playing' && !(G.tut.done && G.tut.done.menu);
+  const _unlockedP = G.unlockedProducts || [];
   const opts = isTut
     ? MENU_OPTIONS.filter(m=>m.name.includes('たもぎ茸') && !s.menu.includes(m.name))
-    : MENU_OPTIONS.filter(m=>!s.menu.includes(m.name));
+    : MENU_OPTIONS.filter(m=>!s.menu.includes(m.name) && (!m.requireProduct || _unlockedP.includes(m.requireProduct)));
   const tutNote = isTut
     ? `<div style="background:var(--bg2);border-radius:8px;padding:8px 12px;margin-bottom:12px;font-size:12px;color:var(--gr3)">📌 ミッション：たもぎ茸舞昆定食を追加してください</div>`
     : '';
@@ -11582,6 +11583,13 @@ function buyMenu(si,name,cost,sat,cust){
   if(!useAP(apCost, 'メニュー企画', ()=>buyMenu(si,name,cost,sat,cust))) return;
   const menuOpt = MENU_OPTIONS.find(m => m.name === name);
   const priceUp = menuOpt ? (menuOpt.priceUp || 0) : 0;
+  // メニューに必要な商品が未解放なら同時解放（チュートリアル整合）
+  if(menuOpt && menuOpt.requireProduct){
+    G.unlockedProducts = G.unlockedProducts || [];
+    if(!G.unlockedProducts.includes(menuOpt.requireProduct)){
+      G.unlockedProducts.push(menuOpt.requireProduct);
+    }
+  }
   G.money-=cost; G.stores[si].menu.push(name);
   // メニュー追加月を記録（寿命管理）
   G.stores[si].menuAddedMonth = G.stores[si].menuAddedMonth || {};
