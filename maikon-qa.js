@@ -100,6 +100,7 @@
 
   function runStaticAudit(cases, idMap) {
     const warnings = [];
+    let w08SuppressedCount = 0; // W08は個別出力しないでサマリに集約
 
     function warn(severity, c, issue, field, current, recommendation, fpRisk) {
       warnings.push({
@@ -216,12 +217,7 @@
       if (c.repeatable) {
         const cdMap = window.CASE_COOLDOWN_DAYS || {};
         if (!cdMap[c.id]) {
-          warn('P3', c,
-            `repeatable:true だが CASE_COOLDOWN_DAYS に未登録（デフォルト 30 日が自動適用）`,
-            'CASE_COOLDOWN_DAYS[id]',
-            'デフォルト 30 日',
-            '問題なければ現状維持。明示的に登録することを推奨',
-            '低（デフォルト30日で正常動作）');
+          w08SuppressedCount++; // 個別警告は出さずサマリに集約
         }
       }
 
@@ -291,7 +287,7 @@
       }
     }
 
-    return warnings;
+    return { warnings, w08SuppressedCount };
   }
 
   // ══════════════════════════════════════════════════════════════
@@ -376,9 +372,9 @@
   function buildQAData() {
     if (_qaData) return _qaData;
     const { cases, idMap } = collectAllCases();
-    const warnings  = runStaticAudit(cases, idMap);
+    const { warnings, w08SuppressedCount } = runStaticAudit(cases, idMap);
     const summaries = cases.map(summarizeCase);
-    _qaData = { cases, idMap, warnings, summaries };
+    _qaData = { cases, idMap, warnings, summaries, w08SuppressedCount };
     return _qaData;
   }
 
@@ -547,14 +543,16 @@ table.qa-tbl tr:hover td{background:#0f3460}
 
     panel.innerHTML = `
 <div class="qa-notice">
-  <strong>📋 監査対象について</strong><br>
-  Phase 1 では静的配列として取得できる案件のみを監査対象とします。<br>
-  <code>generateConditionCases()</code> 内で動的生成される案件（chr_* キャラクター案件など）は
-  <strong>現時点では監査対象外</strong>です（Phase 2 以降で対応予定）。<br><br>
-  <strong>監査対象：</strong>
-  ${Object.entries(poolCounts).map(([k,v]) => `${k}（${v}件）`).join(' / ')}
-  ＝ 計 <strong>${d.cases.length} 件</strong><br>
-  <strong>対象外（推定）：</strong>chr_* キャラクター案件（generateConditionCases 内インライン）
+  <strong>📋 監査範囲</strong><br>
+  静的配列（CASE_POOL / DOMAIN_CASES / DAILY_EVENTS / MONTHLY_CHALLENGES / ISSUE_CARDS）の
+  <strong>全 ${d.cases.length} 件</strong>を監査対象とします。
+  conditionOnly 案件（${d.cases.filter(c=>c.conditionOnly).length} 件）も含みます。<br>
+  <strong>対象外：</strong><code>generateConditionCases()</code> 内インラインで動的生成される
+  chr_* キャラクター案件（Phase 2 以降で対応予定）。<br><br>
+  <strong>W08（デフォルトクールダウン）について：</strong>
+  repeatable 案件のうち <code>CASE_COOLDOWN_DAYS</code> 未登録の
+  <strong>${d.w08SuppressedCount} 件</strong>はデフォルト 30 日が自動適用されます。
+  正常仕様のため個別警告は省略し、このサマリにのみ表示しています。
 </div>
 
 <div class="qa-stat-grid" style="grid-template-columns:repeat(auto-fill,minmax(160px,1fr))">
