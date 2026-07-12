@@ -529,10 +529,18 @@ table.qa-tbl tr:hover td{background:#0f3460}
     if (panel.dataset.rendered) return;
     panel.dataset.rendered = '1';
 
+    const execTime = new Date().toLocaleString('ja-JP', { hour12: false });
+    const gameVer  = (window.G && window.G.version) ? window.G.version
+                   : (window.GAME_VERSION || '不明');
+
     const d = buildQAData();
     const w = d.warnings;
     const bySev = { P0: 0, P1: 0, P2: 0, P3: 0 };
     w.forEach(x => { bySev[x.severity] = (bySev[x.severity] || 0) + 1; });
+
+    // 警告が1件もない案件数
+    const warnedIds = new Set(w.map(x => x.eventId));
+    const cleanCount = d.cases.filter(c => c.id && !warnedIds.has(c.id)).length;
 
     const poolCounts = {};
     d.cases.forEach(c => { poolCounts[c._pool] = (poolCounts[c._pool] || 0) + 1; });
@@ -549,13 +557,22 @@ table.qa-tbl tr:hover td{background:#0f3460}
   <strong>対象外（推定）：</strong>chr_* キャラクター案件（generateConditionCases 内インライン）
 </div>
 
-<div class="qa-stat-grid">
+<div class="qa-stat-grid" style="grid-template-columns:repeat(auto-fill,minmax(160px,1fr))">
+  <div class="qa-stat-card" style="grid-column:1/-1;background:#0a1f3a">
+    <div class="label">実行日時</div><div style="font-size:13px;color:#aac8f0;font-weight:600">${execTime}</div>
+    <div class="label" style="margin-top:4px">QAバージョン / ゲームバージョン</div>
+    <div style="font-size:11px;color:#888">${QA_VERSION} &nbsp;/&nbsp; game: ${gameVer}</div>
+  </div>
   <div class="qa-stat-card"><div class="label">監査対象案件数</div><div class="value">${d.cases.length}</div></div>
+  <div class="qa-stat-card"><div class="label">警告なし案件数</div><div class="value" style="color:#66bb6a">${cleanCount}</div></div>
   <div class="qa-stat-card"><div class="label">警告総数</div><div class="value">${w.length}</div></div>
   <div class="qa-stat-card"><div class="label sev-P0">P0 進行停止・破損</div><div class="value sev-P0">${bySev.P0}</div></div>
   <div class="qa-stat-card"><div class="label sev-P1">P1 重大矛盾</div><div class="value sev-P1">${bySev.P1}</div></div>
   <div class="qa-stat-card"><div class="label sev-P2">P2 不整合</div><div class="value sev-P2">${bySev.P2}</div></div>
   <div class="qa-stat-card"><div class="label sev-P3">P3 要確認</div><div class="value sev-P3">${bySev.P3}</div></div>
+</div>
+<div style="font-size:11px;color:#666;margin-bottom:10px">
+  プール別：${Object.entries(poolCounts).map(([k,v]) => `${k} ${v}件`).join(' / ')}
 </div>
 
 <div class="qa-sev-badges" style="margin-bottom:12px">
