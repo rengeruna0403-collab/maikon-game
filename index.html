@@ -5085,7 +5085,7 @@ const CASE_POOL = [
       {label:'夜間営業を検討する（AP-10）',cost:0,ap:10,effects:{score:12,custUp:4,rep:4,profile:{community:2,risk:1}},label2:'客数+4・評判+4',storyTag:'常連客の意見を受けて夜間営業を検討した。'},
       {label:'昼間営業で質を高める方針を続ける',cost:0,effects:{score:5,profile:{finance:2}},label2:'方針維持',storyTag:'昼間営業の質を高めることで応えることにした。'},
     ]},
-  { id:'community_collab', sender:'石川（地域）', icon:'🤝', apCost:25, expireDays:21, category:'strategy',
+  { id:'community_collab', sender:'石川（地域）', icon:'🤝', apCost:25, expireDays:21, category:'strategy', minDay:60,
     expirePenalty:{rep:-5, news:'🤝 NPO連携の機会を逃した。地域評判-5'},
     title:'地域NPOとの連携提案',
     body:'石川さんから「地域NPOと連携して、高齢者向けの昼食サービスを始めてみませんか？」と提案が来ました。',
@@ -5208,7 +5208,7 @@ const CASE_POOL = [
   // ════════════════════════════════════
 
   // ── 店舗 ──
-  { id:'midgame_menu_renewal', repeatable:true, domain:'store', sender:'常連客', icon:'🍱', apCost:15, expireDays:21, category:'ops',
+  { id:'midgame_menu_renewal', repeatable:true, domain:'store', sender:'常連客', icon:'🍱', apCost:15, expireDays:21, category:'ops', minDay:30,
     expirePenalty:{rep:-2, news:'🍱 メニュー刷新の提案を放置した。常連の声が届いていない印象に。'},
     title:'メニューを見直してほしいとの声',
     body:'常連のお客さまから声がかかりました。\n\n「最近、ちょっとマンネリになってきた気がして。\n季節の食材とか、新しいものを試してもらえたら嬉しいな」',
@@ -5226,7 +5226,7 @@ const CASE_POOL = [
       {label:'通常通り、できる範囲で対応する',cost:0,effects:{score:5,custUp:1},label2:'無理しない経営',storyTag:'通常通りで対応した。行列にはなったが、なんとか回せた。'},
     ]},
 
-  { id:'midgame_hygiene_check', repeatable:true, domain:'store', sender:'保健所', icon:'🧹', apCost:20, expireDays:14, category:'mgmt',
+  { id:'midgame_hygiene_check', repeatable:true, domain:'store', sender:'保健所', icon:'🧹', apCost:20, expireDays:14, category:'mgmt', minDay:21,
     expirePenalty:{rep:-5, credit:-2, news:'🧹 衛生管理の指摘を放置した。行政からの評価が下がった。'},
     title:'保健所から衛生管理の確認通知',
     bodyVariants:[
@@ -5306,7 +5306,7 @@ const CASE_POOL = [
     ]},
 
   // ── 地域 ──
-  { id:'midgame_community_event', repeatable:true, domain:'community', sender:'商店街', icon:'🌸', apCost:20, expireDays:14, category:'ops',
+  { id:'midgame_community_event', repeatable:true, domain:'community', sender:'商店街', icon:'🌸', apCost:20, expireDays:14, category:'ops', minDay:14,
     expirePenalty:{rep:-3, communityBond:-3, news:'🌸 商店街イベントへの参加を断った。地域との距離が広がった。'},
     title:'商店街のイベントに参加しませんか',
     bodyFn: ()=>{
@@ -7057,8 +7057,8 @@ const DOMAIN_CASES = [
     title:'みどりからの提案：老人会に出来立てを持っていこう',
     body:'みどりが店を閉めたあと、声をかけてきた。\n\n「あの……老人会の集まり、来週あるって聞いて。\n出来立てのおにぎり、持っていきませんか」\n\n——当日。\n\nみどりが並べたおにぎりに、湯気が出ていた。\n\nひとりのおばあさんが、ゆっくり一口。\n\n「……」\n\n少し笑った。\n\nもう一度、食べた。\n\n「おかわり、ある？」\n\nみどりが目を細めた。',
     choices:[
-      {label:'「はい、まだあります」とみどりに言った',cost:0,effects:{score:14,rep:6,communityBond:5,custUp:2,storeBrand:4,staffSat:5,profile:{people:3,community:3}},label2:'地域評価+・お茶屋の記憶に',storyTag:'老人会に出来立ての舞昆おにぎりを持っていった。おばあさんが「おかわりある？」と言った。それがすべてだった。'},
-      {label:'（次から多めに作ることにした）',cost:0,effects:{score:10,rep:5,communityBond:4,custUp:1,storeBrand:3},storyTag:'老人会のおばあさんが舞昆おにぎりを気に入ってくれた。次はもっと持っていこうと思った。'},
+      {label:'「はい、まだあります」とみどりに言った',cost:0,effects:{score:14,rep:4,communityBond:3,custUp:1,storeBrand:3,fatigue:5,storeSat:-3,profile:{people:3,community:3}},label2:'地域評価+4・絆+3 / 当日営業に影響・疲労+5',storyTag:'今日の販売分を老人会に回した。おばあさんが「おかわりある？」と言った。体はくたくただったが、それがすべてだった。'},
+      {label:'（次から多めに作ることにした）',cost:0,noAP:true,effects:{score:8,rep:1,communityBond:1,staffSat:2,profile:{community:1,people:1}},label2:'今日の営業を守る・スタッフ連携+2 / 地域効果は小さい',storyTag:'今日は在庫を回さず、次回のために多めに作ることをみどりと決めた。今日の老人会には届かなかったが、準備が整う。'},
     ]},
 
   // 高橋さん：出張先のホテルで——一人で食べた夜
@@ -10274,6 +10274,12 @@ function showEventModal(ev){
     <div class="modal-choices">
       ${ev.choices.map((c,i)=> {
         if(c.requireStaff && !G.staffUnlocked) return '';
+        // noAP:true の選択肢（「見送る」「今は難しい」等）はAP不足でもクリック可能
+        if(c.noAP) return `
+        <button class="choice-btn" onclick="chooseEvent(${i})">
+          <div class="choice-lbl">${c.label}</div>
+          ${getChoiceImpactIcons(c)}
+        </button>`;
         return apBlocked ? `
         <button class="choice-btn" style="opacity:.4;pointer-events:none">
           <div class="choice-lbl">${c.label}</div>
