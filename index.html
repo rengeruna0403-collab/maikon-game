@@ -15333,5 +15333,13 @@ window.addEventListener('visibilitychange', ()=>{
   if(document.visibilityState === 'hidden' && G.started && !G.gameEnded) logQuit();
 });
 </script>
+<!-- QAツール：?qa=1 または ?debug=1 の場合のみ読み込む。通常プレイには影響しない -->
+<script>
+if(/[?&](qa|debug)=1/.test(location.search)){
+  var _qaScript=document.createElement('script');
+  _qaScript.src='maikon-qa.js';
+  document.head.appendChild(_qaScript);
+}
+</script>
 </body>
 </html>
