@@ -1467,6 +1467,7 @@ ${s0}${sec1}${sec2}${sec3}${sec4}${sec5}${sec6}${secLog}
   let _sim2b = null;
   let _sim2bRunning = false;
   let _sim2bLastChoiceReason = '';
+  let _sim2bCurrentSource = 'auto_event'; // 'auto_event' or 'daily_case'
 
   function _sim2bTotalDays(g) {
     return (g.year - 1) * 360 + (g.month - 1) * 30 + g.day;
@@ -1554,7 +1555,8 @@ ${s0}${sec1}${sec2}${sec3}${sec4}${sec5}${sec6}${secLog}
     }
 
     // 異常5: みどり未採用でみどり選択肢
-    if (choices.some(c=>(c.label||'').includes('みどり')||c.effects?.hireStaff==='midori')) {
+    // hireStaff:'midori' は採用アクション自体なので未採用時に表示されて当然 → 除外
+    if (choices.some(c=>(c.label||'').includes('みどり') && c.effects?.hireStaff !== 'midori')) {
       try {
         const midoriOk = G.characters?.midori?.level >= 1 ||
           (Array.isArray(G.staff) && G.staff.some(x=>x.id==='midori'||x.name==='みどり'));
@@ -1611,6 +1613,7 @@ ${s0}${sec1}${sec2}${sec3}${sec4}${sec5}${sec6}${secLog}
     const moneyBefore = G.money;
 
     const logEntry = {
+      source:      _sim2bCurrentSource,
       date:        `${G.year}年${G.month}月${G.day}日`,
       eventId:     ev.id    || '(unknown)',
       title:       ev.title || '',
@@ -1649,6 +1652,71 @@ ${s0}${sec1}${sec2}${sec3}${sec4}${sec5}${sec6}${secLog}
     logEntry.moneyDelta = G.money - moneyBefore;
   }
 
+  // ─── 1日の処理対象案件リストを返す ───
+  function _sim2bGetEligibleCases(todayTotal) {
+    const cases = G.cases || [];
+    return cases.filter(c => {
+      if (c.resolved || c.expired) return false;
+      // staffAutoProcess が既に処理する ops 案件はスキップ
+      if (c.category === 'ops') return false;
+      // 条件チェック
+      if (c.requireStaff && !G.characters?.midori?.met) return false;
+      if (c.requireProduct && !(G.products || {})[c.requireProduct]) return false;
+      if (c.minRep  && (G.rep  || 0) < c.minRep)  return false;
+      if (c.minDay  && todayTotal       < c.minDay)  return false;
+      if (c.minMonth && (G.month || 1)  < c.minMonth) return false;
+      return true;
+    });
+  }
+
+  // ─── 1日の案件自動処理 ───
+  function _sim2bProcessDailyCases(todayTotal) {
+    const s = _sim2b;
+    const DAILY_LIMIT = 5;        // AP 0 ループ防止上限
+    let processed = 0;
+
+    const eligible = _sim2bGetEligibleCases(todayTotal);
+    if (!eligible.length) return;
+
+    // 優先度: conditionOnly:false → conditionOnly:true の順
+    eligible.sort((a, b) => (a.conditionOnly ? 1 : 0) - (b.conditionOnly ? 1 : 0));
+
+    for (const c of eligible) {
+      if (processed >= DAILY_LIMIT) break;
+
+      // AP が 0 で全選択肢が AP 消費ありなら後回し
+      if (G.ap <= 0) {
+        const idx = (G.cases || []).indexOf(c);
+        s.caseSkipLog.push({
+          date: `${G.year}年${G.month}月${G.day}日`,
+          eventId: c.id || '(unknown)',
+          title: c.title || '',
+          reason: 'lowAP',
+        });
+        s.stats.caseSkipped++;
+        continue;
+      }
+
+      const idx = (G.cases || []).indexOf(c);
+      if (idx < 0) continue;
+
+      _sim2bCurrentSource = 'daily_case';
+      try {
+        G.activeEvent = null;
+        // eslint-disable-next-line no-eval
+        eval(`resolveCase(${idx})`);
+        // chooseEvent は autoResolve 内で呼ばれるが G.activeEvent は残る
+        G.activeEvent = null;
+        processed++;
+        s.stats.caseResolved++;
+      } catch(e) {
+        s.errors.push({ step:`resolveCase(idx=${idx})`, message:e.message, stack:e.stack||'' });
+        G.activeEvent = null;
+      }
+      _sim2bCurrentSource = 'auto_event';
+    }
+  }
+
   // ─── 同期チャンク実行（10日分）───
   function _sim2bDoChunk(chunkSize) {
     const s = _sim2b;
@@ -1665,6 +1733,10 @@ ${s0}${sec1}${sec2}${sec3}${sec4}${sec5}${sec6}${secLog}
       const modal = document.getElementById('event-modal');
       if (modal) modal.style.display = 'none';
       if (G.money < 0) G.money = 0; // cash crisis ブロック回避
+
+      // 案件を自動処理してから日送り
+      _sim2bProcessDailyCases(prevTotal);
+      G.activeEvent = null;
 
       try {
         // eslint-disable-next-line no-eval
@@ -1757,28 +1829,33 @@ ${s0}${sec1}${sec2}${sec3}${sec4}${sec5}${sec6}${secLog}
     };
 
     // 未解決ケーススナップショット（G復元前）
+    const todayTotal = _sim2bTotalDays(G);
+    const midoriHired = !!(G.characters?.midori?.met) ||
+      (Array.isArray(G.staff) && G.staff.some(x=>x.id==='midori'||x.name==='みどり'));
     const simEndCases = (G.cases||[]).map(c => {
-      const reasons = [];
-      if (c.resolved)                                      reasons.push('resolved済み');
-      if (c.expired)                                       reasons.push('expired');
-      if (c.requireStaff && !G.characters?.midori?.met)   reasons.push('requireStaff未充足');
-      if (c.requireProduct)                                reasons.push(`requireProduct:${c.requireProduct}`);
-      if (c.minRep    && (G.rep||0)     < c.minRep)       reasons.push(`minRep未達(${G.rep??0}<${c.minRep})`);
-      if (c.minDay    && s.daysRun      < c.minDay)       reasons.push(`minDay未達(${s.daysRun}<${c.minDay})`);
-      if (c.minMonth  && (G.month||1)   < c.minMonth)     reasons.push(`minMonth未達(${G.month}<${c.minMonth})`);
-      if (!reasons.length) reasons.push('条件待ちまたは未抽選');
+      if (c.resolved) return { eventId: c.id||'(unknown)', title: c.title||'', resolved: true,  expired: false, conditionOnly: !!c.conditionOnly, status: 'resolved', unresolvedReason: 'resolved済み' };
+      if (c.expired)  return { eventId: c.id||'(unknown)', title: c.title||'', resolved: false, expired: true,  conditionOnly: !!c.conditionOnly, status: 'expired',  unresolvedReason: 'expired' };
+      const blocks = [];
+      if (c.requireStaff && !midoriHired)       blocks.push(`スタッフ待ち`);
+      if (c.requireProduct && !(G.products||{})[c.requireProduct]) blocks.push(`商品解放待ち(${c.requireProduct})`);
+      if (c.minRep   && (G.rep||0)   < c.minRep)   blocks.push(`評判待ち(${G.rep??0}<${c.minRep})`);
+      if (c.minDay   && todayTotal    < c.minDay)   blocks.push(`将来日待ち(day${todayTotal}<${c.minDay})`);
+      if (c.minMonth && (G.month||1) < c.minMonth) blocks.push(`将来月待ち(${G.month}月<${c.minMonth}月)`);
+      const status = blocks.length ? '条件待ち' : '処理待ち';
+      const unresolvedReason = blocks.length ? blocks.join(' / ') : '条件充足済みだが未処理（日次上限 or 抽選待ち）';
       return {
-        eventId:      c.id || c.caseId || '(unknown)',
-        title:        c.title || '',
-        resolved:     !!c.resolved,
-        expired:      !!c.expired,
-        conditionOnly:!!c.conditionOnly,
-        requireStaff: c.requireStaff || false,
-        requireProduct: c.requireProduct || null,
-        minRep:       c.minRep ?? null,
-        minDay:       c.minDay ?? null,
-        minMonth:     c.minMonth ?? null,
-        unresolvedReason: reasons.join(' / '),
+        eventId:       c.id || '(unknown)',
+        title:         c.title || '',
+        resolved:      false,
+        expired:       false,
+        conditionOnly: !!c.conditionOnly,
+        requireStaff:  c.requireStaff || false,
+        requireProduct:c.requireProduct || null,
+        minRep:        c.minRep ?? null,
+        minDay:        c.minDay ?? null,
+        minMonth:      c.minMonth ?? null,
+        status,
+        unresolvedReason,
       };
     });
 
@@ -1895,7 +1972,12 @@ ${s0}${sec1}${sec2}${sec3}${sec4}${sec5}${sec6}${secLog}
         declined:       s.stats.declined,
         unresolvable:   s.stats.unresolvable||0,
         followUps:      s.stats.followUps,
-        unresolvedCases: simEndState.casesLength,
+        caseResolved:   s.stats.caseResolved,
+        caseSkipped:    s.stats.caseSkipped,
+        totalCases:     simEndCases.length,
+        casesResolved:  simEndCases.filter(c=>c.resolved).length,
+        casesExpired:   simEndCases.filter(c=>c.expired).length,
+        casesUnresolved: simEndCases.filter(c=>!c.resolved && !c.expired).length,
         startMoney:     s.startState.money,
         endMoney:       simEndState.money,
         startAP:        s.startState.ap,
@@ -1908,6 +1990,7 @@ ${s0}${sec1}${sec2}${sec3}${sec4}${sec5}${sec6}${secLog}
       anomalies:    s.anomalies,
       eventLog:     s.eventLog,
       endCasesSnapshot: simEndCases,
+      caseSkipLog:  s.caseSkipLog,
       safety: {
         gFullMatch, gRestoreOk, compareFields,
         lsDiffs, ssDiffs,
@@ -2002,9 +2085,10 @@ ${s0}${sec1}${sec2}${sec3}${sec4}${sec5}${sec6}${secLog}
       eventLog:     [],
       anomalies:    [],
       oncePerYearSeen: {},
-      stats:        {totalEvents:0,resolved:0,declined:0,followUps:0},
+      stats:        {totalEvents:0,resolved:0,declined:0,followUps:0,caseResolved:0,caseSkipped:0},
       saveCallCount:0,
       externalSendLog:[],
+      caseSkipLog:  [],
       errors:       [],
     };
 
@@ -2063,7 +2147,9 @@ ${s0}${sec1}${sec2}${sec3}${sec4}${sec5}${sec6}${secLog}
   <div class="qa-2b-stat-card"><div class="lbl">見送り / noAP</div><div class="val" style="color:#f0c040">${st.declined}</div></div>
   <div class="qa-2b-stat-card"><div class="lbl">選択不能件数</div><div class="val" style="color:${st.unresolvable>0?'#ff4444':'#888'}">${st.unresolvable}</div></div>
   <div class="qa-2b-stat-card"><div class="lbl">followUp発生数</div><div class="val">${st.followUps}</div></div>
-  <div class="qa-2b-stat-card"><div class="lbl">未解決案件（残）</div><div class="val" style="color:#888">${st.unresolvedCases}</div></div>
+  <div class="qa-2b-stat-card"><div class="lbl">案件処理数</div><div class="val" style="color:#66bb6a">${st.caseResolved}</div></div>
+  <div class="qa-2b-stat-card"><div class="lbl">案件スキップ（AP不足）</div><div class="val" style="color:#f0c040">${st.caseSkipped}</div></div>
+  <div class="qa-2b-stat-card"><div class="lbl">案件 解決/未解決/期限切</div><div class="val" style="font-size:12px">${st.casesResolved} / ${st.casesUnresolved} / ${st.casesExpired}</div></div>
   <div class="qa-2b-stat-card"><div class="lbl">開始現金</div><div class="val" style="font-size:12px">¥${(st.startMoney||0).toLocaleString()}</div></div>
   <div class="qa-2b-stat-card"><div class="lbl">終了現金（シム）</div><div class="val" style="font-size:12px">¥${(ec.money||0).toLocaleString()}</div></div>
   <div class="qa-2b-stat-card"><div class="lbl">開始AP / 終了AP</div><div class="val" style="font-size:12px">${st.startAP} → ${st.endAP}</div></div>
