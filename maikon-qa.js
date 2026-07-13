@@ -542,6 +542,25 @@ table.qa-tbl tr:hover td{background:#0f3460}
 .qa-2a-overall-PASS{background:#0a2a0a;color:#66bb6a;border:2px solid #66bb6a}
 .qa-2a-overall-WARN{background:#2a2a00;color:#f0c040;border:2px solid #f0c040}
 .qa-2a-overall-FAIL{background:#2a0000;color:#ff4444;border:2px solid #ff4444}
+/* Phase 2B styles */
+.qa-2b-divider{border:none;border-top:1px solid #2a4a6a;margin:20px 0}
+.qa-2b-progress-wrap{background:#050f1a;border-radius:4px;height:8px;overflow:hidden;margin:8px 0}
+.qa-2b-progress-bar{height:100%;background:#64b5f6;transition:width .3s;border-radius:4px}
+.qa-2b-result-tabs{display:flex;gap:0;border-bottom:1px solid #2a4a6a;margin-bottom:10px;flex-wrap:wrap}
+.qa-2b-rtab{padding:6px 12px;cursor:pointer;color:#888;font-size:11px;border-bottom:2px solid transparent;user-select:none}
+.qa-2b-rtab:hover{color:#e0e0e0}
+.qa-2b-rtab.active{color:#64b5f6;border-bottom-color:#64b5f6}
+.qa-2b-rpanel{display:none}
+.qa-2b-rpanel.active{display:block}
+.qa-2b-stat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px;margin-bottom:10px}
+.qa-2b-stat-card{background:#0f3460;border:1px solid #2a4a6a;border-radius:5px;padding:7px 10px}
+.qa-2b-stat-card .lbl{font-size:10px;color:#888;margin-bottom:2px}
+.qa-2b-stat-card .val{font-size:16px;font-weight:700;color:#64b5f6}
+.qa-2b-anomaly-row{display:grid;grid-template-columns:40px 50px 110px 1fr;gap:6px;padding:4px 6px;border-bottom:1px solid #0d1f30;font-size:11px;align-items:baseline}
+.qa-2b-anomaly-row:last-child{border-bottom:none}
+.qa-2b-elog-row{display:grid;grid-template-columns:90px 140px 120px 50px 60px 1fr;gap:4px;padding:2px 4px;border-bottom:1px solid #0d1f30;font-size:10px;align-items:baseline;font-family:monospace}
+.qa-2b-elog-row:last-child{border-bottom:none}
+.qa-2b-elog-hdr{color:#64b5f6;font-weight:700;border-bottom:1px solid #2a4a6a;padding-bottom:3px;margin-bottom:4px}
     `;
     document.head.appendChild(style);
   }
@@ -860,31 +879,63 @@ table.qa-tbl tr:hover td{background:#0f3460}
 
   function renderSimTab() {
     const panel = document.getElementById('qa-panel-sim');
-    // 結果がある場合は再描画する
+    // 結果がある場合は再描画する（Phase 2A + Phase 2B を同居）
     panel.innerHTML = `
-<div style="max-width:720px">
+<div style="max-width:760px">
+  <!-- ── Phase 2A ── -->
   <h3 style="color:#64b5f6;margin-top:0">Phase 2A — 1日安全性テスト</h3>
-
-  <div class="qa-notice">
-    <strong>⚙️ テスト内容</strong><br>
-    現在のゲーム状態から <code>advanceDay()</code> を1回だけ実行し、本番Gへの影響がないことを確認します。<br>
-    <strong>saveGame()は呼出を許可しますが書込を遮断</strong>します（advanceDayの通常経路を通すため）。<br>
-    実行後、G・localStorage・主要DOM状態が完全に復元されたことをフィールド単位で確認します。<br><br>
-    <strong>事前チェック：</strong>G代入可否 / 現在日付が安全か / G・localStorage全体スナップショット<br>
-    <strong>事後チェック：</strong>各フィールドの PASS / WARN / FAIL 判定
+  <div class="qa-notice" style="font-size:11px;padding:8px 12px">
+    現在状態から <code>advanceDay()</code> を1回実行。G・localStorage・関数を完全復元して検証します。
   </div>
-
-  <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap">
+  <div style="display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap">
     <button class="qa-btn" id="qa-2a-run" onclick="window._qa2aRun()"
       ${_qa2aRunning ? 'disabled' : ''}>
       ${_qa2aRunning ? '⏳ テスト実行中…' : '▶ 1日テスト実行'}
     </button>
   </div>
+  <div id="qa-2a-result-area">
+    ${_qa2aLastResult ? renderSimResult(_qa2aLastResult) : '<div style="color:#555;font-size:12px">まだ実行していません。</div>'}
+  </div>
 
-  ${_qa2aLastResult ? renderSimResult(_qa2aLastResult) : '<div style="color:#666;font-size:12px">まだテストを実行していません。</div>'}
+  <hr class="qa-2b-divider">
+
+  <!-- ── Phase 2B-1 ── -->
+  <h3 style="color:#64b5f6;margin:0 0 8px">Phase 2B-1 — 現在から30日シミュレーション</h3>
+  <div class="qa-notice" style="font-size:11px;padding:8px 12px">
+    現在のゲーム状態をスナップショット保存し、<strong>バランス型</strong>プレイヤーで30日間自動進行します。<br>
+    10日ごとにUIスレッドを解放。終了後、G・localStorage・全関数を完全復元します。<br>
+    <strong>saveGame / fetch / XHR は遮断</strong>します。本番データへの影響はありません。
+  </div>
+
+  <div style="display:flex;gap:10px;margin-bottom:8px;flex-wrap:wrap;align-items:center">
+    <button class="qa-btn" id="qa-2b-run" onclick="window._qa2bRun()"
+      ${_sim2bRunning ? 'disabled' : ''}>
+      ${_sim2bRunning ? '⏳ 実行中…' : '▶ 現在から30日'}
+    </button>
+    <button class="qa-btn" id="qa-2b-stop" onclick="window._qa2bStop()"
+      ${!_sim2bRunning ? 'disabled' : ''} style="color:#ff8800;border-color:#ff8800">
+      ■ 停止
+    </button>
+    <span style="font-size:11px;color:#666" id="qa-2b-elapsed"></span>
+  </div>
+
+  <div style="margin-bottom:12px">
+    <div style="font-size:10px;color:#666;margin-bottom:3px" id="qa-2b-progress-info">
+      ${_sim2bRunning ? '' : '待機中'}
+    </div>
+    <div class="qa-2b-progress-wrap">
+      <div class="qa-2b-progress-bar" id="qa-2b-progress-bar" style="width:${_sim2bRunning&&_sim2b?Math.round(_sim2b.daysRun/_sim2b.targetDays*100):0}%"></div>
+    </div>
+  </div>
+
+  <div id="qa-2b-result">
+    ${window._qa2bLastResult ? renderPhase2BResult(window._qa2bLastResult) : '<div style="color:#555;font-size:12px">まだ実行していません。</div>'}
+  </div>
 </div>`;
 
-    window._qa2aRun = runPhase2A;
+    window._qa2aRun  = runPhase2A;
+    window._qa2bRun  = runPhase2B30;
+    window._qa2bStop = () => { if (_sim2b) _sim2b.stopRequested = true; };
   }
 
   function _sectionBadge(verdict) {
@@ -1407,6 +1458,723 @@ ${s0}${sec1}${sec2}${sec3}${sec4}${sec5}${sec6}${secLog}
       errors:        r.errors      ?? [],
       log:           r.log         ?? [],
     };
+  }
+
+  // ══════════════════════════════════════════════════════════════
+  // ■ Phase 2B-1: 30日シミュレーション
+  // ══════════════════════════════════════════════════════════════
+
+  let _sim2b = null;
+  let _sim2bRunning = false;
+  let _sim2bLastChoiceReason = '';
+
+  function _sim2bTotalDays(g) {
+    return (g.year - 1) * 360 + (g.month - 1) * 30 + g.day;
+  }
+
+  // ─── バランス型 選択ロジック ───
+  function _balancedChoiceIdx(ev) {
+    const choices = ev.choices || [];
+    if (!choices.length) return 0;
+    const evAP = ev.apCost ?? 0;
+    const DANGER = 200000;
+
+    const xs = choices.map((c, i) => ({
+      idx: i,
+      isNoAP:   !!c.noAP,
+      apCost:   c.noAP ? 0 : (c.apCost ?? evAP),
+      moneyDelta: c.effects?.money ?? 0,
+      isDecline: DECLINE_KW.some(kw => (c.label || '').includes(kw)),
+    }));
+
+    // Rule 1: filter by current AP
+    const canDo = xs.filter(x => x.isNoAP || x.apCost <= G.ap);
+    if (!canDo.length) { _sim2bLastChoiceReason = 'lowAP'; return null; } // anomaly 1
+
+    const active  = canDo.filter(x => !x.isNoAP);
+    const passive = canDo.filter(x =>  x.isNoAP);
+
+    if (active.length > 0) {
+      let pool = active;
+      let reason = 'positiveBalanced';
+      // Rule 2: money danger → avoid large losses
+      if (G.money < DANGER) {
+        const safe = pool.filter(x => x.moneyDelta > -100000);
+        if (safe.length > 0) { pool = safe; reason = 'safeCash'; }
+      }
+      // Rule 4: prefer non-decline, lowest AP cost
+      const nonDec = pool.filter(x => !x.isDecline);
+      const final  = nonDec.length > 0 ? nonDec : pool;
+      final.sort((a, b) => a.apCost - b.apCost);
+      _sim2bLastChoiceReason = reason;
+      return final[0].idx;
+    }
+    // Rule 3/5: only passive available
+    _sim2bLastChoiceReason = 'noAPFallback';
+    return passive[0]?.idx ?? 0;
+  }
+
+  // ─── イベント発火時の異常検出 ───
+  function _sim2bCheckAnomalies(ev, chosenIdx) {
+    const s = _sim2b;
+    const choices = ev.choices || [];
+    const chosen  = chosenIdx != null ? choices[chosenIdx] : null;
+    const date    = `${G.year}年${G.month}月${G.day}日`;
+
+    const add = (num, sev, reason) => {
+      s.anomalies.push({
+        anomalyNum: num, severity: sev, date,
+        eventId:    ev.id    || '',
+        title:      ev.title || '',
+        choiceLabel: chosen?.label || '(なし)',
+        reason,
+        gState: { ap: G.ap, money: G.money, year: G.year, month: G.month, day: G.day },
+      });
+    };
+
+    // 異常1: 全AP選択肢が選べない
+    if (chosenIdx === null) { add(1, 'FAIL', `全選択肢がAP不足（G.ap=${G.ap}）`); return; }
+
+    // 異常3: 満室なのに空室系案件
+    if (VACANCY_SENDER_KW.some(kw => (ev.sender||'').includes(kw)) || ev.requireVacancy) {
+      try {
+        const total = (G.buildings||[]).reduce((s,b)=>s+(b.totalRooms??b.capacity??0),0);
+        const occ   = (G.buildings||[]).reduce((s,b)=>s+(b.occupants??b.residents?.length??0),0);
+        if (total > 0 && occ >= total) add(3,'WARN',`満室(${occ}/${total})で空室案件が発生`);
+      } catch(e) {}
+    }
+
+    // 異常4: スタッフ0でスタッフ前提
+    if (STAFF_SENDER_KW.some(kw=>(ev.sender||'').includes(kw)) || ev.requireStaff) {
+      try {
+        const hasStaff = G.characters?.midori?.met ||
+          (Array.isArray(G.staff) && G.staff.length > 0);
+        if (!hasStaff) add(4,'WARN','スタッフ未採用でスタッフ前提案件が発生');
+      } catch(e) {}
+    }
+
+    // 異常5: みどり未採用でみどり選択肢
+    if (choices.some(c=>(c.label||'').includes('みどり')||c.effects?.hireStaff==='midori')) {
+      try {
+        const midoriOk = G.characters?.midori?.level >= 1 ||
+          (Array.isArray(G.staff) && G.staff.some(x=>x.id==='midori'||x.name==='みどり'));
+        if (!midoriOk) add(5,'WARN','みどり未採用でみどり関連選択肢が表示');
+      } catch(e) {}
+    }
+
+    // 異常6: 季節外
+    if (ev.minMonth || ev.maxMonth) {
+      const m=G.month, mn=ev.minMonth??1, mx=ev.maxMonth??12;
+      if (m<mn||m>mx) add(6,'WARN',`季節外発火: ${m}月（想定 ${mn}〜${mx}月）`);
+    } else {
+      for (const rule of SEASONAL_RULES) {
+        if ((ev.title||'').includes(rule.kw)) {
+          const m=G.month;
+          if (m<rule.minM||m>rule.maxM) add(6,'WARN',`季節外: "${rule.kw}"が${m}月（想定:${rule.label}）`);
+          break;
+        }
+      }
+    }
+
+    // 異常7: oncePerYear重複
+    if (ev.oncePerYear && ev.id) {
+      if (!s.oncePerYearSeen[ev.id]) s.oncePerYearSeen[ev.id] = [];
+      if (s.oncePerYearSeen[ev.id].includes(G.year)) {
+        add(7,'FAIL',`oncePerYear案件が${G.year}年に複数回発生`);
+      } else {
+        s.oncePerYearSeen[ev.id].push(G.year);
+      }
+    }
+
+    // 異常8: NaN（イベント処理前）
+    const nans = ['ap','money','fatigue'].filter(f=>isNaN(G[f]));
+    if (nans.length) add(8,'FAIL',`NaN検出: ${nans.join(', ')}`);
+  }
+
+  // ─── _autoResolveEvent の上書き実装（バランス型）───
+  function _sim2bAutoResolve() {
+    const s = _sim2b;
+    const ev = G.activeEvent;
+    if (!ev) return;
+
+    const chosenIdx = _balancedChoiceIdx(ev);
+    const selectionReason = _sim2bLastChoiceReason;
+    _sim2bCheckAnomalies(ev, chosenIdx);
+
+    const choices = ev.choices || [];
+    const chosen  = chosenIdx != null ? choices[chosenIdx] : null;
+    const isNoAP  = chosen?.noAP ?? false;
+    const hasFollowUp = !!(chosen?.followUp || chosen?.followUpId || chosen?.followup);
+    const isDecline   = DECLINE_KW.some(kw=>(chosen?.label||'').includes(kw));
+
+    const apBefore    = G.ap;
+    const moneyBefore = G.money;
+
+    const logEntry = {
+      date:        `${G.year}年${G.month}月${G.day}日`,
+      eventId:     ev.id    || '(unknown)',
+      title:       ev.title || '',
+      category:    ev.category || '',
+      choiceIdx:   chosenIdx ?? -1,
+      choiceLabel: chosen?.label || '(選択不能)',
+      selectionReason,
+      apBefore,    apAfter: null, apSpent: null,
+      moneyBefore, moneyAfter: null, moneyDelta: null,
+      isNoAP,
+      isDecline,
+      hasFollowUp,
+      type: chosenIdx===null ? 'unresolvable' : isNoAP ? 'passive' : 'active',
+    };
+    s.eventLog.push(logEntry);
+
+    s.stats.totalEvents++;
+    if (chosenIdx === null) {
+      s.stats.unresolvable = (s.stats.unresolvable||0) + 1;
+      logEntry.apAfter    = G.ap;    logEntry.apSpent    = 0;
+      logEntry.moneyAfter = G.money; logEntry.moneyDelta = 0;
+      // Fall back so the event doesn't deadlock
+      if (s.origAutoResolve) s.origAutoResolve();
+      return;
+    }
+    if (isNoAP || isDecline) s.stats.declined++;
+    else                     s.stats.resolved++;
+    if (hasFollowUp) s.stats.followUps++;
+
+    chooseEvent(chosenIdx, false);
+
+    // 実消費を before/after 差分で記録
+    logEntry.apAfter    = G.ap;
+    logEntry.apSpent    = apBefore - G.ap;
+    logEntry.moneyAfter = G.money;
+    logEntry.moneyDelta = G.money - moneyBefore;
+  }
+
+  // ─── 同期チャンク実行（10日分）───
+  function _sim2bDoChunk(chunkSize) {
+    const s = _sim2b;
+    const end = Math.min(s.daysRun + chunkSize, s.targetDays);
+
+    while (s.daysRun < end && !s.stopRequested) {
+      const prevTotal = _sim2bTotalDays(G);
+      const prevDate  = { year:G.year, month:G.month, day:G.day };
+
+      // クリア（_autoTestChunk 準拠）
+      G.isAdvancingDay  = false;
+      G.processingMonthly = false;
+      G.activeEvent     = null;
+      const modal = document.getElementById('event-modal');
+      if (modal) modal.style.display = 'none';
+      if (G.money < 0) G.money = 0; // cash crisis ブロック回避
+
+      try {
+        // eslint-disable-next-line no-eval
+        eval('advanceDay()');
+      } catch(e) {
+        s.errors.push({ step:`advanceDay(day${s.daysRun+1})`, message:e.message, stack:e.stack||'' });
+      }
+
+      // 残留ロッククリア
+      if (G.processingMonthly||G.isAdvancingDay) {
+        G.processingMonthly=false; G.isAdvancingDay=false; G.activeEvent=null;
+      }
+
+      const afterTotal = _sim2bTotalDays(G);
+      const dayDiff    = afterTotal - prevTotal;
+      s.apHistory.push(isNaN(G.ap) ? null : G.ap);
+
+      // 異常8: NaN（日送り後）
+      const nans = ['ap','money','fatigue'].filter(f=>isNaN(G[f]));
+      if (nans.length) {
+        s.anomalies.push({ anomalyNum:8, severity:'FAIL',
+          date:`${G.year}年${G.month}月${G.day}日`, eventId:'(day tick)', title:'日送り後NaN',
+          reason:`NaN: ${nans.join(', ')}`, gState:{ap:G.ap,money:G.money,fatigue:G.fatigue} });
+      }
+
+      // 異常9: 日付進行
+      if (dayDiff !== 1) {
+        s.anomalies.push({ anomalyNum:9, severity:dayDiff===0?'FAIL':'WARN',
+          date:`${prevDate.year}年${prevDate.month}月${prevDate.day}日`,
+          eventId:'(day tick)', title:'日付進行異常',
+          reason:`${dayDiff}日進んだ（期待値:1）`, gState:{ap:G.ap,money:G.money} });
+      }
+
+      // 月境界: 月次データ記録
+      if (G.month !== prevDate.month || G.year !== prevDate.year) {
+        s.monthlyData.push({
+          year:  prevDate.year, month: prevDate.month,
+          startMoney: s.monthStart.money,
+          endMoney:   G.money,
+          netChange:  G.money - s.monthStart.money,
+        });
+        s.monthStart = { money:G.money, month:G.month, year:G.year };
+      }
+
+      s.daysRun++;
+      s.currentDate = { year:G.year, month:G.month, day:G.day };
+    }
+  }
+
+  // ─── 進捗 UI 更新 ───
+  function _sim2bUpdateProgress() {
+    const s = _sim2b;
+    if (!s) return;
+    const pct     = Math.round(s.daysRun / s.targetDays * 100);
+    const elapsed = ((Date.now() - s.startTime) / 1000).toFixed(1);
+    const bar  = document.getElementById('qa-2b-progress-bar');
+    const info = document.getElementById('qa-2b-progress-info');
+    const elEl = document.getElementById('qa-2b-elapsed');
+    if (bar)  bar.style.width  = pct + '%';
+    if (info) info.textContent = `${s.daysRun} / ${s.targetDays} 日（${pct}%）`;
+    if (elEl) elEl.textContent = `経過 ${elapsed}s`;
+  }
+
+  // ─── チャンク非同期スケジューラ ───
+  function _sim2bScheduleNext() {
+    const s = _sim2b;
+    if (!s) return;
+    if (s.daysRun >= s.targetDays || s.stopRequested) {
+      _sim2bFinish();
+      return;
+    }
+    setTimeout(() => {
+      _sim2bDoChunk(10);
+      _sim2bUpdateProgress();
+      _sim2bScheduleNext();
+    }, 0);
+  }
+
+  // ─── 復元・結果集計 ───
+  function _sim2bFinish() {
+    const s = _sim2b;
+    if (!s) return;
+
+    // シミュレーション終了時の状態を復元前に記録
+    const simEndState = {
+      year:G.year, month:G.month, day:G.day,
+      money:G.money, ap:G.ap, fatigue:G.fatigue,
+      casesLength: (G.cases||[]).length,
+      pendingFollowUps: (G.pendingFollowUps||[]).length,
+    };
+
+    // 未解決ケーススナップショット（G復元前）
+    const simEndCases = (G.cases||[]).map(c => {
+      const reasons = [];
+      if (c.resolved)                                      reasons.push('resolved済み');
+      if (c.expired)                                       reasons.push('expired');
+      if (c.requireStaff && !G.characters?.midori?.met)   reasons.push('requireStaff未充足');
+      if (c.requireProduct)                                reasons.push(`requireProduct:${c.requireProduct}`);
+      if (c.minRep    && (G.rep||0)     < c.minRep)       reasons.push(`minRep未達(${G.rep??0}<${c.minRep})`);
+      if (c.minDay    && s.daysRun      < c.minDay)       reasons.push(`minDay未達(${s.daysRun}<${c.minDay})`);
+      if (c.minMonth  && (G.month||1)   < c.minMonth)     reasons.push(`minMonth未達(${G.month}<${c.minMonth})`);
+      if (!reasons.length) reasons.push('条件待ちまたは未抽選');
+      return {
+        eventId:      c.id || c.caseId || '(unknown)',
+        title:        c.title || '',
+        resolved:     !!c.resolved,
+        expired:      !!c.expired,
+        conditionOnly:!!c.conditionOnly,
+        requireStaff: c.requireStaff || false,
+        requireProduct: c.requireProduct || null,
+        minRep:       c.minRep ?? null,
+        minDay:       c.minDay ?? null,
+        minMonth:     c.minMonth ?? null,
+        unresolvedReason: reasons.join(' / '),
+      };
+    });
+
+    // 月次データ：最終月を記録（境界を跨がない場合のみ）
+    // year+month 両方で重複チェック（月のみだと年越しで誤検出）
+    {
+      const last = s.monthlyData[s.monthlyData.length-1];
+      const alreadyRecorded = last &&
+        last.year === s.monthStart.year && last.month === s.monthStart.month;
+      if (!alreadyRecorded) {
+        s.monthlyData.push({
+          year:s.monthStart.year, month:s.monthStart.month,
+          startMoney:s.monthStart.money, endMoney:G.money,
+          netChange:G.money - s.monthStart.money,
+        });
+      }
+    }
+
+    // ── 関数復元 ──
+    const unrestoredFunctions = [];
+    const restore = (name, fn) => {
+      try { fn(); } catch(e) { unrestoredFunctions.push(name); }
+    };
+    restore('window._autoResolveEvent', () => { window._autoResolveEvent = s.origAutoResolve; });
+    restore('window.saveGame',          () => { window.saveGame = s.origSaveGame; });
+    restore('window.fetch',             () => { window.fetch   = s.origFetch; });
+    restore('XMLHttpRequest',           () => {
+      XMLHttpRequest.prototype.send = s.origXHRSend;
+      XMLHttpRequest.prototype.open = s.origXHROpen;
+    });
+
+    // ── G 復元 ──
+    let gRestoreOk = false;
+    try {
+      // eslint-disable-next-line no-eval
+      eval('G = JSON.parse(s.gBeforeStr)');
+      gRestoreOk = true;
+    } catch(e) {
+      s.errors.push({ step:'G復元', message:e.message, stack:e.stack||'' });
+    }
+
+    // ── localStorage diff ──
+    const captureLS = () => {
+      const snap={};
+      try { for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k&&!k.startsWith('_qa'))snap[k]=localStorage.getItem(k);} } catch(e){}
+      return snap;
+    };
+    const captureSS = () => {
+      const snap={};
+      try { for(let i=0;i<sessionStorage.length;i++){const k=sessionStorage.key(i);if(k&&!k.startsWith('_qa'))snap[k]=sessionStorage.getItem(k);} } catch(e){}
+      return snap;
+    };
+    const lsAfter  = captureLS();
+    const ssAfter  = captureSS();
+    const lsDiffs  = Object.keys({...s.lsBefore,...lsAfter})
+      .filter(k=>k!==s.saveKey&&!k.startsWith('_qa')&&s.lsBefore[k]!==lsAfter[k])
+      .map(k=>({key:k}));
+    const ssDiffs  = Object.keys({...s.ssBefore,...ssAfter})
+      .filter(k=>!k.startsWith('_qa')&&s.ssBefore[k]!==ssAfter[k])
+      .map(k=>({key:k}));
+
+    // ── G フィールド比較 ──
+    // eslint-disable-next-line no-eval
+    const gAfter   = eval('G');
+    const gBefore  = JSON.parse(s.gBeforeStr);
+    const gFullMatch = JSON.stringify(gBefore)===JSON.stringify(gAfter);
+    const safetyFields = [
+      {name:'year',   get:g=>g.year},
+      {name:'month',  get:g=>g.month},
+      {name:'day',    get:g=>g.day},
+      {name:'money',  get:g=>g.money},
+      {name:'ap',     get:g=>g.ap},
+      {name:'fatigue',get:g=>g.fatigue},
+      {name:'cases.length',get:g=>(g.cases||[]).length},
+      {name:'autoTesting', get:g=>g.autoTesting},
+      {name:'gameEnded',   get:g=>g.gameEnded},
+      {name:'freeMode',    get:g=>g.freeMode},
+    ];
+    const compareFields = safetyFields.map(f=>{
+      let before,after,result;
+      try{before=f.get(gBefore);after=f.get(gAfter);result=JSON.stringify(before)===JSON.stringify(after)?'PASS':'FAIL';}
+      catch(e2){before='(err)';after='(err)';result='WARN';}
+      return {name:f.name,before,after,result};
+    });
+
+    // ── 判定 ──
+    const safetyFail = compareFields.some(f=>f.result==='FAIL') ||
+      lsDiffs.length>0 || ssDiffs.length>0 ||
+      unrestoredFunctions.length>0 || s.externalSendLog.length>0;
+    const safetyOverall = safetyFail?'FAIL':
+      compareFields.some(f=>f.result==='WARN')?'WARN':'PASS';
+
+    const failA = s.anomalies.filter(a=>a.severity==='FAIL');
+    const warnA = s.anomalies.filter(a=>a.severity==='WARN');
+    const simOverall = s.errors.length>0||failA.length>0?'FAIL':
+      warnA.length>0?'WARN':'PASS';
+
+    const overall = (simOverall==='FAIL'||safetyOverall==='FAIL')?'FAIL':
+      (simOverall==='WARN'||safetyOverall==='WARN')?'WARN':'PASS';
+
+    const apValid = s.apHistory.filter(x=>x!=null);
+    const result = {
+      executedAt:   new Date().toLocaleString('ja-JP',{hour12:false}),
+      elapsed:      ((Date.now()-s.startTime)/1000).toFixed(1)+'s',
+      overall, simOverall, safetyOverall,
+      stopped:      s.stopRequested,
+      daysCompleted: s.daysRun,
+      targetDays:   s.targetDays,
+      startState:   s.startState,
+      endDateSimulated: simEndState,
+      stats: {
+        totalEvents:    s.stats.totalEvents,
+        resolved:       s.stats.resolved,
+        declined:       s.stats.declined,
+        unresolvable:   s.stats.unresolvable||0,
+        followUps:      s.stats.followUps,
+        unresolvedCases: simEndState.casesLength,
+        startMoney:     s.startState.money,
+        endMoney:       simEndState.money,
+        startAP:        s.startState.ap,
+        endAP:          simEndState.ap,
+        avgAP:          apValid.length ? Math.round(apValid.reduce((a,b)=>a+b,0)/apValid.length) : null,
+        minAP:          apValid.length ? Math.min(...apValid) : null,
+        endFatigue:     simEndState.fatigue,
+      },
+      monthlyData:  s.monthlyData,
+      anomalies:    s.anomalies,
+      eventLog:     s.eventLog,
+      endCasesSnapshot: simEndCases,
+      safety: {
+        gFullMatch, gRestoreOk, compareFields,
+        lsDiffs, ssDiffs,
+        saveCallCount:    s.saveCallCount,
+        externalSendLog:  s.externalSendLog,
+        unrestoredFunctions,
+      },
+      errors: s.errors,
+    };
+
+    _sim2bRunning = false;
+    _sim2b        = null;
+
+    // ── UI 更新 ──
+    const runBtn  = document.getElementById('qa-2b-run');
+    const stopBtn = document.getElementById('qa-2b-stop');
+    if (runBtn)  { runBtn.disabled=false; runBtn.textContent='▶ 現在から30日'; }
+    if (stopBtn) stopBtn.disabled = true;
+    const bar  = document.getElementById('qa-2b-progress-bar');
+    const info = document.getElementById('qa-2b-progress-info');
+    if (bar)  bar.style.width = '100%';
+    if (info) info.textContent = `完了: ${result.daysCompleted} 日`;
+
+    window._qa2bLastResult  = result;
+    window._qa2bCopyJSON    = () => copyText(JSON.stringify(result, null, 2));
+
+    const resultEl = document.getElementById('qa-2b-result');
+    if (resultEl) resultEl.innerHTML = renderPhase2BResult(result);
+  }
+
+  // ─── エントリポイント ───
+  function runPhase2B30() {
+    if (_sim2bRunning || _qa2aRunning) return;
+
+    // G 代入可否チェック（Phase 2A と同じ）
+    try {
+      // eslint-disable-next-line no-eval
+      const orig = eval('G');
+      const mk   = JSON.parse(JSON.stringify(orig)); mk.__qb=true;
+      // eslint-disable-next-line no-eval
+      eval('G = mk');
+      // eslint-disable-next-line no-eval
+      const ok = eval('G.__qb') === true;
+      // eslint-disable-next-line no-eval
+      eval('G = orig');
+      if (!ok) { alert('G代入テスト失敗。シミュレーションを中止します。'); return; }
+    } catch(e) { alert('G代入テスト例外: '+e.message); return; }
+
+    _sim2bRunning = true;
+
+    // ── 初期スナップショット ──
+    // eslint-disable-next-line no-eval
+    const currentG   = eval('G');
+    const gBeforeStr = JSON.stringify(currentG);
+
+    const captureLS = () => {
+      const snap={};
+      try{for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k&&!k.startsWith('_qa'))snap[k]=localStorage.getItem(k);}}catch(e){}
+      return snap;
+    };
+    const captureSS = () => {
+      const snap={};
+      try{for(let i=0;i<sessionStorage.length;i++){const k=sessionStorage.key(i);if(k&&!k.startsWith('_qa'))snap[k]=sessionStorage.getItem(k);}}catch(e){}
+      return snap;
+    };
+
+    const lsBefore = captureLS();
+    const ssBefore = captureSS();
+    const saveKey  = (typeof getSaveKey==='function') ? getSaveKey() : null;
+
+    _sim2b = {
+      targetDays:  30,
+      daysRun:     0,
+      stopRequested: false,
+      startTime:   Date.now(),
+      gBeforeStr,
+      lsBefore, ssBefore, saveKey,
+      origSaveGame:    window.saveGame,
+      origAutoResolve: window._autoResolveEvent,
+      origFetch:       window.fetch,
+      origXHRSend:     XMLHttpRequest.prototype.send,
+      origXHROpen:     XMLHttpRequest.prototype.open,
+      startState: {
+        year:currentG.year, month:currentG.month, day:currentG.day,
+        money:currentG.money, ap:currentG.ap, fatigue:currentG.fatigue,
+        casesLength:(currentG.cases||[]).length,
+      },
+      currentDate:  {year:currentG.year,month:currentG.month,day:currentG.day},
+      monthStart:   {money:currentG.money,month:currentG.month,year:currentG.year},
+      monthlyData:  [],
+      apHistory:    [],
+      eventLog:     [],
+      anomalies:    [],
+      oncePerYearSeen: {},
+      stats:        {totalEvents:0,resolved:0,declined:0,followUps:0},
+      saveCallCount:0,
+      externalSendLog:[],
+      errors:       [],
+    };
+
+    // ── スパイ設置 ──
+    window.saveGame = () => { _sim2b && _sim2b.saveCallCount++; };
+
+    window._autoResolveEvent = _sim2bAutoResolve;
+
+    window.fetch = (...args) => {
+      if (_sim2b) _sim2b.externalSendLog.push(`fetch:${String(args[0]).slice(0,60)}`);
+      return Promise.resolve(new Response('{}',{status:200}));
+    };
+    const origOpen = _sim2b.origXHROpen;
+    XMLHttpRequest.prototype.open = function(m,url,...rest){
+      this._qaUrl=url; return origOpen.call(this,m,url,...rest);
+    };
+    XMLHttpRequest.prototype.send = function(){
+      if (_sim2b) _sim2b.externalSendLog.push(`XHR:${this._qaUrl||'?'}`);
+    };
+
+    // ── G セットアップ ──
+    // eslint-disable-next-line no-eval
+    eval('G.autoTesting = true');
+    // eslint-disable-next-line no-eval
+    eval('G.tut = G.tut || {}; if(!G.tut.phase||G.tut.phase==="opening") G.tut.phase="done";');
+
+    // ── UI 更新 ──
+    const runBtn  = document.getElementById('qa-2b-run');
+    const stopBtn = document.getElementById('qa-2b-stop');
+    if (runBtn)  { runBtn.disabled=true; runBtn.textContent='⏳ 実行中…'; }
+    if (stopBtn) stopBtn.disabled = false;
+    const resultEl = document.getElementById('qa-2b-result');
+    if (resultEl) resultEl.innerHTML = '<div style="color:#64b5f6;font-size:12px">⏳ シミュレーション実行中…</div>';
+
+    _sim2bUpdateProgress();
+    setTimeout(() => { _sim2bDoChunk(10); _sim2bUpdateProgress(); _sim2bScheduleNext(); }, 0);
+  }
+
+  // ─── Phase 2B 結果描画 ───
+  function renderPhase2BResult(r) {
+    const oc = r.overall==='PASS'?'#66bb6a':r.overall==='WARN'?'#f0c040':'#ff4444';
+    const sc = r.startState, ec = r.endDateSimulated;
+
+    // ── 結果サブタブ ──
+    const tabId = 'qa2b-rt-' + Math.random().toString(36).slice(2);
+
+    // 統計HTML
+    const st = r.stats;
+    const statsHTML = `
+<div class="qa-2b-stat-grid">
+  <div class="qa-2b-stat-card"><div class="lbl">開始日</div><div class="val" style="font-size:13px">${sc.year}年${sc.month}月${sc.day}日</div></div>
+  <div class="qa-2b-stat-card"><div class="lbl">終了日（シム内）</div><div class="val" style="font-size:13px">${ec.year}年${ec.month}月${ec.day}日</div></div>
+  <div class="qa-2b-stat-card"><div class="lbl">実行日数</div><div class="val">${r.daysCompleted}</div></div>
+  <div class="qa-2b-stat-card"><div class="lbl">総案件発火数</div><div class="val">${st.totalEvents}</div></div>
+  <div class="qa-2b-stat-card"><div class="lbl">解決数（active）</div><div class="val" style="color:#66bb6a">${st.resolved}</div></div>
+  <div class="qa-2b-stat-card"><div class="lbl">見送り / noAP</div><div class="val" style="color:#f0c040">${st.declined}</div></div>
+  <div class="qa-2b-stat-card"><div class="lbl">選択不能件数</div><div class="val" style="color:${st.unresolvable>0?'#ff4444':'#888'}">${st.unresolvable}</div></div>
+  <div class="qa-2b-stat-card"><div class="lbl">followUp発生数</div><div class="val">${st.followUps}</div></div>
+  <div class="qa-2b-stat-card"><div class="lbl">未解決案件（残）</div><div class="val" style="color:#888">${st.unresolvedCases}</div></div>
+  <div class="qa-2b-stat-card"><div class="lbl">開始現金</div><div class="val" style="font-size:12px">¥${(st.startMoney||0).toLocaleString()}</div></div>
+  <div class="qa-2b-stat-card"><div class="lbl">終了現金（シム）</div><div class="val" style="font-size:12px">¥${(ec.money||0).toLocaleString()}</div></div>
+  <div class="qa-2b-stat-card"><div class="lbl">開始AP / 終了AP</div><div class="val" style="font-size:12px">${st.startAP} → ${st.endAP}</div></div>
+  <div class="qa-2b-stat-card"><div class="lbl">平均AP</div><div class="val">${st.avgAP??'—'}</div></div>
+  <div class="qa-2b-stat-card"><div class="lbl">最低AP</div><div class="val" style="color:${(st.minAP??100)<20?'#ff4444':'#64b5f6'}">${st.minAP??'—'}</div></div>
+  <div class="qa-2b-stat-card"><div class="lbl">疲労（シム終了時）</div><div class="val">${ec.fatigue}</div></div>
+</div>`;
+
+    // 月別売上HTML
+    const monthHTML = r.monthlyData.length > 0 ? `
+<div style="font-size:11px;color:#888;margin-bottom:6px">※ 月末資金変動（収入 - 支出の概算）</div>
+${r.monthlyData.map(m=>`
+<div class="qa-2a-field-row">
+  <span class="qa-2a-fname">${m.year}年${m.month}月</span>
+  <span class="qa-2a-fbadge qa-2a-fbadge-${m.netChange>=0?'PASS':'WARN'}">${m.netChange>=0?'+':''}</span>
+  <span class="qa-2a-fval">¥${(m.netChange).toLocaleString()} （${(m.startMoney).toLocaleString()} → ${(m.endMoney).toLocaleString()}）</span>
+</div>`).join('')}
+` : '<div style="color:#888;font-size:11px">月次データなし（30日未満の場合）</div>';
+
+    // 異常HTML
+    const anomHTML = r.anomalies.length === 0
+      ? '<div style="color:#66bb6a;font-size:12px">異常なし ✓</div>'
+      : r.anomalies.map(a=>`
+<div class="qa-2b-anomaly-row">
+  <span style="color:${a.severity==='FAIL'?'#ff4444':'#f0c040'};font-weight:700">${a.severity}</span>
+  <span style="color:#888">異常${a.anomalyNum}</span>
+  <span style="color:#aaa;font-family:monospace;font-size:10px">${esc(a.date)}</span>
+  <span><span style="color:#88c0f0">${esc(a.eventId)}</span> ${esc(a.reason)}</span>
+</div>`).join('');
+
+    // 発火ログHTML（最大300件表示）
+    const logSlice = r.eventLog.slice(0, 300);
+    const elogHTML = logSlice.length === 0
+      ? '<div style="color:#888;font-size:11px">イベントなし</div>'
+      : `<div class="qa-2b-elog-row qa-2b-elog-hdr">
+  <span>日付</span><span>eventId</span><span>choiceLabel</span><span>AP</span><span>種別</span><span>title</span>
+</div>` + logSlice.map(e=>`
+<div class="qa-2b-elog-row">
+  <span style="color:#666">${esc(e.date)}</span>
+  <span style="color:#88c0f0">${esc(e.eventId)}</span>
+  <span>${esc(e.choiceLabel.slice(0,16))}</span>
+  <span style="color:#f0c040">${e.isNoAP?'—':e.apCost}</span>
+  <span style="color:${e.type==='active'?'#66bb6a':e.type==='passive'?'#888':'#ff4444'}">${e.type}</span>
+  <span style="color:#777">${esc(e.title.slice(0,24))}</span>
+</div>`).join('')
+    + (r.eventLog.length>300?`<div style="color:#666;font-size:10px">…他 ${r.eventLog.length-300} 件（JSONコピーで全件確認）</div>`:'');
+
+    // 安全性HTML
+    const sf = r.safety;
+    const safeHTML = `
+<div style="margin-bottom:8px">
+  <span style="font-size:11px;color:#888">G JSON 全体一致: </span>
+  <span style="color:${sf.gFullMatch?'#66bb6a':'#f0c040'}">${sf.gFullMatch?'✓ 完全一致':'△ 差異あり'}</span>
+  &nbsp;|&nbsp; saveGame呼出: <strong>${sf.saveCallCount}</strong>回
+  &nbsp;|&nbsp; localStorage変更: <strong style="color:${sf.lsDiffs.length?'#ff4444':'#66bb6a'}">${sf.lsDiffs.length}件</strong>
+  &nbsp;|&nbsp; sessionStorage変更: <strong style="color:${sf.ssDiffs.length?'#f0c040':'#66bb6a'}">${sf.ssDiffs.length}件</strong>
+  &nbsp;|&nbsp; 外部送信: <strong style="color:${sf.externalSendLog.length?'#ff4444':'#66bb6a'}">${sf.externalSendLog.length}件</strong>
+  &nbsp;|&nbsp; 復元失敗関数: <strong style="color:${sf.unrestoredFunctions.length?'#ff4444':'#66bb6a'}">${sf.unrestoredFunctions.length}件</strong>
+</div>
+${sf.compareFields.map(f=>_fieldRow(f.name, f.result, f.before, f.result!=='PASS'?f.after:undefined)).join('')}
+${sf.lsDiffs.length>0?`<div style="color:#ff4444;margin-top:6px">localStorage変化キー: ${sf.lsDiffs.map(d=>esc(d.key)).join(', ')}</div>`:''}
+${sf.unrestoredFunctions.length>0?`<div style="color:#ff4444;margin-top:4px">復元失敗: ${sf.unrestoredFunctions.map(esc).join(', ')}</div>`:''}`;
+
+    // エラーHTML
+    const errHTML = r.errors.length === 0
+      ? '<div style="color:#66bb6a;font-size:12px">例外なし ✓</div>'
+      : r.errors.map(e=>`<div style="color:#ff4444;margin-bottom:6px;font-size:11px">
+  <strong>[${esc(e.step)}]</strong> ${esc(e.message)}<br>
+  <span style="color:#555;font-size:10px">${esc((e.stack||'').slice(0,300))}</span>
+</div>`).join('');
+
+    const tabs = [
+      {id:'stats',  label:'基本統計', html:statsHTML},
+      {id:'monthly',label:'月別資金', html:monthHTML},
+      {id:'anom',   label:`異常一覧(${r.anomalies.length})`, html:`<div style="font-family:monospace">${anomHTML}</div>`},
+      {id:'elog',   label:`発火ログ(${r.eventLog.length})`, html:`<div class="qa-2a-log" style="max-height:360px;overflow-y:auto">${elogHTML}</div>`},
+      {id:'safety', label:`安全性(${r.safetyOverall})`, html:safeHTML},
+      {id:'errors', label:`エラー(${r.errors.length})`, html:errHTML},
+    ];
+
+    return `
+<div style="background:#0a1525;border:1px solid #1e3a5a;border-radius:6px;padding:12px;margin-bottom:8px">
+  <div style="display:flex;align-items:center;gap:14px;margin-bottom:10px;flex-wrap:wrap">
+    <span class="qa-2a-overall qa-2a-overall-${r.overall}">${r.overall}</span>
+    <div>
+      <div style="font-size:11px;color:#888">${esc(r.executedAt)} &nbsp; 経過 ${esc(r.elapsed)}</div>
+      <div style="font-size:11px;color:#888">
+        Sim: <span style="color:${r.simOverall==='PASS'?'#66bb6a':r.simOverall==='WARN'?'#f0c040':'#ff4444'}">${r.simOverall}</span>
+        &nbsp;|&nbsp; Safety: <span style="color:${r.safetyOverall==='PASS'?'#66bb6a':r.safetyOverall==='WARN'?'#f0c040':'#ff4444'}">${r.safetyOverall}</span>
+        &nbsp;|&nbsp; 実行日数: ${r.daysCompleted}/${r.targetDays}
+        ${r.stopped?'&nbsp;<span style="color:#f0c040">（停止）</span>':''}
+      </div>
+    </div>
+  </div>
+
+  <div class="qa-2b-result-tabs" id="${tabId}-tabs">
+    ${tabs.map((t,i)=>`<div class="qa-2b-rtab${i===0?' active':''}" onclick="
+      document.querySelectorAll('#${tabId}-tabs .qa-2b-rtab').forEach(x=>x.classList.remove('active'));
+      this.classList.add('active');
+      document.querySelectorAll('#${tabId}-panels .qa-2b-rpanel').forEach(x=>x.classList.remove('active'));
+      document.getElementById('${tabId}-${t.id}').classList.add('active');
+    ">${esc(t.label)}</div>`).join('')}
+  </div>
+  <div id="${tabId}-panels">
+    ${tabs.map((t,i)=>`<div class="qa-2b-rpanel${i===0?' active':''}" id="${tabId}-${t.id}" style="padding-top:8px">${t.html}</div>`).join('')}
+  </div>
+
+  <div style="margin-top:10px">
+    <button class="qa-btn" onclick="window._qa2bCopyJSON()">JSON コピー（全データ）</button>
+  </div>
+</div>`;
   }
 
   // ── エクスポート ──
