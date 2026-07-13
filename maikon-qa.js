@@ -507,7 +507,7 @@ table.qa-tbl tr:hover td{background:#0f3460}
 .sev-badge-P3{background:#1a2a3a;color:#88aacc;border:1px solid #88aacc}
 /* Phase 2A styles */
 .qa-2a-log{font-family:monospace;font-size:11px;background:#050f1a;border-radius:6px;
-  padding:10px;margin:8px 0;max-height:400px;overflow-y:auto;line-height:1.8}
+  padding:10px;margin:8px 0;max-height:300px;overflow-y:auto;line-height:1.8}
 .qa-2a-PASS{color:#66bb6a}
 .qa-2a-WARN{color:#f0c040}
 .qa-2a-FAIL{color:#ff4444;font-weight:700}
@@ -515,6 +515,33 @@ table.qa-tbl tr:hover td{background:#0f3460}
 .qa-pool-diag{font-family:monospace;font-size:11px;line-height:1.8;margin:6px 0}
 .qa-pool-ok{color:#66bb6a}
 .qa-pool-ng{color:#ff4444;font-weight:700}
+/* Phase 2A result sections */
+.qa-2a-section{background:#0a1525;border:1px solid #1e3a5a;border-radius:6px;
+  margin-bottom:10px;overflow:hidden}
+.qa-2a-section-hdr{background:#0f3060;padding:7px 12px;font-size:12px;
+  font-weight:700;color:#88c0f0;display:flex;align-items:center;gap:8px;
+  cursor:pointer;user-select:none}
+.qa-2a-section-hdr .qa-2a-hdr-badge{font-size:11px;padding:1px 7px;
+  border-radius:3px;font-weight:700;margin-left:auto}
+.qa-2a-section-body{padding:10px 12px;font-size:11px;line-height:1.9}
+.qa-2a-section-body.collapsed{display:none}
+.qa-2a-field-row{display:grid;grid-template-columns:180px 80px 1fr;gap:6px;
+  padding:2px 0;border-bottom:1px solid #0d1f30;align-items:baseline}
+.qa-2a-field-row:last-child{border-bottom:none}
+.qa-2a-fname{color:#aaa;font-family:monospace}
+.qa-2a-fbadge{font-size:10px;font-weight:700;padding:1px 5px;border-radius:3px;
+  text-align:center}
+.qa-2a-fbadge-PASS{background:#1a3a1a;color:#66bb6a}
+.qa-2a-fbadge-WARN{background:#3a3000;color:#f0c040}
+.qa-2a-fbadge-FAIL{background:#3a0a0a;color:#ff4444}
+.qa-2a-fval{font-family:monospace;color:#888;font-size:10px;word-break:break-all}
+.qa-2a-pool-row{display:grid;grid-template-columns:190px 60px 60px 60px 1fr;
+  gap:6px;padding:2px 0;border-bottom:1px solid #0d1f30;align-items:baseline}
+.qa-2a-pool-row:last-child{border-bottom:none}
+.qa-2a-overall{font-size:22px;font-weight:900;padding:4px 18px;border-radius:6px}
+.qa-2a-overall-PASS{background:#0a2a0a;color:#66bb6a;border:2px solid #66bb6a}
+.qa-2a-overall-WARN{background:#2a2a00;color:#f0c040;border:2px solid #f0c040}
+.qa-2a-overall-FAIL{background:#2a0000;color:#ff4444;border:2px solid #ff4444}
     `;
     document.head.appendChild(style);
   }
@@ -860,45 +887,177 @@ table.qa-tbl tr:hover td{background:#0f3460}
     window._qa2aRun = runPhase2A;
   }
 
+  function _sectionBadge(verdict) {
+    const cls = verdict === 'PASS' ? 'qa-2a-PASS' : verdict === 'WARN' ? 'qa-2a-WARN' : 'qa-2a-FAIL';
+    const bg  = verdict === 'PASS' ? '#1a3a1a'   : verdict === 'WARN' ? '#3a3000'    : '#3a0a0a';
+    return `<span class="qa-2a-hdr-badge ${cls}" style="background:${bg}">${verdict}</span>`;
+  }
+
+  function _section(title, verdict, bodyHTML, collapsed) {
+    const id = 'qa2a-s-' + Math.random().toString(36).slice(2);
+    const initCls = collapsed ? 'collapsed' : '';
+    return `
+<div class="qa-2a-section">
+  <div class="qa-2a-section-hdr" onclick="document.getElementById('${id}').classList.toggle('collapsed')">
+    ${esc(title)} ${_sectionBadge(verdict)}
+  </div>
+  <div class="qa-2a-section-body ${initCls}" id="${id}">${bodyHTML}</div>
+</div>`;
+  }
+
+  function _fieldRow(name, verdict, valBefore, valAfter) {
+    const showVals = verdict !== 'PASS';
+    const afterStr = valAfter !== undefined ? String(valAfter) : '';
+    return `
+<div class="qa-2a-field-row">
+  <span class="qa-2a-fname">${esc(name)}</span>
+  <span class="qa-2a-fbadge qa-2a-fbadge-${verdict}">${verdict}</span>
+  <span class="qa-2a-fval">${showVals
+    ? `before: ${esc(String(valBefore))} → after: ${esc(afterStr)}`
+    : esc(String(valBefore))}</span>
+</div>`;
+  }
+
   function renderSimResult(r) {
-    const logHTML = r.log.map(entry => {
+    const overall = r.overall;
+
+    // ── セクション 0：総合判定 ──
+    const s0 = `
+<div style="display:flex;align-items:center;gap:16px;margin-bottom:12px;flex-wrap:wrap">
+  <span class="qa-2a-overall qa-2a-overall-${overall}">${overall}</span>
+  <div>
+    <div style="font-size:11px;color:#888">実行日時: ${esc(r.executedAt)}</div>
+    ${r.modeNote ? `<div style="font-size:11px;color:#f0c040;margin-top:2px">⚠️ ${esc(r.modeNote)}</div>` : ''}
+    ${r.abortedAt ? `<div style="font-size:11px;color:#ff4444;margin-top:2px">中断ステップ: ${esc(r.abortedAt)}</div>` : ''}
+  </div>
+</div>`;
+
+    // ── セクション 1：Phase1 プール ──
+    let s1verdict = 'PASS';
+    const p1 = r.phase1 || {};
+    const poolsHTML = (p1.pools || []).map(p => {
+      const pv = (p.found && p.isArray) ? 'PASS' : 'FAIL';
+      if (pv === 'FAIL') s1verdict = 'FAIL';
+      return `
+<div class="qa-2a-pool-row">
+  <span class="qa-2a-fname">${esc(p.name)}</span>
+  <span class="qa-2a-fbadge qa-2a-fbadge-${pv}">${pv}</span>
+  <span class="qa-2a-fval" style="color:${p.found?'#66bb6a':'#ff4444'}">${p.found?'found':'missing'}</span>
+  <span class="qa-2a-fval" style="color:${p.isArray?'#66bb6a':'#ff4444'}">${p.isArray?'Array':'×'}</span>
+  <span class="qa-2a-fval">${p.count != null ? p.count+'件' : (p.reason ? esc(p.reason) : '—')}</span>
+</div>`;
+    }).join('');
+    const s1body = `
+<div style="font-size:10px;color:#666;margin-bottom:6px">プール名 / 状態 / found / isArray / 件数</div>
+${poolsHTML}
+<div style="margin-top:8px;font-size:11px;color:#aaa">
+  合計件数: <strong style="color:#64b5f6">${p1.totalCases ?? '—'}</strong>件 &nbsp;|&nbsp;
+  P0警告: <strong style="color:${(p1.p0Count||0)>0?'#ff4444':'#66bb6a'}">${p1.p0Count ?? 0}件</strong>
+</div>`;
+    const sec1 = _section('【Phase 1】プールアクセス', s1verdict, s1body, s1verdict === 'PASS');
+
+    // ── セクション 2：G差し替え ──
+    const gr = r.gReplace || {};
+    const s2verdict = gr.result || 'FAIL';
+    const s2body = `
+${_fieldRow('marker.__qaMarker === true', gr.markerApplied ? 'PASS' : 'FAIL',
+    gr.markerApplied ? 'true（マーカー反映済み）' : 'false（マーカー未反映）')}
+${_fieldRow('G !== originalRef（別参照）', gr.markerDiffers ? 'PASS' : 'FAIL',
+    gr.markerDiffers ? '別参照（代入成功）' : '同一参照（代入不能）')}
+${_fieldRow('即時復元（marker → original）', gr.restored ? 'PASS' : 'FAIL',
+    gr.restored ? '成功' : '失敗')}
+${gr.error ? `<div style="color:#ff4444;margin-top:4px;font-size:10px">例外: ${esc(gr.error)}</div>` : ''}`;
+    const sec2 = _section('【G差し替え】marker test', s2verdict, s2body, s2verdict === 'PASS');
+
+    // ── セクション 3：1日進行 ──
+    const da = r.dayAdvance || {};
+    const s3verdict = da.result || 'FAIL';
+    const bef = da.before || {};
+    const dur = da.during || {};
+    const s3body = `
+${_fieldRow('テスト前日付', 'PASS', `${bef.year}年${bef.month}月${bef.day}日 (totalDays ${bef.totalDays})`)}
+${_fieldRow('advanceDay後日付（復元前）', da.result, `${dur.year}年${dur.month}月${dur.day}日 (totalDays ${dur.totalDays})`,
+    `差分: +${(dur.totalDays||0)-(bef.totalDays||0)}日`)}
+${_fieldRow('1日だけ進んだか', da.dayDiff === 1 ? 'PASS' : (da.dayDiff > 1 ? 'FAIL' : 'WARN'),
+    da.dayDiff != null ? `${da.dayDiff}日進行` : '計測不能')}
+${_fieldRow('ロッククリア（実行前）', da.lockCleared ? 'PASS' : 'WARN',
+    da.lockCleared ? '完了' : '一部未クリア')}
+${_fieldRow('ロック残留（実行後）', da.lockRemainedAfter ? 'WARN' : 'PASS',
+    da.lockRemainedAfter ? '残留あり（強制クリア済み）' : 'なし')}
+${_fieldRow('G.autoTesting 設定', da.autoTestingSet ? 'PASS' : 'WARN',
+    da.autoTestingSet ? 'true に設定済み' : '未設定')}
+${da.note ? `<div style="color:#f0c040;font-size:10px;margin-top:4px">${esc(da.note)}</div>` : ''}`;
+    const sec3 = _section('【1日進行】advanceDay() 動作確認', s3verdict, s3body, false);
+
+    // ── セクション 4：復元確認 ──
+    const cf = r.compareFields || [];
+    const s4verdict = cf.some(f => f.result === 'FAIL') ? 'FAIL'
+      : cf.some(f => f.result === 'WARN') ? 'WARN' : (cf.length ? 'PASS' : 'FAIL');
+    const s4body = cf.length
+      ? cf.map(f => _fieldRow(f.name, f.result, f.before, f.result !== 'PASS' ? f.after : undefined)).join('')
+        + (r.gFullMatch != null
+          ? `<div style="margin-top:8px;font-size:10px;color:${r.gFullMatch?'#66bb6a':'#f0c040'}">
+              G JSON 全体一致: ${r.gFullMatch ? '✓ 完全一致' : '△ 差異あり（個別フィールドの判定を参照）'}</div>` : '')
+      : '<div style="color:#888">データなし（テスト未到達）</div>';
+    const sec4 = _section('【復元確認】G フィールド比較', s4verdict, s4body, false);
+
+    // ── セクション 5：副作用 ──
+    const se = r.sideEffects || {};
+    const lsDiffs   = se.lsDiffs   || [];
+    const ssDiffs   = se.ssDiffs   || [];
+    const extSends  = se.externalSendCount || 0;
+    const unrestored= se.unrestoredFunctions || [];
+    const s5verdict = (lsDiffs.length > 0 || extSends > 0 || unrestored.length > 0) ? 'FAIL'
+      : (ssDiffs.length > 0) ? 'WARN' : 'PASS';
+    const lsHTML = lsDiffs.length > 0
+      ? lsDiffs.map(d => `<div style="color:#ff8800;font-size:10px;margin-left:8px">key: ${esc(d.key)}</div>`).join('')
+      : '<span style="color:#66bb6a">なし</span>';
+    const ssHTML = ssDiffs.length > 0
+      ? ssDiffs.map(d => `<div style="color:#f0c040;font-size:10px;margin-left:8px">key: ${esc(d.key)}</div>`).join('')
+      : '<span style="color:#66bb6a">なし</span>';
+    const extHTML = se.externalSendLog && se.externalSendLog.length > 0
+      ? se.externalSendLog.map(l => `<div style="color:#ff4444;font-size:10px;margin-left:8px">${esc(l)}</div>`).join('')
+      : '';
+    const unreHTML = unrestored.map(fn => `<div style="color:#ff4444;font-size:10px;margin-left:8px">${esc(fn)}</div>`).join('');
+    const s5body = `
+${_fieldRow('saveGame() 呼出回数', 'PASS', `${se.saveGameCallCount ?? 0}回（すべて書込遮断済み）`)}
+${_fieldRow('localStorage 変更件数', lsDiffs.length > 0 ? 'FAIL' : 'PASS', `${lsDiffs.length}件`)}
+${lsDiffs.length > 0 ? lsHTML : ''}
+${_fieldRow('sessionStorage 変更件数', ssDiffs.length > 0 ? 'WARN' : 'PASS', `${ssDiffs.length}件`)}
+${ssDiffs.length > 0 ? ssHTML : ''}
+${_fieldRow('外部送信呼出回数 (fetch/XHR)', extSends > 0 ? 'FAIL' : 'PASS',
+    `${extSends}回${extSends > 0 ? '（遮断済み）' : ''}`)}
+${extHTML}
+${_fieldRow('復元できなかった関数', unrestored.length > 0 ? 'FAIL' : 'PASS',
+    unrestored.length > 0 ? `${unrestored.length}件` : 'なし')}
+${unreHTML}`;
+    const sec5 = _section('【副作用】外部影響チェック', s5verdict, s5body, s5verdict === 'PASS');
+
+    // ── セクション 6：エラー ──
+    const errs = r.errors || [];
+    const s6verdict = errs.length > 0 ? 'FAIL' : 'PASS';
+    const s6body = errs.length > 0
+      ? errs.map(e => `
+<div style="margin-bottom:8px;border-left:3px solid #ff4444;padding-left:8px">
+  <div style="color:#ff8800;font-size:11px">ステップ: ${esc(e.step)}</div>
+  <div style="color:#ff4444;font-size:11px">${esc(e.message)}</div>
+  ${e.stack ? `<div style="color:#666;font-size:10px;margin-top:4px;white-space:pre-wrap">${esc(e.stack.slice(0, 500))}</div>` : ''}
+</div>`).join('')
+      : '<div style="color:#66bb6a">例外なし</div>';
+    const sec6 = _section('【エラー】例外・中断', s6verdict, s6body, s6verdict === 'PASS');
+
+    // ── 実行ログ（折りたたみ）──
+    const logHTML = (r.log || []).map(entry => {
       const cls = `qa-2a-${entry.status}`;
-      const detail = entry.detail ? `<br><span style="color:#666;font-size:10px;padding-left:16px">${esc(String(entry.detail))}</span>` : '';
+      const detail = entry.detail ? `<br><span style="color:#555;font-size:10px;padding-left:16px">${esc(String(entry.detail)).slice(0,200)}</span>` : '';
       return `<div><span class="${cls}">[${entry.status}]</span> ${esc(entry.msg)}${detail}</div>`;
     }).join('');
-
-    const compareHTML = r.compareFields ? r.compareFields.map(f => {
-      const cls = f.result === 'PASS' ? 'qa-2a-PASS' : f.result === 'WARN' ? 'qa-2a-WARN' : 'qa-2a-FAIL';
-      return `<div><span class="${cls}">[${f.result}]</span> <span style="color:#aaa">${esc(f.name)}</span>${
-        f.result !== 'PASS' ? `<br><span style="font-size:10px;color:#888;padding-left:16px">before: ${esc(String(f.before))} / after: ${esc(String(f.after))}</span>` : ''
-      }</div>`;
-    }).join('') : '';
-
-    const overallCls = r.overall === 'PASS' ? 'qa-2a-PASS' : r.overall === 'WARN' ? 'qa-2a-WARN' : 'qa-2a-FAIL';
+    const secLog = _section('実行ログ（詳細）', overall, `<div class="qa-2a-log">${logHTML}</div>`, true);
 
     return `
-<div style="background:#0a1f3a;border:1px solid #2a4a6a;border-radius:6px;padding:12px;margin-bottom:12px">
-  <div style="font-size:13px;font-weight:700;margin-bottom:8px">
-    総合判定：<span class="${overallCls}">${r.overall}</span>
-    <span style="font-size:11px;color:#666;font-weight:400;margin-left:12px">${r.executedAt}</span>
-  </div>
-  ${r.modeNote ? `<div style="font-size:11px;color:#f0c040;margin-bottom:8px">⚠️ ${esc(r.modeNote)}</div>` : ''}
-
-  <div style="font-size:11px;color:#888;margin-bottom:6px">実行ログ</div>
-  <div class="qa-2a-log">${logHTML}</div>
-
-  ${compareHTML ? `
-  <div style="font-size:11px;color:#888;margin:10px 0 6px">復元後フィールド比較</div>
-  <div class="qa-2a-log">${compareHTML}</div>` : ''}
-
-  ${r.lsDiffs && r.lsDiffs.length > 0 ? `
-  <div style="font-size:11px;color:#ff8800;margin-top:8px">⚠️ localStorage 変化あり（${r.lsDiffs.length}件）</div>
-  <div class="qa-2a-log">${r.lsDiffs.map(d => `<div class="qa-2a-WARN">key: ${esc(d.key)}</div>`).join('')}</div>
-  ` : ''}
-
-  <div style="margin-top:10px;display:flex;gap:8px">
-    <button class="qa-btn" onclick="window._qa2aCopyJSON()">JSON コピー</button>
-  </div>
+${s0}${sec1}${sec2}${sec3}${sec4}${sec5}${sec6}${secLog}
+<div style="margin-top:10px;display:flex;gap:8px">
+  <button class="qa-btn" onclick="window._qa2aCopyJSON()">JSON コピー</button>
 </div>`;
   }
 
@@ -907,283 +1066,347 @@ table.qa-tbl tr:hover td{background:#0f3460}
     if (_qa2aRunning) return;
     _qa2aRunning = true;
 
-    // ボタンを無効化して再描画
     const runBtn = document.getElementById('qa-2a-run');
     if (runBtn) { runBtn.disabled = true; runBtn.textContent = '⏳ テスト実行中…'; }
 
-    const log = [];
+    // ── 結果オブジェクト初期値 ──
+    const log       = [];
+    const errors    = [];
+    let overall     = 'PASS';
+    let modeNote    = null;
+    let abortedAt   = null;
+
     const addLog = (status, msg, detail) => {
       log.push({ status, msg, detail: detail ?? null });
       console.log(`[QA2A][${status}] ${msg}`, detail ?? '');
     };
+    const addErr = (step, e) => {
+      errors.push({ step, message: e?.message ?? String(e), stack: e?.stack ?? '' });
+      addLog('FAIL', `[${step}] 例外: ${e?.message ?? e}`, e?.stack ?? '');
+      overall = 'FAIL';
+    };
+    const warnOverall = () => { if (overall === 'PASS') overall = 'WARN'; };
 
-    let compareFields = null;
-    let lsDiffs = [];
-    let overall  = 'PASS';
-    let modeNote = null;
-
-    // ─── 状態スナップショット取得 ───
-    function captureLS() {
+    // ── ストレージスナップショットヘルパー ──
+    const captureStorage = (storage, label) => {
       const snap = {};
       try {
-        for (let i = 0; i < localStorage.length; i++) {
-          const k = localStorage.key(i);
-          if (k) snap[k] = localStorage.getItem(k);
+        for (let i = 0; i < storage.length; i++) {
+          const k = storage.key(i);
+          if (k && !k.startsWith('_qa')) snap[k] = storage.getItem(k);
         }
-      } catch(e) { /* サンドボックス等でアクセス不可の場合は空 */ }
+      } catch(e) { addLog('WARN', `${label} 取得失敗: ${e.message}`); }
       return snap;
-    }
-
-    function captureSS() {
-      const snap = {};
-      try {
-        for (let i = 0; i < sessionStorage.length; i++) {
-          const k = sessionStorage.key(i);
-          if (k && !k.startsWith('_qa')) snap[k] = sessionStorage.getItem(k);
-        }
-      } catch(e) {}
-      return snap;
-    }
-
-    function compareLsSnaps(before, after, saveKey) {
+    };
+    const diffStorage = (before, after, excludeKey) => {
       const diffs = [];
-      const allKeys = new Set([...Object.keys(before), ...Object.keys(after)]);
-      for (const k of allKeys) {
-        if (k === saveKey) continue;            // セーブキー：saveGame spyで書込遮断済みのはず
-        if (k.startsWith('_qa')) continue;      // QA専用キーは除外
+      for (const k of new Set([...Object.keys(before), ...Object.keys(after)])) {
+        if (k === excludeKey || k.startsWith('_qa')) continue;
         if (before[k] !== after[k]) diffs.push({ key: k, before: before[k], after: after[k] });
       }
       return diffs;
-    }
+    };
 
-    // ─── G差し替え可否テスト ───
-    let gReplaceOk = false;
+    // ════════════════════════════════════════
+    // ステップ1: Phase1 プール診断
+    // ════════════════════════════════════════
+    const d = buildQAData();
+    const POOL_NAMES = ['CASE_POOL','DOMAIN_CASES','DAILY_EVENTS','MONTHLY_CHALLENGES','ISSUE_CARDS'];
+    const phase1 = {
+      pools: POOL_NAMES.map(name => {
+        const info = d.poolDiagnostics[name] || { found: false, isArray: false, count: 0, reason: '不明' };
+        return { name, found: info.found, isArray: info.isArray, count: info.count ?? 0, reason: info.reason };
+      }),
+      totalCases: d.cases.length,
+      p0Count: d.warnings.filter(w => w.severity === 'P0').length,
+    };
+    addLog('INFO', `Phase1 プール: 合計 ${phase1.totalCases}件 / P0警告 ${phase1.p0Count}件`);
+
+    // ════════════════════════════════════════
+    // ステップ2: G差し替えテスト
+    // ════════════════════════════════════════
+    const gReplace = { result: 'FAIL', markerApplied: false, markerDiffers: false, restored: false, error: null };
     try {
       // eslint-disable-next-line no-eval
-      const originalRef = eval('G');
+      const origRef = eval('G');
       // eslint-disable-next-line no-eval
-      const marker = (typeof structuredClone !== 'undefined') ? structuredClone(eval('G')) : JSON.parse(JSON.stringify(eval('G')));
+      const marker = JSON.parse(JSON.stringify(eval('G')));
       marker.__qaMarker = true;
-
       // eslint-disable-next-line no-eval
       eval('G = marker');
       // eslint-disable-next-line no-eval
-      gReplaceOk = (typeof eval('G.__qaMarker') !== 'undefined') && eval('G.__qaMarker') === true && eval('G') !== originalRef;
+      gReplace.markerApplied = eval('G.__qaMarker') === true;
       // eslint-disable-next-line no-eval
-      eval('G = originalRef'); // 即復元
-
-      if (gReplaceOk) {
-        addLog('PASS', 'G代入可否テスト: 成功（同一レルムの let G 代入が機能する）');
-      } else {
-        addLog('FAIL', 'G代入可否テスト: マーカーが反映されなかった');
-        overall = 'FAIL';
-      }
+      gReplace.markerDiffers = eval('G') !== origRef;
+      // eslint-disable-next-line no-eval
+      eval('G = origRef');
+      gReplace.restored = true;
+      gReplace.result   = (gReplace.markerApplied && gReplace.markerDiffers) ? 'PASS' : 'FAIL';
     } catch(e) {
-      addLog('FAIL', 'G代入可否テスト: 例外発生', e.message);
-      overall = 'FAIL';
+      gReplace.error = e.message;
+      addErr('G差し替えテスト', e);
     }
+    if (gReplace.result !== 'PASS') overall = 'FAIL';
+    addLog(gReplace.result, `G差し替えテスト: ${gReplace.result}（markerApplied:${gReplace.markerApplied} differs:${gReplace.markerDiffers}）`);
 
-    if (!gReplaceOk) {
-      addLog('FAIL', 'G代入が機能しないためテストを中止します。advanceDay()は呼びません。');
+    if (gReplace.result !== 'PASS') {
+      abortedAt = 'G差し替えテスト';
+      addLog('FAIL', 'G代入不能のためテストを中断します。advanceDay() は呼びません。');
       _qa2aRunning = false;
-      _qa2aLastResult = { log, overall: 'FAIL', executedAt: new Date().toLocaleString('ja-JP', { hour12:false }), compareFields: null, lsDiffs: [] };
+      _qa2aLastResult = _buildResult({ log, errors, overall: 'FAIL', modeNote, abortedAt, phase1, gReplace,
+        dayAdvance: null, compareFields: null, gFullMatch: null, sideEffects: null });
       window._qa2aCopyJSON = () => copyText(JSON.stringify(_qa2aLastResult, null, 2));
       renderSimTab();
       return;
     }
 
-    // ─── 現在のG取得 ───
+    // ════════════════════════════════════════
+    // ステップ3: 事前スナップショット
+    // ════════════════════════════════════════
     // eslint-disable-next-line no-eval
-    const currentG = eval('G');
+    const currentG   = eval('G');
     const gBeforeStr = JSON.stringify(currentG);
+    const lsBefore   = captureStorage(localStorage,  'localStorage');
+    const ssBefore   = captureStorage(sessionStorage, 'sessionStorage');
+    const saveKey    = (typeof getSaveKey === 'function') ? getSaveKey() : null;
+    addLog('INFO', `スナップショット完了: LS ${Object.keys(lsBefore).length}件 / SS ${Object.keys(ssBefore).length}件`);
 
-    // ─── 現在日チェック（第一章終了付近かどうか）───
+    // 日付チェック
     const isNearStoryEnd = !currentG.freeMode && !currentG.gameEnded
       && currentG.year === 1 && currentG.month === 3 && currentG.day >= 28;
     if (isNearStoryEnd) {
-      addLog('WARN',
-        `現在日 ${currentG.year}年${currentG.month}月${currentG.day}日 は第一章終了日付付近です。`,
-        'advanceDay()がshowMainStoryEndingを呼び出してreturnする可能性があります。G.freeMode=trueでテストします。');
-      modeNote = `通常状態と異なる条件でテストしました（G.freeMode=true を一時適用）。復元後は元の freeMode=${currentG.freeMode} に戻ります。`;
-      overall = overall === 'PASS' ? 'WARN' : overall;
-    } else {
-      addLog('INFO', `現在日: ${currentG.year}年${currentG.month}月${currentG.day}日（安全な日付）`);
+      modeNote = `現在日 ${currentG.year}年${currentG.month}月${currentG.day}日 は第一章終了付近。G.freeMode=true を一時適用してテストします。`;
+      addLog('WARN', modeNote);
+      warnOverall();
     }
 
-    // ─── saveGame spy の準備 ───
-    // saveGame は function宣言 → window.saveGame として置換可能
-    const origSaveGame = window.saveGame;
-    const saveCallLog  = [];
-
-    // ─── localStorage スナップショット ───
-    const lsBefore = captureLS();
-    const ssBefore = captureSS();
-    const saveKey  = (typeof getSaveKey === 'function') ? getSaveKey() : null;
-    addLog('INFO', `localStorage スナップショット取得完了（${Object.keys(lsBefore).length}件）`);
-    if (saveKey) addLog('INFO', `セーブキー: ${saveKey}`);
-
-    // ─── DOM状態スナップショット ───
+    // DOM前状態
     const domBefore = {
-      title:          document.title,
-      url:            location.href,
-      eventModalDisp: (document.getElementById('event-modal') || {}).style?.display ?? 'N/A',
-      tab:            currentG.tab || 'N/A',
+      title:           document.title,
+      eventModalStyle: (document.getElementById('event-modal') || {}).style?.display ?? 'N/A',
+    };
+
+    // 外部送信スパイ
+    const origFetch = window.fetch;
+    const origXHRSend = XMLHttpRequest.prototype.send;
+    const extSendLog  = [];
+    const restoreFns  = []; // 復元すべき関数リスト: [{name, restore}]
+
+    // saveGame spy
+    const origSaveGame  = window.saveGame;
+    const saveCallLog   = [];
+
+    // dayAdvanceデータ
+    const dayAdvance = {
+      before:  { year: currentG.year, month: currentG.month, day: currentG.day,
+                 totalDays: (currentG.year-1)*360 + (currentG.month-1)*30 + currentG.day },
+      during:  null,
+      dayDiff: null,
+      result:  'FAIL',
+      lockCleared: false,
+      lockRemainedAfter: false,
+      autoTestingSet: false,
+      note: null,
     };
 
     try {
-      // ─── saveGame spy 設置 ───
-      window.saveGame = () => {
-        saveCallLog.push(new Date().toISOString());
-        // 書込は行わない（no-op）
-      };
-      addLog('INFO', 'saveGame spy を設置しました（呼出許可・書込遮断）');
+      // ── saveGame spy 設置 ──
+      window.saveGame = () => { saveCallLog.push(new Date().toISOString()); };
+      restoreFns.push({ name: 'window.saveGame', restore: () => { window.saveGame = origSaveGame; } });
 
-      // ─── G をシミュレーション用にセットアップ ───
+      // ── 外部送信 spy 設置 ──
+      window.fetch = (...args) => {
+        extSendLog.push(`fetch: ${String(args[0]).slice(0, 80)}`);
+        addLog('WARN', `fetch() 遮断: ${String(args[0]).slice(0, 80)}`);
+        return Promise.resolve(new Response('{}', { status: 200 }));
+      };
+      restoreFns.push({ name: 'window.fetch', restore: () => { window.fetch = origFetch; } });
+
+      XMLHttpRequest.prototype.send = function(...args) {
+        extSendLog.push(`XHR: ${this._qaUrl || '(url不明)'}`);
+        addLog('WARN', `XHR.send() 遮断`);
+      };
+      const origOpen = XMLHttpRequest.prototype.open;
+      XMLHttpRequest.prototype.open = function(m, url, ...rest) {
+        this._qaUrl = url;
+        return origOpen.call(this, m, url, ...rest);
+      };
+      restoreFns.push({ name: 'XMLHttpRequest.prototype.send', restore: () => {
+        XMLHttpRequest.prototype.send = origXHRSend;
+        XMLHttpRequest.prototype.open = origOpen;
+      }});
+
+      // ── G セットアップ ──
       // eslint-disable-next-line no-eval
       eval('G.autoTesting = true');
+      dayAdvance.autoTestingSet = true;
       if (isNearStoryEnd) {
         // eslint-disable-next-line no-eval
         eval('G.freeMode = true');
       }
 
-      // ─── advanceDay前のロッククリア ───
+      // ── ロッククリア ──
       // eslint-disable-next-line no-eval
       eval('G.isAdvancingDay = false; G.processingMonthly = false; G.activeEvent = null;');
       const modal = document.getElementById('event-modal');
       if (modal) modal.style.display = 'none';
-      addLog('INFO', 'advanceDay ブロッカーをクリアしました（isAdvancingDay / processingMonthly / activeEvent / modal）');
+      dayAdvance.lockCleared = true;
+      addLog('INFO', 'ブロッカークリア完了（isAdvancingDay / processingMonthly / activeEvent / event-modal）');
 
-      // ─── 1日進行 ───
-      addLog('INFO', `advanceDay() 呼出開始（現在: ${currentG.year}年${currentG.month}月${currentG.day}日）`);
+      // ── 1日進行 ──
+      addLog('INFO', `advanceDay() 呼出: ${dayAdvance.before.year}年${dayAdvance.before.month}月${dayAdvance.before.day}日`);
       // eslint-disable-next-line no-eval
       eval('advanceDay()');
 
-      // ─── 月末チェーンが残っている場合の強制クリア ───
+      // ── 進行後日付キャプチャ（復元前）──
+      // eslint-disable-next-line no-eval
+      const gDuring = eval('G');
+      dayAdvance.during = {
+        year: gDuring.year, month: gDuring.month, day: gDuring.day,
+        totalDays: (gDuring.year-1)*360 + (gDuring.month-1)*30 + gDuring.day,
+      };
+      dayAdvance.dayDiff = dayAdvance.during.totalDays - dayAdvance.before.totalDays;
+      addLog('INFO', `advanceDay()後: ${gDuring.year}年${gDuring.month}月${gDuring.day}日（+${dayAdvance.dayDiff}日）`);
+
+      // ── ロック残留チェック ──
       // eslint-disable-next-line no-eval
       const stillLocked = eval('G.processingMonthly || G.isAdvancingDay');
       if (stillLocked) {
-        addLog('WARN', 'advanceDay() 後もロックが残っています。強制クリアします。',
-          '月末処理チェーンが autoTesting フローで未完了の可能性があります。');
+        dayAdvance.lockRemainedAfter = true;
+        dayAdvance.note = '月末チェーンが未完了。強制クリアしました。';
+        addLog('WARN', 'advanceDay() 後もロック残留 → 強制クリア');
         // eslint-disable-next-line no-eval
         eval('G.processingMonthly = false; G.isAdvancingDay = false; G.activeEvent = null;');
-        overall = overall === 'PASS' ? 'WARN' : overall;
+        warnOverall();
       } else {
-        addLog('PASS', 'advanceDay() 完了。ロック正常解除を確認。');
+        addLog('PASS', 'ロック正常解除を確認');
       }
 
-      addLog('INFO', `saveGame spy 呼出回数: ${saveCallLog.length}回（書込はすべて遮断済み）`);
+      dayAdvance.result = dayAdvance.dayDiff === 1 ? 'PASS'
+        : dayAdvance.dayDiff > 1  ? 'FAIL'
+        : 'WARN'; // 0 or null
+      if (dayAdvance.result === 'FAIL') overall = 'FAIL';
+      if (dayAdvance.result === 'WARN') warnOverall();
 
-    } catch (e) {
-      addLog('FAIL', `advanceDay() 実行中に例外発生: ${e.message}`, e.stack);
-      overall = 'FAIL';
-
+    } catch(e) {
+      addErr('advanceDay実行', e);
+      dayAdvance.result = 'FAIL';
     } finally {
-      // ─── 必ず復元 ───
-      try {
-        window.saveGame = origSaveGame;
-        addLog('INFO', 'saveGame を元の関数に復元しました');
+      // ════════════════════════════════════════
+      // 復元フェーズ（例外時も必ず実行）
+      // ════════════════════════════════════════
+      const unrestoredFunctions = [];
+      for (const fn of restoreFns) {
+        try { fn.restore(); addLog('INFO', `復元: ${fn.name}`); }
+        catch(e) { unrestoredFunctions.push(fn.name); addErr(`復元[${fn.name}]`, e); }
+      }
 
-        // G を復元
+      // G 復元
+      let gRestoreOk = false;
+      try {
         // eslint-disable-next-line no-eval
         eval('G = JSON.parse(gBeforeStr)');
-        addLog('INFO', 'G を復元しました（G = JSON.parse(gBeforeStr)）');
+        gRestoreOk = true;
+        addLog('INFO', 'G 復元完了');
+      } catch(e) { addErr('G復元', e); }
 
-        // ─── localStorage 比較 ───
-        const lsAfter  = captureLS();
-        lsDiffs = compareLsSnaps(lsBefore, lsAfter, saveKey);
-        if (lsDiffs.length === 0) {
-          addLog('PASS', 'localStorage: 変化なし（セーブデータ未変更を確認）');
-        } else {
-          addLog('FAIL', `localStorage: ${lsDiffs.length}件 の変化を検出`, lsDiffs.map(d=>d.key).join(', '));
-          overall = 'FAIL';
-        }
+      // ── localStorage 比較 ──
+      const lsAfter = captureStorage(localStorage, 'localStorage（復元後）');
+      const lsDiffs  = diffStorage(lsBefore, lsAfter, saveKey);
+      if (lsDiffs.length === 0) addLog('PASS', 'localStorage: 変化なし');
+      else { addLog('FAIL', `localStorage: ${lsDiffs.length}件変化`, lsDiffs.map(d=>d.key).join(', ')); overall = 'FAIL'; }
 
-        // ─── G フィールド比較 ───
-        // eslint-disable-next-line no-eval
-        const gAfter = eval('G');
-        const gAfterStr = JSON.stringify(gAfter);
-        const gFullMatch = gBeforeStr === gAfterStr;
-
-        const fields = [
-          { name: 'year',               get: g => g.year },
-          { name: 'month',              get: g => g.month },
-          { name: 'day',                get: g => g.day },
-          { name: 'totalDays (計算値)', get: g => (g.year-1)*360+(g.month-1)*30+g.day },
-          { name: 'money',              get: g => g.money },
-          { name: 'ap',                 get: g => g.ap },
-          { name: 'apMax',              get: g => g.apMax },
-          { name: 'fatigue',            get: g => g.fatigue },
-          { name: 'cases.length',       get: g => (g.cases||[]).length },
-          { name: 'pendingFollowUps.length', get: g => (g.pendingFollowUps||[]).length },
-          { name: 'activeEvent',        get: g => g.activeEvent === null ? 'null' : String(g.activeEvent) },
-          { name: 'gameEnded',          get: g => g.gameEnded },
-          { name: 'freeMode',           get: g => g.freeMode },
-          { name: 'autoTesting',        get: g => g.autoTesting },
-          { name: 'stores[0].customers',get: g => (g.stores&&g.stores[0]) ? g.stores[0].customers : 'N/A' },
-          { name: 'buildings.length',   get: g => (g.buildings||[]).length },
-        ];
-
-        const gBefore = JSON.parse(gBeforeStr);
-        compareFields = fields.map(f => {
-          let before, after, result;
-          try {
-            before = f.get(gBefore);
-            after  = f.get(gAfter);
-            result = JSON.stringify(before) === JSON.stringify(after) ? 'PASS' : 'FAIL';
-          } catch(e2) {
-            before = '(error)'; after = '(error)'; result = 'WARN';
-          }
-          if (result === 'FAIL') overall = 'FAIL';
-          return { name: f.name, before, after, result };
-        });
-
-        // autoTesting が false に戻っているか確認
-        const autoTestingCleared = compareFields.find(f => f.name === 'autoTesting');
-        if (autoTestingCleared && autoTestingCleared.result !== 'PASS') {
-          addLog('WARN', 'G.autoTesting が元の値に戻っていません');
-        }
-
-        if (gFullMatch) {
-          addLog('PASS', 'G全体 JSON: 完全一致（復元成功）');
-        } else {
-          const failedFields = compareFields.filter(f => f.result !== 'PASS');
-          addLog(failedFields.length > 0 ? 'FAIL' : 'WARN',
-            `G全体 JSON: 不一致 / 個別チェック失敗: ${failedFields.map(f=>f.name).join(', ') || 'なし（微差あり）'}`);
-          if (failedFields.length > 0) overall = 'FAIL';
-        }
-
-        // DOM復元確認
-        const domAfter = {
-          title: document.title,
-          eventModalDisp: (document.getElementById('event-modal') || {}).style?.display ?? 'N/A',
-        };
-        if (domBefore.title !== domAfter.title) {
-          addLog('WARN', `document.title が変化: "${domBefore.title}" → "${domAfter.title}"`);
-          overall = overall === 'PASS' ? 'WARN' : overall;
-        } else {
-          addLog('PASS', 'document.title: 変化なし');
-        }
-
-        addLog(overall === 'PASS' ? 'PASS' : overall,
-          `=== Phase 2A テスト完了 / 総合判定: ${overall} ===`);
-
-      } catch (restoreErr) {
-        addLog('FAIL', `復元処理で例外発生: ${restoreErr.message}`, restoreErr.stack);
-        overall = 'FAIL';
+      // ── sessionStorage 比較 ──
+      const ssAfter = captureStorage(sessionStorage, 'sessionStorage（復元後）');
+      const ssDiffs  = diffStorage(ssBefore, ssAfter, null);
+      if (ssDiffs.length > 0) {
+        addLog('WARN', `sessionStorage: ${ssDiffs.length}件変化`);
+        warnOverall();
       }
 
-      _qa2aRunning = false;
-      _qa2aLastResult = {
-        log, overall, modeNote,
-        compareFields,
-        lsDiffs,
-        executedAt: new Date().toLocaleString('ja-JP', { hour12: false }),
-        saveCallCount: saveCallLog.length,
-      };
-      window._qa2aCopyJSON = () => copyText(JSON.stringify(_qa2aLastResult, null, 2));
+      // ── G フィールド比較 ──
+      // eslint-disable-next-line no-eval
+      const gAfter    = eval('G');
+      const gAfterStr = JSON.stringify(gAfter);
+      const gFullMatch = gBeforeStr === gAfterStr;
+      const gBefore   = JSON.parse(gBeforeStr);
 
+      const fieldDefs = [
+        { name: 'year',                   get: g => g.year },
+        { name: 'month',                  get: g => g.month },
+        { name: 'day',                    get: g => g.day },
+        { name: 'totalDays（計算値）',    get: g => (g.year-1)*360+(g.month-1)*30+g.day },
+        { name: 'money',                  get: g => g.money },
+        { name: 'cash（= money alias）',  get: g => g.cash ?? g.money },
+        { name: 'ap',                     get: g => g.ap },
+        { name: 'apMax',                  get: g => g.apMax },
+        { name: 'fatigue',                get: g => g.fatigue },
+        { name: 'cases.length',           get: g => (g.cases||[]).length },
+        { name: 'pendingFollowUps.length',get: g => (g.pendingFollowUps||[]).length },
+        { name: 'activeEvent',            get: g => g.activeEvent == null ? 'null' : '(有)' },
+        { name: 'stores（JSON）',         get: g => JSON.stringify((g.stores||[]).map(s=>({id:s.id,sat:s.sat,cust:s.customers}))) },
+        { name: 'buildings.length',       get: g => (g.buildings||[]).length },
+        { name: 'characters（JSON）',     get: g => JSON.stringify(g.characters||{}) },
+        { name: 'gameEnded',              get: g => g.gameEnded },
+        { name: 'freeMode',              get: g => g.freeMode },
+        { name: 'autoTesting',            get: g => g.autoTesting },
+      ];
+      const compareFields = fieldDefs.map(f => {
+        let before, after, result;
+        try {
+          before = f.get(gBefore);
+          after  = f.get(gAfter);
+          result = JSON.stringify(before) === JSON.stringify(after) ? 'PASS' : 'FAIL';
+        } catch(e2) { before = '(取得失敗)'; after = '(取得失敗)'; result = 'WARN'; }
+        if (result === 'FAIL') overall = 'FAIL';
+        return { name: f.name, before, after, result };
+      });
+      addLog(gFullMatch ? 'PASS' : 'WARN', `G JSON 全体一致: ${gFullMatch ? '✓' : '△（個別判定参照）'}`);
+
+      // DOM 復元確認
+      const domAfterTitle = document.title;
+      if (domBefore.title !== domAfterTitle) {
+        addLog('WARN', `document.title 変化: "${domBefore.title}" → "${domAfterTitle}"`);
+        warnOverall();
+      }
+
+      // 総合ログ
+      addLog(overall, `=== Phase 2A 完了 / 総合判定: ${overall} ===`);
+
+      const sideEffects = {
+        saveGameCallCount:  saveCallLog.length,
+        lsDiffs,
+        ssDiffs,
+        externalSendCount:  extSendLog.length,
+        externalSendLog:    extSendLog,
+        unrestoredFunctions,
+      };
+
+      _qa2aRunning = false;
+      _qa2aLastResult = _buildResult({
+        log, errors, overall, modeNote, abortedAt,
+        phase1, gReplace, dayAdvance, compareFields, gFullMatch, sideEffects,
+      });
+      window._qa2aCopyJSON = () => copyText(JSON.stringify(_qa2aLastResult, null, 2));
       renderSimTab();
     }
+  }
+
+  function _buildResult(r) {
+    return {
+      executedAt:    new Date().toLocaleString('ja-JP', { hour12: false }),
+      overall:       r.overall,
+      modeNote:      r.modeNote    ?? null,
+      abortedAt:     r.abortedAt   ?? null,
+      phase1:        r.phase1      ?? null,
+      gReplace:      r.gReplace    ?? null,
+      dayAdvance:    r.dayAdvance  ?? null,
+      compareFields: r.compareFields ?? null,
+      gFullMatch:    r.gFullMatch  ?? null,
+      sideEffects:   r.sideEffects ?? null,
+      errors:        r.errors      ?? [],
+      log:           r.log         ?? [],
+    };
   }
 
   // ── エクスポート ──
