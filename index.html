@@ -5953,6 +5953,7 @@ const DOMAIN_CASES = [
     choices:[
       {label:'建築士に調査を依頼（¥50,000）',cost:50000,effects:{score:12,credit:2},label2:'信用度+2・建物保護',storyTag:'専門家に調査を依頼した。早期発見で大きな費用を防げた。'},
       {label:'コーキングで応急処置（¥10,000）',cost:10000,effects:{score:7},label2:'一時的な対策',storyTag:'応急処置をした。根本解決は来年度に予定。'},
+      {label:'来月の修繕費に組み込む旨を伝える',cost:0,noAP:true,effects:{rep:-5,score:-3},label2:'評判-5・来月対応予定',storyTag:'資金不足を正直に伝え、来月の修繕計画に組み込むと連絡した。'},
     ]},
 
   // ⑧ 防犯・安全（mgmt AP10-20）
@@ -7866,11 +7867,19 @@ const CASE_COOLDOWN_DAYS = {
   midori_jido:      90,
   midori_overtime:  45,
   // 物件系
-  security_camera:  90,
+  security_camera:   120,
+  common_suspicious:  60,
+  resident_meeting:   90,
+  wifi_request:       90,
+  equip_roof:         60,
   // 行政系
   subsidy_info:     120,
   disaster_drill:   60,
   fire_inspection:  60,
+  // 店舗系
+  ec_start:         180,
+  mail_order_ask:   60,
+  competitor_store: 90,
   // メニュー提案
   menu_feedback:    60,
   // 銀行系
@@ -7888,7 +7897,6 @@ const CASE_COOLDOWN_DAYS = {
   // 競合
   price_war:        30,
   price_war_2:      30,
-  competitor_store: 45,
   // ギフト季節
   gift_season_haha:  365,
   gift_season_chichi:365,
@@ -9182,9 +9190,10 @@ function generateConditionCases(){
     G.seasonalEventStatus = G.seasonalEventStatus || {};
     if(!G.seasonalEventStatus[_budKey] && G.month >= 5
         && G.cases.some(c=>c.domain==='bank' && c.resolved)
-        && !G.cases.some(c=>c.id==='fork_budget_choice' && !c.resolved)){
-      const _budCount = Object.keys(G.seasonalEventStatus).filter(k=>k.includes('fork_budget_choice')).length;
-      if(_budCount < 2 && Math.random() < 0.3){
+        && !G.cases.some(c=>c.id==='fork_budget_choice' && !c.resolved)
+        && !((G._sched||{}).backlog||[]).some(m=>m.c&&m.c.id==='fork_budget_choice')){
+      const _budYearCount = Object.keys(G.seasonalEventStatus).filter(k=>k.startsWith(`${G.year}_`) && k.includes('fork_budget_choice')).length;
+      if(_budYearCount < 1 && Math.random() < 0.3){
         G.seasonalEventStatus[_budKey] = true;
         const _b = DOMAIN_CASES.find(c=>c.id==='fork_budget_choice');
         if(_b) addCase(_b);
@@ -9581,6 +9590,13 @@ function closeMonthlyChallengeModal(){
 
 function checkChallengeResult(challenge, monthProfit){
   if(!challenge) return null;
+  // セーブ復元後に check 関数が失われている場合、ID で再解決する
+  if(typeof challenge.check !== 'function'){
+    const found = (typeof MONTHLY_CHALLENGES !== 'undefined' ? MONTHLY_CHALLENGES : [])
+      .find(c => c.id === challenge.id);
+    if(!found || typeof found.check !== 'function') return null;
+    challenge = found;
+  }
   if(challenge.check()){
     const r = challenge.reward;
     if(r.score) scoreOwner(r.score, 'challenge');
@@ -14931,6 +14947,11 @@ function _normalizeSaveData(){
   G.unlockedProducts     ||= [];
   G.tut                  ||= {};
   G.settings             ||= {};
+  // currentChallenge はJSON保存で check() 関数が失われるため ID で再解決
+  if(G.currentChallenge && typeof G.currentChallenge.check !== 'function'){
+    const found = MONTHLY_CHALLENGES.find(c => c.id === G.currentChallenge.id);
+    G.currentChallenge = found || null;
+  }
 }
 
 function _resetRuntimeFlags(){

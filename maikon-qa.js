@@ -1531,14 +1531,17 @@ ${s0}${sec1}${sec2}${sec3}${sec4}${sec5}${sec6}${secLog}
 
     const xs = choices.map((c, i) => ({
       idx: i,
-      isNoAP:   !!c.noAP,
-      apCost:   c.noAP ? 0 : (c.apCost ?? evAP),
+      isNoAP:     !!c.noAP,
+      apCost:     c.noAP ? 0 : (c.apCost ?? evAP),
       moneyDelta: c.effects?.money ?? 0,
-      isDecline: DECLINE_KW.some(kw => (c.label || '').includes(kw)),
+      choiceCost: c.cost ?? 0,
+      isDecline:  DECLINE_KW.some(kw => (c.label || '').includes(kw)),
     }));
 
-    // Rule 1: filter by current AP
-    const canDo = xs.filter(x => x.isNoAP || x.apCost <= G.ap);
+    // Rule 1: filter by current AP and money (chooseEvent returns early if either is insufficient)
+    const canDo = xs.filter(x =>
+      (x.isNoAP || x.apCost <= G.ap) && x.choiceCost <= G.money
+    );
     if (!canDo.length) { _sim2bLastChoiceReason = 'lowAP'; return null; } // anomaly 1
 
     const active  = canDo.filter(x => !x.isNoAP);
