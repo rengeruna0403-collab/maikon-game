@@ -9609,9 +9609,13 @@ function _canShowCustDown(){
 
 function showIssueCardModal(){
   if(!G.started) return;
-  // cust_down は条件を満たす場合のみ候補に含める
-  const eligible = ISSUE_CARDS.filter(c => c.id !== 'cust_down' || _canShowCustDown());
-  const pool = eligible.length > 0 ? eligible : ISSUE_CARDS.filter(c => c.id !== 'cust_down');
+  const eligible = ISSUE_CARDS.filter(c => {
+    if (c.id === 'cust_down' && !_canShowCustDown()) return false;
+    if (c.minMonth && G.month < c.minMonth) return false;
+    if (c.maxMonth && G.month > c.maxMonth) return false;
+    return true;
+  });
+  const pool = eligible.length > 0 ? eligible : ISSUE_CARDS.filter(c => c.id !== 'cust_down' && !c.minMonth && !c.maxMonth);
   const card = pool[Math.floor(Math.random() * pool.length)];
   G.activeEvent = card;
   if(G.autoTesting){ _autoResolveEvent(); return; }

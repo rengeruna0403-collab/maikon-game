@@ -60,6 +60,18 @@
     'profile',
   ]);
 
+  // ─── シーケンシャルイベント除外グループ（意図的な連続イベント群）───
+  // 同一グループ内で定義順に発生した場合は C06 警告対象外。
+  // ただし同一 eventId 重複・順序違反・4件目混入・AP過剰・同日重複は別途警告。
+  const QA_SEQUENCE_GROUPS = {
+    narita_intro: ['narita_site_visit', 'narita_cashflow', 'narita_first_ad'],
+  };
+  // eventId → グループ名 の逆引きマップ
+  const _QA_SEQ_ID_MAP = {};
+  for (const [grp, ids] of Object.entries(QA_SEQUENCE_GROUPS)) {
+    ids.forEach((id, idx) => { _QA_SEQ_ID_MAP[id] = { grp, pos: idx, total: ids.length }; });
+  }
+
   // ─── 季節キーワードルール ───
   const SEASONAL_RULES = [
     { kw: '母の日',   minM: 5,  maxM: 5,  label: '5月限定' },
@@ -2475,18 +2487,82 @@ ${sf.unrestoredFunctions.length>0?`<div style="color:#ff4444;margin-top:4px">復
       s.lastProductUnlockDay = now;
     }
 
-    // C06: 同一キャラのイベントが7日以内に3件以上
+    // C06: 同一キャラのイベントが7日以内に3件以上（シーケンスグループは除外）
     const sender = ev.sender || (ev.id||'').split('_')[0];
     if (sender) {
       const now = _sim2cTotalDays(G);
-      if (!s.charEventDays[sender]) s.charEventDays[sender] = [];
-      s.charEventDays[sender].push(now);
-      const recent = s.charEventDays[sender].filter(d => now - d <= 7);
-      s.charEventDays[sender] = recent;
-      if (recent.length >= 3 && !s._charWarn?.[sender]) {
-        if (!s._charWarn) s._charWarn = {};
-        s._charWarn[sender] = true;
-        add('C06','WARN','同一キャラ7日以内3件以上',`sender=${sender} ${recent.length}件 / 7日`);
+      const seqInfo = _QA_SEQ_ID_MAP[evId];
+
+      // ── シーケンスグループ内チェック ──
+      if (seqInfo) {
+        if (!s._seqState) s._seqState = {};
+        if (!s._seqState[seqInfo.grp]) s._seqState[seqInfo.grp] = { seen: [], days: [] };
+        const sg = s._seqState[seqInfo.grp];
+        const expectedPos = sg.seen.length;
+        const expectedId  = QA_SEQUENCE_GROUPS[seqInfo.grp][expectedPos];
+
+        // 同一 eventId 重複（グループ内で同じイベントが2回）
+        if (sg.seen.includes(evId)) {
+          add('C06','P1','シーケンスイベント同一ID重複',`grp=${seqInfo.grp} id=${evId} 既発生済み`);
+        }
+        // 順序違反（期待と異なる順に発生）
+        else if (evId !== expectedId) {
+          add('C06','P1','シーケンスイベント順序違反',`grp=${seqInfo.grp} expected=${expectedId} actual=${evId}`);
+          sg.seen.push(evId); sg.days.push(now);
+        }
+        // 正常シーケンス
+        else {
+          sg.seen.push(evId); sg.days.push(now);
+
+          // 想定外の4件目（グループ完了後にまた同グループのIDが来た場合は重複チェックで捕捉）
+
+          // 同日2件以上チェック（グループ内）
+          const todayCount = sg.days.filter(d => d === now).length;
+          if (todayCount >= 2) {
+            add('C06','P2','シーケンスイベント同日重複',`grp=${seqInfo.grp} id=${evId} ${now}日に${todayCount}件目`);
+          }
+
+          // AP過剰チェック（グループ全体のAP合計）
+          if (sg.seen.length === seqInfo.total) {
+            const grpIds = QA_SEQUENCE_GROUPS[seqInfo.grp];
+            const allCases = [...(typeof DOMAIN_CASES!=='undefined'?DOMAIN_CASES:[]),...CASE_POOL];
+            const totalAP = grpIds.reduce((sum, id) => {
+              const c = allCases.find(x=>x.id===id);
+              return sum + (c?.apCost||0);
+            }, 0);
+            if (totalAP > 30) {
+              add('C06','P2','シーケンス合計AP過剰',`grp=${seqInfo.grp} 合計AP=${totalAP}`);
+            }
+          }
+        }
+      }
+      // ── 通常キャラ密集チェック（非シーケンス） ──
+      else {
+        if (!s.charEventDays[sender]) s.charEventDays[sender] = [];
+        s.charEventDays[sender].push({ day: now, id: evId });
+        const recent = s.charEventDays[sender].filter(e => now - e.day <= 7);
+        s.charEventDays[sender] = recent;
+
+        // 同日2件以上
+        const todayIds = recent.filter(e => e.day === now).map(e => e.id);
+        if (todayIds.length >= 2 && !s._charSameDayWarn?.[sender+now]) {
+          if (!s._charSameDayWarn) s._charSameDayWarn = {};
+          s._charSameDayWarn[sender+now] = true;
+          add('C06','P2','同一sender同日2件以上',`sender=${sender} ${todayIds.join(', ')}`);
+        }
+
+        // 同一 eventId 重複（7日以内）
+        const dupId = recent.filter(e => e.id === evId);
+        if (dupId.length >= 2) {
+          add('C06','P1','同一イベントID短期重複',`sender=${sender} id=${evId} 7日以内${dupId.length}件`);
+        }
+
+        // 7日以内3件以上（P3 集中注意）
+        if (recent.length >= 3 && !s._charWarn?.[sender]) {
+          if (!s._charWarn) s._charWarn = {};
+          s._charWarn[sender] = true;
+          add('C06','P3','同一sender7日以内3件以上',`sender=${sender} ${recent.length}件 / 7日`);
+        }
       }
     }
   }
