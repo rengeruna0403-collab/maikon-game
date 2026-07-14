@@ -4715,8 +4715,8 @@ function afterMonthlyMeeting(){
   // 経営課題カード → 来月の目標 の順に表示
   if(G.started){
     if(G.autoTesting){
+      G._pendingChallenge = true;  // chooseEvent実行前に設定（同期実行のため先置き）
       showIssueCardModal();
-      G._pendingChallenge = true;
     } else {
     setTimeout(()=>{
       console.log('[afterMonthlyMeeting] show issue card');
