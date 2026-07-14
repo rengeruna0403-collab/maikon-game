@@ -3378,6 +3378,7 @@ function qa2cSwitchTab(tid,idx){
       console.log('[QA-3A] case.id 型チェック: 全件 string — 問題なし');
     }
 
+    const gSnap = JSON.stringify(gNow);   // 試行間完全復元用スナップショット
     const startHash = _sim3StateHash(gNow);
     const overallStart = Date.now();
 
@@ -3385,6 +3386,10 @@ function qa2cSwitchTab(tid,idx){
     const trials = [];
 
     function runOneTrial(trialIdx, onDone) {
+      // 毎試行前に G を完全置換（Object.assign では削除できない追加プロパティを除去）
+      try { eval('G = JSON.parse(gSnap)'); } catch(e) {
+        console.error('[QA-3A] G完全復元に失敗:', e);
+      }
       const rng = _mkTrackedRng(seed);
       Math.random = rng;
       const t0 = Date.now();
