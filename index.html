@@ -9615,7 +9615,21 @@ function showIssueCardModal(){
     if (c.maxMonth && G.month > c.maxMonth) return false;
     return true;
   });
+  // フォールバック：季節制限のない汎用カードから選ぶ
   const pool = eligible.length > 0 ? eligible : ISSUE_CARDS.filter(c => c.id !== 'cust_down' && !c.minMonth && !c.maxMonth);
+  if(pool.length === 0){
+    // 候補なし：_pendingChallengeを解除して月次処理チェーンを完了させる
+    G._pendingChallenge = false;
+    if(G.currentChallenge){
+      if(G.autoTesting){ showMonthlyChallengeModal(G.currentChallenge); }
+      else { setTimeout(()=>showMonthlyChallengeModal(G.currentChallenge), 400); }
+    } else {
+      G.processingMonthly = false;
+      G.isAdvancingDay = false;
+      hideLoadingOverlay();
+    }
+    return;
+  }
   const card = pool[Math.floor(Math.random() * pool.length)];
   G.activeEvent = card;
   if(G.autoTesting){ _autoResolveEvent(); return; }
