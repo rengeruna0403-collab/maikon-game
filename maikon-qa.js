@@ -3381,7 +3381,7 @@ function qa2cSwitchTab(tid,idx){
       const t0 = Date.now();
       const prevExecAt = window._qa2cLastResult ? window._qa2cLastResult.executedAt : null;
 
-      window._qa2cRun();
+      runPhase2C365();
 
       const pollId = setInterval(() => {
         const r = window._qa2cLastResult;
