@@ -3232,6 +3232,10 @@ function qa2cSwitchTab(tid,idx){
       .join(' / ');
     console.log(`[QA] 舞昆茶屋物語 QAツール ${QA_VERSION} 起動 (READ-ONLY)`);
     console.log(`[QA] プール診断: ${poolCheck}`);
+
+    // Phase 2C / 3A から呼べるよう init 時点で登録
+    window._qa2cRun  = runPhase2C365;
+    window._qa2cStop = () => { if (_sim2c) _sim2c.stopRequested = true; };
   }
 
   // ══════════════════════════════════════════════════════════════
