@@ -931,11 +931,48 @@ table.qa-tbl tr:hover td{background:#0f3460}
   <div id="qa-2b-result">
     ${window._qa2bLastResult ? renderPhase2BResult(window._qa2bLastResult) : '<div style="color:#555;font-size:12px">まだ実行していません。</div>'}
   </div>
+
+  <hr class="qa-2b-divider">
+
+  <!-- ── Phase 2C ── -->
+  <h3 style="color:#ce93d8;margin:0 0 8px">Phase 2C — 現在から365日シミュレーション</h3>
+  <div class="qa-notice" style="font-size:11px;padding:8px 12px">
+    現在のゲーム状態から<strong>365日間</strong>自動進行します（バランス型・1回のみ）。<br>
+    10日ごとにUIスレッドを解放。終了後、G・localStorage・全関数を完全復元します。<br>
+    <strong>saveGame / fetch / XHR / showMainStoryClear をスパイ化</strong>します。本番データへの影響はありません。
+  </div>
+
+  <div style="display:flex;gap:10px;margin-bottom:8px;flex-wrap:wrap;align-items:center">
+    <button class="qa-btn" id="qa-2c-run" onclick="window._qa2cRun()"
+      ${_sim2cRunning ? 'disabled' : ''} style="color:#ce93d8;border-color:#ce93d8">
+      ${_sim2cRunning ? '⏳ 実行中…' : '▶ 現在から365日'}
+    </button>
+    <button class="qa-btn" id="qa-2c-stop" onclick="window._qa2cStop()"
+      ${!_sim2cRunning ? 'disabled' : ''} style="color:#ff8800;border-color:#ff8800">
+      ■ 停止
+    </button>
+    <span style="font-size:11px;color:#666" id="qa-2c-elapsed"></span>
+  </div>
+
+  <div style="margin-bottom:12px">
+    <div style="font-size:10px;color:#666;margin-bottom:3px" id="qa-2c-progress-info">
+      ${_sim2cRunning ? '' : '待機中'}
+    </div>
+    <div class="qa-2b-progress-wrap">
+      <div class="qa-2b-progress-bar" id="qa-2c-progress-bar" style="width:${_sim2cRunning&&_sim2c?Math.round(_sim2c.daysRun/_sim2c.targetDays*100):0}%;background:#ce93d8"></div>
+    </div>
+  </div>
+
+  <div id="qa-2c-result">
+    ${window._qa2cLastResult ? renderPhase2CResult(window._qa2cLastResult) : '<div style="color:#555;font-size:12px">まだ実行していません。</div>'}
+  </div>
 </div>`;
 
     window._qa2aRun  = runPhase2A;
     window._qa2bRun  = runPhase2B30;
     window._qa2bStop = () => { if (_sim2b) _sim2b.stopRequested = true; };
+    window._qa2cRun  = runPhase2C365;
+    window._qa2cStop = () => { if (_sim2c) _sim2c.stopRequested = true; };
   }
 
   function _sectionBadge(verdict) {
@@ -2341,6 +2378,721 @@ ${sf.unrestoredFunctions.length>0?`<div style="color:#ff4444;margin-top:4px">復
         setTimeout(() => { b.textContent = label; b.classList.remove('success'); }, 1500);
       }
     });
+  }
+
+  // ══════════════════════════════════════════════════════════════
+  // ■ 6B. Phase 2C — 365日シミュレーション
+  // ══════════════════════════════════════════════════════════════
+
+  let _sim2c = null;
+  let _sim2cRunning = false;
+
+  // ─── ユーティリティ ───
+  function _sim2cTotalDays(g) {
+    return ((g.year||1)-1)*360 + ((g.month||1)-1)*30 + ((g.day||1)-1);
+  }
+
+  function _sim2cOccupied() {
+    try { return eval('occupiedRooms()'); } catch(e) { return 0; }
+  }
+  function _sim2cTotalRooms() {
+    try { return eval('totalRooms()'); } catch(e) { return 0; }
+  }
+  function _sim2cStoreRevenue() {
+    try { return G.monthRevenue || 0; } catch(e) { return 0; }
+  }
+  function _sim2cStoreExpense() {
+    try { return G.monthExpense || 0; } catch(e) { return 0; }
+  }
+
+  // ─── 月別スナップショット取得 ───
+  function _sim2cMonthSnap(prevDate) {
+    const occupied = _sim2cOccupied();
+    const total    = _sim2cTotalRooms();
+    return {
+      year:     prevDate.year,
+      month:    prevDate.month,
+      money:    G.money,
+      rep:      (G.regions&&G.regions[0]) ? (G.regions[0].reputation||0) : 0,
+      credit:   G.creditScore||0,
+      fatigue:  G.fatigue||0,
+      staffCount: (G.staff||[]).length,
+      occupied, total,
+      storeRevenue: _sim2cStoreRevenue(),
+      storeExpense: _sim2cStoreExpense(),
+    };
+  }
+
+  // ─── 新規異常チェック（Phase 2C 専用）───
+  function _sim2cCheckExtra(s, prevDate) {
+    const add = (num, sev, title, reason) => {
+      s.anomalies.push({ anomalyNum:num, severity:sev,
+        date:`${G.year}年${G.month}月${G.day}日`, eventId:'(sim2c)', title, reason,
+        gState:{ap:G.ap,money:G.money,year:G.year,month:G.month,day:G.day} });
+    };
+
+    // C01: 第一章クリア日通過後 gameEnded が立っていない
+    const td = _sim2cTotalDays(G);
+    if (G.year===1 && G.month===3 && G.day===30 && !G.gameEnded && !G.freeMode) {
+      add('C01','FAIL','第一章クリア日通過で gameEnded が未設定','1年3月30日を通過したが gameEnded=false のまま');
+    }
+
+    // C02: 月次売上が6か月以上連続増加（P3）
+    const mdata = s.monthlyData;
+    if (mdata.length >= 6) {
+      const last6 = mdata.slice(-6);
+      if (last6.every((m,i) => i===0 || m.storeRevenue > last6[i-1].storeRevenue)) {
+        if (!s._c02warned) { s._c02warned = true; add('C02','P3','月次売上6か月連続増加','自動プレイ過最適化の可能性。P3:バランス注意'); }
+      }
+    }
+
+    // C03: 月次利益が6か月以上連続増加（P3）
+    if (mdata.length >= 6) {
+      const last6 = mdata.slice(-6);
+      if (last6.every((m,i) => i===0 || m.netChange > last6[i-1].netChange)) {
+        if (!s._c03warned) { s._c03warned = true; add('C03','P3','月次利益6か月連続増加','自動プレイ過最適化の可能性。P3:バランス注意'); }
+      }
+    }
+  }
+
+  // ─── イベント発火時の Phase 2C 用追記チェック ───
+  function _sim2cEventCheck(s, ev, chosenIdx) {
+    if (!ev) return;
+    const add = (num, sev, title, reason) => s.anomalies.push({
+      anomalyNum:num, severity:sev,
+      date:`${G.year}年${G.month}月${G.day}日`, eventId:ev.id||'(unknown)', title, reason,
+      gState:{ap:G.ap,money:G.money,year:G.year,month:G.month,day:G.day}
+    });
+
+    // C05 (C04 はシム共通の異常7で検知済みのため省略)
+    const evId = ev.id||'';
+    // C05: 商品解放イベントが30日以内に連続
+    if ((ev.category==='product'||ev.category==='menu'||(ev.id||'').startsWith('unlock_')) && chosenIdx!==null) {
+      const now = _sim2cTotalDays(G);
+      if (s.lastProductUnlockDay !== null && now - s.lastProductUnlockDay < 30) {
+        add('C05','WARN','商品解放が30日以内に連続','前回解放から'+(now-s.lastProductUnlockDay)+'日: '+evId);
+      }
+      s.lastProductUnlockDay = now;
+    }
+
+    // C06: 同一キャラのイベントが7日以内に3件以上
+    const sender = ev.sender || (ev.id||'').split('_')[0];
+    if (sender) {
+      const now = _sim2cTotalDays(G);
+      if (!s.charEventDays[sender]) s.charEventDays[sender] = [];
+      s.charEventDays[sender].push(now);
+      const recent = s.charEventDays[sender].filter(d => now - d <= 7);
+      s.charEventDays[sender] = recent;
+      if (recent.length >= 3 && !s._charWarn?.[sender]) {
+        if (!s._charWarn) s._charWarn = {};
+        s._charWarn[sender] = true;
+        add('C06','WARN','同一キャラ7日以内3件以上',`sender=${sender} ${recent.length}件 / 7日`);
+      }
+    }
+  }
+
+  // ─── Phase 2C 用 autoResolve ───
+  // _sim2b を _sim2c に向けて _sim2bAutoResolve を呼ぶ。Phase 2C 固有チェックを追加。
+  function _sim2cAutoResolve() {
+    const ev = G.activeEvent;
+    if (!ev || !_sim2c) return;
+
+    // Phase 2C 固有チェック（chosenIdx のプレビュー）
+    const previewIdx = _balancedChoiceIdx(ev);
+    _sim2cEventCheck(_sim2c, ev, previewIdx);
+
+    // キャラクター進行ログ
+    const sender = ev.sender || (ev.id||'').split('_')[0];
+    if (sender && ['midori','narita','takahashi','yamada'].some(c => sender.includes(c))) {
+      _sim2c.charLog.push({
+        date:`${G.year}年${G.month}月${G.day}日`,
+        char: sender, eventId: ev.id||'(unknown)', title: ev.title||'',
+        choiceIdx: previewIdx??-1,
+      });
+    }
+
+    // _sim2b を _sim2c に向けて共通ロジックを実行（stats/eventLog は _sim2c に蓄積）
+    _sim2b = _sim2c;
+    _sim2bAutoResolve();
+    _sim2b = null;
+
+    // 月内案件カウント（daily_case 源）
+    if (_sim2bCurrentSource === 'daily_case') _sim2c._monthCaseCount++;
+  }
+
+  // ─── Phase 2C チャンク実行 ───
+  function _sim2cDoChunk(chunkSize) {
+    const s = _sim2c;
+    const end = Math.min(s.daysRun + chunkSize, s.targetDays);
+
+    while (s.daysRun < end && !s.stopRequested) {
+      const prevTotal = _sim2cTotalDays(G);
+      const prevDate  = { year:G.year, month:G.month, day:G.day };
+      let _chunkStepOk = false;
+      try {
+
+      G.isAdvancingDay  = false;
+      G.processingMonthly = false;
+      G.activeEvent     = null;
+      const modal = document.getElementById('event-modal');
+      if (modal) modal.style.display = 'none';
+      if (G.money < 0) G.money = 0;
+
+      // _sim2b を _sim2c に向けておく（_sim2bProcessDailyCases / _sim2bAutoResolve が参照）
+      _sim2b = s;
+
+      // 日次案件処理（Phase 2B と共通）
+      _sim2bProcessDailyCases(prevTotal);
+      G.activeEvent = null;
+
+      // 月末売上/経費を advanceDay 前にキャプチャ（月初リセット前の最終値）
+      s._lastDayRevenue = _sim2cStoreRevenue();
+      s._lastDayExpense = _sim2cStoreExpense();
+
+      // AP 不足日数カウント
+      if (G.ap <= 0) s.stats.apShortageDays++;
+
+      try {
+        eval('advanceDay()');
+      } catch(e) {
+        s.errors.push({ step:`advanceDay(day${s.daysRun+1})`, message:e.message, stack:e.stack||'' });
+      }
+
+      // チャンク終了後に _sim2b をリセット
+      _sim2b = null;
+
+      if (G.processingMonthly||G.isAdvancingDay) {
+        G.processingMonthly=false; G.isAdvancingDay=false; G.activeEvent=null;
+      }
+
+      const afterTotal = _sim2cTotalDays(G);
+      const dayDiff    = afterTotal - prevTotal;
+      s.apHistory.push(isNaN(G.ap) ? null : G.ap);
+
+      // NaN チェック
+      const nans = ['ap','money','fatigue'].filter(f=>isNaN(G[f]));
+      if (nans.length) {
+        s.anomalies.push({ anomalyNum:8, severity:'FAIL',
+          date:`${G.year}年${G.month}月${G.day}日`, eventId:'(day tick)', title:'日送り後NaN',
+          reason:`NaN: ${nans.join(', ')}`, gState:{ap:G.ap,money:G.money,fatigue:G.fatigue} });
+      }
+
+      // 日付進行チェック
+      if (dayDiff !== 1) {
+        s.anomalies.push({ anomalyNum:9, severity:dayDiff===0?'FAIL':'WARN',
+          date:`${prevDate.year}年${prevDate.month}月${prevDate.day}日`,
+          eventId:'(day tick)', title:'日付進行異常',
+          reason:`${dayDiff}日進んだ（期待値:1）`, gState:{ap:G.ap,money:G.money} });
+      }
+
+      // 現金危機チェック
+      if (G.money < 50000) s.stats.cashCrisisCount++;
+
+      // 月境界
+      if (G.month !== prevDate.month || G.year !== prevDate.year) {
+        const snap = _sim2cMonthSnap(prevDate);
+        snap.storeRevenue = s._lastDayRevenue || snap.storeRevenue;
+        snap.storeExpense = s._lastDayExpense || snap.storeExpense;
+        snap.storeProfit  = snap.storeRevenue - snap.storeExpense;
+        const prevSnap = s.monthlyData[s.monthlyData.length-1];
+        snap.netChange   = snap.money - (prevSnap ? prevSnap.money : s.startState.money);
+        snap.apAvg       = (() => { const v=s.apHistory.filter(x=>x!=null); return v.length?Math.round(v.reduce((a,b)=>a+b,0)/v.length):null; })();
+        snap.apMin       = (() => { const v=s.apHistory.filter(x=>x!=null); return v.length?Math.min(...v):null; })();
+        // 月内案件統計
+        snap.casesProcessed = s._monthCaseCount||0;
+        snap.casesPassed    = s._monthPassCount||0;
+        s._monthCaseCount = 0; s._monthPassCount = 0;
+        s.monthlyData.push(snap);
+        s.monthStart = { money:G.money, month:G.month, year:G.year };
+        s.stats.monthsCompleted++;
+
+        // 赤字チェック
+        if (snap.netChange < 0) s.stats.redMonths++;
+
+        // 月次追加チェック
+        _sim2cCheckExtra(s, prevDate);
+      }
+
+      _chunkStepOk = true;
+      s.daysRun++;
+      s.currentDate = { year:G.year, month:G.month, day:G.day };
+      } catch(e) {
+        s.errors.push({ step:`chunk day${s.daysRun+1} (${prevDate.year}年${prevDate.month}月${prevDate.day}日)`, message:e.message, stack:e.stack||'' });
+        // 状態リセットして継続
+        try { G.isAdvancingDay=false; G.processingMonthly=false; G.activeEvent=null; } catch(e2){}
+        if (!_chunkStepOk) s.daysRun++;
+      }
+    }
+  }
+
+  // ─── プログレス更新 ───
+  function _sim2cUpdateProgress() {
+    const s = _sim2c;
+    if (!s) return;
+    const pct = Math.round(s.daysRun / s.targetDays * 100);
+    const elapsed = ((Date.now()-s.startTime)/1000).toFixed(1);
+    const bar  = document.getElementById('qa-2c-progress-bar');
+    const info = document.getElementById('qa-2c-progress-info');
+    const elEl = document.getElementById('qa-2c-elapsed');
+    if (bar)  bar.style.width  = pct + '%';
+    if (info) info.textContent = `${s.daysRun} / ${s.targetDays} 日（${pct}%）`;
+    if (elEl) elEl.textContent = `経過 ${elapsed}s`;
+  }
+
+  // ─── スケジューラ ───
+  function _sim2cScheduleNext() {
+    const s = _sim2c;
+    if (!s) return;
+    if (s.daysRun >= s.targetDays || s.stopRequested) {
+      _sim2cFinish();
+      return;
+    }
+    setTimeout(() => {
+      _sim2cDoChunk(10);
+      _sim2cUpdateProgress();
+      _sim2cScheduleNext();
+    }, 0);
+  }
+
+  // ─── 復元・結果集計 ───
+  function _sim2cFinish() {
+    const s = _sim2c;
+    if (!s) return;
+
+    // DOM 更新系関数を復元
+    if (s._restoreRender) { try { s._restoreRender(); } catch(e) {} }
+
+    // シム終了時点の状態記録（復元前）
+    const simEndState = {
+      year:G.year, month:G.month, day:G.day,
+      money:G.money, ap:G.ap, fatigue:G.fatigue,
+      casesLength:(G.cases||[]).length,
+    };
+
+    // 最終月記録
+    {
+      const last = s.monthlyData[s.monthlyData.length-1];
+      const alreadyRecorded = last && last.year===s.monthStart.year && last.month===s.monthStart.month;
+      if (!alreadyRecorded) {
+        const snap = _sim2cMonthSnap({ year:s.monthStart.year, month:s.monthStart.month });
+        snap.netChange = snap.money - (s.monthlyData.length ? s.monthlyData[s.monthlyData.length-1].money : s.startState.money);
+        const apV = s.apHistory.filter(x=>x!=null);
+        snap.apAvg = apV.length ? Math.round(apV.reduce((a,b)=>a+b,0)/apV.length) : null;
+        snap.apMin = apV.length ? Math.min(...apV) : null;
+        snap.casesProcessed = s._monthCaseCount||0;
+        snap.casesPassed    = s._monthPassCount||0;
+        if (snap.netChange < 0) s.stats.redMonths++;
+        s.monthlyData.push(snap);
+      }
+    }
+
+    // 未解決ケーススナップショット（Phase 2B の共通関数を再利用）
+    const todayTotal = _sim2cTotalDays(G);
+    const midoriHired = !!(G.characters?.midori?.met) ||
+      (Array.isArray(G.staff) && G.staff.some(x=>x.id==='midori'||x.name==='みどり'));
+    const simEndCases = (G.cases||[]).map(c => {
+      if (c.resolved) return { eventId:c.id||'(unknown)', title:c.title||'', resolved:true, expired:false, conditionOnly:!!c.conditionOnly, status:'resolved', unresolvedReason:'resolved済み' };
+      if (c.expired)  return { eventId:c.id||'(unknown)', title:c.title||'', resolved:false, expired:true,  conditionOnly:!!c.conditionOnly, status:'expired',  unresolvedReason:'expired' };
+      const blocks = [];
+      if (c.requireStaff && !midoriHired)       blocks.push('スタッフ待ち');
+      if (c.requireProduct && !(G.products||{})[c.requireProduct]) blocks.push(`商品待ち(${c.requireProduct})`);
+      if (c.minRep   && (G.rep||0)   < c.minRep)   blocks.push(`評判待ち(${G.rep??0}<${c.minRep})`);
+      if (c.minDay   && todayTotal    < c.minDay)   blocks.push(`将来日待ち(${todayTotal}<${c.minDay})`);
+      if (c.minMonth && (G.month||1) < c.minMonth) blocks.push(`将来月待ち(${G.month}<${c.minMonth})`);
+      const status = blocks.length ? '条件待ち' : '処理待ち';
+      return { eventId:c.id||'(unknown)', title:c.title||'', resolved:false, expired:false, conditionOnly:!!c.conditionOnly, status, unresolvedReason: blocks.length ? blocks.join(' / ') : '条件充足済みだが未処理（日次上限）' };
+    });
+
+    // 全条件チェック
+    if (s.stats.monthsCompleted !== 12) {
+      s.anomalies.push({ anomalyNum:'C00', severity:'FAIL', date:`${G.year}年${G.month}月${G.day}日`, eventId:'(finish)', title:'月次処理回数異常', reason:`月次処理 ${s.stats.monthsCompleted}回（期待:12）`, gState:{} });
+    }
+
+    // G 復元
+    try {
+      const gBefore = JSON.parse(s.gBeforeStr);
+      const gActual = eval('G');
+      Object.assign(gActual, gBefore);
+      // autoTesting は JSON では undefined になり Object.assign で残留するため明示リセット
+      if (!gBefore.hasOwnProperty('autoTesting')) delete gActual.autoTesting;
+      else gActual.autoTesting = gBefore.autoTesting;
+      // freeMode もシム中に変更した可能性があるため同様に処理
+      if (!gBefore.hasOwnProperty('freeMode')) delete gActual.freeMode;
+      else gActual.freeMode = gBefore.freeMode;
+    } catch(e) {
+      s.errors.push({ step:'G restore', message:e.message, stack:'' });
+    }
+
+    // スパイ解除
+    window.saveGame           = s.origSaveGame;
+    window._autoResolveEvent  = s.origAutoResolve;
+    window.showMainStoryEnding = s.origShowEnding;
+    window.showMainStoryClear  = s.origShowClear;
+    window.fetch              = s.origFetch;
+    XMLHttpRequest.prototype.send = s.origXHRSend;
+    XMLHttpRequest.prototype.open = s.origXHROpen;
+
+    // 安全性チェック
+    const lsAfter  = (() => { const snap={}; try{for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k&&!k.startsWith('_qa'))snap[k]=localStorage.getItem(k);}}catch(e){}return snap; })();
+    const lsDiffs  = Object.keys({...s.lsBefore,...lsAfter}).filter(k=>k!==s.saveKey&&!k.startsWith('_qa')&&s.lsBefore[k]!==lsAfter[k]).map(k=>({key:k}));
+    const gAfter   = eval('G');
+    const gBefore2 = JSON.parse(s.gBeforeStr);
+    const gFullMatch = JSON.stringify(gBefore2)===JSON.stringify(gAfter);
+    const safetyFields = [
+      {name:'year',get:g=>g.year},{name:'month',get:g=>g.month},{name:'day',get:g=>g.day},
+      {name:'money',get:g=>g.money},{name:'ap',get:g=>g.ap},{name:'fatigue',get:g=>g.fatigue},
+      {name:'cases.length',get:g=>(g.cases||[]).length},
+      {name:'autoTesting',get:g=>g.autoTesting},{name:'gameEnded',get:g=>g.gameEnded},
+    ];
+    const compareFields = safetyFields.map(f=>{
+      let before,after,result;
+      try{before=f.get(gBefore2);after=f.get(gAfter);result=JSON.stringify(before)===JSON.stringify(after)?'PASS':'FAIL';}
+      catch(e2){before='(err)';after='(err)';result='WARN';}
+      return {name:f.name,before,after,result};
+    });
+    const safetyFail    = compareFields.some(f=>f.result==='FAIL') || lsDiffs.length>0 || s.externalSendLog.length>0;
+    const safetyOverall = safetyFail?'FAIL': compareFields.some(f=>f.result==='WARN')?'WARN':'PASS';
+
+    const failA = s.anomalies.filter(a=>a.severity==='FAIL');
+    const warnA = s.anomalies.filter(a=>a.severity==='WARN'||a.severity==='P3');
+    const simOverall = s.errors.length>0||failA.length>0?'FAIL': warnA.length>0?'WARN':'PASS';
+    const overall = (simOverall==='FAIL'||safetyOverall==='FAIL')?'FAIL': (simOverall==='WARN'||safetyOverall==='WARN')?'WARN':'PASS';
+
+    // 年間統計算出
+    const apValid  = s.apHistory.filter(x=>x!=null);
+    const moneyArr = s.monthlyData.map(m=>m.money);
+    const revArr   = s.monthlyData.map(m=>m.storeRevenue||0);
+    const netArr   = s.monthlyData.map(m=>m.netChange||0);
+    const maxRevMonth = revArr.indexOf(Math.max(...revArr));
+    const minRevMonth = revArr.indexOf(Math.min(...revArr));
+    const allBlack = s.monthlyData.every(m=>(m.netChange||0)>=0);
+    const allRed   = s.monthlyData.every(m=>(m.netChange||0)<0);
+    if (allBlack && s.monthlyData.length===12) s.anomalies.push({ anomalyNum:'C10',severity:'P3',date:'(年間)',eventId:'(finish)',title:'12か月すべて黒字',reason:'P3:バランス注意',gState:{} });
+    if (allRed   && s.monthlyData.length===12) s.anomalies.push({ anomalyNum:'C11',severity:'P3',date:'(年間)',eventId:'(finish)',title:'12か月すべて赤字',reason:'P3:バランス注意',gState:{} });
+
+    const annualStats = {
+      totalEvents:      s.stats.totalEvents,
+      totalRevenue:     revArr.reduce((a,b)=>a+b,0),
+      totalNetChange:   netArr.reduce((a,b)=>a+b,0),
+      redMonths:        s.stats.redMonths,
+      maxRevMonth:      s.monthlyData[maxRevMonth] ? `${s.monthlyData[maxRevMonth].year}年${s.monthlyData[maxRevMonth].month}月` : '-',
+      minRevMonth:      s.monthlyData[minRevMonth] ? `${s.monthlyData[minRevMonth].year}年${s.monthlyData[minRevMonth].month}月` : '-',
+      maxCash:          moneyArr.length ? Math.max(...moneyArr) : 0,
+      minCash:          moneyArr.length ? Math.min(...moneyArr) : 0,
+      cashCrisisCount:  s.stats.cashCrisisCount,
+      apShortageDays:   s.stats.apShortageDays,
+      unresolvable:     s.stats.unresolvable||0,
+      noAPFallback:     s.stats.declined||0,
+      followUps:        s.stats.followUps||0,
+      caseResolved:     s.stats.caseResolved||0,
+      monthsCompleted:  s.stats.monthsCompleted,
+      chapter1ClearDate: s.chapter1ClearLog.length ? s.chapter1ClearLog[0].date : null,
+      chapter1ClearCount: s.chapter1ClearLog.length,
+      productsUnlocked: s.stats.productsUnlocked||0,
+    };
+
+    const result = {
+      executedAt: new Date().toLocaleString('ja-JP',{hour12:false}),
+      elapsed:    ((Date.now()-s.startTime)/1000).toFixed(1)+'s',
+      overall, simOverall, safetyOverall,
+      stopped:    s.stopRequested,
+      daysCompleted: s.daysRun, targetDays: s.targetDays,
+      startState: s.startState,
+      endDateSimulated: simEndState,
+      annualStats,
+      monthlyData:  s.monthlyData,
+      anomalies:    s.anomalies,
+      eventLog:     s.eventLog,
+      charLog:      s.charLog,
+      chapter1ClearLog: s.chapter1ClearLog,
+      endCasesSnapshot: simEndCases,
+      caseSkipLog:  s.caseSkipLog||[],
+      safety: { gFullMatch, compareFields, lsDiffs, saveCallCount:s.saveCallCount, externalSendLog:s.externalSendLog },
+    };
+
+    window._qa2cLastResult = result;
+    _sim2cRunning = false;
+    _sim2c = null;
+
+    // 結果表示
+    const resultEl = document.getElementById('qa-2c-result');
+    if (resultEl) resultEl.innerHTML = renderPhase2CResult(result);
+
+    // ボタン更新
+    const simPanel = document.getElementById('qa-panel-sim');
+    if (simPanel) { delete simPanel.dataset.rendered; document.querySelector('.qa-tab[data-tab="sim"]')?.click(); }
+  }
+
+  // ─── エントリポイント ───
+  function runPhase2C365() {
+    if (_sim2cRunning || _sim2bRunning || _qa2aRunning) return;
+
+    try {
+      const testG = eval('G');
+      testG._qaTestWrite = true;
+      if (!eval('G')._qaTestWrite) { alert('G代入テスト失敗。中止します。'); return; }
+      delete eval('G')._qaTestWrite;
+    } catch(e) { alert('G代入テスト例外: '+e.message); return; }
+
+    _sim2cRunning = true;
+
+    const currentG  = eval('G');
+    const gBeforeStr = JSON.stringify(currentG);
+    const captureLS = () => { const snap={}; try{for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k&&!k.startsWith('_qa'))snap[k]=localStorage.getItem(k);}}catch(e){}return snap; };
+    const lsBefore  = captureLS();
+    const saveKey   = (typeof getSaveKey==='function') ? getSaveKey() : null;
+
+    _sim2c = {
+      targetDays:   365,
+      daysRun:      0,
+      stopRequested:false,
+      startTime:    Date.now(),
+      gBeforeStr, lsBefore, saveKey,
+      origSaveGame:     window.saveGame,
+      origAutoResolve:  window._autoResolveEvent,
+      origShowEnding:   window.showMainStoryEnding,
+      origShowClear:    window.showMainStoryClear,
+      origFetch:        window.fetch,
+      origXHRSend:      XMLHttpRequest.prototype.send,
+      origXHROpen:      XMLHttpRequest.prototype.open,
+      startState: {
+        year:currentG.year, month:currentG.month, day:currentG.day,
+        money:currentG.money, ap:currentG.ap, fatigue:currentG.fatigue,
+        casesLength:(currentG.cases||[]).length,
+      },
+      currentDate:  {year:currentG.year,month:currentG.month,day:currentG.day},
+      monthStart:   {money:currentG.money,month:currentG.month,year:currentG.year},
+      monthlyData:  [],
+      apHistory:    [],
+      eventLog:     [],
+      charLog:      [],
+      chapter1ClearLog: [],
+      caseSkipLog:  [],
+      anomalies:    [],
+      seenYearlyEvents: {},
+      charEventDays:{},
+      lastProductUnlockDay: null,
+      oncePerYearSeen:{},
+      stats:{
+        totalEvents:0, resolved:0, declined:0, followUps:0,
+        caseResolved:0, caseSkipped:0, unresolvable:0,
+        apShortageDays:0, cashCrisisCount:0, redMonths:0,
+        monthsCompleted:0, productsUnlocked:0,
+      },
+      _monthCaseCount:0, _monthPassCount:0,
+      saveCallCount:0,
+      externalSendLog:[],
+      errors:[],
+    };
+
+    // スパイ設置
+    window.saveGame = () => { _sim2c && _sim2c.saveCallCount++; };
+    window._autoResolveEvent = _sim2cAutoResolve;
+
+    // 第一章クリアスパイ
+    window.showMainStoryEnding = (...args) => {
+      if (_sim2c) {
+        _sim2c.chapter1ClearLog.push({
+          date:`${G.year}年${G.month}月${G.day}日`,
+          fn:'showMainStoryEnding', args:JSON.stringify(args),
+          gameEnded:G.gameEnded,
+        });
+        // gameEnded がセットされてゲームが止まるのを防ぐためフリーモードで継続
+        G.freeMode = true;
+      }
+    };
+    window.showMainStoryClear = (...args) => {
+      if (_sim2c) {
+        _sim2c.chapter1ClearLog.push({
+          date:`${G.year}年${G.month}月${G.day}日`,
+          fn:'showMainStoryClear', args:JSON.stringify(args),
+          gameEnded:G.gameEnded,
+        });
+        G.freeMode = true;
+      }
+    };
+
+    // 外部通信遮断
+    window.fetch = () => Promise.reject(new Error('[QA] fetch blocked'));
+    XMLHttpRequest.prototype.open = function(m, url) {
+      _sim2c && _sim2c.externalSendLog.push({ method:m, url });
+    };
+    XMLHttpRequest.prototype.send = function() {};
+
+    // 自動テストモード有効化（eval('G') = 実際のゲームオブジェクト）
+    eval('G').autoTesting = true;
+
+    // DOM 更新系関数をスパイで無効化（シム中は不要、速度向上）
+    const _origRenderTab    = window.renderTab;
+    const _origUpdateHeader = window.updateHeader;
+    const _origNotify       = window.notify;
+    const _origAddNews      = window.addNews;
+    window.renderTab    = function() {};
+    window.updateHeader = function() {};
+    window.notify       = function() {};
+    window.addNews      = function() {};
+    _sim2c._restoreRender = () => {
+      window.renderTab    = _origRenderTab;
+      window.updateHeader = _origUpdateHeader;
+      window.notify       = _origNotify;
+      window.addNews      = _origAddNews;
+    };
+
+    _sim2cScheduleNext();
+  }
+
+  // ─── Phase 2C 結果レンダリング ───
+  function renderPhase2CResult(r) {
+    if (!r) return '';
+    const ov  = r.overall;
+    const ovColor = ov==='PASS'?'#66bb6a':ov==='WARN'?'#f0c040':'#ff5252';
+    const st  = r.annualStats || {};
+    const ec  = r.endDateSimulated || {};
+    const apV = r.monthlyData?.map(m=>m.apMin).filter(x=>x!=null) || [];
+    const minAP = apV.length ? Math.min(...apV) : '-';
+
+    const tabs = ['総合','異常','月別推移','AP分析','売上分析','イベント','キャラクター','商品・メニュー','未解決案件','JSON'];
+    const tid = 'qa2c_' + Math.random().toString(36).slice(2);
+
+    const tabHdr = tabs.map((t,i) =>
+      `<button class="qa-2c-tab" data-ti="${tid}" data-idx="${i}" onclick="qa2cSwitchTab('${tid}',${i})"
+        style="background:${i===0?'#333':'#1a1a1a'};color:#ccc;border:1px solid #444;padding:4px 10px;cursor:pointer;font-size:11px;border-radius:4px">${t}</button>`
+    ).join('');
+
+    // ── タブ0: 総合 ──
+    const tab0 = `
+<div style="font-size:28px;font-weight:700;color:${ovColor};margin-bottom:4px">${ov}</div>
+<div style="font-size:11px;color:#888;margin-bottom:12px">${r.executedAt} &nbsp; 経過 ${r.elapsed} &nbsp; ${r.stopped?'⚠ 途中停止':'完走'}</div>
+<div style="font-size:11px;color:#aaa;margin-bottom:8px">Sim: <b style="color:${r.simOverall==='PASS'?'#66bb6a':r.simOverall==='WARN'?'#f0c040':'#ff5252'}">${r.simOverall}</b> &nbsp;|&nbsp; Safety: <b style="color:${r.safetyOverall==='PASS'?'#66bb6a':'#ff5252'}">${r.safetyOverall}</b> &nbsp;|&nbsp; 実行日数: ${r.daysCompleted}/${r.targetDays}</div>
+<div style="font-size:11px;color:#e8a0bf;margin-bottom:12px">
+  ⚠ 第一章クリア画面はスパイ化して継続。showMainStoryEnding呼出回数: <b>${r.chapter1ClearLog?.length||0}</b>
+  ${r.chapter1ClearLog?.length ? ' / 初回: '+r.chapter1ClearLog[0].date : ''}
+</div>
+<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:6px;margin-bottom:10px">
+  <div class="qa-2b-stat-card"><div class="lbl">総イベント発火</div><div class="val">${r.annualStats?.totalEvents??0}</div></div>
+  <div class="qa-2b-stat-card"><div class="lbl">月次処理回数</div><div class="val" style="color:${st.monthsCompleted===12?'#66bb6a':'#ff5252'}">${st.monthsCompleted}/12</div></div>
+  <div class="qa-2b-stat-card"><div class="lbl">案件処理数</div><div class="val" style="color:#66bb6a">${st.caseResolved}</div></div>
+  <div class="qa-2b-stat-card"><div class="lbl">赤字月数</div><div class="val" style="color:${st.redMonths>6?'#ff5252':st.redMonths>3?'#f0c040':'#888'}">${st.redMonths}/12</div></div>
+  <div class="qa-2b-stat-card"><div class="lbl">現金危機日数</div><div class="val" style="color:${st.cashCrisisCount>0?'#ff5252':'#888'}">${st.cashCrisisCount}</div></div>
+  <div class="qa-2b-stat-card"><div class="lbl">AP不足日数</div><div class="val" style="color:${st.apShortageDays>10?'#ff5252':st.apShortageDays>0?'#f0c040':'#66bb6a'}">${st.apShortageDays}</div></div>
+  <div class="qa-2b-stat-card"><div class="lbl">異常件数 (FAIL/WARN/P3)</div><div class="val" style="color:${r.anomalies?.filter(a=>a.severity==='FAIL').length>0?'#ff5252':'#888'}">${r.anomalies?.filter(a=>a.severity==='FAIL').length||0} / ${r.anomalies?.filter(a=>a.severity==='WARN').length||0} / ${r.anomalies?.filter(a=>a.severity==='P3').length||0}</div></div>
+  <div class="qa-2b-stat-card"><div class="lbl">最低AP（月別最小）</div><div class="val">${minAP}</div></div>
+  <div class="qa-2b-stat-card"><div class="lbl">総売上（シム）</div><div class="val" style="font-size:12px">¥${(st.totalRevenue||0).toLocaleString()}</div></div>
+  <div class="qa-2b-stat-card"><div class="lbl">純現金変動</div><div class="val" style="font-size:12px;color:${(st.totalNetChange||0)>=0?'#66bb6a':'#ff5252'}">¥${(st.totalNetChange||0).toLocaleString()}</div></div>
+  <div class="qa-2b-stat-card"><div class="lbl">第一章クリア呼出</div><div class="val" style="color:${st.chapter1ClearCount>0?'#66bb6a':'#ff5252'}">${st.chapter1ClearCount>0?'✅ '+st.chapter1ClearDate:'未呼出'}</div></div>
+  <div class="qa-2b-stat-card"><div class="lbl">エラー</div><div class="val" style="color:${r.errors?.length?'#ff5252':'#888'}">${r.errors?.length||0}</div></div>
+</div>`;
+
+    // ── タブ1: 異常一覧 ──
+    const aRows = (r.anomalies||[]).map(a => {
+      const c = a.severity==='FAIL'?'#ff5252':a.severity==='WARN'?'#f0c040':'#aaa';
+      return `<tr><td style="color:${c};font-weight:700">${a.severity}</td><td>${a.date}</td><td style="font-size:10px">${a.eventId||''}</td><td>${a.title||''}</td><td style="font-size:10px">${a.reason||''}</td></tr>`;
+    }).join('') || '<tr><td colspan="5" style="color:#555;text-align:center">異常なし</td></tr>';
+    const tab1 = `<div style="overflow-x:auto"><table style="width:100%;font-size:11px;border-collapse:collapse">
+<tr style="color:#888"><th style="text-align:left;padding:3px 6px">重大度</th><th>日付</th><th>eventId</th><th>タイトル</th><th>理由</th></tr>${aRows}</table></div>`;
+
+    // ── タブ2: 月別推移 ──
+    const mRows = (r.monthlyData||[]).map(m => {
+      const occ = m.total ? Math.round(m.occupied/m.total*100)+'%' : '-';
+      return `<tr>
+<td>${m.year}年${m.month}月</td>
+<td style="text-align:right">¥${(m.money||0).toLocaleString()}</td>
+<td style="text-align:right;color:${(m.netChange||0)>=0?'#66bb6a':'#ff5252'}">¥${(m.netChange||0).toLocaleString()}</td>
+<td style="text-align:right">¥${(m.storeRevenue||0).toLocaleString()}</td>
+<td style="text-align:right">${m.apAvg??'-'}</td>
+<td style="text-align:right">${m.apMin??'-'}</td>
+<td style="text-align:right">${m.fatigue??'-'}</td>
+<td style="text-align:right">${m.rep??'-'}</td>
+<td style="text-align:right">${occ}</td>
+<td style="text-align:right">${m.staffCount??0}</td>
+<td style="text-align:right">${m.casesProcessed??0}</td>
+</tr>`;
+    }).join('');
+    const tab2 = `<div style="overflow-x:auto"><table style="width:100%;font-size:11px;border-collapse:collapse;white-space:nowrap">
+<tr style="color:#888;position:sticky;top:0;background:#1e1e1e"><th style="text-align:left;padding:3px 6px">月</th><th>現金</th><th>月次損益</th><th>売上</th><th>AP平均</th><th>AP最低</th><th>疲労</th><th>評判</th><th>入居率</th><th>スタッフ</th><th>案件処理</th></tr>${mRows}</table></div>`;
+
+    // ── タブ3: AP分析 ──
+    const apRows = (r.monthlyData||[]).map(m =>
+      `<tr><td>${m.year}年${m.month}月</td><td style="text-align:right">${m.apAvg??'-'}</td><td style="text-align:right;color:${(m.apMin??99)<20?'#ff5252':(m.apMin??99)<40?'#f0c040':'#888'}">${m.apMin??'-'}</td><td style="text-align:right">${m.casesProcessed??0}</td><td style="text-align:right">${m.casesPassed??0}</td></tr>`
+    ).join('');
+    const tab3 = `<div style="overflow-x:auto"><table style="width:100%;font-size:11px;border-collapse:collapse">
+<tr style="color:#888"><th style="text-align:left">月</th><th>AP平均</th><th>AP最低</th><th>案件処理数</th><th>スキップ数</th></tr>${apRows}</table>
+<div style="margin-top:8px;font-size:11px;color:#888">AP不足日数合計: <b>${st.apShortageDays}</b></div></div>`;
+
+    // ── タブ4: 売上分析 ──
+    const revRows = (r.monthlyData||[]).map(m => {
+      const profit = m.storeProfit != null ? m.storeProfit : (m.storeRevenue||0)-(m.storeExpense||0);
+      const pc = profit >= 0 ? '#66bb6a' : '#ff5252';
+      const nc = (m.netChange||0) >= 0 ? '#66bb6a' : '#ff5252';
+      return `<tr><td>${m.year}年${m.month}月</td><td style="text-align:right">¥${(m.storeRevenue||0).toLocaleString()}</td><td style="text-align:right">¥${(m.storeExpense||0).toLocaleString()}</td><td style="text-align:right;color:${pc}">¥${profit.toLocaleString()}</td><td style="text-align:right;color:${nc}">¥${(m.netChange||0).toLocaleString()}</td><td style="text-align:right">¥${(m.money||0).toLocaleString()}</td></tr>`;
+    }).join('');
+    const tab4 = `<div style="overflow-x:auto"><table style="width:100%;font-size:11px;border-collapse:collapse">
+<tr style="color:#888"><th style="text-align:left">月</th><th>売上</th><th>経費</th><th>店舗損益</th><th>現金変動</th><th>現金残高</th></tr>${revRows}</table>
+<div style="margin-top:8px;font-size:11px;color:#888">最高売上月: <b>${st.maxRevMonth}</b> &nbsp; 最低売上月: <b>${st.minRevMonth}</b> &nbsp; 赤字月: <b>${st.redMonths}</b>/12</div></div>`;
+
+    // ── タブ5: イベント発火ログ ──
+    const evRows = (r.eventLog||[]).slice(0,200).map(e =>
+      `<tr><td style="white-space:nowrap">${e.date}</td><td style="font-size:10px">${e.source||''}</td><td style="font-size:10px">${e.eventId||''}</td><td style="font-size:10px">${(e.choiceLabel||'').slice(0,30)}</td><td style="text-align:right">${e.apSpent??''}</td><td style="text-align:right;color:${(e.moneyDelta||0)>=0?'#66bb6a':'#ff5252'}">${e.moneyDelta!=null?'¥'+(e.moneyDelta).toLocaleString():''}</td></tr>`
+    ).join('');
+    const tab5 = `<div style="font-size:11px;color:#888;margin-bottom:6px">最大200件表示 / 全${r.eventLog?.length||0}件</div>
+<div style="overflow-x:auto"><table style="width:100%;font-size:11px;border-collapse:collapse;white-space:nowrap">
+<tr style="color:#888"><th style="text-align:left">日付</th><th>種別</th><th>eventId</th><th>選択</th><th>AP消費</th><th>損益</th></tr>${evRows}</table></div>`;
+
+    // ── タブ6: キャラクター進行 ──
+    const charRows = (r.charLog||[]).map(e =>
+      `<tr><td style="white-space:nowrap">${e.date}</td><td>${e.char||''}</td><td style="font-size:10px">${e.eventId||''}</td><td style="font-size:10px">${e.title||''}</td></tr>`
+    ).join('') || '<tr><td colspan="4" style="color:#555;text-align:center">キャラクターイベントなし</td></tr>';
+    const chap1rows = (r.chapter1ClearLog||[]).map(c =>
+      `<tr><td>${c.date}</td><td>${c.fn}</td><td style="font-size:10px">${c.args||''}</td><td>${c.gameEnded}</td></tr>`
+    ).join('') || '<tr><td colspan="4" style="color:#555;text-align:center">未呼出</td></tr>';
+    const tab6 = `<h4 style="color:#ce93d8;margin:0 0 6px">第一章クリア呼出</h4>
+<div style="overflow-x:auto;margin-bottom:12px"><table style="width:100%;font-size:11px;border-collapse:collapse">
+<tr style="color:#888"><th>日付</th><th>関数名</th><th>引数</th><th>gameEnded</th></tr>${chap1rows}</table></div>
+<h4 style="color:#ce93d8;margin:0 0 6px">キャラクターイベント</h4>
+<div style="overflow-x:auto"><table style="width:100%;font-size:11px;border-collapse:collapse">
+<tr style="color:#888"><th style="text-align:left">日付</th><th>キャラ</th><th>eventId</th><th>タイトル</th></tr>${charRows}</table></div>`;
+
+    // ── タブ7: 商品・メニュー ──
+    const prodEvs = (r.eventLog||[]).filter(e => (e.eventId||'').startsWith('unlock_') || e.category==='product'||e.category==='menu');
+    const prodRows = prodEvs.map(e =>
+      `<tr><td>${e.date}</td><td style="font-size:10px">${e.eventId}</td><td style="font-size:10px">${e.choiceLabel||''}</td></tr>`
+    ).join('') || '<tr><td colspan="3" style="color:#555;text-align:center">商品・メニューイベントなし</td></tr>';
+    const tab7 = `<div style="overflow-x:auto"><table style="width:100%;font-size:11px;border-collapse:collapse">
+<tr style="color:#888"><th style="text-align:left">日付</th><th>eventId</th><th>選択</th></tr>${prodRows}</table></div>`;
+
+    // ── タブ8: 未解決案件 ──
+    const unresolved = (r.endCasesSnapshot||[]).filter(c=>!c.resolved&&!c.expired);
+    const caseRows = unresolved.map(c =>
+      `<tr><td style="font-size:10px">${c.eventId}</td><td>${c.title||''}</td><td style="color:#f0c040">${c.status||''}</td><td style="font-size:10px">${c.unresolvedReason||''}</td></tr>`
+    ).join('') || '<tr><td colspan="4" style="color:#555;text-align:center">なし</td></tr>';
+    const resolved = (r.endCasesSnapshot||[]).filter(c=>c.resolved).length;
+    const expired  = (r.endCasesSnapshot||[]).filter(c=>c.expired).length;
+    const tab8 = `<div style="font-size:11px;color:#888;margin-bottom:6px">解決: ${resolved} / 未解決: ${unresolved.length} / 期限切: ${expired}</div>
+<div style="overflow-x:auto"><table style="width:100%;font-size:11px;border-collapse:collapse">
+<tr style="color:#888"><th style="text-align:left">eventId</th><th>タイトル</th><th>ステータス</th><th>理由</th></tr>${caseRows}</table></div>`;
+
+    // ── タブ9: JSON ──
+    const tab9 = `<button class="qa-btn" onclick="
+      navigator.clipboard.writeText(JSON.stringify(window._qa2cLastResult,null,2));
+      this.textContent='✅ コピー済み'; setTimeout(()=>this.textContent='JSON コピー（全データ）',1500)">
+      JSON コピー（全データ）</button>`;
+
+    const tabContents = [tab0,tab1,tab2,tab3,tab4,tab5,tab6,tab7,tab8,tab9];
+
+    return `<div style="background:#111;border:1px solid #333;border-radius:8px;padding:12px;margin-top:8px">
+<div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:10px">${tabHdr}</div>
+${tabContents.map((c,i)=>`<div id="${tid}_tab${i}" style="display:${i===0?'block':'none'}">${c}</div>`).join('')}
+</div>
+<script>
+function qa2cSwitchTab(tid,idx){
+  for(let i=0;i<10;i++){
+    const el=document.getElementById(tid+'_tab'+i);
+    if(el){el.style.display=i===idx?'block':'none';}
+    const btn=document.querySelector('[data-ti="'+tid+'"][data-idx="'+i+'"]');
+    if(btn){btn.style.background=i===idx?'#333':'#1a1a1a';}
+  }
+}
+</script>`;
   }
 
   // ══════════════════════════════════════════════════════════════

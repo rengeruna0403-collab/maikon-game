@@ -4951,7 +4951,7 @@ const ISSUE_CARDS = [
       {label:'リノベーションで魅力を上げる（¥150,000〜）',cost:150000,effects:{score:10,rep:5},label2:'物件価値UP',storyTag:'リノベーションで物件の魅力を高めた。'},
       {label:'今の賃料で粘る',cost:0,effects:{score:-2},label2:'現状維持',storyTag:'賃料は据え置いた。入居者が来るのを待つ。'},
     ]},
-  { id:'summer_event', conditionOnly:true, icon:'🎆', title:'夏祭りへの出店依頼',
+  { id:'summer_event', conditionOnly:true, minMonth:7, maxMonth:8, icon:'🎆', title:'夏祭りへの出店依頼',
     body:'地域の夏祭り実行委員会から「舞昆茶屋も屋台を出してほしい」と連絡がありました。',
     choices:[
       {label:'出店する（¥50,000・AP-20）',cost:50000,ap:20,effects:{score:20,rep:12,custUp:5},label2:'評判+12・客数+5',storyTag:'夏祭りに出店した。地域の人に顔を覚えてもらえた。'},
@@ -7516,7 +7516,7 @@ const DOMAIN_CASES = [
   // ════════════════════════════════════
 
   { id:'fork_invest_season', repeatable:true, domain:'community', sender:'成田（銀行）', icon:'🔀',
-    apCost:20, expireDays:14, category:'strategy', oncePerYear:true,
+    apCost:20, expireDays:14, category:'strategy', oncePerYear:true, minMonth:8, maxMonth:10,
     expirePenalty:{news:'🔀 「この秋の投資先」を決める機会が過ぎた。'},
     title:'「この秋、どちらに力を入れますか？」',
     body:'成田さんが珍しく迷いを含んだ声で言いました。\n\n「この秋は、集中する先を一つ決めた方が良いと思っています。\n\n地域との関係をもっと深めるか。\n商品のラインを充実させるか。\n\n両方に少しずつ、では中途半端になりがちです。\nどちらを選びますか？」',
@@ -9169,8 +9169,8 @@ function generateConditionCases(){
   {
     const _forkKey = `${G.year}_fork_invest_season`;
     G.seasonalEventStatus = G.seasonalEventStatus || {};
-    if(!G.seasonalEventStatus[_forkKey] && G.month >= 8 && G.month <= 10
-        && totalDays >= 90 && !G.cases.some(c=>c.id==='fork_invest_season' && !c.resolved)){
+    if(G.month >= 8 && G.month <= 10 && totalDays >= 90
+        && !G.cases.some(c=>c.id==='fork_invest_season' && c.createdYear === G.year)){
       G.seasonalEventStatus[_forkKey] = true;
       const _b = DOMAIN_CASES.find(c=>c.id==='fork_invest_season');
       if(_b) addCase(_b);
