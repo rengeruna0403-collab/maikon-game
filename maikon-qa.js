@@ -2949,6 +2949,15 @@ ${sf.unrestoredFunctions.length>0?`<div style="color:#ff4444;margin-top:4px">復
   function runPhase2C365() {
     if (_sim2cRunning || _sim2bRunning || _qa2aRunning) return;
 
+    // tut.phase='opening' ガード（セーブ未ロード状態での実行を防ぐ）
+    try {
+      const tutPhase = eval('G')?.tut?.phase;
+      if (tutPhase === 'opening') {
+        alert('G.tut.phase が "opening" です。\nゲームのセーブスロットをロードしてから実行してください。\n（Ctrl+Shift+R 後は必ずセーブを選択してください）');
+        return;
+      }
+    } catch(e) {}
+
     try {
       const testG = eval('G');
       testG._qaTestWrite = true;
