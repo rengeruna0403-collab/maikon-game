@@ -2604,6 +2604,31 @@ ${sf.unrestoredFunctions.length>0?`<div style="color:#ff4444;margin-top:4px">復
     while (s.daysRun < end && !s.stopRequested) {
       const prevTotal = _sim2cTotalDays(G);
       const prevDate  = { year:G.year, month:G.month, day:G.day };
+
+      // ウォッチドッグ：同じtotalDaysが3回連続したらフリーズ検知
+      if (!s._wdLastTotal) s._wdLastTotal = -1;
+      if (!s._wdRepeatCount) s._wdRepeatCount = 0;
+      if (prevTotal === s._wdLastTotal) {
+        s._wdRepeatCount++;
+        if (s._wdRepeatCount >= 3) {
+          const modal = document.getElementById('event-modal');
+          s.errors.push({
+            step: `watchdog freeze at ${prevDate.year}年${prevDate.month}月${prevDate.day}日`,
+            message: `同一totalDays(${prevTotal})が3回連続 → 無限ループ検知`,
+            gState: {
+              processingMonthly: G.processingMonthly, isAdvancingDay: G.isAdvancingDay,
+              activeEvent: G.activeEvent && (G.activeEvent.id || G.activeEvent),
+              _pendingChallenge: G._pendingChallenge,
+              modalVisible: modal ? modal.style.display !== 'none' : false,
+            }
+          });
+          s.stopRequested = true;
+          break;
+        }
+      } else {
+        s._wdLastTotal = prevTotal;
+        s._wdRepeatCount = 0;
+      }
       let _chunkStepOk = false;
       try {
 
@@ -2780,8 +2805,17 @@ ${sf.unrestoredFunctions.length>0?`<div style="color:#ff4444;margin-top:4px">復
     });
 
     // 全条件チェック
-    if (s.stats.monthsCompleted !== 12) {
-      s.anomalies.push({ anomalyNum:'C00', severity:'FAIL', date:`${G.year}年${G.month}月${G.day}日`, eventId:'(finish)', title:'月次処理回数異常', reason:`月次処理 ${s.stats.monthsCompleted}回（期待:12）`, gState:{} });
+    // 月次処理期待回数：開始月と終了月（G復元前のsimEndState）の差
+    const _c00StartIdx = (s.startState.year-1)*12 + (s.startState.month-1);
+    const _c00EndIdx   = (simEndState.year-1)*12 + (simEndState.month-1);
+    const _expectedTicks = _c00EndIdx - _c00StartIdx;
+    if (s.stats.monthsCompleted !== _expectedTicks) {
+      s.anomalies.push({
+        anomalyNum:'C00', severity:'FAIL',
+        date:`${G.year}年${G.month}月${G.day}日`, eventId:'(finish)', title:'月次処理回数異常',
+        reason:`月次処理 ${s.stats.monthsCompleted}回（期待:${_expectedTicks}、開始:${s.startState.year}年${s.startState.month}月${s.startState.day}日→終了:${G.year}年${G.month}月${G.day}日）`,
+        gState:{}
+      });
     }
 
     // G 復元
@@ -2867,12 +2901,18 @@ ${sf.unrestoredFunctions.length>0?`<div style="color:#ff4444;margin-top:4px">復
       productsUnlocked: s.stats.productsUnlocked||0,
     };
 
+    // 月次期待回数（simEndStateはG復元前の値）
+    const _smi = (s.startState.year-1)*12 + (s.startState.month-1);
+    const _emi = (simEndState.year-1)*12 + (simEndState.month-1);
+    const _expectedMonthlyTicks = _emi - _smi;
+
     const result = {
       executedAt: new Date().toLocaleString('ja-JP',{hour12:false}),
       elapsed:    ((Date.now()-s.startTime)/1000).toFixed(1)+'s',
       overall, simOverall, safetyOverall,
       stopped:    s.stopRequested,
       daysCompleted: s.daysRun, targetDays: s.targetDays,
+      expectedMonthlyTicks: _expectedMonthlyTicks,
       startState: s.startState,
       endDateSimulated: simEndState,
       annualStats,
@@ -3046,7 +3086,7 @@ ${sf.unrestoredFunctions.length>0?`<div style="color:#ff4444;margin-top:4px">復
 </div>
 <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:6px;margin-bottom:10px">
   <div class="qa-2b-stat-card"><div class="lbl">総イベント発火</div><div class="val">${r.annualStats?.totalEvents??0}</div></div>
-  <div class="qa-2b-stat-card"><div class="lbl">月次処理回数</div><div class="val" style="color:${st.monthsCompleted===12?'#66bb6a':'#ff5252'}">${st.monthsCompleted}/12</div></div>
+  <div class="qa-2b-stat-card"><div class="lbl">月次処理回数</div><div class="val" style="color:${st.monthsCompleted===r.expectedMonthlyTicks?'#66bb6a':'#ff5252'}">${st.monthsCompleted}/${r.expectedMonthlyTicks??'?'}</div></div>
   <div class="qa-2b-stat-card"><div class="lbl">案件処理数</div><div class="val" style="color:#66bb6a">${st.caseResolved}</div></div>
   <div class="qa-2b-stat-card"><div class="lbl">赤字月数</div><div class="val" style="color:${st.redMonths>6?'#ff5252':st.redMonths>3?'#f0c040':'#888'}">${st.redMonths}/12</div></div>
   <div class="qa-2b-stat-card"><div class="lbl">現金危機日数</div><div class="val" style="color:${st.cashCrisisCount>0?'#ff5252':'#888'}">${st.cashCrisisCount}</div></div>
