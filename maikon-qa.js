@@ -3388,14 +3388,17 @@ function qa2cSwitchTab(tid,idx){
       const rng = _mkTrackedRng(seed);
       Math.random = rng;
       const t0 = Date.now();
-      const prevExecAt = window._qa2cLastResult ? window._qa2cLastResult.executedAt : null;
+      const prevResult = window._qa2cLastResult; // 開始前の参照を保持
 
       runPhase2C365();
 
       const pollId = setInterval(() => {
+        // 二重チェック: ① Phase 2C完了フラグ ② 新オブジェクト参照
+        if (_sim2cRunning || _sim2c !== null) return;
         const r = window._qa2cLastResult;
-        if (r && r.executedAt !== prevExecAt) {
-          clearInterval(pollId);
+        if (!r || r === prevResult) return;
+        clearInterval(pollId);
+        {
 
           // G はこの時点で Phase 2C により復元済み
           const postHash = _sim3StateHash(eval('G'));
