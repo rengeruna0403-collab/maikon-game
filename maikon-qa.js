@@ -602,6 +602,7 @@ table.qa-tbl tr:hover td{background:#0f3460}
   <div class="qa-tab" data-tab="warnings">警告一覧</div>
   <div class="qa-tab" data-tab="events">イベント一覧</div>
   <div class="qa-tab" data-tab="sim">シミュレーション</div>
+  <div class="qa-tab" data-tab="phase3">Phase 3A</div>
   <div class="qa-tab" data-tab="export">エクスポート</div>
 </div>
 <div id="qa-body">
@@ -609,6 +610,7 @@ table.qa-tbl tr:hover td{background:#0f3460}
   <div class="qa-panel" id="qa-panel-warnings"></div>
   <div class="qa-panel" id="qa-panel-events"></div>
   <div class="qa-panel" id="qa-panel-sim"></div>
+  <div class="qa-panel" id="qa-panel-phase3"></div>
   <div class="qa-panel" id="qa-panel-export"></div>
 </div>`;
     document.body.appendChild(el);
@@ -638,6 +640,7 @@ table.qa-tbl tr:hover td{background:#0f3460}
     if (name === 'warnings') renderWarningsTab();
     if (name === 'events')   renderEventsTab();
     if (name === 'sim')      renderSimTab();
+    if (name === 'phase3')   renderPhase3Tab();
     if (name === 'export')   renderExportTab();
   }
 
@@ -3230,6 +3233,355 @@ function qa2cSwitchTab(tid,idx){
     console.log(`[QA] 舞昆茶屋物語 QAツール ${QA_VERSION} 起動 (READ-ONLY)`);
     console.log(`[QA] プール診断: ${poolCheck}`);
   }
+
+  // ══════════════════════════════════════════════════════════════
+  // ■ Phase 3A — シード付き乱数・再現性テスト
+  // ══════════════════════════════════════════════════════════════
+
+  // ─── 3A-1. Mulberry32 シード付き乱数 ───
+  function _mkRng(seed) {
+    let s = ((seed | 0) >>> 0);
+    const rng = function() {
+      s = (s + 0x6D2B79F5) >>> 0;
+      let t = Math.imul(s ^ (s >>> 15), 1 | s);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+    rng._getSeed = () => s;
+    return rng;
+  }
+
+  // ─── 3A-2. DJB2 ハッシュ ───
+  function _djb2Hash(str) {
+    let h = 5381 >>> 0;
+    for (let i = 0; i < str.length; i++) {
+      h = (Math.imul(h, 33) ^ str.charCodeAt(i)) >>> 0;
+    }
+    return h.toString(16).padStart(8, '0');
+  }
+
+  // ─── 3A-3. 正規化状態ハッシュ ───
+  function _sim3StateHash(gObj) {
+    if (!gObj) return '00000000';
+    const sortObj = (o) => {
+      if (o === null || typeof o !== 'object' || Array.isArray(o)) return o;
+      return Object.fromEntries(Object.keys(o).sort().map(k => [k, sortObj(o[k])]));
+    };
+    const snap = {
+      date:   { year: gObj.year, month: gObj.month, day: gObj.day },
+      money:  gObj.money,
+      ap:     gObj.ap,
+      fatigue: gObj.fatigue,
+      creditScore: gObj.creditScore,
+      cases: (gObj.cases||[]).map(c => ({
+        id: c.id, created: c.createdDay,
+        resolved: !!c.resolved, expired: !!c.expired
+      })).sort((a,b) => (a.id||'').localeCompare(b.id||'') || (a.created||0)-(b.created||0)),
+      stores: (gObj.stores||[]).map(s => ({
+        id: s.id, customers: s.customers|0, revenue: s.revenue|0,
+        menus: [...(s.menus||[])].sort()
+      })),
+      buildings: (gObj.buildings||[]).map(b => ({
+        id: b.id,
+        totalRooms: b.totalRooms || b.capacity || 0,
+        occupants:  b.occupants || (b.residents||[]).length || 0
+      })),
+      staff: (gObj.staff||[]).map(s => ({
+        id: s.id||s.name||'', sat: s.satisfaction|0, level: s.level|0
+      })).sort((a,b) => (a.id||'').localeCompare(b.id||'')),
+      characters: sortObj(
+        Object.fromEntries(Object.entries(gObj.characters||{}).map(([k,v]) => [k, {
+          met: !!v.met, level: v.level|0, notesCount: (v.notes||[]).length
+        }]))
+      ),
+      unlockedProducts: [...(gObj.unlockedProducts||[])].sort(),
+      caseCooldowns:       sortObj(gObj.caseCooldowns||{}),
+      eventCooldowns:      sortObj(gObj.eventCooldowns||{}),
+      seasonalEventStatus: sortObj(gObj.seasonalEventStatus||{}),
+      pendingFollowUps: (gObj.pendingFollowUps||[]).map(f => (f&&f.id)||f||'').sort(),
+      currentChallengeId: (gObj.currentChallenge&&gObj.currentChallenge.id)||null,
+    };
+    return _djb2Hash(JSON.stringify(snap));
+  }
+
+  // ─── 3A-4. 計測付き RNG ラッパー ───
+  function _mkTrackedRng(seed) {
+    const rng = _mkRng(seed);
+    let callCount = 0;
+    const firstVals = [];
+    const recent = new Array(10);
+    let ri = 0;
+    const tracked = function() {
+      const v = rng();
+      callCount++;
+      if (callCount <= 10) firstVals.push(parseFloat(v.toFixed(6)));
+      recent[ri % 10] = { n: callCount, v: parseFloat(v.toFixed(6)) };
+      ri++;
+      return v;
+    };
+    tracked._count    = () => callCount;
+    tracked._first10  = () => [...firstVals];
+    tracked._last10   = () => {
+      const len = Math.min(callCount, 10);
+      const out = [];
+      for (let i = len - 1; i >= 0; i--) {
+        out.unshift(recent[(ri - 1 - i + 20) % 10]);
+      }
+      return out;
+    };
+    tracked._state    = () => rng._getSeed();
+    return tracked;
+  }
+
+  // ─── 3A-5. Phase 3A 状態 ───
+  let _sim3Running  = false;
+  let _sim3LastReprod = null;
+
+  // ─── 3A-6. 再現性テスト（seed×2） ───
+  function _sim3StartReprod(seed) {
+    if (_sim3Running || _sim2cRunning || _sim2bRunning || _qa2aRunning) {
+      alert('別のシミュレーションが実行中です。停止してから再実行してください。');
+      return;
+    }
+    _sim3Running  = true;
+    _sim3LastReprod = null;
+    renderPhase3Tab();
+
+    const origRandom = Math.random;
+    const gNow = eval('G');
+    const startHash = _sim3StateHash(gNow);
+    const overallStart = Date.now();
+
+    // 試行データ
+    const trials = [];
+
+    function runOneTrial(trialIdx, onDone) {
+      const rng = _mkTrackedRng(seed);
+      Math.random = rng;
+      const t0 = Date.now();
+      const prevExecAt = window._qa2cLastResult ? window._qa2cLastResult.executedAt : null;
+
+      window._qa2cRun();
+
+      const pollId = setInterval(() => {
+        const r = window._qa2cLastResult;
+        if (r && r.executedAt !== prevExecAt) {
+          clearInterval(pollId);
+
+          // G はこの時点で Phase 2C により復元済み
+          const postHash = _sim3StateHash(eval('G'));
+
+          trials[trialIdx] = {
+            trialIdx,
+            seed,
+            elapsed:   ((Date.now() - t0) / 1000).toFixed(2) + 's',
+            rng: {
+              calls:    rng._count(),
+              first10:  rng._first10(),
+              last10:   rng._last10(),
+              finalState: rng._state().toString(16).padStart(8,'0'),
+            },
+            startHash,
+            endHash:   postHash,
+            overall:       r.overall,
+            simOverall:    r.simOverall,
+            safetyOverall: r.safetyOverall,
+            daysCompleted: r.daysCompleted,
+            anomalyCount:  (r.anomalies||[]).length,
+            p1Count:       (r.anomalies||[]).filter(a=>a.severity==='P1').length,
+            annualStats:   r.annualStats,
+            endDate:       r.endDateSimulated,
+            // イベント系列（全件ハッシュ用 + 先頭50・末尾50保存）
+            eventSeqHash:  _djb2Hash(
+              (r.eventLog||[]).map(e => `${e.date}:${e.eventId}:${e.choiceIdx}`).join('|')
+            ),
+            eventLogHead:  (r.eventLog||[]).slice(0, 50).map(e => ({
+              date: e.date, id: e.eventId, choice: e.choiceIdx
+            })),
+            eventLogTail:  (r.eventLog||[]).slice(-50).map(e => ({
+              date: e.date, id: e.eventId, choice: e.choiceIdx
+            })),
+            // 月別データ（完了暦月のみ）
+            monthlyData:   r.monthlyData,
+            monthlyFull:   (r.monthlyData||[]).filter((_,i,a) => i>0 && i<a.length-1),
+            safety:        r.safety,
+          };
+
+          Math.random = origRandom;  // 各試行後に必ず復元
+          onDone();
+        }
+      }, 300);
+    }
+
+    runOneTrial(0, () => {
+      runOneTrial(1, () => {
+        Math.random = origRandom;
+        _sim3Running = false;
+        _sim3LastReprod = _sim3CompareReprod(trials[0], trials[1], Date.now() - overallStart);
+        renderPhase3Tab();
+      });
+    });
+  }
+
+  // ─── 3A-7. 2試行比較 ───
+  function _sim3CompareReprod(t0, t1, totalMs) {
+    if (!t0 || !t1) return null;
+    const checks = [];
+    const chk = (label, a, b) => {
+      const ok = JSON.stringify(a) === JSON.stringify(b);
+      checks.push({ label, ok, a: String(a).substring(0, 80), b: String(b).substring(0, 80) });
+      return ok;
+    };
+
+    chk('開始状態ハッシュ一致',    t0.startHash,      t1.startHash);
+    chk('終了状態ハッシュ一致',    t0.endHash,        t1.endHash);
+    chk('イベント系列ハッシュ一致', t0.eventSeqHash,   t1.eventSeqHash);
+    chk('RNG呼出回数一致',         t0.rng.calls,      t1.rng.calls);
+    chk('RNG最終状態一致',         t0.rng.finalState, t1.rng.finalState);
+    chk('overall一致',             t0.overall,        t1.overall);
+    chk('365日完走',               t0.daysCompleted,  365);
+    chk('Safety PASS',             t0.safetyOverall,  'PASS');
+    chk('年間売上一致',
+      t0.annualStats?.totalRevenue,  t1.annualStats?.totalRevenue);
+    chk('年末現金一致',
+      t0.endDate?.money,             t1.endDate?.money);
+    chk('月別データ件数一致',
+      (t0.monthlyData||[]).length,   (t1.monthlyData||[]).length);
+
+    // 月別データ詳細比較
+    const m0 = t0.monthlyData||[], m1 = t1.monthlyData||[];
+    const monthMismatch = [];
+    for (let i = 0; i < Math.max(m0.length, m1.length); i++) {
+      const a = m0[i], b = m1[i];
+      if (JSON.stringify(a) !== JSON.stringify(b)) {
+        monthMismatch.push({ month: i+1, a: a?.storeRevenue, b: b?.storeRevenue });
+      }
+    }
+
+    // イベント系列の最初の差分を探す
+    const el0 = (t0.eventLogHead||[]), el1 = (t1.eventLogHead||[]);
+    let firstDiff = null;
+    for (let i = 0; i < Math.max(el0.length, el1.length); i++) {
+      if (JSON.stringify(el0[i]) !== JSON.stringify(el1[i])) {
+        firstDiff = { idx: i, a: el0[i], b: el1[i] };
+        break;
+      }
+    }
+
+    const allPass = checks.every(c => c.ok) && monthMismatch.length === 0;
+    return {
+      allPass, totalMs,
+      trials: [t0, t1],
+      checks, monthMismatch, firstDiff,
+    };
+  }
+
+  // ─── 3A-8. Phase 3A タブ描画 ───
+  function renderPhase3Tab() {
+    const panel = document.getElementById('qa-panel-phase3');
+    if (!panel) return;
+    const r = _sim3LastReprod;
+    const running = _sim3Running;
+
+    let resultHtml = '';
+    if (running) {
+      resultHtml = `<div style="color:#f0c040;font-size:13px;margin-top:16px">⏳ テスト実行中…</div>`;
+    } else if (r) {
+      const ovColor = r.allPass ? '#66bb6a' : '#ff5252';
+      const ovLabel = r.allPass ? '✅ 再現性 PASS' : '❌ 再現性 FAIL';
+
+      // チェック一覧
+      const chkRows = r.checks.map(c =>
+        `<tr><td style="padding:3px 8px;color:#aaa">${esc(c.label)}</td>
+          <td style="color:${c.ok?'#66bb6a':'#ff5252'};font-weight:700">${c.ok?'✓':'✗'}</td>
+          <td style="font-size:10px;color:#888">${esc(c.a)}</td>
+          <td style="font-size:10px;color:#888">${c.ok?'':esc(c.b)}</td></tr>`
+      ).join('');
+
+      // RNG比較
+      const rngHtml = r.trials.map((t,i) => `
+        <div style="margin-bottom:8px;font-size:11px;color:#aaa">
+          <strong style="color:#64b5f6">試行${i+1} (seed=${t.seed})</strong>
+          &nbsp; 経過: ${t.elapsed} &nbsp; RNG呼出: ${t.rng.calls.toLocaleString()}回
+          &nbsp; RNG最終: <code>${t.rng.finalState}</code><br>
+          最初の10個: <code>${t.rng.first10.join(', ')}</code>
+        </div>`).join('');
+
+      // 月別不一致
+      const monthHtml = r.monthMismatch.length === 0
+        ? `<div style="color:#66bb6a;font-size:11px">月別データ完全一致</div>`
+        : `<div style="color:#ff5252;font-size:11px">月別不一致 ${r.monthMismatch.length}件:<br>`
+          + r.monthMismatch.map(m=>`M${m.month}: 試行1=${m.a} / 試行2=${m.b}`).join('<br>')
+          + '</div>';
+
+      // イベント差分
+      const diffHtml = r.firstDiff
+        ? `<div style="color:#ff5252;font-size:11px;margin-top:8px">
+            ⚠ 最初の差分 index=${r.firstDiff.idx}:<br>
+            試行1: ${JSON.stringify(r.firstDiff.a)}<br>
+            試行2: ${JSON.stringify(r.firstDiff.b)}</div>`
+        : `<div style="color:#66bb6a;font-size:11px;margin-top:6px">イベント系列先頭50件 一致</div>`;
+
+      resultHtml = `
+<div style="margin-bottom:14px">
+  <span style="font-size:20px;font-weight:900;padding:4px 16px;border-radius:6px;
+    background:${r.allPass?'#0a2a0a':'#2a0000'};color:${ovColor};border:2px solid ${ovColor}">
+    ${ovLabel}</span>
+  <span style="font-size:11px;color:#888;margin-left:10px">
+    総経過時間: ${(r.totalMs/1000).toFixed(1)}s &nbsp;
+    1試行推定: ${(r.trials[0].elapsed)}</span>
+</div>
+
+<div style="background:#0d1f2d;border:1px solid #1e3a5a;border-radius:6px;padding:10px 14px;margin-bottom:12px">
+  <div style="font-size:11px;color:#64b5f6;font-weight:700;margin-bottom:8px">📊 検証チェック</div>
+  <table style="font-size:11px;border-collapse:collapse;width:100%">${chkRows}</table>
+</div>
+
+<div style="background:#0d1f2d;border:1px solid #1e3a5a;border-radius:6px;padding:10px 14px;margin-bottom:12px">
+  <div style="font-size:11px;color:#64b5f6;font-weight:700;margin-bottom:6px">🎲 RNG情報</div>
+  ${rngHtml}
+</div>
+
+<div style="background:#0d1f2d;border:1px solid #1e3a5a;border-radius:6px;padding:10px 14px;margin-bottom:12px">
+  <div style="font-size:11px;color:#64b5f6;font-weight:700;margin-bottom:6px">📅 月別・イベント系列</div>
+  ${monthHtml}
+  ${diffHtml}
+</div>
+
+<button class="qa-btn" onclick="window._qa3CopyJSON()">JSON コピー</button>`;
+
+      window._qa3CopyJSON = () => {
+        navigator.clipboard.writeText(JSON.stringify(r, null, 2)).catch(()=>{});
+      };
+    } else {
+      resultHtml = `<div style="color:#555;font-size:12px">まだ実行していません。</div>`;
+    }
+
+    panel.innerHTML = `
+<h3 style="color:#ce93d8;margin:0 0 8px">Phase 3A — Step 1：同一seed×2回 再現性テスト</h3>
+<div class="qa-notice" style="font-size:11px;padding:8px 12px">
+  同じseedで365日シミュレーションを<strong>2回</strong>実行し、イベント順・月別売上・終了状態が完全一致するか検証します。<br>
+  一致した場合のみ、次のステップ（多試行実行）へ進みます。
+</div>
+<div style="display:flex;gap:12px;align-items:center;margin-bottom:16px;flex-wrap:wrap">
+  <label style="font-size:12px;color:#aaa">Seed:
+    <input id="qa3-seed" type="number" value="1001" min="1"
+      style="width:80px;background:#111;color:#eee;border:1px solid #444;padding:3px 6px;margin-left:6px;border-radius:4px">
+  </label>
+  <button class="qa-btn" id="qa3-reprod-btn"
+    onclick="(function(){const s=parseInt(document.getElementById('qa3-seed').value)||1001;window._qa3ReproRun(s);})()"
+    ${running ? 'disabled' : ''}>
+    ${running ? '⏳ 実行中…' : '▶ seed×2 再現テスト'}
+  </button>
+  ${running ? `<button class="qa-btn" onclick="window._qa2cStop()" style="color:#ff8800;border-color:#ff8800">■ 停止</button>` : ''}
+</div>
+${resultHtml}`;
+
+    window._qa3ReproRun = (seed) => _sim3StartReprod(seed);
+  }
+
+  // renderPhase3Tab を window に公開
+  window._qa3RefreshPhase3 = renderPhase3Tab;
 
   // DOMが準備できていれば即時、そうでなければ待つ
   if (document.readyState === 'loading') {
