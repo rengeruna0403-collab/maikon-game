@@ -3276,7 +3276,13 @@ function qa2cSwitchTab(tid,idx){
       cases: (gObj.cases||[]).map(c => ({
         id: c.id, created: c.createdDay,
         resolved: !!c.resolved, expired: !!c.expired
-      })).sort((a,b) => (a.id||'').localeCompare(b.id||'') || (a.created||0)-(b.created||0)),
+      })).sort((a, b) => {
+        const aid = String(a?.id ?? '');
+        const bid = String(b?.id ?? '');
+        const cmp = aid.localeCompare(bid);
+        if (cmp !== 0) return cmp;
+        return (a.created ?? 0) - (b.created ?? 0);
+      }),
       stores: (gObj.stores||[]).map(s => ({
         id: s.id, customers: s.customers|0, revenue: s.revenue|0,
         menus: [...(s.menus||[])].sort()
@@ -3288,7 +3294,7 @@ function qa2cSwitchTab(tid,idx){
       })),
       staff: (gObj.staff||[]).map(s => ({
         id: s.id||s.name||'', sat: s.satisfaction|0, level: s.level|0
-      })).sort((a,b) => (a.id||'').localeCompare(b.id||'')),
+      })).sort((a, b) => String(a?.id ?? '').localeCompare(String(b?.id ?? ''))),
       characters: sortObj(
         Object.fromEntries(Object.entries(gObj.characters||{}).map(([k,v]) => [k, {
           met: !!v.met, level: v.level|0, notesCount: (v.notes||[]).length
@@ -3349,6 +3355,16 @@ function qa2cSwitchTab(tid,idx){
 
     const origRandom = Math.random;
     const gNow = eval('G');
+
+    // 非文字列ID診断（初回のみ）
+    const badIds = (gNow.cases||[]).filter(c => typeof c.id !== 'string');
+    if (badIds.length > 0) {
+      console.warn('[QA-3A] 非文字列IDのcase検出:');
+      console.table(badIds.map(c => ({ id: c.id, type: typeof c.id, title: c.title, source: c.source })));
+    } else {
+      console.log('[QA-3A] case.id 型チェック: 全件 string — 問題なし');
+    }
+
     const startHash = _sim3StateHash(gNow);
     const overallStart = Date.now();
 
