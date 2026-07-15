@@ -3368,6 +3368,27 @@ function qa2cSwitchTab(tid,idx){
   let _lsRngCapture = null;
   const _lsOrigFns  = {};
 
+  // ─ ENTER/EXIT 両点スナップ（_lsCapturePoint は wrapper から呼ばれる）─
+  function _lsCapturePoint(fn, phase) {
+    if (!_lsRngCapture) return null;
+    const rng = _lsRngCapture.rng;
+    let g, s0 = {};
+    try { g = eval('G'); s0 = (g.stores||[])[0] || {}; } catch(e) { return { fn, phase, error: String(e) }; }
+    return {
+      fn, phase,
+      rngCount:            rng._count(),
+      gHash:               _sim3StateHash(g),
+      activeEvent:         g.activeEvent ? (g.activeEvent.id || '(set,noId)') : null,
+      challengeId:         (g.currentChallenge && g.currentChallenge.id) || null,
+      pendingChallenge:    g._pendingChallenge || null,
+      pendingFollowUpsLen: (g.pendingFollowUps||[]).length,
+      casesLen:            (g.cases||[]).length,
+      caseIds:             (g.cases||[]).map(c=>c.id+(c.resolved?'✓':c.expired?'✗':'')),
+      unlockedProducts:    [...(g.unlockedProducts||[])],
+      menuCount:           (s0.menu||[]).length,
+    };
+  }
+
   const _LS_WRAP_FNS = [
     'generateConditionCases', 'generateWeeklyCases', '_schedProcess',
     'staffAutoProcess', 'checkCaseExpiry', 'monthlyTick',
@@ -3382,13 +3403,14 @@ function qa2cSwitchTab(tid,idx){
       try {
         _lsOrigFns[fn] = eval(fn);
         // ラッパー: _lsRngCapture が null なら素通し
+        // ENTER と EXIT の両方をキャプチャ
         const body = [
           'if (!_lsRngCapture) return _lsOrigFns["' + fn + '"].apply(this, arguments);',
-          'const _b = _lsRngCapture.rng._count();',
-          '_lsRngCapture.called.push("' + fn + '");',
-          'const _r = _lsOrigFns["' + fn + '"].apply(this, arguments);',
-          'const _a = _lsRngCapture.rng._count();',
-          '_lsRngCapture.dayLog.push({ fn:"' + fn + '", rngBefore:_b, rngAfter:_a, rngUsed:_a-_b });',
+          'var _enter = _lsCapturePoint("' + fn + '", "ENTER");',
+          'var _r = _lsOrigFns["' + fn + '"].apply(this, arguments);',
+          'var _exit  = _lsCapturePoint("' + fn + '", "EXIT");',
+          '_lsRngCapture.dayLog.push({ fn:"' + fn + '", enter:_enter, exit:_exit,',
+          '  rngUsed: (_exit?_exit.rngCount:0) - (_enter?_enter.rngCount:0) });',
           'return _r;',
         ].join('');
         eval(fn + ' = function() { ' + body + ' }');
@@ -3504,10 +3526,26 @@ function qa2cSwitchTab(tid,idx){
       try { eval('G = JSON.parse(gSnap)'); } catch(e) {
         console.error('[QA-LS] G復元失敗:', e);
       }
-      // G復元確認
-      const gCheckStr = JSON.stringify(eval('G'));
+      // G復元確認（JSON差分 + Reflect.ownKeys差分）
+      const gNowObj  = eval('G');
+      const gSnapObj = JSON.parse(gSnap);
+      const gCheckStr = JSON.stringify(gNowObj);
       if (gCheckStr !== gSnap) {
-        console.warn(`[QA-LS T${ti}] G復元ズレ! snap=${gSnap.length}bytes now=${gCheckStr.length}bytes`);
+        console.warn(`[QA-LS T${ti}] G復元ズレ! snap=${gSnap.length}b now=${gCheckStr.length}b`);
+        // Reflect.ownKeys 差分
+        const snapRK = Reflect.ownKeys(gSnapObj);
+        const nowRK  = Reflect.ownKeys(gNowObj);
+        const extraK = nowRK.filter(k => !snapRK.includes(k));
+        const missingK = snapRK.filter(k => !nowRK.includes(k));
+        if (extraK.length)   console.warn(`[QA-LS T${ti}] G追加キー:`, extraK);
+        if (missingK.length) console.warn(`[QA-LS T${ti}] G欠損キー:`, missingK);
+        // 値差分のあるキー
+        const valDiff = snapRK.filter(k =>
+          JSON.stringify(gSnapObj[k]) !== JSON.stringify(gNowObj[k])
+        );
+        if (valDiff.length) console.warn(`[QA-LS T${ti}] G値差分キー:`, valDiff.slice(0,10));
+      } else {
+        console.log(`[QA-LS T${ti}] G復元OK (Reflect.ownKeys: ${Reflect.ownKeys(gNowObj).length}キー)`);
       }
 
       const rng = _mkTrackedRng(seed);
@@ -3614,37 +3652,87 @@ function qa2cSwitchTab(tid,idx){
     }
     console.table(rows.map(r => Object.fromEntries(header.map((h,i)=>[h,r[i]]))));
 
+    // ─ 累積 RNG 集計（全日程・全関数） ─
+    const rngSumByFn = (days) => {
+      const acc = {};
+      for (const d of days) {
+        for (const e of (d.fnLog||[])) {
+          acc[e.fn] = (acc[e.fn]||0) + (e.rngUsed||0);
+        }
+      }
+      return acc;
+    };
+    const sum1 = rngSumByFn(r.t1);
+    const sum2 = rngSumByFn(r.t2);
+    const allFns = [...new Set([...Object.keys(sum1), ...Object.keys(sum2)])];
+    console.group('[QA-LS] 累積 RNG 使用回数（全日程・関数別）');
+    console.table(allFns.map(fn => ({
+      fn,
+      T1_total: sum1[fn]||0,
+      T2_total: sum2[fn]||0,
+      diff:     (sum1[fn]||0) - (sum2[fn]||0),
+      判定:     (sum1[fn]||0) === (sum2[fn]||0) ? '✓' : '★ズレ',
+    })));
+    console.groupEnd();
+
     // 最初の差分の詳細
     if (r.firstDiffDay != null) {
       const c = r.comparison;
       console.warn(`[QA-LS] ★ ${c.diffDay}日目に最初の差分!`);
 
-      console.group('差分日: T1 fnLog');
-      console.table(c.t1.fnLog);
-      console.groupEnd();
-
-      console.group('差分日: T2 fnLog');
-      console.table(c.t2.fnLog);
-      console.groupEnd();
-
-      // 関数ごとのRNG比較
-      const fnNames = [...new Set([
+      // ─ 関数別 ENTER/EXIT 比較（差分日） ─
+      const allFnsDiff = [...new Set([
         ...c.t1.fnLog.map(f=>f.fn),
         ...c.t2.fnLog.map(f=>f.fn),
       ])];
-      console.group('差分日: 関数別RNG比較');
-      fnNames.forEach(fn => {
+
+      console.group(`差分日(${c.diffDay}日): 関数別 ENTER/EXIT 比較`);
+      allFnsDiff.forEach(fn => {
         const e1 = c.t1.fnLog.find(f=>f.fn===fn);
         const e2 = c.t2.fnLog.find(f=>f.fn===fn);
-        const b1=e1?e1.rngBefore:'(未呼出)', a1=e1?e1.rngAfter:'-', u1=e1?e1.rngUsed:'-';
-        const b2=e2?e2.rngBefore:'(未呼出)', a2=e2?e2.rngAfter:'-', u2=e2?e2.rngUsed:'-';
-        const diff = (e1&&e2) ? (e1.rngBefore!==e2.rngBefore?'★開始時点ズレ':(e1.rngUsed!==e2.rngUsed?'★使用回数ズレ':'✓')) : '★片方のみ呼出';
-        console.log(`${diff}  ${fn}: T1 ${b1}→${a1}(+${u1})  T2 ${b2}→${a2}(+${u2})`);
+
+        if (!e1 && !e2) return;
+        if (!e1) { console.warn(`★片方のみ呼出  ${fn}: T1=(未呼出) T2呼出`); return; }
+        if (!e2) { console.warn(`★片方のみ呼出  ${fn}: T1呼出 T2=(未呼出)`); return; }
+
+        const en1 = e1.enter, ex1 = e1.exit;
+        const en2 = e2.enter, ex2 = e2.exit;
+
+        // ENTER 時点の差分
+        const enterRngDiff  = (en1&&en2) && en1.rngCount !== en2.rngCount;
+        const enterHashDiff = (en1&&en2) && en1.gHash    !== en2.gHash;
+        const enterCaseDiff = (en1&&en2) && en1.casesLen !== en2.casesLen;
+        const enterAEDiff   = (en1&&en2) && JSON.stringify(en1.activeEvent) !== JSON.stringify(en2.activeEvent);
+
+        const usedDiff = e1.rngUsed !== e2.rngUsed;
+
+        let verdict = '✓';
+        if (enterRngDiff)  verdict = '★ENTER時点でRNGズレ';
+        else if (enterHashDiff) verdict = '★ENTER時点でGHashズレ';
+        else if (usedDiff)      verdict = '★この関数内でRNG使用数ズレ';
+
+        console.log(`${verdict}  [${fn}]`);
+        if (en1 && en2) {
+          console.log(`  ENTER: T1 rng=${en1.rngCount} cases=${en1.casesLen} hash=${en1.gHash} active=${en1.activeEvent} pf=${en1.pendingFollowUpsLen} pc=${en1.pendingChallenge}`);
+          console.log(`  ENTER: T2 rng=${en2.rngCount} cases=${en2.casesLen} hash=${en2.gHash} active=${en2.activeEvent} pf=${en2.pendingFollowUpsLen} pc=${en2.pendingChallenge}`);
+        }
+        if (ex1 && ex2) {
+          console.log(`  EXIT:  T1 rng=${ex1.rngCount}(+${e1.rngUsed}) cases=${ex1.casesLen} hash=${ex1.gHash}`);
+          console.log(`  EXIT:  T2 rng=${ex2.rngCount}(+${e2.rngUsed}) cases=${ex2.casesLen} hash=${ex2.gHash}`);
+        }
+        if (en1&&en2&&enterCaseDiff) {
+          console.warn(`  ★ ENTER時点でcases差: T1=${en1.casesLen} T2=${en2.casesLen}`);
+          console.log(`  T1 caseIds:`, en1.caseIds);
+          console.log(`  T2 caseIds:`, en2.caseIds);
+        }
+        if (en1&&en2&&enterAEDiff) {
+          console.warn(`  ★ ENTER時点でactiveEvent差: T1=${en1.activeEvent} T2=${en2.activeEvent}`);
+        }
       });
       console.groupEnd();
 
-      // cases/products/menus比較
-      console.group('差分日: cases/products/menus比較');
+      // cases/products/menus 比較（差分日終了時）
+      console.group(`差分日(${c.diffDay}日): G状態比較（日終了後）`);
       console.log('T1 caseIds:', c.t1.caseIds);
       console.log('T2 caseIds:', c.t2.caseIds);
       console.log('T1 unlockedProducts:', c.t1.unlockedProducts);
@@ -3653,12 +3741,38 @@ function qa2cSwitchTab(tid,idx){
       console.log('T2 menuIds:', c.t2.menuIds, 'pending:', c.t2.pendingMenuIds);
       console.groupEnd();
 
+      // Reflect.ownKeys 比較（差分日終了後の _sim3CaptureDay では G は既に advanceDay 後）
+      // → G外変数の確認で代用
     } else {
       console.log(`[QA-LS] ${maxDays}日間 gHash・RNG回数 完全一致`);
     }
 
     // G外変数
     console.log('[QA-LS] G外変数（試行終了後）:', r.extVarsAfterRun);
+
+    // Reflect.ownKeys は G 復元後に比較（ロックステップ終了後の G に残留がないか）
+    try {
+      const gFinal = eval('G');
+      const gOrig  = JSON.parse(gSnap);
+      const rk_now  = Reflect.ownKeys(gFinal);
+      const rk_orig = Reflect.ownKeys(gOrig);
+      const extraK    = rk_now.filter(k=>!rk_orig.includes(k));
+      const missingK  = rk_orig.filter(k=>!rk_now.includes(k));
+      const symbolKeys= rk_now.filter(k=>typeof k==='symbol');
+      console.group('[QA-LS] Reflect.ownKeys(G) 最終確認');
+      console.log('現在Gキー数:', rk_now.length, '元スナップキー数:', rk_orig.length);
+      if (extraK.length)    console.warn('★追加残留キー:', extraK);
+      if (missingK.length)  console.warn('★欠損キー:', missingK);
+      if (symbolKeys.length)console.warn('★Symbolキー:', symbolKeys);
+      if (!extraK.length && !missingK.length && !symbolKeys.length)
+        console.log('✓ キー差分なし (追加・欠損・Symbol なし)');
+      // non-enumerable チェック
+      const nonEnum = rk_now.filter(k =>
+        typeof k === 'string' && !Object.prototype.propertyIsEnumerable.call(gFinal, k)
+      );
+      if (nonEnum.length) console.warn('★non-enumerable キー:', nonEnum);
+      console.groupEnd();
+    } catch(e) { console.warn('[QA-LS] Reflect.ownKeys確認エラー:', e.message); }
 
     console.groupEnd();
     return r;
