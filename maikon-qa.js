@@ -3368,13 +3368,96 @@ function qa2cSwitchTab(tid,idx){
   let _lsRngCapture = null;
   const _lsOrigFns  = {};
 
+  // ─ 関数固有フック（ENTER/EXIT に追加データを注入） ─
+  const _lsSpecialCapture = {
+    // chooseEvent(idx, useFatigue): 対象案件・全候補を記録
+    'chooseEvent': {
+      augmentEnter(snap, args) {
+        try {
+          const idx = args[0];
+          const g   = eval('G');
+          const cases = g.cases || [];
+          const target = cases[idx];
+          snap.resolvedCaseId    = target ? target.id    : null;
+          snap.resolvedCaseTitle = target ? (target.title||'') : null;
+          // 候補一覧（未解決・未期限切れ）
+          snap.eligibleCaseIds   = cases.filter(x=>!x.resolved&&!x.expired).map(x=>x.id);
+          snap.eligibleCount     = snap.eligibleCaseIds.length;
+          // バックログ状態
+          const sched = g._sched || {};
+          snap.backlogIds        = (sched.backlog||[]).map(m=>m.c&&m.c.id);
+        } catch(e) { snap._hookErr = String(e); }
+      },
+    },
+
+    // generateConditionCases: EXIT で追加された案件リストを記録
+    'generateConditionCases': {
+      _casesLenBefore: 0,
+      augmentEnter(snap, args) {
+        try {
+          this._casesLenBefore = (eval('G').cases||[]).length;
+          snap.casesLenBefore = this._casesLenBefore;
+        } catch(e) {}
+      },
+      augmentExit(snap, args) {
+        try {
+          const g = eval('G');
+          const after = (g.cases||[]).length;
+          snap.casesLenAfter  = after;
+          snap.newlyAddedCases = (g.cases||[]).slice(this._casesLenBefore).map(c=>c.id);
+        } catch(e) { snap._hookErr = String(e); }
+      },
+    },
+
+    // generateWeeklyCases: EXIT で追加された案件リストを記録
+    'generateWeeklyCases': {
+      _casesLenBefore: 0,
+      augmentEnter(snap, args) {
+        try {
+          this._casesLenBefore = (eval('G').cases||[]).length;
+          snap.casesLenBefore = this._casesLenBefore;
+        } catch(e) {}
+      },
+      augmentExit(snap, args) {
+        try {
+          snap.newlyAddedCases = (eval('G').cases||[]).slice(this._casesLenBefore).map(c=>c.id);
+        } catch(e) {}
+      },
+    },
+
+    // _schedProcess: バックログ→案件化の変化を記録
+    '_schedProcess': {
+      _backlogBefore: [],
+      augmentEnter(snap, args) {
+        try {
+          const g = eval('G');
+          const sched = g._sched || {};
+          snap.backlogIds     = (sched.backlog||[]).map(m=>m.c&&m.c.id);
+          snap.backlogLen     = snap.backlogIds.length;
+          snap.pendingCaseIds = (g.cases||[]).filter(c=>!c.resolved&&!c.expired).map(c=>c.id);
+          this._backlogBefore = snap.backlogIds;
+        } catch(e) {}
+      },
+      augmentExit(snap, args) {
+        try {
+          const g = eval('G');
+          const sched = g._sched || {};
+          snap.backlogIdsAfter     = (sched.backlog||[]).map(m=>m.c&&m.c.id);
+          snap.pendingCaseIdsAfter = (g.cases||[]).filter(c=>!c.resolved&&!c.expired).map(c=>c.id);
+          // バックログから消えた＝今日の案件として配信された
+          snap.dispatched = this._backlogBefore.filter(id=>!snap.backlogIdsAfter.includes(id));
+        } catch(e) {}
+      },
+    },
+  };
+
   // ─ ENTER/EXIT 両点スナップ（_lsCapturePoint は wrapper から呼ばれる）─
-  function _lsCapturePoint(fn, phase) {
+  function _lsCapturePoint(fn, phase, args) {
     if (!_lsRngCapture) return null;
     const rng = _lsRngCapture.rng;
     let g, s0 = {};
     try { g = eval('G'); s0 = (g.stores||[])[0] || {}; } catch(e) { return { fn, phase, error: String(e) }; }
-    return {
+    const snap = {
       fn, phase,
       rngCount:            rng._count(),
       gHash:               _sim3StateHash(g),
@@ -3387,6 +3470,13 @@ function qa2cSwitchTab(tid,idx){
       unlockedProducts:    [...(g.unlockedProducts||[])],
       menuCount:           (s0.menu||[]).length,
     };
+    // 関数固有フック
+    const hook = _lsSpecialCapture[fn];
+    if (hook) {
+      if (phase === 'ENTER' && hook.augmentEnter) try { hook.augmentEnter(snap, args||[]); } catch(e) { snap._hookErr=String(e); }
+      if (phase === 'EXIT'  && hook.augmentExit)  try { hook.augmentExit(snap,  args||[]); } catch(e) { snap._hookErr=String(e); }
+    }
+    return snap;
   }
 
   const _LS_WRAP_FNS = [
@@ -3403,12 +3493,13 @@ function qa2cSwitchTab(tid,idx){
       try {
         _lsOrigFns[fn] = eval(fn);
         // ラッパー: _lsRngCapture が null なら素通し
-        // ENTER と EXIT の両方をキャプチャ
+        // ENTER と EXIT の両方をキャプチャ（args を渡して関数固有フックを動かす）
         const body = [
           'if (!_lsRngCapture) return _lsOrigFns["' + fn + '"].apply(this, arguments);',
-          'var _enter = _lsCapturePoint("' + fn + '", "ENTER");',
+          'var _args = Array.prototype.slice.call(arguments);',
+          'var _enter = _lsCapturePoint("' + fn + '", "ENTER", _args);',
           'var _r = _lsOrigFns["' + fn + '"].apply(this, arguments);',
-          'var _exit  = _lsCapturePoint("' + fn + '", "EXIT");',
+          'var _exit  = _lsCapturePoint("' + fn + '", "EXIT", _args);',
           '_lsRngCapture.dayLog.push({ fn:"' + fn + '", enter:_enter, exit:_exit,',
           '  rngUsed: (_exit?_exit.rngCount:0) - (_enter?_enter.rngCount:0) });',
           'return _r;',
@@ -3741,8 +3832,68 @@ function qa2cSwitchTab(tid,idx){
       console.log('T2 menuIds:', c.t2.menuIds, 'pending:', c.t2.pendingMenuIds);
       console.groupEnd();
 
-      // Reflect.ownKeys 比較（差分日終了後の _sim3CaptureDay では G は既に advanceDay 後）
-      // → G外変数の確認で代用
+      // ─ FULL SNAPSHOT（最初の差分が出た関数の完全ログ） ─
+      console.group('★ FIRST DIVERGENCE FULL SNAPSHOT');
+      [['Trial 1', c.t1], ['Trial 2', c.t2]].forEach(([label, td]) => {
+        console.group(label);
+        (td.fnLog||[]).forEach(e => {
+          console.group(e.fn + ' (rngUsed=' + e.rngUsed + ')');
+          if (e.enter) console.log('ENTER:', {
+            rng: e.enter.rngCount, gHash: e.enter.gHash,
+            casesLen: e.enter.casesLen, caseIds: e.enter.caseIds,
+            active: e.enter.activeEvent, pf: e.enter.pendingFollowUpsLen,
+            pc: e.enter.pendingChallenge, ch: e.enter.challengeId,
+            products: e.enter.unlockedProducts, menus: e.enter.menuCount,
+            eligibleCaseIds: e.enter.eligibleCaseIds,
+            resolvedCaseId: e.enter.resolvedCaseId,
+            backlogIds: e.enter.backlogIds,
+            casesLenBefore: e.enter.casesLenBefore,
+          });
+          if (e.exit) console.log('EXIT: ', {
+            rng: e.exit.rngCount, rngUsed: e.rngUsed, gHash: e.exit.gHash,
+            casesLen: e.exit.casesLen,
+            newlyAdded: e.exit.newlyAddedCases,
+            dispatched: e.exit.dispatched,
+            backlogAfter: e.exit.backlogIdsAfter,
+          });
+          console.groupEnd();
+        });
+        console.groupEnd();
+      });
+      console.groupEnd();
+
+      // ─ chooseEvent 候補リスト比較 ─
+      const ce1 = c.t1.fnLog.filter(f=>f.fn==='chooseEvent');
+      const ce2 = c.t2.fnLog.filter(f=>f.fn==='chooseEvent');
+      if (ce1.length || ce2.length) {
+        console.group('★ chooseEvent 候補比較（差分日）');
+        const maxCE = Math.max(ce1.length, ce2.length);
+        for (let i = 0; i < maxCE; i++) {
+          const en1 = ce1[i] && ce1[i].enter, en2 = ce2[i] && ce2[i].enter;
+          const ids1 = en1 ? en1.eligibleCaseIds : ['(未呼出)'];
+          const ids2 = en2 ? en2.eligibleCaseIds : ['(未呼出)'];
+          const same = JSON.stringify(ids1) === JSON.stringify(ids2);
+          console.log(`呼出#${i+1} 候補${same?'一致✓':'★差分'}`);
+          console.log(`  T1 候補[${(ids1||[]).length}]:`, ids1, '→選択:', en1?en1.resolvedCaseId:'-');
+          console.log(`  T2 候補[${(ids2||[]).length}]:`, ids2, '→選択:', en2?en2.resolvedCaseId:'-');
+        }
+        console.groupEnd();
+      }
+
+      // ─ generateConditionCases 追加案件比較 ─
+      const gc1 = c.t1.fnLog.filter(f=>f.fn==='generateConditionCases');
+      const gc2 = c.t2.fnLog.filter(f=>f.fn==='generateConditionCases');
+      if (gc1.length || gc2.length) {
+        console.group('★ generateConditionCases 追加案件（差分日）');
+        const maxGC = Math.max(gc1.length, gc2.length);
+        for (let i = 0; i < maxGC; i++) {
+          const ex1 = gc1[i] && gc1[i].exit, ex2 = gc2[i] && gc2[i].exit;
+          console.log(`T1 追加:`, ex1 ? (ex1.newlyAddedCases||[]) : ['(未呼出)']);
+          console.log(`T2 追加:`, ex2 ? (ex2.newlyAddedCases||[]) : ['(未呼出)']);
+        }
+        console.groupEnd();
+      }
+
     } else {
       console.log(`[QA-LS] ${maxDays}日間 gHash・RNG回数 完全一致`);
     }
