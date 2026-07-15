@@ -3362,8 +3362,43 @@ function qa2cSwitchTab(tid,idx){
   let _sim3LastReprod = null;
   let _sim3LockstepResult = null;
 
-  // ─── 3A-LS. ロックステップ診断（日単位比較） ───
-  // Phase 2C の _sim2cDoChunk を 1日ずつ呼んで両試行を比較する
+  // ─── 3A-LS. ロックステップ診断（日単位・関数単位RNG追跡） ───
+
+  // LS-1. 関数ラッパー（一度だけ設置。_lsRngCapture = {rng, dayLog} のとき記録）
+  let _lsRngCapture = null;
+  const _lsOrigFns  = {};
+
+  const _LS_WRAP_FNS = [
+    'generateConditionCases', 'generateWeeklyCases', '_schedProcess',
+    'staffAutoProcess', 'checkCaseExpiry', 'monthlyTick',
+    'addCase', '_processPendingMenuLaunches', '_checkMenuPopularity',
+    '_checkApSurplusProposal', 'checkDiscovery',
+  ];
+
+  function _sim3InitFnWrappers() {
+    if (_lsOrigFns.__inited) return;
+    _lsOrigFns.__inited = true;
+    for (const fn of _LS_WRAP_FNS) {
+      try {
+        _lsOrigFns[fn] = eval(fn);
+        // ラッパー: _lsRngCapture が null なら素通し
+        const body = [
+          'if (!_lsRngCapture) return _lsOrigFns["' + fn + '"].apply(this, arguments);',
+          'const _b = _lsRngCapture.rng._count();',
+          '_lsRngCapture.called.push("' + fn + '");',
+          'const _r = _lsOrigFns["' + fn + '"].apply(this, arguments);',
+          'const _a = _lsRngCapture.rng._count();',
+          '_lsRngCapture.dayLog.push({ fn:"' + fn + '", rngBefore:_b, rngAfter:_a, rngUsed:_a-_b });',
+          'return _r;',
+        ].join('');
+        eval(fn + ' = function() { ' + body + ' }');
+      } catch(e) {
+        console.warn('[QA-LS] wrap失敗:', fn, e.message);
+      }
+    }
+  }
+
+  // LS-2. _sim2c 初期化オブジェクト
   function _sim3MakeSimObj(gSnap) {
     const g = eval('G');
     return {
@@ -3395,23 +3430,23 @@ function qa2cSwitchTab(tid,idx){
     };
   }
 
+  // LS-3. スパイ設置
   function _sim3LockstepSetup(gSnap) {
     _sim2c = _sim3MakeSimObj(gSnap);
-    _sim2cRunning = true;
-    _sim2b = null;
+    _sim2cRunning = true; _sim2b = null;
     window.saveGame              = () => { if(_sim2c) _sim2c.saveCallCount++; };
     window._autoResolveEvent     = _sim2cAutoResolve;
-    window.showMainStoryEnding   = () => { if(_sim2c) G.freeMode = true; };
-    window.showMainStoryClear    = () => { if(_sim2c) G.freeMode = true; };
+    window.showMainStoryEnding   = () => { if(_sim2c) { try{eval('G').freeMode=true;}catch(e){} } };
+    window.showMainStoryClear    = () => { if(_sim2c) { try{eval('G').freeMode=true;}catch(e){} } };
     window.fetch                 = () => Promise.reject(new Error('[QA] blocked'));
     XMLHttpRequest.prototype.open = function() {};
     XMLHttpRequest.prototype.send = function() {};
   }
 
+  // LS-4. スパイ解除・G復元
   function _sim3LockstepTeardown() {
     if (!_sim2c) return;
     const s = _sim2c;
-    // G を復元（Object.assign）
     try { Object.assign(eval('G'), JSON.parse(s.gBeforeStr)); } catch(e) {}
     window.saveGame              = s.origSaveGame;
     window._autoResolveEvent     = s.origAutoResolve;
@@ -3421,35 +3456,60 @@ function qa2cSwitchTab(tid,idx){
     XMLHttpRequest.prototype.send = s.origXHRSend;
     XMLHttpRequest.prototype.open = s.origXHROpen;
     _sim2c = null; _sim2cRunning = false; _sim2b = null;
+    _lsRngCapture = null;
   }
 
-  function _sim3CaptureDay(dayN, rng) {
+  // LS-5. 1日分スナップショット（関数ログ・products・menus 含む）
+  function _sim3CaptureDay(dayN, rng, fnLog) {
     const g = eval('G');
+    const s0 = (g.stores||[])[0] || {};
     return {
       dayN,
-      date: `${g.year}年${g.month}月${g.day}日`,
-      gHash: _sim3StateHash(g),
-      rngCount: rng._count(),
-      money: g.money,
-      ap: g.ap,
-      fatigue: g.fatigue,
-      // cases: id+resolved状態
-      caseIds: (g.cases||[]).map(c => c.id + (c.resolved ? '✓' : (c.expired ? '✗' : ''))),
-      pendingCount: (g.cases||[]).filter(c => !c.resolved && !c.expired).length,
-      eventLogCount: (_sim2c && _sim2c.eventLog) ? _sim2c.eventLog.length : 0,
-      lastEvent: (_sim2c && _sim2c.eventLog && _sim2c.eventLog.length)
-        ? _sim2c.eventLog[_sim2c.eventLog.length-1]
-        : null,
+      date:       `${g.year}年${g.month}月${g.day}日`,
+      gHash:      _sim3StateHash(g),
+      rngCount:   rng._count(),
+      money:      g.money,
+      ap:         g.ap,
+      fatigue:    g.fatigue,
+      // cases 状態
+      caseIds:     (g.cases||[]).map(c => c.id + (c.resolved?'✓':c.expired?'✗':'')),
+      pendingCount:(g.cases||[]).filter(c=>!c.resolved&&!c.expired).length,
+      // 商品・メニュー
+      unlockedProducts: [...(g.unlockedProducts||[])],
+      menuCount:        (s0.menu||[]).length,
+      menuIds:          (s0.menu||[]).map(m=>m.id||m.name||'?'),
+      pendingMenuCount: (g.pendingMenuLaunches||[]).length,
+      pendingMenuIds:   (g.pendingMenuLaunches||[]).map(p=>p.id||p.name||'?'),
+      // イベントログ
+      eventLogCount: (_sim2c&&_sim2c.eventLog) ? _sim2c.eventLog.length : 0,
+      todayEvents:   (_sim2c&&_sim2c.eventLog)
+        ? _sim2c.eventLog.filter(e=>e.date===`${g.year}年${g.month}月${g.day}日`)
+            .map(e=>({ id:e.eventId, choice:e.choiceIdx }))
+        : [],
+      // 関数呼出・RNG追跡
+      fnLog: fnLog ? [...fnLog] : [],
+      fnCalled: fnLog ? fnLog.map(f=>f.fn) : [],
     };
   }
 
+  // LS-6. メイン実行
   function _sim3RunLockstep(gSnap, seed, maxDays) {
+    _sim3InitFnWrappers(); // 初回のみ関数ラップ
+
     const origMath = Math.random;
     const trialDays = [[], []];
 
     for (let ti = 0; ti < 2; ti++) {
       // G 完全復元
-      try { eval('G = JSON.parse(gSnap)'); } catch(e) {}
+      try { eval('G = JSON.parse(gSnap)'); } catch(e) {
+        console.error('[QA-LS] G復元失敗:', e);
+      }
+      // G復元確認
+      const gCheckStr = JSON.stringify(eval('G'));
+      if (gCheckStr !== gSnap) {
+        console.warn(`[QA-LS T${ti}] G復元ズレ! snap=${gSnap.length}bytes now=${gCheckStr.length}bytes`);
+      }
+
       const rng = _mkTrackedRng(seed);
       Math.random = rng;
 
@@ -3457,44 +3517,59 @@ function qa2cSwitchTab(tid,idx){
 
       for (let d = 0; d < maxDays; d++) {
         if (_sim2c.stopRequested) break;
+
+        // 1日分の関数ログを収集
+        _lsRngCapture = { rng, dayLog: [], called: [] };
+        const rngBefore = rng._count();
+
         try { _sim2cDoChunk(1); } catch(e) {
-          console.error(`[QA-LS T${ti} D${d}] _sim2cDoChunk例外:`, e);
+          console.error(`[QA-LS T${ti} D${d}] 例外:`, e);
           break;
         }
-        trialDays[ti].push(_sim3CaptureDay(d + 1, rng));
+
+        const fnLog = _lsRngCapture ? _lsRngCapture.dayLog : [];
+        _lsRngCapture = null;
+
+        trialDays[ti].push(_sim3CaptureDay(d + 1, rng, fnLog));
       }
 
       _sim3LockstepTeardown();
       Math.random = origMath;
     }
 
-    // 最初の差分を検索
+    // 最初の差分を検索（gHash で判定）
     const maxLen = Math.min(trialDays[0].length, trialDays[1].length);
     let firstDiffDay = null;
     for (let i = 0; i < maxLen; i++) {
-      if (trialDays[0][i].gHash !== trialDays[1][i].gHash) {
+      if (trialDays[0][i].gHash !== trialDays[1][i].gHash ||
+          trialDays[0][i].rngCount !== trialDays[1][i].rngCount) {
         firstDiffDay = i + 1;
         break;
       }
     }
 
-    // G外変数の試行後スナップ（変動チェック用）
-    const extVars = {
-      _schedStaging: typeof _schedStaging !== 'undefined' ? eval('_schedStaging') : 'N/A',
-      _schedRaw_len: typeof _schedRaw !== 'undefined' ? eval('_schedRaw.length') : 'N/A',
-      _sim2b: _sim2b,
-      _sim2bCurrentSource: typeof _sim2bCurrentSource !== 'undefined' ? _sim2bCurrentSource : 'N/A',
-      _sim2cRunning, _sim2c,
-    };
+    // G外変数 スナップ（試行終了後）
+    let extVars = {};
+    try {
+      extVars = {
+        _schedStaging: eval('typeof _schedStaging !== "undefined" ? _schedStaging : "N/A"'),
+        _schedRaw_len: eval('typeof _schedRaw !== "undefined" ? _schedRaw.length : "N/A"'),
+        _sim2b:              _sim2b,
+        _sim2bCurrentSource: _sim2bCurrentSource,
+        _sim2cRunning,
+        _sim2c: _sim2c ? '(not null!)' : null,
+        lsRngCapture: _lsRngCapture ? '(not null!)' : null,
+      };
+    } catch(e) {}
 
     return {
       seed, maxDays,
       firstDiffDay,
       t1: trialDays[0],
       t2: trialDays[1],
-      extVarsAfterT1: extVars,
+      extVarsAfterRun: extVars,
       comparison: firstDiffDay != null ? {
-        day: firstDiffDay,
+        diffDay: firstDiffDay,
         t1: trialDays[0][firstDiffDay-1],
         t2: trialDays[1][firstDiffDay-1],
         prevDay_t1: firstDiffDay>1 ? trialDays[0][firstDiffDay-2] : null,
@@ -3506,21 +3581,86 @@ function qa2cSwitchTab(tid,idx){
   window._qa3aLockstep = function(seed, maxDays) {
     seed    = seed    || 1001;
     maxDays = maxDays || 10;
+
+    if (_sim2cRunning || _sim3Running) {
+      console.error('[QA-LS] 別のシミュレーションが実行中です');
+      return null;
+    }
+
     console.log(`[QA-LS] ロックステップ開始 seed=${seed} maxDays=${maxDays}`);
-    const r = _sim3RunLockstep(JSON.stringify(eval('G')), seed, maxDays);
+    const gSnap = JSON.stringify(eval('G'));
+    const r = _sim3RunLockstep(gSnap, seed, maxDays);
     _sim3LockstepResult = r;
     window._qa3aLockstepResult = r;
-    if (r.firstDiffDay != null) {
-      console.warn(`[QA-LS] ★ ${r.firstDiffDay}日目に最初の差分を検出!`);
-      console.log('[QA-LS] T1:', r.comparison.t1);
-      console.log('[QA-LS] T2:', r.comparison.t2);
-      console.log('[QA-LS] 前日T1:', r.comparison.prevDay_t1);
-      console.log('[QA-LS] 前日T2:', r.comparison.prevDay_t2);
-    } else {
-      console.log(`[QA-LS] ${maxDays}日間は完全一致`);
+
+    // ─── コンソール出力 ───
+    console.group('[QA-LS] 結果');
+
+    // 日程サマリー
+    const header = ['Day', '日付', 'T1_rng', 'T2_rng', 'T1_hash', 'T2_hash', 'match', 'T1_fnCalled', 'T2_fnCalled'];
+    const rows = [];
+    const len = Math.min(r.t1.length, r.t2.length);
+    for (let i = 0; i < len; i++) {
+      const d1 = r.t1[i], d2 = r.t2[i];
+      const match = d1.gHash === d2.gHash && d1.rngCount === d2.rngCount ? '✓' : '✗ ★';
+      rows.push([
+        d1.dayN, d1.date,
+        d1.rngCount, d2.rngCount,
+        d1.gHash, d2.gHash,
+        match,
+        d1.fnCalled.join(','),
+        d2.fnCalled.join(','),
+      ]);
     }
-    console.log('[QA-LS] 全日程 T1:', r.t1.map(d => `${d.date} h=${d.gHash} rng=${d.rngCount}`));
-    console.log('[QA-LS] 全日程 T2:', r.t2.map(d => `${d.date} h=${d.gHash} rng=${d.rngCount}`));
+    console.table(rows.map(r => Object.fromEntries(header.map((h,i)=>[h,r[i]]))));
+
+    // 最初の差分の詳細
+    if (r.firstDiffDay != null) {
+      const c = r.comparison;
+      console.warn(`[QA-LS] ★ ${c.diffDay}日目に最初の差分!`);
+
+      console.group('差分日: T1 fnLog');
+      console.table(c.t1.fnLog);
+      console.groupEnd();
+
+      console.group('差分日: T2 fnLog');
+      console.table(c.t2.fnLog);
+      console.groupEnd();
+
+      // 関数ごとのRNG比較
+      const fnNames = [...new Set([
+        ...c.t1.fnLog.map(f=>f.fn),
+        ...c.t2.fnLog.map(f=>f.fn),
+      ])];
+      console.group('差分日: 関数別RNG比較');
+      fnNames.forEach(fn => {
+        const e1 = c.t1.fnLog.find(f=>f.fn===fn);
+        const e2 = c.t2.fnLog.find(f=>f.fn===fn);
+        const b1=e1?e1.rngBefore:'(未呼出)', a1=e1?e1.rngAfter:'-', u1=e1?e1.rngUsed:'-';
+        const b2=e2?e2.rngBefore:'(未呼出)', a2=e2?e2.rngAfter:'-', u2=e2?e2.rngUsed:'-';
+        const diff = (e1&&e2) ? (e1.rngBefore!==e2.rngBefore?'★開始時点ズレ':(e1.rngUsed!==e2.rngUsed?'★使用回数ズレ':'✓')) : '★片方のみ呼出';
+        console.log(`${diff}  ${fn}: T1 ${b1}→${a1}(+${u1})  T2 ${b2}→${a2}(+${u2})`);
+      });
+      console.groupEnd();
+
+      // cases/products/menus比較
+      console.group('差分日: cases/products/menus比較');
+      console.log('T1 caseIds:', c.t1.caseIds);
+      console.log('T2 caseIds:', c.t2.caseIds);
+      console.log('T1 unlockedProducts:', c.t1.unlockedProducts);
+      console.log('T2 unlockedProducts:', c.t2.unlockedProducts);
+      console.log('T1 menuIds:', c.t1.menuIds, 'pending:', c.t1.pendingMenuIds);
+      console.log('T2 menuIds:', c.t2.menuIds, 'pending:', c.t2.pendingMenuIds);
+      console.groupEnd();
+
+    } else {
+      console.log(`[QA-LS] ${maxDays}日間 gHash・RNG回数 完全一致`);
+    }
+
+    // G外変数
+    console.log('[QA-LS] G外変数（試行終了後）:', r.extVarsAfterRun);
+
+    console.groupEnd();
     return r;
   };
 
