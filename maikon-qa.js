@@ -2824,6 +2824,10 @@ ${sf.unrestoredFunctions.length>0?`<div style="color:#ff4444;margin-top:4px">復
       });
     }
 
+    // シミュレーション終了時のハッシュ（G復元前に計算）
+    let simEndHash = '00000000';
+    try { simEndHash = _sim3StateHash(eval('G')); } catch(e) {}
+
     // G 復元
     try {
       const gBefore = JSON.parse(s.gBeforeStr);
@@ -2929,6 +2933,7 @@ ${sf.unrestoredFunctions.length>0?`<div style="color:#ff4444;margin-top:4px">復
       chapter1ClearLog: s.chapter1ClearLog,
       endCasesSnapshot: simEndCases,
       caseSkipLog:  s.caseSkipLog||[],
+      simEndHash,
       safety: { gFullMatch, compareFields, lsDiffs, saveCallCount:s.saveCallCount, externalSendLog:s.externalSendLog },
     };
 
@@ -3355,6 +3360,169 @@ function qa2cSwitchTab(tid,idx){
   // ─── 3A-5. Phase 3A 状態 ───
   let _sim3Running  = false;
   let _sim3LastReprod = null;
+  let _sim3LockstepResult = null;
+
+  // ─── 3A-LS. ロックステップ診断（日単位比較） ───
+  // Phase 2C の _sim2cDoChunk を 1日ずつ呼んで両試行を比較する
+  function _sim3MakeSimObj(gSnap) {
+    const g = eval('G');
+    return {
+      targetDays: 999, daysRun: 0, stopRequested: false,
+      startTime: Date.now(),
+      gBeforeStr: gSnap, lsBefore: {}, saveKey: null,
+      origSaveGame:    window.saveGame,
+      origAutoResolve: window._autoResolveEvent,
+      origShowEnding:  window.showMainStoryEnding,
+      origShowClear:   window.showMainStoryClear,
+      origFetch:       window.fetch,
+      origXHRSend:     XMLHttpRequest.prototype.send,
+      origXHROpen:     XMLHttpRequest.prototype.open,
+      startState: { year:g.year, month:g.month, day:g.day,
+                    money:g.money, ap:g.ap, fatigue:g.fatigue,
+                    casesLength:(g.cases||[]).length },
+      currentDate: { year:g.year, month:g.month, day:g.day },
+      monthStart:  { money:g.money, month:g.month, year:g.year },
+      monthlyData:[], apHistory:[], eventLog:[], charLog:[],
+      chapter1ClearLog:[], caseSkipLog:[], anomalies:[],
+      seenYearlyEvents:{}, charEventDays:{}, oncePerYearSeen:{},
+      lastProductUnlockDay: null,
+      stats:{ totalEvents:0, resolved:0, declined:0, followUps:0,
+              caseResolved:0, caseSkipped:0, unresolvable:0,
+              apShortageDays:0, cashCrisisCount:0, redMonths:0,
+              monthsCompleted:0, productsUnlocked:0 },
+      _monthCaseCount:0, _monthPassCount:0,
+      saveCallCount:0, externalSendLog:[], errors:[],
+    };
+  }
+
+  function _sim3LockstepSetup(gSnap) {
+    _sim2c = _sim3MakeSimObj(gSnap);
+    _sim2cRunning = true;
+    _sim2b = null;
+    window.saveGame              = () => { if(_sim2c) _sim2c.saveCallCount++; };
+    window._autoResolveEvent     = _sim2cAutoResolve;
+    window.showMainStoryEnding   = () => { if(_sim2c) G.freeMode = true; };
+    window.showMainStoryClear    = () => { if(_sim2c) G.freeMode = true; };
+    window.fetch                 = () => Promise.reject(new Error('[QA] blocked'));
+    XMLHttpRequest.prototype.open = function() {};
+    XMLHttpRequest.prototype.send = function() {};
+  }
+
+  function _sim3LockstepTeardown() {
+    if (!_sim2c) return;
+    const s = _sim2c;
+    // G を復元（Object.assign）
+    try { Object.assign(eval('G'), JSON.parse(s.gBeforeStr)); } catch(e) {}
+    window.saveGame              = s.origSaveGame;
+    window._autoResolveEvent     = s.origAutoResolve;
+    window.showMainStoryEnding   = s.origShowEnding;
+    window.showMainStoryClear    = s.origShowClear;
+    window.fetch                 = s.origFetch;
+    XMLHttpRequest.prototype.send = s.origXHRSend;
+    XMLHttpRequest.prototype.open = s.origXHROpen;
+    _sim2c = null; _sim2cRunning = false; _sim2b = null;
+  }
+
+  function _sim3CaptureDay(dayN, rng) {
+    const g = eval('G');
+    return {
+      dayN,
+      date: `${g.year}年${g.month}月${g.day}日`,
+      gHash: _sim3StateHash(g),
+      rngCount: rng._count(),
+      money: g.money,
+      ap: g.ap,
+      fatigue: g.fatigue,
+      // cases: id+resolved状態
+      caseIds: (g.cases||[]).map(c => c.id + (c.resolved ? '✓' : (c.expired ? '✗' : ''))),
+      pendingCount: (g.cases||[]).filter(c => !c.resolved && !c.expired).length,
+      eventLogCount: (_sim2c && _sim2c.eventLog) ? _sim2c.eventLog.length : 0,
+      lastEvent: (_sim2c && _sim2c.eventLog && _sim2c.eventLog.length)
+        ? _sim2c.eventLog[_sim2c.eventLog.length-1]
+        : null,
+    };
+  }
+
+  function _sim3RunLockstep(gSnap, seed, maxDays) {
+    const origMath = Math.random;
+    const trialDays = [[], []];
+
+    for (let ti = 0; ti < 2; ti++) {
+      // G 完全復元
+      try { eval('G = JSON.parse(gSnap)'); } catch(e) {}
+      const rng = _mkTrackedRng(seed);
+      Math.random = rng;
+
+      _sim3LockstepSetup(gSnap);
+
+      for (let d = 0; d < maxDays; d++) {
+        if (_sim2c.stopRequested) break;
+        try { _sim2cDoChunk(1); } catch(e) {
+          console.error(`[QA-LS T${ti} D${d}] _sim2cDoChunk例外:`, e);
+          break;
+        }
+        trialDays[ti].push(_sim3CaptureDay(d + 1, rng));
+      }
+
+      _sim3LockstepTeardown();
+      Math.random = origMath;
+    }
+
+    // 最初の差分を検索
+    const maxLen = Math.min(trialDays[0].length, trialDays[1].length);
+    let firstDiffDay = null;
+    for (let i = 0; i < maxLen; i++) {
+      if (trialDays[0][i].gHash !== trialDays[1][i].gHash) {
+        firstDiffDay = i + 1;
+        break;
+      }
+    }
+
+    // G外変数の試行後スナップ（変動チェック用）
+    const extVars = {
+      _schedStaging: typeof _schedStaging !== 'undefined' ? eval('_schedStaging') : 'N/A',
+      _schedRaw_len: typeof _schedRaw !== 'undefined' ? eval('_schedRaw.length') : 'N/A',
+      _sim2b: _sim2b,
+      _sim2bCurrentSource: typeof _sim2bCurrentSource !== 'undefined' ? _sim2bCurrentSource : 'N/A',
+      _sim2cRunning, _sim2c,
+    };
+
+    return {
+      seed, maxDays,
+      firstDiffDay,
+      t1: trialDays[0],
+      t2: trialDays[1],
+      extVarsAfterT1: extVars,
+      comparison: firstDiffDay != null ? {
+        day: firstDiffDay,
+        t1: trialDays[0][firstDiffDay-1],
+        t2: trialDays[1][firstDiffDay-1],
+        prevDay_t1: firstDiffDay>1 ? trialDays[0][firstDiffDay-2] : null,
+        prevDay_t2: firstDiffDay>1 ? trialDays[1][firstDiffDay-2] : null,
+      } : null,
+    };
+  }
+
+  window._qa3aLockstep = function(seed, maxDays) {
+    seed    = seed    || 1001;
+    maxDays = maxDays || 10;
+    console.log(`[QA-LS] ロックステップ開始 seed=${seed} maxDays=${maxDays}`);
+    const r = _sim3RunLockstep(JSON.stringify(eval('G')), seed, maxDays);
+    _sim3LockstepResult = r;
+    window._qa3aLockstepResult = r;
+    if (r.firstDiffDay != null) {
+      console.warn(`[QA-LS] ★ ${r.firstDiffDay}日目に最初の差分を検出!`);
+      console.log('[QA-LS] T1:', r.comparison.t1);
+      console.log('[QA-LS] T2:', r.comparison.t2);
+      console.log('[QA-LS] 前日T1:', r.comparison.prevDay_t1);
+      console.log('[QA-LS] 前日T2:', r.comparison.prevDay_t2);
+    } else {
+      console.log(`[QA-LS] ${maxDays}日間は完全一致`);
+    }
+    console.log('[QA-LS] 全日程 T1:', r.t1.map(d => `${d.date} h=${d.gHash} rng=${d.rngCount}`));
+    console.log('[QA-LS] 全日程 T2:', r.t2.map(d => `${d.date} h=${d.gHash} rng=${d.rngCount}`));
+    return r;
+  };
 
   // ─── 3A-6. 再現性テスト（seed×2） ───
   function _sim3StartReprod(seed) {
@@ -3432,8 +3600,8 @@ function qa2cSwitchTab(tid,idx){
         clearInterval(pollId);
         {
 
-          // G はこの時点で Phase 2C により復元済み
-          const postHash = _sim3StateHash(eval('G'));
+            // endHash = Phase 2C が G 復元前に計算したハッシュ（r.simEndHash）
+          const postHash = r.simEndHash || '00000000';
 
           trials[trialIdx] = {
             trialIdx,
