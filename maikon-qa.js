@@ -3390,6 +3390,33 @@ function qa2cSwitchTab(tid,idx){
       try { eval('G = JSON.parse(gSnap)'); } catch(e) {
         console.error('[QA-3A] G完全復元に失敗:', e);
       }
+
+      // ─── 診断: G 復元検証 ───
+      try {
+        const gNowStr = JSON.stringify(eval('G'));
+        const gSnapObj = JSON.parse(gSnap);
+        const gNowObj  = JSON.parse(gNowStr);
+        // トップレベルキー比較
+        const snapKeys = Object.keys(gSnapObj).sort();
+        const nowKeys  = Object.keys(gNowObj).sort();
+        const extraKeys = nowKeys.filter(k => !snapKeys.includes(k));
+        const missingKeys = snapKeys.filter(k => !nowKeys.includes(k));
+        if (extraKeys.length || missingKeys.length || gNowStr !== gSnap) {
+          console.warn(`[QA-3A T${trialIdx}] G復元ズレ検出!`, {
+            extraKeys, missingKeys,
+            strMatch: gNowStr === gSnap,
+            snapLen: gSnap.length, nowLen: gNowStr.length,
+          });
+          // 差分のあるキーを特定
+          const diffKeys = [...new Set([...snapKeys, ...nowKeys])].filter(k => {
+            return JSON.stringify(gSnapObj[k]) !== JSON.stringify(gNowObj[k]);
+          });
+          if (diffKeys.length) console.warn(`[QA-3A T${trialIdx}] 値が違うキー:`, diffKeys.slice(0, 10));
+        } else {
+          console.log(`[QA-3A T${trialIdx}] G復元OK: gSnap と完全一致`);
+        }
+      } catch(e) { console.error('[QA-3A] G診断エラー:', e); }
+
       const rng = _mkTrackedRng(seed);
       Math.random = rng;
       const t0 = Date.now();
