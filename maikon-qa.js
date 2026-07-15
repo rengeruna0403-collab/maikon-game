@@ -3370,22 +3370,21 @@ function qa2cSwitchTab(tid,idx){
 
   // ─ 関数固有フック（ENTER/EXIT に追加データを注入） ─
   const _lsSpecialCapture = {
-    // chooseEvent(idx, useFatigue): 対象案件・全候補を記録
+    // chooseEvent(idx, useFatigue): この関数は1案件の「選択肢」を処理する（候補選択ではない）
     'chooseEvent': {
       augmentEnter(snap, args) {
         try {
           const idx = args[0];
+          const useFatigue = args[1];
           const g   = eval('G');
           const cases = g.cases || [];
           const target = cases[idx];
-          snap.resolvedCaseId    = target ? target.id    : null;
-          snap.resolvedCaseTitle = target ? (target.title||'') : null;
-          // 候補一覧（未解決・未期限切れ）
-          snap.eligibleCaseIds   = cases.filter(x=>!x.resolved&&!x.expired).map(x=>x.id);
-          snap.eligibleCount     = snap.eligibleCaseIds.length;
-          // バックログ状態
-          const sched = g._sched || {};
-          snap.backlogIds        = (sched.backlog||[]).map(m=>m.c&&m.c.id);
+          snap.targetCaseIdx   = idx;
+          snap.targetCaseId    = target ? target.id    : null;
+          snap.targetCaseTitle = target ? (target.title||'') : null;
+          snap.useFatigue      = useFatigue;
+          // choicesの個数（選択肢数）
+          snap.choicesCount    = target ? (target.choices||[]).length : null;
         } catch(e) { snap._hookErr = String(e); }
       },
     },
@@ -3422,6 +3421,40 @@ function qa2cSwitchTab(tid,idx){
         try {
           snap.newlyAddedCases = (eval('G').cases||[]).slice(this._casesLenBefore).map(c=>c.id);
         } catch(e) {}
+      },
+    },
+
+    // _sim2bProcessDailyCases: 日次案件候補と処理した案件を記録
+    '_sim2bProcessDailyCases': {
+      augmentEnter(snap, args) {
+        try {
+          const g = eval('G');
+          const eligible = (g.cases||[]).filter(c=>!c.resolved&&!c.expired);
+          snap.eligibleCaseIds   = eligible.map(c=>c.id);
+          snap.eligibleCount     = eligible.length;
+          snap.casesLenBefore    = (g.cases||[]).length;
+        } catch(e) { snap._hookErr = String(e); }
+      },
+      augmentExit(snap, args) {
+        try {
+          const g = eval('G');
+          const stillOpen = (g.cases||[]).filter(c=>!c.resolved&&!c.expired).map(c=>c.id);
+          snap.eligibleCaseIdsAfter = stillOpen;
+        } catch(e) {}
+      },
+    },
+
+    // resolveCase: どの案件が解決されたか記録
+    'resolveCase': {
+      augmentEnter(snap, args) {
+        try {
+          const idx = args[0];
+          const g = eval('G');
+          const c = (g.cases||[])[idx];
+          snap.resolvingCaseId    = c ? c.id    : null;
+          snap.resolvingCaseTitle = c ? (c.title||'') : null;
+          snap.resolvingCaseIdx   = idx;
+        } catch(e) { snap._hookErr = String(e); }
       },
     },
 
@@ -3484,6 +3517,8 @@ function qa2cSwitchTab(tid,idx){
     'staffAutoProcess', 'checkCaseExpiry', 'monthlyTick',
     'addCase', '_processPendingMenuLaunches', '_checkMenuPopularity',
     '_checkApSurplusProposal', 'checkDiscovery',
+    // 案件候補追跡（IIFE内関数）
+    '_sim2bProcessDailyCases', 'resolveCase',
   ];
 
   function _sim3InitFnWrappers() {
