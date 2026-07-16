@@ -3711,40 +3711,37 @@ function qa2cSwitchTab(tid,idx){
     _sim3InitFnWrappers(); // 初回のみ関数ラップ
 
     const origMath = Math.random;
+    const t1Days = [];
+    const t1GSnapshots = [];
+    let t1EventLog = [];
 
     // ── Trial 1: 全日実行してG状態を保存 ──
-    _sim3RestoreAndCheck(gSnap, 0);
-    const rng1 = _mkTrackedRng(seed);
-    Math.random = rng1;
-    _sim3LockstepSetup(gSnap);
+    try {
+      _sim3RestoreAndCheck(gSnap, 0);
+      const rng1 = _mkTrackedRng(seed);
+      Math.random = rng1;
+      _sim3LockstepSetup(gSnap);
 
-    const t1Days = [];
-    const t1GSnapshots = []; // 各日終了後の G JSON を保存（差分比較用）
-
-    for (let d = 0; d < maxDays; d++) {
-      if (_sim2c.stopRequested) break;
-      _lsRngCapture = { rng: rng1, dayLog: [], called: [] };
-      try { _sim2cDoChunk(1); } catch(e) {
-        console.error(`[QA-LS T0 D${d}] 例外:`, e);
-        break;
+      for (let d = 0; d < maxDays; d++) {
+        if (_sim2c.stopRequested) break;
+        _lsRngCapture = { rng: rng1, dayLog: [], called: [] };
+        try { _sim2cDoChunk(1); } catch(e) {
+          console.error(`[QA-LS T1 D${d}] 例外:`, e);
+          break;
+        }
+        const fnLog = _lsRngCapture ? _lsRngCapture.dayLog : [];
+        _lsRngCapture = null;
+        t1Days.push(_sim3CaptureDay(d + 1, rng1, fnLog));
+        try { t1GSnapshots.push(JSON.stringify(eval('G'))); } catch(e) { t1GSnapshots.push(null); }
+        if (d % 30 === 29) console.log(`[QA-LS T1] ${d+1}日完了`);
       }
-      const fnLog = _lsRngCapture ? _lsRngCapture.dayLog : [];
-      _lsRngCapture = null;
-      t1Days.push(_sim3CaptureDay(d + 1, rng1, fnLog));
-      try { t1GSnapshots.push(JSON.stringify(eval('G'))); } catch(e) { t1GSnapshots.push(null); }
-      if (d % 30 === 29) console.log(`[QA-LS T1] ${d+1}日完了`);
+      t1EventLog = (_sim2c && _sim2c.eventLog) ? [..._sim2c.eventLog] : [];
+    } finally {
+      _sim3LockstepTeardown();
+      Math.random = origMath;
     }
-    // T1 のイベントログを保存（差分時点で最後10件を比較するため）
-    const t1EventLog = (_sim2c && _sim2c.eventLog) ? [..._sim2c.eventLog] : [];
-    _sim3LockstepTeardown();
-    Math.random = origMath;
 
     // ── Trial 2: 逐次比較、初回差分で停止 ──
-    _sim3RestoreAndCheck(gSnap, 1);
-    const rng2 = _mkTrackedRng(seed);
-    Math.random = rng2;
-    _sim3LockstepSetup(gSnap);
-
     // 優先比較キー（deepDiff で最初に出すフィールド）
     const PRIORITY_KEYS = ['money','ap','day','month','year','cases','pendingFollowUps',
       '_fullhouseStartDay','_sched','products','menus','staff','characters'];
@@ -3753,6 +3750,12 @@ function qa2cSwitchTab(tid,idx){
     let firstDiffDay = null;
     let diffDetail = null;
     let lastEqualSnap = null; // 直前の一致日スナップ（T1/T2）
+
+    try {
+      _sim3RestoreAndCheck(gSnap, 1);
+      const rng2 = _mkTrackedRng(seed);
+      Math.random = rng2;
+      _sim3LockstepSetup(gSnap);
 
     for (let d = 0; d < t1Days.length; d++) {
       if (_sim2c.stopRequested) break;
@@ -3838,8 +3841,10 @@ function qa2cSwitchTab(tid,idx){
 
       if (d % 30 === 29) console.log(`[QA-LS T2] ${d+1}日一致 ✓`);
     }
-    _sim3LockstepTeardown();
-    Math.random = origMath;
+    } finally {
+      _sim3LockstepTeardown();
+      Math.random = origMath;
+    }
 
     // G外変数 スナップ（試行終了後）
     let extVars = {};
@@ -3860,15 +3865,8 @@ function qa2cSwitchTab(tid,idx){
       firstDiffDay,
       diffDetail,
       t1: t1Days,
-      t2: trialDays[1],
+      t2: t2Days,
       extVarsAfterRun: extVars,
-      comparison: firstDiffDay != null ? {
-        diffDay: firstDiffDay,
-        t1: trialDays[0][firstDiffDay-1],
-        t2: trialDays[1][firstDiffDay-1],
-        prevDay_t1: firstDiffDay>1 ? trialDays[0][firstDiffDay-2] : null,
-        prevDay_t2: firstDiffDay>1 ? trialDays[1][firstDiffDay-2] : null,
-      } : null,
     };
   }
 
