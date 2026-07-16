@@ -3743,9 +3743,14 @@ function qa2cSwitchTab(tid,idx){
     Math.random = rng2;
     _sim3LockstepSetup(gSnap);
 
+    // 優先比較キー（deepDiff で最初に出すフィールド）
+    const PRIORITY_KEYS = ['money','ap','day','month','year','cases','pendingFollowUps',
+      '_fullhouseStartDay','_sched','products','menus','staff','characters'];
+
     const t2Days = [];
     let firstDiffDay = null;
     let diffDetail = null;
+    let lastEqualSnap = null; // 直前の一致日スナップ（T1/T2）
 
     for (let d = 0; d < t1Days.length; d++) {
       if (_sim2c.stopRequested) break;
@@ -3763,51 +3768,69 @@ function qa2cSwitchTab(tid,idx){
       const diverged = day1.gHash !== day2.gHash || day1.rngCount !== day2.rngCount;
       if (diverged) {
         firstDiffDay = d + 1;
-        // deepDiff: T1 vs T2 の G を比較
         const g2Now = eval('G');
-        let gDiff = [];
-        try {
-          const g1Obj = JSON.parse(t1GSnapshots[d] || '{}');
-          gDiff = _sim3DeepDiff(g1Obj, g2Now);
-        } catch(e) { gDiff = [{ error: String(e) }]; }
+        const g1Obj = JSON.parse(t1GSnapshots[d] || '{}');
 
-        // 重要フィールド抜粋
-        const g2 = g2Now;
-        const g1 = JSON.parse(t1GSnapshots[d] || '{}');
+        // 優先キーのみ deepDiff（まず限定比較）
+        const priorityDiff = _sim3DeepDiff(
+          Object.fromEntries(PRIORITY_KEYS.map(k=>[k, g1Obj[k]])),
+          Object.fromEntries(PRIORITY_KEYS.map(k=>[k, g2Now[k]]))
+        );
+        // 全体 diff は window に保存して必要時に参照
+        let fullGDiff = [];
+        try { fullGDiff = _sim3DeepDiff(g1Obj, g2Now); } catch(e) {}
+
+        const firstDiffSnap = {
+          dayN: firstDiffDay, date: day2.date,
+          t1_gJson: t1GSnapshots[d],
+          t2_gJson: JSON.stringify(g2Now),
+          t1_day: day1, t2_day: day2,
+        };
+
+        // コンソールから直接参照できるように window に保存
+        window._qa3aLastEqual = lastEqualSnap;
+        window._qa3aFirstDiff = firstDiffSnap;
+
         diffDetail = {
           dayN:  firstDiffDay,
           date:  day2.date,
           t1:    { hash: day1.gHash, rng: day1.rngCount, fnCalled: day1.fnCalled },
           t2:    { hash: day2.gHash, rng: day2.rngCount, fnCalled: day2.fnCalled },
-          prevDay: d > 0 ? {
-            t1: { hash: t1Days[d-1].gHash, rng: t1Days[d-1].rngCount },
-            t2: { hash: t2Days[d-1].gHash, rng: t2Days[d-1].rngCount },
+          prevDay: lastEqualSnap ? {
+            t1: { hash: lastEqualSnap.t1_day.gHash, rng: lastEqualSnap.t1_day.rngCount, date: lastEqualSnap.t1_day.date },
+            t2: { hash: lastEqualSnap.t2_day.gHash, rng: lastEqualSnap.t2_day.rngCount, date: lastEqualSnap.t2_day.date },
           } : null,
-          gDiff,  // 全差分フィールド一覧
-          // 重要フィールド個別比較
+          priorityDiff,  // 優先キーのみ差分（最初に表示）
+          fullGDiff,     // 全体差分（window._qa3aFirstDiff から参照可）
           pendingFollowUps: {
-            t1: (g1.pendingFollowUps||[]).length,
-            t2: (g2.pendingFollowUps||[]).length,
-            t1_detail: g1.pendingFollowUps||[],
-            t2_detail: g2.pendingFollowUps||[],
+            t1: (g1Obj.pendingFollowUps||[]).length,
+            t2: (g2Now.pendingFollowUps||[]).length,
+            t1_detail: g1Obj.pendingFollowUps||[],
+            t2_detail: g2Now.pendingFollowUps||[],
           },
-          fullhouseStartDay: { t1: g1._fullhouseStartDay, t2: g2._fullhouseStartDay },
+          fullhouseStartDay: { t1: g1Obj._fullhouseStartDay, t2: g2Now._fullhouseStartDay },
           cases: {
-            t1: (g1.cases||[]).map(c=>c.id+(c.resolved?'✓':c.expired?'✗':'')),
-            t2: (g2.cases||[]).map(c=>c.id+(c.resolved?'✓':c.expired?'✗':'')),
+            t1: (g1Obj.cases||[]).map(c=>c.id+(c.resolved?'✓':c.expired?'✗':'')),
+            t2: (g2Now.cases||[]).map(c=>c.id+(c.resolved?'✓':c.expired?'✗':'')),
           },
-          unlockedProducts: { t1: g1.unlockedProducts||[], t2: g2.unlockedProducts||[] },
-          menus: {
-            t1: ((g1.stores||[])[0]||{}).menu||[],
-            t2: ((g2.stores||[])[0]||{}).menu||[],
-          },
-          // 当日の generateConditionCases / _sim2bProcessDailyCases ログ
+          unlockedProducts: { t1: g1Obj.unlockedProducts||[], t2: g2Now.unlockedProducts||[] },
           t1_fnLog: day1.fnLog,
           t2_fnLog: day2.fnLog,
         };
         console.log(`[QA-LS] ★ 差分発生 Day${firstDiffDay} (${day2.date}) — 停止`);
+        console.log('[QA-LS] window._qa3aLastEqual / window._qa3aFirstDiff に保存済み');
         break;
       }
+
+      // 一致した日のスナップを保存（次の差分検出時に「直前」として使う）
+      lastEqualSnap = {
+        dayN: d + 1,
+        t1_day: day1,
+        t2_day: day2,
+        t1_gJson: t1GSnapshots[d],
+        t2_gJson: t1GSnapshots[d], // T2 と T1 が一致しているため同じ
+      };
+
       if (d % 30 === 29) console.log(`[QA-LS T2] ${d+1}日一致 ✓`);
     }
     _sim3LockstepTeardown();
@@ -3968,18 +3991,19 @@ function qa2cSwitchTab(tid,idx){
       console.log(`  T1_fn: ${c.t1.fnCalled.join(',')}`);
       console.log(`  T2_fn: ${c.t2.fnCalled.join(',')}`);
 
-      // ─ G deepDiff ─
-      console.group('★ G deepDiff（T1 vs T2 当日終了時点）');
-      if (c.gDiff.length === 0) {
-        console.log('差分なし（gHash は同じだが別の原因）');
+      // ─ 優先キー deepDiff ─
+      console.group('★ 優先フィールド deepDiff（money/ap/cases/pendingFollowUps等）');
+      if (!c.priorityDiff || c.priorityDiff.length === 0) {
+        console.log('優先フィールドに差分なし → 詳細: _qa3aFirstDiff.t1_gJson / t2_gJson を参照');
       } else {
-        console.table(c.gDiff.map(d => ({
+        console.table(c.priorityDiff.map(d => ({
           key:    d.key,
-          T1:     typeof d.t1 === 'object' ? JSON.stringify(d.t1).slice(0,80) : d.t1,
-          T2:     typeof d.t2 === 'object' ? JSON.stringify(d.t2).slice(0,80) : d.t2,
-          T1_json: d.t1_json ? d.t1_json.slice(0,100) : '',
-          T2_json: d.t2_json ? d.t2_json.slice(0,100) : '',
+          T1:     typeof d.t1 === 'object' ? JSON.stringify(d.t1).slice(0,100) : d.t1,
+          T2:     typeof d.t2 === 'object' ? JSON.stringify(d.t2).slice(0,100) : d.t2,
         })));
+      }
+      if (c.fullGDiff && c.fullGDiff.length > c.priorityDiff.length) {
+        console.log(`（全フィールド差分 ${c.fullGDiff.length}件 → _qa3aFirstDiff で参照可）`);
       }
       console.groupEnd();
 
