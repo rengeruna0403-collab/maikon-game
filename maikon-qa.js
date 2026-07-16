@@ -3582,6 +3582,26 @@ function qa2cSwitchTab(tid,idx){
   function _sim3LockstepSetup(gSnap) {
     _sim2c = _sim3MakeSimObj(gSnap);
     _sim2cRunning = true; _sim2b = null;
+
+    // Phase 2C と同じ autoTesting 経路を有効化
+    try {
+      const g = eval('G');
+      g.autoTesting = true;
+      // tut.phase が done でない場合も autoTesting で進行できるよう強制設定
+      if (!g.tut) g.tut = {};
+      if (g.tut.phase !== 'done') g.tut.phase = 'done';
+    } catch(e) {}
+
+    // DOM 更新系を無効化（Phase 2C と同じ）
+    _sim2c._origRenderTab    = window.renderTab;
+    _sim2c._origUpdateHeader = window.updateHeader;
+    _sim2c._origNotify       = window.notify;
+    _sim2c._origAddNews      = window.addNews;
+    window.renderTab    = function() {};
+    window.updateHeader = function() {};
+    window.notify       = function() {};
+    window.addNews      = function() {};
+
     window.saveGame              = () => { if(_sim2c) _sim2c.saveCallCount++; };
     window._autoResolveEvent     = _sim2cAutoResolve;
     window.showMainStoryEnding   = () => { if(_sim2c) { try{eval('G').freeMode=true;}catch(e){} } };
@@ -3596,6 +3616,13 @@ function qa2cSwitchTab(tid,idx){
     if (!_sim2c) return;
     const s = _sim2c;
     try { Object.assign(eval('G'), JSON.parse(s.gBeforeStr)); } catch(e) {}
+
+    // DOM 復元
+    if (s._origRenderTab    !== undefined) window.renderTab    = s._origRenderTab;
+    if (s._origUpdateHeader !== undefined) window.updateHeader = s._origUpdateHeader;
+    if (s._origNotify       !== undefined) window.notify       = s._origNotify;
+    if (s._origAddNews      !== undefined) window.addNews      = s._origAddNews;
+
     window.saveGame              = s.origSaveGame;
     window._autoResolveEvent     = s.origAutoResolve;
     window.showMainStoryEnding   = s.origShowEnding;
@@ -3748,6 +3775,58 @@ function qa2cSwitchTab(tid,idx){
 
     if (_sim2cRunning || _sim3Running) {
       console.error('[QA-LS] 別のシミュレーションが実行中です');
+      return null;
+    }
+
+    // ─── 事前状態チェック ───
+    let g;
+    try { g = eval('G'); } catch(e) { console.error('[QA-LS] G取得失敗:', e); return null; }
+
+    const tutPhase     = (g.tut || {}).phase;
+    const activeEvent  = g.activeEvent || null;
+    const isAdvancing  = g.isAdvancingDay || false;
+    const procMonthly  = g.processingMonthly || false;
+
+    // 表示中モーダルを DOM から検出
+    const visibleModals = [];
+    try {
+      const modalIds = ['event-modal','monthly-modal','opening-modal','tutorial-modal'];
+      modalIds.forEach(id => {
+        const el = document.getElementById(id);
+        if (el && el.style.display !== 'none' && !el.hidden) visibleModals.push(id);
+      });
+      // 汎用モーダル（display:flex / block のもの）
+      document.querySelectorAll('[id$="-modal"],[class*="modal"]').forEach(el => {
+        const s = window.getComputedStyle(el);
+        if (s.display !== 'none' && s.visibility !== 'hidden' && el.offsetParent !== null) {
+          if (!visibleModals.includes(el.id || el.className)) visibleModals.push(el.id || ('.' + el.className));
+        }
+      });
+    } catch(e) {}
+
+    const dayOk    = tutPhase === 'done';
+    const eventOk  = activeEvent === null;
+    const advOk    = !isAdvancing;
+    const monthOk  = !procMonthly;
+    const modalOk  = visibleModals.length === 0;
+    const playable = dayOk && eventOk && advOk && monthOk;
+
+    // 開始状態ログ
+    console.group('[QA-LS] 開始状態確認');
+    console.log('year/month/day :', g.year, '/', g.month, '/', g.day);
+    console.log('tut.phase      :', tutPhase, dayOk   ? '✓' : '✗ （done でない）');
+    console.log('activeEvent    :', activeEvent, eventOk ? '✓' : '✗');
+    console.log('isAdvancingDay :', isAdvancing, advOk  ? '✓' : '✗');
+    console.log('processingMonthly:', procMonthly, monthOk ? '✓' : '✗');
+    console.log('表示中モーダル  :', visibleModals.length ? visibleModals : 'なし', modalOk ? '✓' : '△（autoTestingで抑制）');
+    console.log('cases件数      :', (g.cases||[]).length);
+    console.log('日送り可能判定  :', playable ? '✓ PLAYABLE' : '✗ NOT PLAYABLE');
+    console.groupEnd();
+
+    if (!playable) {
+      console.error('[QA-LS] 通常プレイ可能なセーブをロードしてから実行してください');
+      console.error('  tut.phase===\'done\':', dayOk, '  activeEvent===null:', eventOk,
+                    '  isAdvancingDay===false:', advOk, '  processingMonthly===false:', monthOk);
       return null;
     }
 
