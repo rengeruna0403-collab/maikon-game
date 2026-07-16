@@ -3362,6 +3362,11 @@ function qa2cSwitchTab(tid,idx){
   let _sim3LastReprod = null;
   let _sim3LockstepResult = null;
 
+  // ─── 3A-Safety 状態 ───
+  let _qa3aSafetyRunning  = false;
+  let _qa3aSafetyStopReq  = false;
+  let _qa3aSafetyResult   = null;
+
   // ─── 3A-LS. ロックステップ診断（日単位・関数単位RNG追跡） ───
 
   // LS-1. 関数ラッパー（一度だけ設置。_lsRngCapture = {rng, dayLog} のとき記録）
@@ -3900,6 +3905,340 @@ function qa2cSwitchTab(tid,idx){
       extVarsAfterRun: extVars,
     };
   }
+
+  // ─── 3A-Safety. セーフティランナー ───
+
+  window._qa3aSafetyStop = function() {
+    _qa3aSafetyStopReq = true;
+    console.log('[QA-Safety] 停止要求受付');
+  };
+
+  window._qa3aSafetyRun = function(seed, days) {
+    seed = seed || 1001;
+    days = days || 365;
+
+    if (_qa3aSafetyRunning || _sim3Running || _sim2cRunning) {
+      console.error('[QA-Safety] 別のシミュレーションが実行中です');
+      return null;
+    }
+
+    let g;
+    try { g = eval('G'); } catch(e) { console.error('[QA-Safety] G取得失敗:', e); return null; }
+
+    const tutPhase = (g.tut || {}).phase;
+    if (tutPhase !== 'done' || g.activeEvent != null || g.isAdvancingDay || g.processingMonthly) {
+      console.error('[QA-Safety] 通常プレイ可能なセーブをロードしてから実行してください');
+      return null;
+    }
+
+    _qa3aSafetyRunning = true;
+    _qa3aSafetyStopReq = false;
+    _qa3aSafetyResult  = null;
+    if (typeof renderPhase3Tab === 'function') renderPhase3Tab();
+
+    // localStorage スナップ（変更検出用）
+    const lsSnapBefore = {};
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        lsSnapBefore[k] = localStorage.getItem(k);
+      }
+    } catch(e) {}
+
+    // UI モーダル保存
+    const _lsUiSave2 = (() => {
+      const saved = {};
+      document.querySelectorAll('[id$="-modal"]').forEach(el => {
+        saved[el.id] = el.style.display;
+      });
+      return { modals: saved, bodyOverflow: document.body.style.overflow, bodyOverflowY: document.body.style.overflowY };
+    })();
+    Object.keys(_lsUiSave2.modals).forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.style.display = 'none';
+    });
+
+    const gSnap = JSON.stringify(g);
+    const origMath = Math.random;
+    const overallStart = Date.now();
+
+    const anomalies = [];      // { dayN, date, type, field, before, after, eventId, severity }
+    let failCount = 0, warnCount = 0;
+    let stopDay = null, firstAnomaly = null;
+    let minMoney = Infinity, minAP = Infinity, maxFatigue = -Infinity;
+    let maxPendingCases = 0, cashCrisisCount = 0, noAPCount = 0;
+    let monthlyCount = 0, watchdogCount = 0;
+    let safetyRestoreResult = 'UNKNOWN';
+    let overallVerdict = 'PASS';
+    let daysRun = 0;
+
+    // 同一未解決eventId 追跡
+    const recentUnresolvedEventIds = [];
+
+    function addAnomaly(dayN, date, type, field, before, after, eventId, severity) {
+      const a = { dayN, date, type, field, before, after, eventId, severity };
+      anomalies.push(a);
+      if (!firstAnomaly) firstAnomaly = a;
+      if (severity === 'FAIL') { failCount++; overallVerdict = 'FAIL'; }
+      else                     { warnCount++; if (overallVerdict === 'PASS') overallVerdict = 'WARN'; }
+      console[severity === 'FAIL' ? 'error' : 'warn'](`[QA-Safety] ${severity} Day${dayN}(${date}) ${type} field=${field} before=${before} after=${after}`);
+    }
+
+    // localStorage 変更チェック
+    function checkLS(dayN, date) {
+      try {
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          const v = localStorage.getItem(k);
+          if (!(k in lsSnapBefore)) {
+            addAnomaly(dayN, date, 'LOCALSTORAGE_ADDED', k, '(none)', v, null, 'FAIL');
+          } else if (lsSnapBefore[k] !== v) {
+            addAnomaly(dayN, date, 'LOCALSTORAGE_CHANGED', k, lsSnapBefore[k].slice(0,40), v.slice(0,40), null, 'FAIL');
+          }
+        }
+      } catch(e) {}
+    }
+
+    // G フィールド数値チェック
+    function checkNumeric(gNow, dayN, date) {
+      const numFields = ['money','ap','fatigue','_avgMonthlyRevenue'];
+      for (const f of numFields) {
+        const v = gNow[f];
+        if (v === undefined) continue;
+        if (typeof v !== 'number') continue;
+        if (!isFinite(v) || isNaN(v)) {
+          addAnomaly(dayN, date, 'NAN_OR_INFINITY', f, String(v), String(v), null, 'FAIL');
+          return false;
+        }
+      }
+      return true;
+    }
+
+    // 範囲チェック
+    function checkRanges(gNow, dayN, date) {
+      const m = gNow.money;
+      const ap = gNow.ap;
+      const ft = typeof gNow.fatigue === 'number' ? gNow.fatigue : 0;
+
+      if (typeof m === 'number') {
+        if (m < minMoney) minMoney = m;
+        if (m < -1000000) {
+          addAnomaly(dayN, date, 'MONEY_CRITICAL', 'money', String(m), String(m), null, 'FAIL');
+        } else if (m < 0) {
+          cashCrisisCount++;
+          addAnomaly(dayN, date, 'MONEY_NEGATIVE', 'money', String(m), String(m), null, 'WARN');
+        }
+      }
+      if (typeof ap === 'number') {
+        if (ap < minAP) minAP = ap;
+        if (ap < 0) {
+          addAnomaly(dayN, date, 'AP_NEGATIVE', 'ap', String(ap), String(ap), null, 'FAIL');
+        } else if (ap <= 10) {
+          noAPCount++;
+          if (ap <= 10 && noAPCount <= 5) { // 最初の5回だけWARN記録
+            addAnomaly(dayN, date, 'AP_EXHAUSTED', 'ap', String(ap), String(ap), null, 'WARN');
+          }
+        }
+      }
+      if (ft > maxFatigue) maxFatigue = ft;
+      if (ft > 90) {
+        addAnomaly(dayN, date, 'FATIGUE_HIGH', 'fatigue', String(ft), String(ft), null, 'WARN');
+      }
+    }
+
+    // ケース重複チェック
+    function checkCases(gNow, dayN, date) {
+      const cases = gNow.cases || [];
+      const idSeen = {};
+      for (const c of cases) {
+        if (!c.id) continue;
+        if (idSeen[c.id]) {
+          addAnomaly(dayN, date, 'DUPLICATE_CASE_ID', 'cases', c.id, c.id, null, 'FAIL');
+          return false;
+        }
+        idSeen[c.id] = true;
+      }
+      if ((gNow.pendingFollowUps || []).length > maxPendingCases) {
+        maxPendingCases = gNow.pendingFollowUps.length;
+      }
+      return true;
+    }
+
+    // 未解決イベント繰り返しチェック
+    function checkRepeatedEvent(gNow, dayN, date) {
+      const evId = gNow.activeEvent ? (gNow.activeEvent.id || null) : null;
+      if (evId) {
+        recentUnresolvedEventIds.push(evId);
+        if (recentUnresolvedEventIds.length > 5) recentUnresolvedEventIds.shift();
+        const last3 = recentUnresolvedEventIds.slice(-3);
+        if (last3.length === 3 && last3.every(x => x === evId)) {
+          addAnomaly(dayN, date, 'STUCK_EVENT', 'activeEvent.id', evId, evId, evId, 'FAIL');
+          return false;
+        }
+      } else {
+        recentUnresolvedEventIds.length = 0;
+      }
+      return true;
+    }
+
+    // 実行本体（同期ブロッキング）
+    let simError = null;
+    try {
+      _sim3LockstepSetup(gSnap);
+      const rng = _mkTrackedRng(seed);
+      Math.random = rng;
+
+      let prevTotalDays = null;
+      let consecutiveRedMonths = 0;
+      let prevMonthRevenue = null;
+
+      for (let d = 0; d < days; d++) {
+        if (_qa3aSafetyStopReq) {
+          console.log(`[QA-Safety] 停止要求により Day${d+1} で中断`);
+          break;
+        }
+
+        const gNow = eval('G');
+        const dateStr = `${gNow.year}/${gNow.month}/${gNow.day}`;
+        const dayN = d + 1;
+
+        // gameEnded チェック（事前）
+        if (gNow.gameEnded && !gNow.freeMode) {
+          addAnomaly(dayN, dateStr, 'GAME_ENDED_UNEXPECTED', 'gameEnded', 'false', 'true', null, 'FAIL');
+          break;
+        }
+
+        // 月次処理カウント
+        if (gNow.processingMonthly) monthlyCount++;
+
+        // 1日進める
+        try {
+          _sim2cDoChunk(1);
+          daysRun++;
+        } catch(e) {
+          watchdogCount++;
+          console.warn(`[QA-Safety] Day${dayN} _sim2cDoChunk例外:`, e.message);
+          addAnomaly(dayN, dateStr, 'CHUNK_ERROR', 'exception', '', e.message, null, 'WARN');
+          if (watchdogCount >= 10) {
+            addAnomaly(dayN, dateStr, 'WATCHDOG_LIMIT', 'exception', '10', '10', null, 'FAIL');
+            break;
+          }
+          continue;
+        }
+
+        const gAfter = eval('G');
+        const dateAfter = `${gAfter.year}/${gAfter.month}/${gAfter.day}`;
+
+        // totalDays 進行チェック
+        if (prevTotalDays !== null && typeof gAfter.totalDays === 'number') {
+          if (gAfter.totalDays <= prevTotalDays) {
+            addAnomaly(dayN, dateAfter, 'TOTALDAYS_NOT_ADVANCING', 'totalDays', String(prevTotalDays), String(gAfter.totalDays), null, 'FAIL');
+            break;
+          }
+        }
+        if (typeof gAfter.totalDays === 'number') prevTotalDays = gAfter.totalDays;
+
+        // localStorage 変更チェック
+        checkLS(dayN, dateAfter);
+
+        // 数値チェック
+        if (!checkNumeric(gAfter, dayN, dateAfter)) break;
+
+        // 範囲チェック
+        checkRanges(gAfter, dayN, dateAfter);
+
+        // ケース重複チェック
+        checkCases(gAfter, dayN, dateAfter);
+
+        // 繰り返しイベントチェック
+        if (!checkRepeatedEvent(gAfter, dayN, dateAfter)) break;
+
+        // FAIL で停止
+        if (failCount > 0) {
+          stopDay = dayN;
+          break;
+        }
+
+        if (d % 30 === 29) {
+          console.log(`[QA-Safety] ${dayN}日完了 money=${gAfter.money} ap=${gAfter.ap} cases=${(gAfter.cases||[]).length}`);
+        }
+      }
+    } catch(e) {
+      simError = e.message;
+      console.error('[QA-Safety] シミュレーション例外:', e);
+    } finally {
+      // G 復元チェック
+      try {
+        _sim3LockstepTeardown();
+        const gRestored = eval('G');
+        const gRestoredStr = JSON.stringify(gRestored);
+        if (gRestoredStr === gSnap) {
+          safetyRestoreResult = 'PASS';
+        } else {
+          safetyRestoreResult = 'FAIL';
+          console.warn('[QA-Safety] G復元不完全');
+        }
+      } catch(e) {
+        safetyRestoreResult = 'ERROR: ' + e.message;
+      }
+      // Math.random 復元チェック
+      if (Math.random !== origMath) {
+        console.warn('[QA-Safety] Math.random が復元されていません — 強制復元');
+        Math.random = origMath;
+        if (overallVerdict !== 'FAIL') overallVerdict = 'FAIL';
+        failCount++;
+      }
+      // UI 復元
+      Object.keys(_lsUiSave2.modals).forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.style.display = 'none';
+      });
+      document.body.style.overflow  = _lsUiSave2.bodyOverflow  || '';
+      document.body.style.overflowY = _lsUiSave2.bodyOverflowY || '';
+    }
+
+    const elapsedMs = Date.now() - overallStart;
+
+    const result = {
+      verdict:        overallVerdict,
+      seed,
+      daysRequested:  days,
+      daysRun,
+      stopDay,
+      firstAnomaly,
+      failCount,
+      warnCount,
+      simError,
+      safetyRestoreResult,
+      minMoney:         minMoney === Infinity  ? null : minMoney,
+      minAP:            minAP    === Infinity  ? null : minAP,
+      maxFatigue:       maxFatigue === -Infinity ? null : maxFatigue,
+      maxPendingCases,
+      cashCrisisCount,
+      noAPCount,
+      watchdogCount,
+      monthlyCount,
+      elapsedMs,
+      anomalies,
+    };
+
+    _qa3aSafetyResult = result;
+    window._qa3aSafetyResult = result;
+    _qa3aSafetyRunning = false;
+    if (typeof renderPhase3Tab === 'function') renderPhase3Tab();
+
+    // コンソールサマリー
+    const vLabel = overallVerdict === 'PASS' ? '✅ PASS' : overallVerdict === 'WARN' ? '⚠ WARN' : '❌ FAIL';
+    console.group(`[QA-Safety] 結果: ${vLabel}`);
+    console.log(`seed=${seed} days=${daysRun}/${days} elapsed=${(elapsedMs/1000).toFixed(1)}s`);
+    console.log(`FAIL=${failCount} WARN=${warnCount} safetyRestore=${safetyRestoreResult}`);
+    console.log(`minMoney=${result.minMoney} minAP=${result.minAP} maxFatigue=${result.maxFatigue}`);
+    console.log(`cashCrisis=${cashCrisisCount} noAP=${noAPCount} watchdog=${watchdogCount} monthly=${monthlyCount}`);
+    if (anomalies.length) console.table(anomalies.map(a=>({ dayN:a.dayN, type:a.type, field:a.field, severity:a.severity, value:String(a.after).slice(0,40) })));
+    console.groupEnd();
+
+    return result;
+  };
 
   window._qa3aLockstep = function(seed, maxDays) {
     seed    = seed    || 1001;
@@ -4504,6 +4843,78 @@ function qa2cSwitchTab(tid,idx){
       resultHtml = `<div style="color:#555;font-size:12px">まだ実行していません。</div>`;
     }
 
+    // ─── Step 2 セクション ───
+    const sr = _qa3aSafetyResult;
+    const safetyRunning = _qa3aSafetyRunning;
+    let step2Html = '';
+    if (safetyRunning) {
+      step2Html = `<div style="color:#f0c040;font-size:13px;margin-top:8px">⏳ セーフティテスト実行中…</div>`;
+    } else if (sr) {
+      const vColor = sr.verdict === 'PASS' ? '#66bb6a' : sr.verdict === 'WARN' ? '#f0c040' : '#ff5252';
+      const vLabel = sr.verdict === 'PASS' ? '✅ PASS' : sr.verdict === 'WARN' ? '⚠ WARN' : '❌ FAIL';
+      const restoreColor = sr.safetyRestoreResult === 'PASS' ? '#66bb6a' : '#ff5252';
+
+      const anomalyRows = sr.anomalies.slice(0, 30).map(a =>
+        `<tr>
+          <td style="padding:2px 6px;color:#aaa">${a.dayN}</td>
+          <td style="padding:2px 6px;color:${a.severity==='FAIL'?'#ff5252':'#f0c040'};font-weight:700">${esc(a.severity)}</td>
+          <td style="padding:2px 6px;color:#ccc">${esc(a.type)}</td>
+          <td style="padding:2px 6px;color:#888">${esc(a.field)}</td>
+          <td style="padding:2px 6px;color:#999;font-size:10px">${esc(String(a.after).slice(0,40))}</td>
+        </tr>`
+      ).join('');
+
+      step2Html = `
+<div style="margin-bottom:10px">
+  <span style="font-size:18px;font-weight:900;padding:3px 14px;border-radius:6px;
+    background:${sr.verdict==='PASS'?'#0a2a0a':sr.verdict==='WARN'?'#2a1e00':'#2a0000'};color:${vColor};border:2px solid ${vColor}">
+    ${vLabel}</span>
+  <span style="font-size:11px;color:#888;margin-left:10px">${(sr.elapsedMs/1000).toFixed(1)}s &nbsp; seed=${sr.seed}</span>
+</div>
+
+<div style="background:#0d1f2d;border:1px solid #1e3a5a;border-radius:6px;padding:10px 14px;margin-bottom:10px">
+  <div style="font-size:11px;color:#64b5f6;font-weight:700;margin-bottom:6px">📊 統計</div>
+  <table style="font-size:11px;border-collapse:collapse">
+    <tr><td style="padding:2px 8px;color:#aaa">実行日数</td><td style="color:#eee">${sr.daysRun} / ${sr.daysRequested}</td>
+        <td style="padding:2px 8px;color:#aaa">FAIL件数</td><td style="color:${sr.failCount?'#ff5252':'#66bb6a'}">${sr.failCount}</td></tr>
+    <tr><td style="padding:2px 8px;color:#aaa">WARN件数</td><td style="color:${sr.warnCount?'#f0c040':'#66bb6a'}">${sr.warnCount}</td>
+        <td style="padding:2px 8px;color:#aaa">G復元</td><td style="color:${restoreColor}">${esc(sr.safetyRestoreResult)}</td></tr>
+    <tr><td style="padding:2px 8px;color:#aaa">最低資金</td><td style="color:#eee">${sr.minMoney !== null ? sr.minMoney.toLocaleString() : '-'}</td>
+        <td style="padding:2px 8px;color:#aaa">最低AP</td><td style="color:#eee">${sr.minAP !== null ? sr.minAP : '-'}</td></tr>
+    <tr><td style="padding:2px 8px;color:#aaa">最大疲労</td><td style="color:#eee">${sr.maxFatigue !== null ? sr.maxFatigue : '-'}</td>
+        <td style="padding:2px 8px;color:#aaa">最大積案件</td><td style="color:#eee">${sr.maxPendingCases}</td></tr>
+    <tr><td style="padding:2px 8px;color:#aaa">資金危機</td><td style="color:#eee">${sr.cashCrisisCount}回</td>
+        <td style="padding:2px 8px;color:#aaa">AP枯渇</td><td style="color:#eee">${sr.noAPCount}回</td></tr>
+    <tr><td style="padding:2px 8px;color:#aaa">月次処理</td><td style="color:#eee">${sr.monthlyCount}回</td>
+        <td style="padding:2px 8px;color:#aaa">WD例外</td><td style="color:#eee">${sr.watchdogCount}回</td></tr>
+    ${sr.stopDay ? `<tr><td style="padding:2px 8px;color:#ff5252">停止日</td><td style="color:#ff5252">${sr.stopDay}日目</td><td colspan="2"></td></tr>` : ''}
+    ${sr.simError ? `<tr><td style="padding:2px 8px;color:#ff5252">エラー</td><td colspan="3" style="color:#ff7777;font-size:10px">${esc(sr.simError.slice(0,80))}</td></tr>` : ''}
+  </table>
+</div>
+
+${sr.anomalies.length ? `
+<div style="background:#0d1f2d;border:1px solid #1e3a5a;border-radius:6px;padding:10px 14px;margin-bottom:10px">
+  <div style="font-size:11px;color:#64b5f6;font-weight:700;margin-bottom:6px">⚠ 異常記録（最大30件）</div>
+  <table style="font-size:11px;border-collapse:collapse;width:100%">
+    <tr style="color:#888"><th style="padding:2px 6px;text-align:left">Day</th><th>SV</th><th>種別</th><th>フィールド</th><th>値</th></tr>
+    ${anomalyRows}
+  </table>
+  ${sr.anomalies.length > 30 ? `<div style="color:#888;font-size:10px;margin-top:4px">…他${sr.anomalies.length-30}件</div>` : ''}
+</div>
+` : `<div style="color:#66bb6a;font-size:11px;margin-bottom:10px">異常記録なし</div>`}
+
+<button class="qa-btn" onclick="window._qa3aSafetyCopyJSON()">JSON コピー</button>`;
+
+      window._qa3aSafetyCopyJSON = () => {
+        navigator.clipboard.writeText(JSON.stringify(sr, null, 2)).catch(()=>{});
+      };
+    } else {
+      step2Html = `<div style="color:#555;font-size:12px">まだ実行していません。</div>`;
+    }
+
+    const step1Disabled = running || safetyRunning;
+    const step2Disabled = running || safetyRunning;
+
     panel.innerHTML = `
 <h3 style="color:#ce93d8;margin:0 0 8px">Phase 3A — Step 1：同一seed×2回 再現性テスト</h3>
 <div class="qa-notice" style="font-size:11px;padding:8px 12px">
@@ -4517,12 +4928,37 @@ function qa2cSwitchTab(tid,idx){
   </label>
   <button class="qa-btn" id="qa3-reprod-btn"
     onclick="(function(){const s=parseInt(document.getElementById('qa3-seed').value)||1001;window._qa3ReproRun(s);})()"
-    ${running ? 'disabled' : ''}>
+    ${step1Disabled ? 'disabled' : ''}>
     ${running ? '⏳ 実行中…' : '▶ seed×2 再現テスト'}
   </button>
   ${running ? `<button class="qa-btn" onclick="window._qa2cStop()" style="color:#ff8800;border-color:#ff8800">■ 停止</button>` : ''}
 </div>
-${resultHtml}`;
+${resultHtml}
+
+<hr style="border:none;border-top:1px solid #333;margin:20px 0">
+
+<h3 style="color:#80cbc4;margin:0 0 8px">Phase 3A — Step 2：セーフティテスト</h3>
+<div class="qa-notice" style="font-size:11px;padding:8px 12px">
+  seeded RNGで指定日数シミュレーションし、NaN・資金枯渇・AP消滅・重複ケース・ゲーム状態異常などを検出します。<br>
+  FAIL=0・G復元PASS が必須条件です。
+</div>
+<div style="display:flex;gap:12px;align-items:center;margin-bottom:16px;flex-wrap:wrap">
+  <label style="font-size:12px;color:#aaa">Seed:
+    <input id="qa3s-seed" type="number" value="1001" min="1"
+      style="width:80px;background:#111;color:#eee;border:1px solid #444;padding:3px 6px;margin-left:6px;border-radius:4px">
+  </label>
+  <label style="font-size:12px;color:#aaa">日数:
+    <input id="qa3s-days" type="number" value="365" min="1" max="3650"
+      style="width:70px;background:#111;color:#eee;border:1px solid #444;padding:3px 6px;margin-left:6px;border-radius:4px">
+  </label>
+  <button class="qa-btn" id="qa3s-run-btn"
+    onclick="(function(){const s=parseInt(document.getElementById('qa3s-seed').value)||1001;const d=parseInt(document.getElementById('qa3s-days').value)||365;window._qa3aSafetyRun(s,d);})()"
+    ${step2Disabled ? 'disabled' : ''}>
+    ${safetyRunning ? '⏳ 実行中…' : '▶ セーフティテスト実行'}
+  </button>
+  ${safetyRunning ? `<button class="qa-btn" onclick="window._qa3aSafetyStop()" style="color:#ff8800;border-color:#ff8800">■ 停止</button>` : ''}
+</div>
+${step2Html}`;
 
     window._qa3ReproRun = (seed) => _sim3StartReprod(seed);
   }
