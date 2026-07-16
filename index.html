@@ -13701,6 +13701,7 @@ const GAS_URL = 'https://script.google.com/macros/s/AKfycbxM8XA5eI_-DMsLW8iqRnFc
 const LINE_URL = ''; // LINE公式アカウント友達追加URL（例: https://lin.ee/xxxxxxxx）
 
 function _getPlayerId(){
+  if(G.autoTesting) return 'autotest';
   if(!G._playerId) G._playerId = Math.random().toString(36).slice(2,10);
   return G._playerId;
 }

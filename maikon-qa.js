@@ -3627,6 +3627,27 @@ function qa2cSwitchTab(tid,idx){
       } catch(e2) {}
     }
 
+    // G復元の完全性を検証（JSON.stringify 等価 + Reflect.ownKeys 等価）
+    try {
+      const gAfter = eval('G');
+      const gAfterStr = JSON.stringify(gAfter);
+      if (gAfterStr !== s.gBeforeStr) {
+        console.warn('[QA-LS] G復元不完全: JSON不一致');
+        const orig = JSON.parse(s.gBeforeStr);
+        const snapRK = Reflect.ownKeys(orig);
+        const nowRK  = Reflect.ownKeys(gAfter);
+        const extra   = nowRK.filter(k => !snapRK.includes(k));
+        const missing = snapRK.filter(k => !nowRK.includes(k));
+        if (extra.length)   console.warn('  残留キー:', extra);
+        if (missing.length) console.warn('  欠損キー:', missing);
+        // 値差分
+        const valDiff = snapRK.filter(k => JSON.stringify(orig[k]) !== JSON.stringify(gAfter[k]));
+        if (valDiff.length) console.warn('  値差分キー:', valDiff.slice(0, 10));
+      } else {
+        console.log(`[QA-LS] G復元PASS: JSON完全一致 (${Reflect.ownKeys(gAfter).length}キー)`);
+      }
+    } catch(e) { console.warn('[QA-LS] G復元検証エラー:', e.message); }
+
     // DOM 復元
     if (s._origRenderTab    !== undefined) window.renderTab    = s._origRenderTab;
     if (s._origUpdateHeader !== undefined) window.updateHeader = s._origUpdateHeader;
