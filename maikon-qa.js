@@ -3734,6 +3734,8 @@ function qa2cSwitchTab(tid,idx){
       try { t1GSnapshots.push(JSON.stringify(eval('G'))); } catch(e) { t1GSnapshots.push(null); }
       if (d % 30 === 29) console.log(`[QA-LS T1] ${d+1}日完了`);
     }
+    // T1 のイベントログを保存（差分時点で最後10件を比較するため）
+    const t1EventLog = (_sim2c && _sim2c.eventLog) ? [..._sim2c.eventLog] : [];
     _sim3LockstepTeardown();
     Math.random = origMath;
 
@@ -3816,6 +3818,9 @@ function qa2cSwitchTab(tid,idx){
           unlockedProducts: { t1: g1Obj.unlockedProducts||[], t2: g2Now.unlockedProducts||[] },
           t1_fnLog: day1.fnLog,
           t2_fnLog: day2.fnLog,
+          // イベント列（差分日までの最後10件）
+          t1_eventSeqLast10: t1EventLog.slice(-10).map(e=>({ date:e.date, id:e.eventId, choice:e.choiceIdx, title:e.title })),
+          t2_eventSeqLast10: ((_sim2c&&_sim2c.eventLog)||[]).slice(-10).map(e=>({ date:e.date, id:e.eventId, choice:e.choiceIdx, title:e.title })),
         };
         console.log(`[QA-LS] ★ 差分発生 Day${firstDiffDay} (${day2.date}) — 停止`);
         console.log('[QA-LS] window._qa3aLastEqual / window._qa3aFirstDiff に保存済み');
@@ -4028,6 +4033,34 @@ function qa2cSwitchTab(tid,idx){
         ...c.t1_fnLog.map(f=>f.fn),
         ...c.t2_fnLog.map(f=>f.fn),
       ])];
+
+      // ─ イベント列 最後10件 ─
+      console.group('★ First Difference — イベント列比較');
+      console.log('Previous Equal Day:', c.prevDay ? c.prevDay.t1.date : '(初日)');
+      console.log('First Diff Day    :', c.date);
+      console.log('T1 eventSequence last10:');
+      console.table(c.t1_eventSeqLast10 || []);
+      console.log('T2 eventSequence last10:');
+      console.table(c.t2_eventSeqLast10 || []);
+      // T1/T2 で最初に diverge したイベントを特定
+      const seq1 = c.t1_eventSeqLast10 || [], seq2 = c.t2_eventSeqLast10 || [];
+      const minLen = Math.min(seq1.length, seq2.length);
+      let firstDivIdx = -1;
+      for (let i = 0; i < minLen; i++) {
+        if (seq1[i].id !== seq2[i].id || seq1[i].choice !== seq2[i].choice) {
+          firstDivIdx = i; break;
+        }
+      }
+      if (firstDivIdx >= 0) {
+        console.warn(`★ イベント列 diverge at index ${firstDivIdx}:`);
+        console.warn(`  T1: ${seq1[firstDivIdx].id} choice=${seq1[firstDivIdx].choice} (${seq1[firstDivIdx].date})`);
+        console.warn(`  T2: ${seq2[firstDivIdx].id} choice=${seq2[firstDivIdx].choice} (${seq2[firstDivIdx].date})`);
+      } else if (seq1.length !== seq2.length) {
+        console.warn(`★ イベント列の長さが違う: T1=${seq1.length} T2=${seq2.length}`);
+      } else {
+        console.log('イベント列 last10 は一致（差分は別の原因）');
+      }
+      console.groupEnd();
 
       console.group(`差分日 関数別 ENTER/EXIT 比較`);
       allFnsDiff.forEach(fn => {
