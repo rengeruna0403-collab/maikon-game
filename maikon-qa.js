@@ -3962,9 +3962,52 @@ function qa2cSwitchTab(tid,idx){
       return null;
     }
 
+    // ─── UI状態を保存（復元用）───
+    const _lsUiSave = (() => {
+      const modalIds = ['event-modal','monthly-modal','intro-modal','story-modal',
+        'opening-modal','tutorial-modal','confirm-modal','info-modal'];
+      const saved = {};
+      modalIds.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) saved[id] = el.style.display;
+      });
+      // display:block/flex の全モーダルをキャプチャ
+      document.querySelectorAll('[id$="-modal"]').forEach(el => {
+        if (!(el.id in saved)) saved[el.id] = el.style.display;
+      });
+      return {
+        modals: saved,
+        bodyOverflow: document.body.style.overflow,
+        bodyOverflowY: document.body.style.overflowY,
+      };
+    })();
+
+    // 開始前にモーダルを非表示化（autoTesting中のDOM残留を防ぐ）
+    Object.keys(_lsUiSave.modals).forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.style.display = 'none';
+    });
+
     console.log(`[QA-LS] ロックステップ開始 seed=${seed} maxDays=${maxDays}`);
     const gSnap = JSON.stringify(eval('G'));
-    const r = _sim3RunLockstep(gSnap, seed, maxDays);
+    let r;
+    try {
+      r = _sim3RunLockstep(gSnap, seed, maxDays);
+    } finally {
+      // ─── UI復元 ───
+      Object.entries(_lsUiSave.modals).forEach(([id, disp]) => {
+        const el = document.getElementById(id);
+        if (el) el.style.display = 'none'; // 開始前の状態に関係なく必ず非表示
+      });
+      document.body.style.overflow  = _lsUiSave.bodyOverflow  || '';
+      document.body.style.overflowY = _lsUiSave.bodyOverflowY || '';
+      // 背景オーバーレイ系も非表示化
+      ['loading-overlay','modal-overlay','overlay'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.style.display = 'none';
+      });
+      console.log('[QA-LS] UI復元完了: モーダル全クローズ');
+    }
     _sim3LockstepResult = r;
     window._qa3aLockstepResult = r;
 
