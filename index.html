@@ -2275,9 +2275,10 @@ function advanceDay(){
   // ② 月末処理チェーン中（非同期ロック）
   if(G.processingMonthly){ console.log('[advanceDay] blocked: processingMonthly'); return; }
   // ③ モーダル表示中はブロック（G.activeEvent非設定のモーダルにも対応）
+  //    autoTesting中はDOM残留に関わらずスキップ（showEventModal等と同じバイパス）
   const _advModal = document.getElementById('event-modal');
   const _advModalShown = _advModal && _advModal.style.display !== 'none';
-  if(_advModalShown){ console.log('[advanceDay] blocked: modal visible'); return; }
+  if(_advModalShown && !G.autoTesting){ console.log('[advanceDay] blocked: modal visible'); return; }
   // ④ G.activeEvent残留クリーンアップ（'_transition'はprocessingMonthly管理なのでここでは消さない）
   if(G.activeEvent && G.activeEvent !== '_transition'){
     G.activeEvent = null;
