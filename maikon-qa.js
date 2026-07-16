@@ -4085,15 +4085,18 @@ function qa2cSwitchTab(tid,idx){
     }
 
     // 実行本体（同期ブロッキング）
+    // Math.random の復元責任は Step2 finally が唯一の責任者
+    // _sim3LockstepSetup/Teardown は Math.random に触れない
     let simError = null;
+    let mathRandomAtFinally = null;   // finally入口時点のMath.random参照（診断用）
+    let mathRandomRestoreOk = false;
+    const rng = _mkTrackedRng(seed);  // try の外で宣言（finally 内の診断で参照するため）
+
     try {
       _sim3LockstepSetup(gSnap);
-      const rng = _mkTrackedRng(seed);
-      Math.random = rng;
+      Math.random = rng;              // seeded RNG に切り替え
 
       let prevTotalDays = null;
-      let consecutiveRedMonths = 0;
-      let prevMonthRevenue = null;
 
       for (let d = 0; d < days; d++) {
         if (_qa3aSafetyStopReq) {
@@ -4170,7 +4173,29 @@ function qa2cSwitchTab(tid,idx){
       simError = e.message;
       console.error('[QA-Safety] シミュレーション例外:', e);
     } finally {
-      // G 復元チェック
+      // ── Math.random 復元（Step2 finallyが唯一の責任者） ──
+      // _sim3LockstepTeardown は Math.random に触れないため二重復元は発生しない
+      mathRandomAtFinally = Math.random;     // 入口時点を記録（診断用）
+      Math.random = origMath;               // 無条件復元（FAIL/停止/例外すべての経路で到達）
+      mathRandomRestoreOk = (Math.random === origMath);
+
+      // 異常検出: finally入口時点でseeded rngでも origMathでもない場合（第三者が書き換えた）
+      if (mathRandomAtFinally !== rng && mathRandomAtFinally !== origMath) {
+        addAnomaly(0, '-', 'MATH_RANDOM_HIJACKED', 'Math.random',
+          'seededRng', 'unknown', null, 'FAIL');
+        console.error('[QA-Safety] Math.random が seededRng でも origMath でもありません — 第三者による書き換えを検出');
+      }
+
+      // 復元確認（代入後に参照比較）
+      if (!mathRandomRestoreOk) {
+        // 代入自体の失敗（通常は発生しない）
+        addAnomaly(0, '-', 'MATH_RANDOM_RESTORE_FAILED', 'Math.random', 'origMath', '(different)', null, 'FAIL');
+        console.error('[QA-Safety] Math.random 復元失敗（代入後も不一致）');
+      } else {
+        console.log('[QA-Safety] Math.random 復元 PASS');
+      }
+
+      // ── G 復元・Teardown ──
       try {
         _sim3LockstepTeardown();
         const gRestored = eval('G');
@@ -4184,14 +4209,8 @@ function qa2cSwitchTab(tid,idx){
       } catch(e) {
         safetyRestoreResult = 'ERROR: ' + e.message;
       }
-      // Math.random 復元チェック
-      if (Math.random !== origMath) {
-        console.warn('[QA-Safety] Math.random が復元されていません — 強制復元');
-        Math.random = origMath;
-        if (overallVerdict !== 'FAIL') overallVerdict = 'FAIL';
-        failCount++;
-      }
-      // UI 復元
+
+      // ── UI 復元 ──
       Object.keys(_lsUiSave2.modals).forEach(id => {
         const el = document.getElementById(id);
         if (el) el.style.display = 'none';
