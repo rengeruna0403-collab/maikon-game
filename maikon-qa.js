@@ -3611,11 +3611,21 @@ function qa2cSwitchTab(tid,idx){
     XMLHttpRequest.prototype.send = function() {};
   }
 
-  // LS-4. スパイ解除・G復元
+  // LS-4. スパイ解除・G完全復元
   function _sim3LockstepTeardown() {
     if (!_sim2c) return;
     const s = _sim2c;
-    try { Object.assign(eval('G'), JSON.parse(s.gBeforeStr)); } catch(e) {}
+    // Object.assign では追加キーが残るため eval('G = ...') で完全置換
+    try { eval('G = JSON.parse(s.gBeforeStr)'); } catch(e) {
+      console.error('[QA-LS] G完全復元失敗（teardown）:', e);
+      // フォールバック: Object.assign + 追加キー手動削除
+      try {
+        const orig = JSON.parse(s.gBeforeStr);
+        const gNow = eval('G');
+        Object.assign(gNow, orig);
+        Object.keys(gNow).forEach(k => { if (!orig.hasOwnProperty(k)) delete gNow[k]; });
+      } catch(e2) {}
+    }
 
     // DOM 復元
     if (s._origRenderTab    !== undefined) window.renderTab    = s._origRenderTab;
