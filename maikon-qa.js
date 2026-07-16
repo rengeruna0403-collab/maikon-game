@@ -3667,77 +3667,151 @@ function qa2cSwitchTab(tid,idx){
     };
   }
 
-  // LS-6. メイン実行
+  // LS-6a. G の深い差分（T1 vs T2）を生成
+  function _sim3DeepDiff(objA, objB) {
+    const diffs = [];
+    const allKeys = new Set([...Object.keys(objA||{}), ...Object.keys(objB||{})]);
+    allKeys.forEach(k => {
+      const strA = JSON.stringify(objA[k]);
+      const strB = JSON.stringify(objB[k]);
+      if (strA === strB) return;
+      // 配列は長さと最初の数件を表示
+      const vA = Array.isArray(objA[k]) ? `Array(${(objA[k]||[]).length})` : objA[k];
+      const vB = Array.isArray(objB[k]) ? `Array(${(objB[k]||[]).length})` : objB[k];
+      diffs.push({ key: k, t1: vA, t2: vB,
+        t1_json: strA ? strA.slice(0, 200) : 'undefined',
+        t2_json: strB ? strB.slice(0, 200) : 'undefined' });
+    });
+    return diffs;
+  }
+
+  // LS-6b. G 復元チェック共通処理
+  function _sim3RestoreAndCheck(gSnap, ti) {
+    try { eval('G = JSON.parse(gSnap)'); } catch(e) {
+      console.error(`[QA-LS T${ti}] G復元失敗:`, e);
+    }
+    const gNowObj  = eval('G');
+    const gSnapObj = JSON.parse(gSnap);
+    const gCheckStr = JSON.stringify(gNowObj);
+    if (gCheckStr !== gSnap) {
+      console.warn(`[QA-LS T${ti}] G復元ズレ! snap=${gSnap.length}b now=${gCheckStr.length}b`);
+      const snapRK = Reflect.ownKeys(gSnapObj);
+      const nowRK  = Reflect.ownKeys(gNowObj);
+      const extraK = nowRK.filter(k => !snapRK.includes(k));
+      const missingK = snapRK.filter(k => !nowRK.includes(k));
+      if (extraK.length)   console.warn(`[QA-LS T${ti}] G追加キー:`, extraK);
+      if (missingK.length) console.warn(`[QA-LS T${ti}] G欠損キー:`, missingK);
+    } else {
+      console.log(`[QA-LS T${ti}] G復元OK (Reflect.ownKeys: ${Reflect.ownKeys(gNowObj).length}キー)`);
+    }
+  }
+
+  // LS-6. メイン実行（初回差分で停止モード）
   function _sim3RunLockstep(gSnap, seed, maxDays) {
     _sim3InitFnWrappers(); // 初回のみ関数ラップ
 
     const origMath = Math.random;
-    const trialDays = [[], []];
 
-    for (let ti = 0; ti < 2; ti++) {
-      // G 完全復元
-      try { eval('G = JSON.parse(gSnap)'); } catch(e) {
-        console.error('[QA-LS] G復元失敗:', e);
-      }
-      // G復元確認（JSON差分 + Reflect.ownKeys差分）
-      const gNowObj  = eval('G');
-      const gSnapObj = JSON.parse(gSnap);
-      const gCheckStr = JSON.stringify(gNowObj);
-      if (gCheckStr !== gSnap) {
-        console.warn(`[QA-LS T${ti}] G復元ズレ! snap=${gSnap.length}b now=${gCheckStr.length}b`);
-        // Reflect.ownKeys 差分
-        const snapRK = Reflect.ownKeys(gSnapObj);
-        const nowRK  = Reflect.ownKeys(gNowObj);
-        const extraK = nowRK.filter(k => !snapRK.includes(k));
-        const missingK = snapRK.filter(k => !nowRK.includes(k));
-        if (extraK.length)   console.warn(`[QA-LS T${ti}] G追加キー:`, extraK);
-        if (missingK.length) console.warn(`[QA-LS T${ti}] G欠損キー:`, missingK);
-        // 値差分のあるキー
-        const valDiff = snapRK.filter(k =>
-          JSON.stringify(gSnapObj[k]) !== JSON.stringify(gNowObj[k])
-        );
-        if (valDiff.length) console.warn(`[QA-LS T${ti}] G値差分キー:`, valDiff.slice(0,10));
-      } else {
-        console.log(`[QA-LS T${ti}] G復元OK (Reflect.ownKeys: ${Reflect.ownKeys(gNowObj).length}キー)`);
-      }
+    // ── Trial 1: 全日実行してG状態を保存 ──
+    _sim3RestoreAndCheck(gSnap, 0);
+    const rng1 = _mkTrackedRng(seed);
+    Math.random = rng1;
+    _sim3LockstepSetup(gSnap);
 
-      const rng = _mkTrackedRng(seed);
-      Math.random = rng;
+    const t1Days = [];
+    const t1GSnapshots = []; // 各日終了後の G JSON を保存（差分比較用）
 
-      _sim3LockstepSetup(gSnap);
-
-      for (let d = 0; d < maxDays; d++) {
-        if (_sim2c.stopRequested) break;
-
-        // 1日分の関数ログを収集
-        _lsRngCapture = { rng, dayLog: [], called: [] };
-        const rngBefore = rng._count();
-
-        try { _sim2cDoChunk(1); } catch(e) {
-          console.error(`[QA-LS T${ti} D${d}] 例外:`, e);
-          break;
-        }
-
-        const fnLog = _lsRngCapture ? _lsRngCapture.dayLog : [];
-        _lsRngCapture = null;
-
-        trialDays[ti].push(_sim3CaptureDay(d + 1, rng, fnLog));
-      }
-
-      _sim3LockstepTeardown();
-      Math.random = origMath;
-    }
-
-    // 最初の差分を検索（gHash で判定）
-    const maxLen = Math.min(trialDays[0].length, trialDays[1].length);
-    let firstDiffDay = null;
-    for (let i = 0; i < maxLen; i++) {
-      if (trialDays[0][i].gHash !== trialDays[1][i].gHash ||
-          trialDays[0][i].rngCount !== trialDays[1][i].rngCount) {
-        firstDiffDay = i + 1;
+    for (let d = 0; d < maxDays; d++) {
+      if (_sim2c.stopRequested) break;
+      _lsRngCapture = { rng: rng1, dayLog: [], called: [] };
+      try { _sim2cDoChunk(1); } catch(e) {
+        console.error(`[QA-LS T0 D${d}] 例外:`, e);
         break;
       }
+      const fnLog = _lsRngCapture ? _lsRngCapture.dayLog : [];
+      _lsRngCapture = null;
+      t1Days.push(_sim3CaptureDay(d + 1, rng1, fnLog));
+      try { t1GSnapshots.push(JSON.stringify(eval('G'))); } catch(e) { t1GSnapshots.push(null); }
+      if (d % 30 === 29) console.log(`[QA-LS T1] ${d+1}日完了`);
     }
+    _sim3LockstepTeardown();
+    Math.random = origMath;
+
+    // ── Trial 2: 逐次比較、初回差分で停止 ──
+    _sim3RestoreAndCheck(gSnap, 1);
+    const rng2 = _mkTrackedRng(seed);
+    Math.random = rng2;
+    _sim3LockstepSetup(gSnap);
+
+    const t2Days = [];
+    let firstDiffDay = null;
+    let diffDetail = null;
+
+    for (let d = 0; d < t1Days.length; d++) {
+      if (_sim2c.stopRequested) break;
+      _lsRngCapture = { rng: rng2, dayLog: [], called: [] };
+      try { _sim2cDoChunk(1); } catch(e) {
+        console.error(`[QA-LS T2 D${d}] 例外:`, e);
+        break;
+      }
+      const fnLog = _lsRngCapture ? _lsRngCapture.dayLog : [];
+      _lsRngCapture = null;
+      const day2 = _sim3CaptureDay(d + 1, rng2, fnLog);
+      t2Days.push(day2);
+      const day1 = t1Days[d];
+
+      const diverged = day1.gHash !== day2.gHash || day1.rngCount !== day2.rngCount;
+      if (diverged) {
+        firstDiffDay = d + 1;
+        // deepDiff: T1 vs T2 の G を比較
+        const g2Now = eval('G');
+        let gDiff = [];
+        try {
+          const g1Obj = JSON.parse(t1GSnapshots[d] || '{}');
+          gDiff = _sim3DeepDiff(g1Obj, g2Now);
+        } catch(e) { gDiff = [{ error: String(e) }]; }
+
+        // 重要フィールド抜粋
+        const g2 = g2Now;
+        const g1 = JSON.parse(t1GSnapshots[d] || '{}');
+        diffDetail = {
+          dayN:  firstDiffDay,
+          date:  day2.date,
+          t1:    { hash: day1.gHash, rng: day1.rngCount, fnCalled: day1.fnCalled },
+          t2:    { hash: day2.gHash, rng: day2.rngCount, fnCalled: day2.fnCalled },
+          prevDay: d > 0 ? {
+            t1: { hash: t1Days[d-1].gHash, rng: t1Days[d-1].rngCount },
+            t2: { hash: t2Days[d-1].gHash, rng: t2Days[d-1].rngCount },
+          } : null,
+          gDiff,  // 全差分フィールド一覧
+          // 重要フィールド個別比較
+          pendingFollowUps: {
+            t1: (g1.pendingFollowUps||[]).length,
+            t2: (g2.pendingFollowUps||[]).length,
+            t1_detail: g1.pendingFollowUps||[],
+            t2_detail: g2.pendingFollowUps||[],
+          },
+          fullhouseStartDay: { t1: g1._fullhouseStartDay, t2: g2._fullhouseStartDay },
+          cases: {
+            t1: (g1.cases||[]).map(c=>c.id+(c.resolved?'✓':c.expired?'✗':'')),
+            t2: (g2.cases||[]).map(c=>c.id+(c.resolved?'✓':c.expired?'✗':'')),
+          },
+          unlockedProducts: { t1: g1.unlockedProducts||[], t2: g2.unlockedProducts||[] },
+          menus: {
+            t1: ((g1.stores||[])[0]||{}).menu||[],
+            t2: ((g2.stores||[])[0]||{}).menu||[],
+          },
+          // 当日の generateConditionCases / _sim2bProcessDailyCases ログ
+          t1_fnLog: day1.fnLog,
+          t2_fnLog: day2.fnLog,
+        };
+        console.log(`[QA-LS] ★ 差分発生 Day${firstDiffDay} (${day2.date}) — 停止`);
+        break;
+      }
+      if (d % 30 === 29) console.log(`[QA-LS T2] ${d+1}日一致 ✓`);
+    }
+    _sim3LockstepTeardown();
+    Math.random = origMath;
 
     // G外変数 スナップ（試行終了後）
     let extVars = {};
@@ -3756,7 +3830,8 @@ function qa2cSwitchTab(tid,idx){
     return {
       seed, maxDays,
       firstDiffDay,
-      t1: trialDays[0],
+      diffDetail,
+      t1: t1Days,
       t2: trialDays[1],
       extVarsAfterRun: extVars,
       comparison: firstDiffDay != null ? {
@@ -3881,20 +3956,59 @@ function qa2cSwitchTab(tid,idx){
     console.groupEnd();
 
     // 最初の差分の詳細
-    if (r.firstDiffDay != null) {
-      const c = r.comparison;
-      console.warn(`[QA-LS] ★ ${c.diffDay}日目に最初の差分!`);
+    if (r.firstDiffDay != null && r.diffDetail) {
+      const c = r.diffDetail;
+      console.warn(`[QA-LS] ★ Day${c.dayN}（${c.date}）で最初の差分`);
+
+      // ─ 前日との状態 ─
+      if (c.prevDay) {
+        console.log(`[前日 Day${c.dayN-1}] T1_hash=${c.prevDay.t1.hash} T2_hash=${c.prevDay.t2.hash} T1_rng=${c.prevDay.t1.rng} T2_rng=${c.prevDay.t2.rng}`);
+      }
+      console.log(`[当日 Day${c.dayN}] T1_hash=${c.t1.hash} T2_hash=${c.t2.hash} T1_rng=${c.t1.rng} T2_rng=${c.t2.rng}`);
+      console.log(`  T1_fn: ${c.t1.fnCalled.join(',')}`);
+      console.log(`  T2_fn: ${c.t2.fnCalled.join(',')}`);
+
+      // ─ G deepDiff ─
+      console.group('★ G deepDiff（T1 vs T2 当日終了時点）');
+      if (c.gDiff.length === 0) {
+        console.log('差分なし（gHash は同じだが別の原因）');
+      } else {
+        console.table(c.gDiff.map(d => ({
+          key:    d.key,
+          T1:     typeof d.t1 === 'object' ? JSON.stringify(d.t1).slice(0,80) : d.t1,
+          T2:     typeof d.t2 === 'object' ? JSON.stringify(d.t2).slice(0,80) : d.t2,
+          T1_json: d.t1_json ? d.t1_json.slice(0,100) : '',
+          T2_json: d.t2_json ? d.t2_json.slice(0,100) : '',
+        })));
+      }
+      console.groupEnd();
+
+      // ─ 重要フィールド個別比較 ─
+      console.group('★ 重要フィールド比較');
+      console.log('pendingFollowUps件数  T1:', c.pendingFollowUps.t1, ' T2:', c.pendingFollowUps.t2);
+      if (c.pendingFollowUps.t1 > 0 || c.pendingFollowUps.t2 > 0) {
+        console.log('  T1 detail:', c.pendingFollowUps.t1_detail);
+        console.log('  T2 detail:', c.pendingFollowUps.t2_detail);
+      }
+      console.log('_fullhouseStartDay    T1:', c.fullhouseStartDay.t1, ' T2:', c.fullhouseStartDay.t2);
+      const casesSame = JSON.stringify(c.cases.t1) === JSON.stringify(c.cases.t2);
+      console.log('cases ' + (casesSame ? '✓一致' : '★差分'));
+      if (!casesSame) { console.log('  T1:', c.cases.t1); console.log('  T2:', c.cases.t2); }
+      const prodSame = JSON.stringify(c.unlockedProducts.t1) === JSON.stringify(c.unlockedProducts.t2);
+      console.log('unlockedProducts ' + (prodSame ? '✓一致' : '★差分'));
+      if (!prodSame) { console.log('  T1:', c.unlockedProducts.t1); console.log('  T2:', c.unlockedProducts.t2); }
+      console.groupEnd();
 
       // ─ 関数別 ENTER/EXIT 比較（差分日） ─
       const allFnsDiff = [...new Set([
-        ...c.t1.fnLog.map(f=>f.fn),
-        ...c.t2.fnLog.map(f=>f.fn),
+        ...c.t1_fnLog.map(f=>f.fn),
+        ...c.t2_fnLog.map(f=>f.fn),
       ])];
 
-      console.group(`差分日(${c.diffDay}日): 関数別 ENTER/EXIT 比較`);
+      console.group(`差分日 関数別 ENTER/EXIT 比較`);
       allFnsDiff.forEach(fn => {
-        const e1 = c.t1.fnLog.find(f=>f.fn===fn);
-        const e2 = c.t2.fnLog.find(f=>f.fn===fn);
+        const e1 = c.t1_fnLog.find(f=>f.fn===fn);
+        const e2 = c.t2_fnLog.find(f=>f.fn===fn);
 
         if (!e1 && !e2) return;
         if (!e1) { console.warn(`★片方のみ呼出  ${fn}: T1=(未呼出) T2呼出`); return; }
@@ -3902,114 +4016,43 @@ function qa2cSwitchTab(tid,idx){
 
         const en1 = e1.enter, ex1 = e1.exit;
         const en2 = e2.enter, ex2 = e2.exit;
-
-        // ENTER 時点の差分
         const enterRngDiff  = (en1&&en2) && en1.rngCount !== en2.rngCount;
         const enterHashDiff = (en1&&en2) && en1.gHash    !== en2.gHash;
         const enterCaseDiff = (en1&&en2) && en1.casesLen !== en2.casesLen;
-        const enterAEDiff   = (en1&&en2) && JSON.stringify(en1.activeEvent) !== JSON.stringify(en2.activeEvent);
-
         const usedDiff = e1.rngUsed !== e2.rngUsed;
 
         let verdict = '✓';
-        if (enterRngDiff)  verdict = '★ENTER時点でRNGズレ';
+        if (enterRngDiff)       verdict = '★ENTER時点でRNGズレ';
         else if (enterHashDiff) verdict = '★ENTER時点でGHashズレ';
         else if (usedDiff)      verdict = '★この関数内でRNG使用数ズレ';
 
         console.log(`${verdict}  [${fn}]`);
         if (en1 && en2) {
-          console.log(`  ENTER: T1 rng=${en1.rngCount} cases=${en1.casesLen} hash=${en1.gHash} active=${en1.activeEvent} pf=${en1.pendingFollowUpsLen} pc=${en1.pendingChallenge}`);
-          console.log(`  ENTER: T2 rng=${en2.rngCount} cases=${en2.casesLen} hash=${en2.gHash} active=${en2.activeEvent} pf=${en2.pendingFollowUpsLen} pc=${en2.pendingChallenge}`);
+          console.log(`  ENTER T1: rng=${en1.rngCount} cases=${en1.casesLen} hash=${en1.gHash} pf=${en1.pendingFollowUpsLen}`);
+          console.log(`  ENTER T2: rng=${en2.rngCount} cases=${en2.casesLen} hash=${en2.gHash} pf=${en2.pendingFollowUpsLen}`);
         }
         if (ex1 && ex2) {
-          console.log(`  EXIT:  T1 rng=${ex1.rngCount}(+${e1.rngUsed}) cases=${ex1.casesLen} hash=${ex1.gHash}`);
-          console.log(`  EXIT:  T2 rng=${ex2.rngCount}(+${e2.rngUsed}) cases=${ex2.casesLen} hash=${ex2.gHash}`);
+          console.log(`  EXIT  T1: rng=${ex1.rngCount}(+${e1.rngUsed}) hash=${ex1.gHash} newlyAdded=${JSON.stringify(ex1.newlyAddedCases||[])}`);
+          console.log(`  EXIT  T2: rng=${ex2.rngCount}(+${e2.rngUsed}) hash=${ex2.gHash} newlyAdded=${JSON.stringify(ex2.newlyAddedCases||[])}`);
         }
         if (en1&&en2&&enterCaseDiff) {
           console.warn(`  ★ ENTER時点でcases差: T1=${en1.casesLen} T2=${en2.casesLen}`);
-          console.log(`  T1 caseIds:`, en1.caseIds);
-          console.log(`  T2 caseIds:`, en2.caseIds);
+          console.log(`  T1 caseIds:`, en1.caseIds); console.log(`  T2 caseIds:`, en2.caseIds);
         }
-        if (en1&&en2&&enterAEDiff) {
-          console.warn(`  ★ ENTER時点でactiveEvent差: T1=${en1.activeEvent} T2=${en2.activeEvent}`);
+        // _sim2bProcessDailyCases の候補リスト
+        if (fn === '_sim2bProcessDailyCases' && en1 && en2) {
+          const eligSame = JSON.stringify(en1.eligibleCaseIds) === JSON.stringify(en2.eligibleCaseIds);
+          console.log(`  eligibleCaseIds ${eligSame?'✓一致':'★差分'}`);
+          if (!eligSame) {
+            console.log(`    T1[${(en1.eligibleCaseIds||[]).length}]:`, en1.eligibleCaseIds);
+            console.log(`    T2[${(en2.eligibleCaseIds||[]).length}]:`, en2.eligibleCaseIds);
+          }
         }
       });
       console.groupEnd();
 
-      // cases/products/menus 比較（差分日終了時）
-      console.group(`差分日(${c.diffDay}日): G状態比較（日終了後）`);
-      console.log('T1 caseIds:', c.t1.caseIds);
-      console.log('T2 caseIds:', c.t2.caseIds);
-      console.log('T1 unlockedProducts:', c.t1.unlockedProducts);
-      console.log('T2 unlockedProducts:', c.t2.unlockedProducts);
-      console.log('T1 menuIds:', c.t1.menuIds, 'pending:', c.t1.pendingMenuIds);
-      console.log('T2 menuIds:', c.t2.menuIds, 'pending:', c.t2.pendingMenuIds);
-      console.groupEnd();
-
-      // ─ FULL SNAPSHOT（最初の差分が出た関数の完全ログ） ─
-      console.group('★ FIRST DIVERGENCE FULL SNAPSHOT');
-      [['Trial 1', c.t1], ['Trial 2', c.t2]].forEach(([label, td]) => {
-        console.group(label);
-        (td.fnLog||[]).forEach(e => {
-          console.group(e.fn + ' (rngUsed=' + e.rngUsed + ')');
-          if (e.enter) console.log('ENTER:', {
-            rng: e.enter.rngCount, gHash: e.enter.gHash,
-            casesLen: e.enter.casesLen, caseIds: e.enter.caseIds,
-            active: e.enter.activeEvent, pf: e.enter.pendingFollowUpsLen,
-            pc: e.enter.pendingChallenge, ch: e.enter.challengeId,
-            products: e.enter.unlockedProducts, menus: e.enter.menuCount,
-            eligibleCaseIds: e.enter.eligibleCaseIds,
-            resolvedCaseId: e.enter.resolvedCaseId,
-            backlogIds: e.enter.backlogIds,
-            casesLenBefore: e.enter.casesLenBefore,
-          });
-          if (e.exit) console.log('EXIT: ', {
-            rng: e.exit.rngCount, rngUsed: e.rngUsed, gHash: e.exit.gHash,
-            casesLen: e.exit.casesLen,
-            newlyAdded: e.exit.newlyAddedCases,
-            dispatched: e.exit.dispatched,
-            backlogAfter: e.exit.backlogIdsAfter,
-          });
-          console.groupEnd();
-        });
-        console.groupEnd();
-      });
-      console.groupEnd();
-
-      // ─ chooseEvent 候補リスト比較 ─
-      const ce1 = c.t1.fnLog.filter(f=>f.fn==='chooseEvent');
-      const ce2 = c.t2.fnLog.filter(f=>f.fn==='chooseEvent');
-      if (ce1.length || ce2.length) {
-        console.group('★ chooseEvent 候補比較（差分日）');
-        const maxCE = Math.max(ce1.length, ce2.length);
-        for (let i = 0; i < maxCE; i++) {
-          const en1 = ce1[i] && ce1[i].enter, en2 = ce2[i] && ce2[i].enter;
-          const ids1 = en1 ? en1.eligibleCaseIds : ['(未呼出)'];
-          const ids2 = en2 ? en2.eligibleCaseIds : ['(未呼出)'];
-          const same = JSON.stringify(ids1) === JSON.stringify(ids2);
-          console.log(`呼出#${i+1} 候補${same?'一致✓':'★差分'}`);
-          console.log(`  T1 候補[${(ids1||[]).length}]:`, ids1, '→選択:', en1?en1.resolvedCaseId:'-');
-          console.log(`  T2 候補[${(ids2||[]).length}]:`, ids2, '→選択:', en2?en2.resolvedCaseId:'-');
-        }
-        console.groupEnd();
-      }
-
-      // ─ generateConditionCases 追加案件比較 ─
-      const gc1 = c.t1.fnLog.filter(f=>f.fn==='generateConditionCases');
-      const gc2 = c.t2.fnLog.filter(f=>f.fn==='generateConditionCases');
-      if (gc1.length || gc2.length) {
-        console.group('★ generateConditionCases 追加案件（差分日）');
-        const maxGC = Math.max(gc1.length, gc2.length);
-        for (let i = 0; i < maxGC; i++) {
-          const ex1 = gc1[i] && gc1[i].exit, ex2 = gc2[i] && gc2[i].exit;
-          console.log(`T1 追加:`, ex1 ? (ex1.newlyAddedCases||[]) : ['(未呼出)']);
-          console.log(`T2 追加:`, ex2 ? (ex2.newlyAddedCases||[]) : ['(未呼出)']);
-        }
-        console.groupEnd();
-      }
-
-    } else {
-      console.log(`[QA-LS] ${maxDays}日間 gHash・RNG回数 完全一致`);
+    } else if (r.firstDiffDay == null) {
+      console.log(`[QA-LS] ${r.t1.length}日間 gHash・RNG回数 完全一致`);
     }
 
     // G外変数
