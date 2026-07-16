@@ -4122,14 +4122,38 @@ function qa2cSwitchTab(tid,idx){
       const extraK    = rk_now.filter(k=>!rk_orig.includes(k));
       const missingK  = rk_orig.filter(k=>!rk_now.includes(k));
       const symbolKeys= rk_now.filter(k=>typeof k==='symbol');
+      // 残留キーを分類
+      const KEY_CATEGORY = {
+        // 遅延初期化（試行開始前に gSnap 復元で消えていれば正常）
+        lazy: ['pendingFollowUps','_fullhouseStartDay','_sched','_isMonthEnd','_lastApSurplusDay',
+               '_pathPts','_store2OpenDay'],
+        // QA専用（ゲームロジックに影響しない）
+        qa:   ['autoTesting'],
+        // デバッグ専用（ゲームロジックに影響しない）
+        debug:['_productUnlockDebug','_naritaStore2Debug','_naritaMgrDebug','_boardCandidateDebug',
+               '_fullhouseDebug'],
+      };
+      const categorize = k => {
+        const s = String(k);
+        if (KEY_CATEGORY.lazy.includes(s))  return '遅延初期化（正常）';
+        if (KEY_CATEGORY.qa.includes(s))    return 'QA専用（正常）';
+        if (KEY_CATEGORY.debug.includes(s)) return 'デバッグ専用（正常）';
+        return '★未分類（要確認）';
+      };
+
       console.group('[QA-LS] Reflect.ownKeys(G) 最終確認');
       console.log('現在Gキー数:', rk_now.length, '元スナップキー数:', rk_orig.length);
-      if (extraK.length)    console.warn('★追加残留キー:', extraK);
+      if (extraK.length) {
+        const rows = extraK.map(k => ({ key: String(k), 分類: categorize(k) }));
+        const hasUnknown = rows.some(r => r.分類.startsWith('★'));
+        if (hasUnknown) console.warn('★未分類キーあり（再現性リスクの可能性）');
+        else console.log('追加キーはすべて想定内（遅延初期化/QA/デバッグ）');
+        console.table(rows);
+      }
       if (missingK.length)  console.warn('★欠損キー:', missingK);
       if (symbolKeys.length)console.warn('★Symbolキー:', symbolKeys);
       if (!extraK.length && !missingK.length && !symbolKeys.length)
         console.log('✓ キー差分なし (追加・欠損・Symbol なし)');
-      // non-enumerable チェック
       const nonEnum = rk_now.filter(k =>
         typeof k === 'string' && !Object.prototype.propertyIsEnumerable.call(gFinal, k)
       );
