@@ -4046,12 +4046,15 @@ function qa2cSwitchTab(tid,idx){
       }
     }
 
-    // ケース重複チェック
+    // ケース重複チェック（未解決案件のみ対象）
+    // repeatable案件は解決済みが残ったまま再追加されるため、
+    // resolved=true の案件を除外しないと誤検知になる
     function checkCases(gNow, dayN, date) {
       const cases = gNow.cases || [];
       const idSeen = {};
       for (const c of cases) {
         if (!c.id) continue;
+        if (c.resolved) continue; // 解決済み（期限切れ含む）は重複チェック対象外
         if (idSeen[c.id]) {
           addAnomaly(dayN, date, 'DUPLICATE_CASE_ID', 'cases', c.id, c.id, null, 'FAIL');
           return false;
