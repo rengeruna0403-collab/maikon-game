@@ -4289,6 +4289,399 @@ function qa2cSwitchTab(tid,idx){
     return result;
   };
 
+  // ════════════════════════════════════════════════════════
+  // ■ 3A-Step3. ゲームバランス分析
+  //   既存の Step1・Step2・Phase2C コードには一切副作用を与えない。
+  //   _sim3Analyze* / _sim3Stats* / _sim3Export* 名前空間を使用。
+  // ════════════════════════════════════════════════════════
+
+  let _sim3AnalyzeRunning  = false;
+  let _sim3AnalyzeStopReq  = false;
+  let _sim3AnalyzeResult   = null;
+
+  window._qa3aAnalyzeStop = function() {
+    _sim3AnalyzeStopReq = true;
+    console.log('[QA-Ana] 停止要求受付');
+  };
+
+  // ── 統計計算 ──
+  function _sim3StatsCalc(arr) {
+    const a = (arr||[]).filter(x => typeof x === 'number' && isFinite(x));
+    if (!a.length) return { mean:null, median:null, min:null, max:null, stddev:null, count:0 };
+    const sorted = [...a].sort((x,y)=>x-y);
+    const n = a.length;
+    const mean = a.reduce((s,x)=>s+x,0)/n;
+    const median = n%2===0 ? (sorted[n/2-1]+sorted[n/2])/2 : sorted[Math.floor(n/2)];
+    const stddev = Math.sqrt(a.reduce((s,x)=>s+(x-mean)**2,0)/n);
+    return { mean:Math.round(mean*10)/10, median:Math.round(median*10)/10,
+             min:sorted[0], max:sorted[n-1], stddev:Math.round(stddev*10)/10, count:n };
+  }
+
+  // ── CASE_POOL ルックアップ ──
+  function _sim3CaseInfo(eventId) {
+    try { const p = eval('CASE_POOL'); return (p||[]).find(c=>c.id===eventId)||null; }
+    catch(e) { return null; }
+  }
+
+  // ── sender → カテゴリ正規化 ──
+  function _sim3SenderCat(sender) {
+    if (!sender) return 'その他';
+    if (sender.includes('成田')) return '成田';
+    if (sender.includes('みどり')||sender.includes('佐々木')) return 'みどり';
+    if (sender.includes('常連')) return '常連客';
+    if (sender.includes('行政')||sender.includes('市役所')||sender.includes('区役所')) return '行政';
+    if (sender.includes('住民')||sender.includes('地域')||sender.includes('町内')) return '住民';
+    if (sender.includes('お客様')||sender.includes('客')) return 'お客様';
+    return 'その他';
+  }
+
+  // ── 1試行実行 ──
+  function _sim3AnalyzeRunTrial(seed, gSnap) {
+    const origMath = Math.random;
+    const rng = _mkTrackedRng(seed);
+    let trial = null;
+    try {
+      _sim3LockstepSetup(gSnap);
+      Math.random = rng;
+
+      // 初期解放済み商品を記録
+      const productUnlockDays = {};
+      let prevUnlocked = [];
+      try { prevUnlocked = [...(eval('G').unlockedProducts||[])]; } catch(e) {}
+
+      for (let d = 0; d < 365; d++) {
+        if (_sim3AnalyzeStopReq) break;
+        try { _sim2cDoChunk(1); } catch(e) { break; }
+        // 商品解放追跡
+        try {
+          const nowUnlocked = eval('G').unlockedProducts || [];
+          for (const p of nowUnlocked) {
+            if (!prevUnlocked.includes(p) && !(p in productUnlockDays)) {
+              productUnlockDays[p] = d + 1;
+            }
+          }
+          prevUnlocked = [...nowUnlocked];
+        } catch(e) {}
+      }
+
+      const s = _sim2c;
+      let gEnd; try { gEnd = eval('G'); } catch(e) { gEnd = {}; }
+
+      const apValid       = (s.apHistory||[]).filter(x=>x!=null&&typeof x==='number');
+      const monthlyData   = s.monthlyData||[];
+      const totalRevenue  = monthlyData.reduce((a,m)=>a+(m.storeRevenue||0),0);
+      const totalProfit   = monthlyData.reduce((a,m)=>a+(m.netChange||0),0);
+      const deficitMonths = monthlyData.filter(m=>(m.netChange||0)<0).length;
+      const allMoney      = monthlyData.map(m=>m.money).filter(x=>typeof x==='number');
+      const casesArr      = gEnd.cases||[];
+
+      trial = {
+        seed,
+        totalRevenue, totalProfit,
+        endCash:      gEnd.money||0,
+        minCash:      allMoney.length ? Math.min(...allMoney) : (gEnd.money||0),
+        avgAP:        apValid.length ? Math.round(apValid.reduce((a,b)=>a+b,0)/apValid.length) : null,
+        minAP:        apValid.length ? Math.min(...apValid) : null,
+        apShortDays:  apValid.filter(x=>x<=0).length,
+        deficitMonths,
+        eventCount:   s.stats.totalEvents||0,
+        caseSolved:   casesArr.filter(c=>c.resolved&&!c._expired).length,
+        caseFailed:   casesArr.filter(c=>c._expired).length,
+        staffCount:   (gEnd.staff||[]).length,
+        productCount: (gEnd.unlockedProducts||[]).length,
+        reputation:   (gEnd.regions&&gEnd.regions[0]) ? (gEnd.regions[0].reputation||0) : 0,
+        // 詳細
+        eventLog:         [...(s.eventLog||[])],
+        monthlyData:      [...monthlyData],
+        productUnlockDays:{...productUnlockDays},
+        apHistory:        [...apValid],
+      };
+    } finally {
+      Math.random = origMath;
+      _sim3LockstepTeardown();
+    }
+    return trial;
+  }
+
+  // ── バランス評価 ──
+  function _sim3AnalyzeRating(data) {
+    const { profitStats, apStats, deficitStats, trials } = data;
+    let score = 0;
+    const details = [];
+    // 利益ばらつき（CV）
+    if (profitStats.mean && profitStats.stddev != null) {
+      const cv = Math.abs(profitStats.stddev / (Math.abs(profitStats.mean)||1));
+      if (cv < 0.3)      { score+=25; details.push({ item:'利益の安定性', result:'✓ 安定 (CV<0.3)', score:25 }); }
+      else if (cv < 0.6) { score+=15; details.push({ item:'利益の安定性', result:'△ やや不安定', score:15 }); }
+      else               { score+=0;  details.push({ item:'利益の安定性', result:'✗ 不安定 (CV≥0.6)', score:0 }); }
+    }
+    // AP維持
+    if (apStats.mean != null) {
+      if (apStats.mean >= 60)      { score+=25; details.push({ item:'AP維持', result:'✓ 良好 (≥60)', score:25 }); }
+      else if (apStats.mean >= 30) { score+=15; details.push({ item:'AP維持', result:'△ 要注意 (≥30)', score:15 }); }
+      else                         { score+=0;  details.push({ item:'AP維持', result:'✗ 枯渇傾向 (<30)', score:0 }); }
+    }
+    // 赤字率
+    const avgDef = deficitStats.mean||0;
+    if (avgDef <= 2)      { score+=25; details.push({ item:'赤字月数', result:`✓ 少ない (平均${avgDef}月)`, score:25 }); }
+    else if (avgDef <= 5) { score+=15; details.push({ item:'赤字月数', result:`△ 中程度 (平均${avgDef}月)`, score:15 }); }
+    else                  { score+=0;  details.push({ item:'赤字月数', result:`✗ 多い (平均${avgDef}月)`, score:0 }); }
+    // 案件成功率
+    const avgSolved = _sim3StatsCalc(trials.map(t=>t.caseSolved)).mean||0;
+    const avgFailed = _sim3StatsCalc(trials.map(t=>t.caseFailed)).mean||0;
+    const caseRate  = (avgSolved+avgFailed > 0) ? avgSolved/(avgSolved+avgFailed) : 0;
+    if (caseRate >= 0.7)      { score+=25; details.push({ item:'案件成功率', result:`✓ ${Math.round(caseRate*100)}%`, score:25 }); }
+    else if (caseRate >= 0.5) { score+=15; details.push({ item:'案件成功率', result:`△ ${Math.round(caseRate*100)}%`, score:15 }); }
+    else                      { score+=0;  details.push({ item:'案件成功率', result:`✗ ${Math.round(caseRate*100)}%`, score:0 }); }
+
+    let verdict, col;
+    if      (score >= 90) { verdict='Excellent';    col='#66bb6a'; }
+    else if (score >= 70) { verdict='Good';         col='#64b5f6'; }
+    else if (score >= 50) { verdict='Fair';         col='#f0c040'; }
+    else                  { verdict='Needs Balance';col='#ff5252'; }
+    return { balanceRating:verdict, balanceScore:score, balanceColor:col, balanceDetails:details };
+  }
+
+  // ── 全試行集計 ──
+  function _sim3AnalyzeAggregate(trials) {
+    const n = trials.length;
+    if (!n) return null;
+    const sf = key => _sim3StatsCalc(trials.map(t=>t[key]));
+
+    // イベント頻度集計
+    const eventData = {};
+    for (let ti = 0; ti < n; ti++) {
+      const seen = {};
+      for (const e of (trials[ti].eventLog||[])) {
+        seen[e.eventId] = (seen[e.eventId]||0) + 1;
+        if (!eventData[e.eventId]) {
+          const info = _sim3CaseInfo(e.eventId);
+          eventData[e.eventId] = {
+            title: e.title||e.eventId,
+            sender: info ? (info.sender||info.character||'-') : '-',
+            counts: new Array(n).fill(0),
+          };
+        }
+      }
+      for (const [id, cnt] of Object.entries(seen)) {
+        if (eventData[id]) eventData[id].counts[ti] = cnt;
+      }
+    }
+    const eventFrequency = {};
+    for (const [id, d] of Object.entries(eventData)) {
+      const s = _sim3StatsCalc(d.counts);
+      eventFrequency[id] = { title:d.title, sender:d.sender, ...s,
+        rate: Math.round(d.counts.filter(x=>x>0).length/n*100) };
+    }
+
+    // 人物別集計
+    const charData = {};
+    for (let ti = 0; ti < n; ti++) {
+      const catCnt = {};
+      for (const e of (trials[ti].eventLog||[])) {
+        const info = _sim3CaseInfo(e.eventId);
+        const cat = _sim3SenderCat(info ? (info.sender||info.character||'') : '');
+        catCnt[cat] = (catCnt[cat]||0) + 1;
+      }
+      for (const [cat, cnt] of Object.entries(catCnt)) {
+        if (!charData[cat]) charData[cat] = new Array(n).fill(0);
+        charData[cat][ti] = cnt;
+      }
+    }
+    const characterAnalysis = {};
+    for (const [cat, counts] of Object.entries(charData)) {
+      characterAnalysis[cat] = { ...(_sim3StatsCalc(counts)),
+        rate: Math.round(counts.filter(x=>x>0).length/n*100) };
+    }
+
+    // 月別平均（第1年のみ）
+    const monthlyAvg = [];
+    for (let m = 1; m <= 12; m++) {
+      const rows = trials.map(t=>(t.monthlyData||[]).find(x=>x.month===m&&x.year===1)).filter(Boolean);
+      monthlyAvg.push({
+        month: m,
+        avgRevenue: rows.length ? Math.round(rows.reduce((a,r)=>a+(r.storeRevenue||0),0)/rows.length) : 0,
+        avgProfit:  rows.length ? Math.round(rows.reduce((a,r)=>a+(r.netChange||0),0)/rows.length)    : 0,
+        avgCash:    rows.length ? Math.round(rows.reduce((a,r)=>a+(r.money||0),0)/rows.length)        : 0,
+        avgAP:      rows.length ? Math.round(rows.reduce((a,r)=>a+(r.apAvg||0),0)/rows.length)        : 0,
+      });
+    }
+
+    // 商品分析
+    const productAnalysis = {};
+    for (const t of trials) {
+      for (const [pid, day] of Object.entries(t.productUnlockDays||{})) {
+        if (!productAnalysis[pid]) productAnalysis[pid] = { days:[], name:pid };
+        productAnalysis[pid].days.push(day);
+      }
+    }
+    for (const d of Object.values(productAnalysis)) {
+      d.stats = _sim3StatsCalc(d.days);
+      d.rate  = Math.round(d.days.length/n*100);
+    }
+
+    // AP ヒストグラム
+    const apAll   = trials.flatMap(t=>t.apHistory||[]);
+    const apTotal = apAll.length || 1;
+    const apHistogram = {
+      '0-20':   Math.round(apAll.filter(x=>x>=0 &&x<20 ).length/apTotal*100),
+      '20-40':  Math.round(apAll.filter(x=>x>=20&&x<40 ).length/apTotal*100),
+      '40-60':  Math.round(apAll.filter(x=>x>=40&&x<60 ).length/apTotal*100),
+      '60-80':  Math.round(apAll.filter(x=>x>=60&&x<80 ).length/apTotal*100),
+      '80-100': Math.round(apAll.filter(x=>x>=80&&x<=100).length/apTotal*100),
+      '100+':   Math.round(apAll.filter(x=>x>100        ).length/apTotal*100),
+    };
+
+    // 外れ値（最高・最低利益）
+    const sorted = [...trials].sort((a,b)=>a.totalProfit-b.totalProfit);
+    const worstTrial = sorted[0];
+    const bestTrial  = sorted[n-1];
+
+    const profitStats  = sf('totalProfit');
+    const apStats      = sf('avgAP');
+    const deficitStats = sf('deficitMonths');
+    const rating = _sim3AnalyzeRating({ profitStats, apStats, deficitStats, trials });
+
+    return {
+      numTrials:n, trials,
+      stats: {
+        totalRevenue:  sf('totalRevenue'),  totalProfit:   sf('totalProfit'),
+        endCash:       sf('endCash'),        minCash:       sf('minCash'),
+        avgAP:         sf('avgAP'),          minAP:         sf('minAP'),
+        apShortDays:   sf('apShortDays'),    deficitMonths: sf('deficitMonths'),
+        eventCount:    sf('eventCount'),     caseSolved:    sf('caseSolved'),
+        caseFailed:    sf('caseFailed'),     staffCount:    sf('staffCount'),
+        productCount:  sf('productCount'),   reputation:    sf('reputation'),
+      },
+      eventFrequency, characterAnalysis, monthlyAvg,
+      productAnalysis, apHistogram, worstTrial, bestTrial,
+      ...rating,
+    };
+  }
+
+  // ── CSV / JSON エクスポート ──
+  function _sim3ExportTrialSummaryCSV(r) {
+    const hdr = ['seed','totalRevenue','totalProfit','endCash','minCash','avgAP','minAP','apShortDays','deficitMonths','eventCount','caseSolved','caseFailed','staffCount','productCount','reputation'];
+    const rows = r.trials.map(t => hdr.map(k => t[k]??'').join(','));
+    return [hdr.join(','), ...rows].join('\n');
+  }
+  function _sim3ExportMonthlyAvgCSV(r) {
+    const hdr = ['month','avgRevenue','avgProfit','avgCash','avgAP'];
+    const rows = r.monthlyAvg.map(m => hdr.map(k => m[k]??'').join(','));
+    return [hdr.join(','), ...rows].join('\n');
+  }
+  function _sim3ExportEventFreqCSV(r) {
+    const hdr = ['eventId','title','sender','mean','median','min','max','stddev','rate'];
+    const rows = Object.entries(r.eventFrequency).map(([id,d]) =>
+      [id, `"${(d.title||'').replace(/"/g,'""')}"`, `"${(d.sender||'').replace(/"/g,'""')}"`,
+       d.mean,d.median,d.min,d.max,d.stddev,d.rate].join(','));
+    return [hdr.join(','), ...rows].join('\n');
+  }
+  function _sim3ExportAnalysisJSON(r) {
+    return JSON.stringify({
+      meta: { numTrials:r.numTrials, startSeed:r.startSeed, elapsedMs:r.elapsedMs,
+              balanceRating:r.balanceRating, balanceScore:r.balanceScore },
+      stats: r.stats, eventFrequency: r.eventFrequency,
+      characterAnalysis: r.characterAnalysis, monthlyAvg: r.monthlyAvg,
+      productAnalysis: r.productAnalysis, apHistogram: r.apHistogram,
+      balanceDetails: r.balanceDetails,
+      trial_summary: r.trials.map(t=>({
+        seed:t.seed, totalRevenue:t.totalRevenue, totalProfit:t.totalProfit,
+        endCash:t.endCash, minCash:t.minCash, avgAP:t.avgAP, minAP:t.minAP,
+        apShortDays:t.apShortDays, deficitMonths:t.deficitMonths,
+        eventCount:t.eventCount, caseSolved:t.caseSolved, caseFailed:t.caseFailed,
+        staffCount:t.staffCount, productCount:t.productCount, reputation:t.reputation,
+      })),
+    }, null, 2);
+  }
+
+  // ── メイン実行 ──
+  window._qa3aAnalyzeRun = function(numTrials, startSeed) {
+    numTrials  = numTrials  || 10;
+    startSeed  = startSeed  || 1001;
+
+    if (_sim3AnalyzeRunning || _sim3Running || _sim2cRunning || _qa3aSafetyRunning) {
+      console.error('[QA-Ana] 別のシミュレーションが実行中です');
+      return null;
+    }
+
+    let g; try { g = eval('G'); } catch(e) { console.error('[QA-Ana] G取得失敗:', e); return null; }
+    const tutPhase = (g.tut||{}).phase;
+    if (tutPhase !== 'done' || g.activeEvent != null || g.isAdvancingDay || g.processingMonthly) {
+      console.error('[QA-Ana] 通常プレイ可能なセーブをロードしてから実行してください');
+      return null;
+    }
+
+    _sim3AnalyzeRunning = true;
+    _sim3AnalyzeStopReq = false;
+    _sim3AnalyzeResult  = null;
+    if (typeof renderPhase3Tab === 'function') renderPhase3Tab();
+
+    // UI モーダル保存
+    const _lsUiSave3 = (() => {
+      const saved = {};
+      document.querySelectorAll('[id$="-modal"]').forEach(el => { saved[el.id] = el.style.display; });
+      return { modals:saved, bodyOverflow:document.body.style.overflow };
+    })();
+    Object.keys(_lsUiSave3.modals).forEach(id => {
+      const el = document.getElementById(id); if (el) el.style.display = 'none';
+    });
+
+    const gSnap = JSON.stringify(g);
+    const overallStart = Date.now();
+    const trials = [];
+
+    console.group(`[QA-Ana] バランス分析開始 ${numTrials}試行 seed=${startSeed}〜${startSeed+numTrials-1}`);
+    try {
+      for (let i = 0; i < numTrials; i++) {
+        if (_sim3AnalyzeStopReq) { console.log(`[QA-Ana] 停止要求: ${i}試行で中断`); break; }
+        const seed = startSeed + i;
+        console.log(`[QA-Ana] 試行${i+1}/${numTrials} seed=${seed}`);
+        const trial = _sim3AnalyzeRunTrial(seed, gSnap);
+        if (trial) {
+          trials.push(trial);
+          if ((i+1) % 5 === 0) {
+            const avg = Math.round(trials.reduce((a,t)=>a+t.totalProfit,0)/trials.length);
+            console.log(`[QA-Ana] ${i+1}試行完了 平均利益=${avg.toLocaleString()}`);
+          }
+        }
+      }
+    } finally {
+      Object.keys(_lsUiSave3.modals).forEach(id => {
+        const el = document.getElementById(id); if (el) el.style.display = 'none';
+      });
+      document.body.style.overflow = _lsUiSave3.bodyOverflow || '';
+    }
+
+    const elapsedMs = Date.now() - overallStart;
+    console.log(`[QA-Ana] ${trials.length}/${numTrials}試行完了 ${(elapsedMs/1000).toFixed(1)}s`);
+    console.groupEnd();
+
+    if (!trials.length) {
+      _sim3AnalyzeRunning = false;
+      if (typeof renderPhase3Tab === 'function') renderPhase3Tab();
+      return null;
+    }
+
+    const result = _sim3AnalyzeAggregate(trials);
+    result.elapsedMs = elapsedMs;
+    result.startSeed = startSeed;
+
+    _sim3AnalyzeResult   = result;
+    window._qa3aAnalyzeResult = result;
+    _sim3AnalyzeRunning  = false;
+    if (typeof renderPhase3Tab === 'function') renderPhase3Tab();
+
+    // 遅延 DOM クリーンアップ（simulation内のsetTimeoutが後から発火する場合）
+    setTimeout(() => {
+      document.querySelectorAll('[id$="-modal"]').forEach(el => {
+        if (el.style.display !== 'none') el.style.display = 'none';
+      });
+    }, 1000);
+
+    return result;
+  };
+
   window._qa3aLockstep = function(seed, maxDays) {
     seed    = seed    || 1001;
     maxDays = maxDays || 10;
@@ -4961,8 +5354,258 @@ ${sr.anomalies.length ? `
       step2Html = `<div style="color:#555;font-size:12px">まだ実行していません。</div>`;
     }
 
-    const step1Disabled = running || safetyRunning;
-    const step2Disabled = running || safetyRunning;
+    // ─── Step 3 セクション ───
+    const ar = _sim3AnalyzeResult;
+    const anaRunning = _sim3AnalyzeRunning;
+    let step3Html = '';
+
+    if (anaRunning) {
+      step3Html = `<div style="color:#f0c040;font-size:13px;margin-top:8px">⏳ バランス分析実行中…</div>`;
+    } else if (ar) {
+      const n = ar.numTrials;
+      const fmt0 = v => (v==null?'-':Math.round(v).toLocaleString());
+      const fmtS = s => `<span style="color:#eee">${fmt0(s.mean)}</span><span style="color:#666;font-size:10px"> (中${fmt0(s.median)} 最小${fmt0(s.min)} 最大${fmt0(s.max)} σ${fmt0(s.stddev)})</span>`;
+      const rColor = ar.balanceColor;
+
+      // ── 概要統計テーブル ──
+      const statRows = [
+        ['年間売上',    fmtS(ar.stats.totalRevenue)],
+        ['年間利益',    fmtS(ar.stats.totalProfit)],
+        ['年末現金',    fmtS(ar.stats.endCash)],
+        ['最低現金',    fmtS(ar.stats.minCash)],
+        ['平均AP',      fmtS(ar.stats.avgAP)],
+        ['最低AP',      fmtS(ar.stats.minAP)],
+        ['AP不足日数',  fmtS(ar.stats.apShortDays)],
+        ['赤字月数',    fmtS(ar.stats.deficitMonths)],
+        ['イベント数',  fmtS(ar.stats.eventCount)],
+        ['案件解決数',  fmtS(ar.stats.caseSolved)],
+        ['案件失敗数',  fmtS(ar.stats.caseFailed)],
+        ['スタッフ',    fmtS(ar.stats.staffCount)],
+        ['商品数',      fmtS(ar.stats.productCount)],
+        ['地域評価',    fmtS(ar.stats.reputation)],
+      ].map(([label,val]) =>
+        `<tr><td style="padding:2px 8px;color:#aaa;white-space:nowrap">${label}</td><td style="padding:2px 8px">${val}</td></tr>`
+      ).join('');
+
+      // ── 試行一覧 ──
+      const trialRows = ar.trials.map(t =>
+        `<tr style="font-size:10px">
+          <td style="padding:1px 5px;color:#888">${t.seed}</td>
+          <td style="padding:1px 5px;text-align:right;color:${t.totalProfit>=0?'#66bb6a':'#ff5252'}">${fmt0(t.totalProfit)}</td>
+          <td style="padding:1px 5px;text-align:right;color:#ccc">${fmt0(t.totalRevenue)}</td>
+          <td style="padding:1px 5px;text-align:right;color:#ccc">${fmt0(t.endCash)}</td>
+          <td style="padding:1px 5px;text-align:right;color:#ccc">${t.avgAP??'-'}</td>
+          <td style="padding:1px 5px;text-align:right;color:${t.deficitMonths>4?'#ff5252':'#ccc'}">${t.deficitMonths}</td>
+          <td style="padding:1px 5px;text-align:right;color:#ccc">${t.eventCount}</td>
+          <td style="padding:1px 5px;text-align:right;color:#66bb6a">${t.caseSolved}</td>
+          <td style="padding:1px 5px;text-align:right;color:${t.caseFailed>2?'#f0c040':'#ccc'}">${t.caseFailed}</td>
+        </tr>`
+      ).join('');
+
+      // ── 月別推移バーチャート ──
+      const maxRev = Math.max(...ar.monthlyAvg.map(m=>m.avgRevenue), 1);
+      const monthBarRows = ar.monthlyAvg.map(m => {
+        const barW = Math.round(m.avgRevenue/maxRev*120);
+        const profColor = m.avgProfit >= 0 ? '#66bb6a' : '#ff5252';
+        return `<tr style="font-size:10px">
+          <td style="padding:1px 5px;color:#aaa;white-space:nowrap">${m.month}月</td>
+          <td style="padding:1px 5px"><div style="width:${barW}px;height:8px;background:#64b5f6;border-radius:2px;display:inline-block"></div></td>
+          <td style="padding:1px 5px;text-align:right;color:#ccc">${fmt0(m.avgRevenue)}</td>
+          <td style="padding:1px 5px;text-align:right;color:${profColor}">${m.avgProfit>=0?'+':''}${fmt0(m.avgProfit)}</td>
+          <td style="padding:1px 5px;text-align:right;color:#888">${m.avgAP}</td>
+        </tr>`;
+      }).join('');
+
+      // ── イベント頻度（上位15件 by mean） ──
+      const topEvents = Object.entries(ar.eventFrequency)
+        .sort((a,b)=>(b[1].mean||0)-(a[1].mean||0)).slice(0,15);
+      const evRows = topEvents.map(([id,d]) =>
+        `<tr style="font-size:10px">
+          <td style="padding:1px 5px;color:#888;font-family:monospace">${esc(id)}</td>
+          <td style="padding:1px 5px;color:#ccc;max-width:160px;overflow:hidden;white-space:nowrap">${esc(d.title||'-')}</td>
+          <td style="padding:1px 5px;color:#aaa">${esc(d.sender||'-')}</td>
+          <td style="padding:1px 5px;text-align:right;color:#eee">${d.mean??'-'}</td>
+          <td style="padding:1px 5px;text-align:right;color:#888">${d.min??'-'}–${d.max??'-'}</td>
+          <td style="padding:1px 5px;text-align:right;color:#aaa">${d.rate}%</td>
+        </tr>`
+      ).join('');
+
+      // ── 人物別集計 ──
+      const charRows = Object.entries(ar.characterAnalysis)
+        .sort((a,b)=>(b[1].mean||0)-(a[1].mean||0))
+        .map(([cat,d]) =>
+          `<tr style="font-size:10px">
+            <td style="padding:1px 5px;color:#aaa">${esc(cat)}</td>
+            <td style="padding:1px 5px;text-align:right;color:#eee">${d.mean??'-'}</td>
+            <td style="padding:1px 5px;text-align:right;color:#888">${d.min??'-'}–${d.max??'-'}</td>
+            <td style="padding:1px 5px;text-align:right;color:#aaa">${d.rate}%</td>
+          </tr>`
+        ).join('');
+
+      // ── 商品分析 ──
+      const prodRows = Object.entries(ar.productAnalysis)
+        .sort((a,b)=>(a[1].stats.mean||999)-(b[1].stats.mean||999))
+        .map(([pid,d]) =>
+          `<tr style="font-size:10px">
+            <td style="padding:1px 5px;color:#888;font-family:monospace">${esc(pid)}</td>
+            <td style="padding:1px 5px;text-align:right;color:#ccc">${d.stats.mean??'-'}日目</td>
+            <td style="padding:1px 5px;text-align:right;color:#888">${d.stats.min??'-'}–${d.stats.max??'-'}</td>
+            <td style="padding:1px 5px;text-align:right;color:#aaa">${d.rate}%</td>
+          </tr>`
+        ).join('');
+
+      // ── AP ヒストグラム ──
+      const apHistRows = Object.entries(ar.apHistogram).map(([rng,pct]) => {
+        const barW = Math.round(pct*1.5);
+        const col = rng==='0-20' ? '#ff5252' : rng==='20-40' ? '#f0c040' : '#66bb6a';
+        return `<tr style="font-size:10px">
+          <td style="padding:1px 5px;color:#aaa;white-space:nowrap">${rng}</td>
+          <td style="padding:1px 5px"><div style="width:${barW}px;height:8px;background:${col};border-radius:2px;display:inline-block"></div></td>
+          <td style="padding:1px 5px;text-align:right;color:#ccc">${pct}%</td>
+        </tr>`;
+      }).join('');
+
+      // ── 外れ値分析 ──
+      const wt = ar.worstTrial, bt = ar.bestTrial;
+      const outlierHtml = `
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+  <div style="background:#1a0a0a;border:1px solid #5a1a1a;border-radius:6px;padding:8px 10px">
+    <div style="font-size:10px;color:#ff5252;font-weight:700;margin-bottom:4px">📉 最低利益 (seed=${wt.seed})</div>
+    <div style="font-size:11px;color:#ccc">利益: <strong style="color:#ff5252">${fmt0(wt.totalProfit)}</strong></div>
+    <div style="font-size:10px;color:#888;margin-top:4px">赤字月:${wt.deficitMonths} / 最低AP:${wt.minAP??'-'} / 案件失敗:${wt.caseFailed}</div>
+    <div style="font-size:10px;color:#888">イベント:${wt.eventCount} / 商品:${wt.productCount}</div>
+  </div>
+  <div style="background:#0a1a0a;border:1px solid #1a5a1a;border-radius:6px;padding:8px 10px">
+    <div style="font-size:10px;color:#66bb6a;font-weight:700;margin-bottom:4px">📈 最高利益 (seed=${bt.seed})</div>
+    <div style="font-size:11px;color:#ccc">利益: <strong style="color:#66bb6a">${fmt0(bt.totalProfit)}</strong></div>
+    <div style="font-size:10px;color:#888;margin-top:4px">赤字月:${bt.deficitMonths} / 最低AP:${bt.minAP??'-'} / 案件失敗:${bt.caseFailed}</div>
+    <div style="font-size:10px;color:#888">イベント:${bt.eventCount} / 商品:${bt.productCount}</div>
+  </div>
+</div>`;
+
+      // ── バランス評価 ──
+      const ratingRows = ar.balanceDetails.map(d =>
+        `<tr style="font-size:10px">
+          <td style="padding:1px 6px;color:#aaa">${esc(d.item)}</td>
+          <td style="padding:1px 6px;color:${d.score>=20?'#66bb6a':d.score>=10?'#f0c040':'#ff5252'}">${esc(d.result)}</td>
+          <td style="padding:1px 6px;text-align:right;color:#888">${d.score}/25</td>
+        </tr>`
+      ).join('');
+
+      step3Html = `
+<div style="margin-bottom:10px">
+  <span style="font-size:18px;font-weight:900;padding:4px 16px;border-radius:6px;
+    background:rgba(0,0,0,.4);color:${rColor};border:2px solid ${rColor}">
+    ${ar.balanceRating}</span>
+  <span style="font-size:11px;color:#888;margin-left:10px">${n}試行 &nbsp; ${(ar.elapsedMs/1000).toFixed(1)}s &nbsp; seed=${ar.startSeed}〜${ar.startSeed+n-1}</span>
+</div>
+
+<div style="background:#0d1f2d;border:1px solid #1e3a5a;border-radius:6px;padding:10px 14px;margin-bottom:8px">
+  <div style="font-size:11px;color:#64b5f6;font-weight:700;margin-bottom:6px">📊 概要統計（平均・中央値・最小・最大・σ）</div>
+  <table style="font-size:11px;border-collapse:collapse;width:100%">${statRows}</table>
+</div>
+
+<div style="background:#0d1f2d;border:1px solid #1e3a5a;border-radius:6px;padding:10px 14px;margin-bottom:8px">
+  <div style="font-size:11px;color:#64b5f6;font-weight:700;margin-bottom:6px">🧪 試行一覧</div>
+  <div style="overflow-x:auto">
+  <table style="font-size:10px;border-collapse:collapse;width:100%">
+    <tr style="color:#666">
+      <th style="padding:1px 5px;text-align:left">Seed</th>
+      <th style="padding:1px 5px;text-align:right">利益</th>
+      <th style="padding:1px 5px;text-align:right">売上</th>
+      <th style="padding:1px 5px;text-align:right">年末現金</th>
+      <th style="padding:1px 5px;text-align:right">AP平均</th>
+      <th style="padding:1px 5px;text-align:right">赤字月</th>
+      <th style="padding:1px 5px;text-align:right">イベント</th>
+      <th style="padding:1px 5px;text-align:right">解決</th>
+      <th style="padding:1px 5px;text-align:right">失敗</th>
+    </tr>
+    ${trialRows}
+  </table>
+  </div>
+</div>
+
+<div style="background:#0d1f2d;border:1px solid #1e3a5a;border-radius:6px;padding:10px 14px;margin-bottom:8px">
+  <div style="font-size:11px;color:#64b5f6;font-weight:700;margin-bottom:6px">📅 月別平均推移（売上・利益・AP）</div>
+  <table style="font-size:10px;border-collapse:collapse">
+    <tr style="color:#666"><th style="padding:1px 5px">月</th><th style="padding:1px 5px">売上</th><th style="padding:1px 5px;text-align:right">売上額</th><th style="padding:1px 5px;text-align:right">利益</th><th style="padding:1px 5px;text-align:right">AP</th></tr>
+    ${monthBarRows}
+  </table>
+</div>
+
+<div style="background:#0d1f2d;border:1px solid #1e3a5a;border-radius:6px;padding:10px 14px;margin-bottom:8px">
+  <div style="font-size:11px;color:#64b5f6;font-weight:700;margin-bottom:6px">🎲 イベント頻度（上位15件）</div>
+  <div style="overflow-x:auto">
+  <table style="border-collapse:collapse;width:100%">
+    <tr style="color:#666;font-size:10px">
+      <th style="padding:1px 5px;text-align:left">ID</th>
+      <th style="padding:1px 5px;text-align:left">タイトル</th>
+      <th style="padding:1px 5px;text-align:left">送信者</th>
+      <th style="padding:1px 5px;text-align:right">平均</th>
+      <th style="padding:1px 5px;text-align:right">最小–最大</th>
+      <th style="padding:1px 5px;text-align:right">発生率</th>
+    </tr>
+    ${evRows}
+  </table>
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+  <div style="background:#0d1f2d;border:1px solid #1e3a5a;border-radius:6px;padding:10px 14px">
+    <div style="font-size:11px;color:#64b5f6;font-weight:700;margin-bottom:6px">👤 人物別イベント数</div>
+    <table style="border-collapse:collapse;width:100%">
+      <tr style="color:#666;font-size:10px"><th style="text-align:left;padding:1px 5px">人物</th><th style="text-align:right;padding:1px 5px">平均</th><th style="text-align:right;padding:1px 5px">範囲</th><th style="text-align:right;padding:1px 5px">率</th></tr>
+      ${charRows}
+    </table>
+  </div>
+  <div style="background:#0d1f2d;border:1px solid #1e3a5a;border-radius:6px;padding:10px 14px">
+    <div style="font-size:11px;color:#64b5f6;font-weight:700;margin-bottom:6px">📦 商品解放日</div>
+    <table style="border-collapse:collapse;width:100%">
+      <tr style="color:#666;font-size:10px"><th style="text-align:left;padding:1px 5px">ID</th><th style="text-align:right;padding:1px 5px">平均</th><th style="text-align:right;padding:1px 5px">範囲</th><th style="text-align:right;padding:1px 5px">率</th></tr>
+      ${prodRows||'<tr><td colspan="4" style="color:#555;font-size:10px;padding:4px">データなし</td></tr>'}
+    </table>
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+  <div style="background:#0d1f2d;border:1px solid #1e3a5a;border-radius:6px;padding:10px 14px">
+    <div style="font-size:11px;color:#64b5f6;font-weight:700;margin-bottom:6px">⚡ AP分布</div>
+    <table style="border-collapse:collapse">${apHistRows}</table>
+  </div>
+  <div style="background:#0d1f2d;border:1px solid #1e3a5a;border-radius:6px;padding:10px 14px">
+    <div style="font-size:11px;color:#64b5f6;font-weight:700;margin-bottom:6px">🏆 バランス評価</div>
+    <table style="border-collapse:collapse;width:100%">
+      <tr style="color:#666;font-size:10px"><th style="text-align:left;padding:1px 6px">項目</th><th style="text-align:left;padding:1px 6px">結果</th><th style="text-align:right;padding:1px 6px">点</th></tr>
+      ${ratingRows}
+      <tr style="border-top:1px solid #333"><td style="padding:2px 6px;color:#aaa;font-size:10px">合計</td><td></td><td style="text-align:right;padding:2px 6px;color:${rColor};font-weight:700;font-size:11px">${ar.balanceScore}/100</td></tr>
+    </table>
+  </div>
+</div>
+
+<div style="margin-bottom:8px">
+  <div style="font-size:11px;color:#64b5f6;font-weight:700;margin-bottom:6px">📉 外れ値分析</div>
+  ${outlierHtml}
+</div>
+
+<div style="display:flex;gap:8px;flex-wrap:wrap">
+  <button class="qa-btn" onclick="window._qa3aAnaCopyTrialCSV()">trial_summary.csv</button>
+  <button class="qa-btn" onclick="window._qa3aAnaCopyMonthlyCSV()">monthly_average.csv</button>
+  <button class="qa-btn" onclick="window._qa3aAnaCopyEventCSV()">event_frequency.csv</button>
+  <button class="qa-btn" onclick="window._qa3aAnaCopyJSON()">analysis.json</button>
+</div>`;
+
+      window._qa3aAnaCopyTrialCSV   = () => navigator.clipboard.writeText(_sim3ExportTrialSummaryCSV(ar)).catch(()=>{});
+      window._qa3aAnaCopyMonthlyCSV = () => navigator.clipboard.writeText(_sim3ExportMonthlyAvgCSV(ar)).catch(()=>{});
+      window._qa3aAnaCopyEventCSV   = () => navigator.clipboard.writeText(_sim3ExportEventFreqCSV(ar)).catch(()=>{});
+      window._qa3aAnaCopyJSON       = () => navigator.clipboard.writeText(_sim3ExportAnalysisJSON(ar)).catch(()=>{});
+    } else {
+      step3Html = `<div style="color:#555;font-size:12px">まだ実行していません。</div>`;
+    }
+
+    const anyRunning = running || safetyRunning || anaRunning;
+    const step1Disabled = anyRunning;
+    const step2Disabled = anyRunning;
+    const step3Disabled = anyRunning;
 
     panel.innerHTML = `
 <h3 style="color:#ce93d8;margin:0 0 8px">Phase 3A — Step 1：同一seed×2回 再現性テスト</h3>
@@ -5007,7 +5650,38 @@ ${resultHtml}
   </button>
   ${safetyRunning ? `<button class="qa-btn" onclick="window._qa3aSafetyStop()" style="color:#ff8800;border-color:#ff8800">■ 停止</button>` : ''}
 </div>
-${step2Html}`;
+${step2Html}
+
+<hr style="border:none;border-top:1px solid #333;margin:20px 0">
+
+<h3 style="color:#ffb74d;margin:0 0 8px">Phase 3A — Step 3：ゲームバランス分析</h3>
+<div class="qa-notice" style="font-size:11px;padding:8px 12px">
+  複数seedでシミュレーションし、利益・AP・イベント頻度・人物密度・商品解放速度などを定量評価します。<br>
+  Step1 PASSが前提です。設計者がバランスを客観的に判断するためのツールです。
+</div>
+<div style="display:flex;gap:12px;align-items:center;margin-bottom:16px;flex-wrap:wrap">
+  <label style="font-size:12px;color:#aaa">試行回数:
+    <select id="qa3a-trials"
+      style="background:#111;color:#eee;border:1px solid #444;padding:3px 6px;margin-left:6px;border-radius:4px">
+      <option value="1">1回</option>
+      <option value="5">5回</option>
+      <option value="10" selected>10回</option>
+      <option value="20">20回</option>
+      <option value="50">50回</option>
+    </select>
+  </label>
+  <label style="font-size:12px;color:#aaa">開始seed:
+    <input id="qa3a-seed" type="number" value="1001" min="1"
+      style="width:80px;background:#111;color:#eee;border:1px solid #444;padding:3px 6px;margin-left:6px;border-radius:4px">
+  </label>
+  <button class="qa-btn" id="qa3a-run-btn"
+    onclick="(function(){const n=parseInt(document.getElementById('qa3a-trials').value)||10;const s=parseInt(document.getElementById('qa3a-seed').value)||1001;window._qa3aAnalyzeRun(n,s);})()"
+    ${step3Disabled ? 'disabled' : ''}>
+    ${anaRunning ? '⏳ 分析中…' : '▶ バランス分析実行'}
+  </button>
+  ${anaRunning ? `<button class="qa-btn" onclick="window._qa3aAnalyzeStop()" style="color:#ff8800;border-color:#ff8800">■ 停止</button>` : ''}
+</div>
+${step3Html}`;
 
     window._qa3ReproRun = (seed) => _sim3StartReprod(seed);
   }
