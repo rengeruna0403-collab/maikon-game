@@ -4259,6 +4259,33 @@ function qa2cSwitchTab(tid,idx){
     if (anomalies.length) console.table(anomalies.map(a=>({ dayN:a.dayN, type:a.type, field:a.field, severity:a.severity, value:String(a.after).slice(0,40) })));
     console.groupEnd();
 
+    // ── 遅延クリーンアップ ──
+    // シミュレーション中に登録された setTimeout（hireMidori: 400ms, showMainStoryEnding: 800ms 等）が
+    // 同期処理の finally より後に発火し、モーダルを再表示する場合がある。
+    // ゲームコード内の最長 setTimeout（800ms）より長い 1000ms 後に DOM を閉じる。
+    // G・Math.random は finally で既に復元済み。ここは DOM 残留のみを対象とする。
+    setTimeout(() => {
+      const overlayIds = ['event-modal', 'action-modal', 'tut-modal', 'goen-modal', 'start-modal'];
+      const closed = [];
+      overlayIds.forEach(id => {
+        const el = document.getElementById(id);
+        if (el && el.style.display !== 'none') {
+          el.style.display = 'none';
+          closed.push(id);
+        }
+      });
+      // 上記以外の [id$="-modal"] も念のため閉じる
+      document.querySelectorAll('[id$="-modal"]').forEach(el => {
+        if (el.style.display !== 'none' && !overlayIds.includes(el.id)) {
+          el.style.display = 'none';
+          closed.push(el.id || '(no-id)');
+        }
+      });
+      if (closed.length > 0) {
+        console.log('[QA-Safety] 遅延クリーンアップ: DOM残留モーダルを閉じました →', closed);
+      }
+    }, 1000);
+
     return result;
   };
 
