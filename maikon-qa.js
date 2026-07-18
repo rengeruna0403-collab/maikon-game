@@ -3,7 +3,7 @@
  * ?qa=1 または ?debug=1 の場合のみ動作
  * ゲーム本体への影響なし・読み取り専用（Phase 2Aは1日テスト後に必ず復元）
  */
-window._MAIKON_QA_VERSION = '2026-07-18-step3-cashflow-1';
+window._MAIKON_QA_VERSION = '2026-07-18-step3b1-business-report';
 console.log('[MAIKON-QA] loaded version:', window._MAIKON_QA_VERSION);
 
 (function () {
@@ -4639,6 +4639,7 @@ function qa2cSwitchTab(tid,idx){
         eventCount:t.eventCount, caseSolved:t.caseSolved, caseFailed:t.caseFailed,
         staffCount:t.staffCount, productCount:t.productCount, reputation:t.reputation,
       })),
+      businessReport: _sim3BusinessReport(r),
     }, null, 2);
   }
 
@@ -5274,6 +5275,330 @@ function qa2cSwitchTab(tid,idx){
     };
   }
 
+  // ══════════════════════════════════════════════════════════════
+  // ■ Phase 3B-1: 経営診断レポート（_sim3Business* 名前空間）
+  //   Phase 3A への副作用なし。取得不可情報は「情報不足」と明示。
+  // ══════════════════════════════════════════════════════════════
+
+  function _sim3BusinessReport(result) {
+    if (!result || !result.trials || !result.trials.length) return null;
+    const n     = result.numTrials;
+    const stats = result.stats;
+    const evFreq= result.eventFrequency || {};
+
+    const g    = k => stats[k]?.mean ?? null;
+    const fmt0 = v => v == null ? '-' : Math.round(v).toLocaleString();
+
+    // ── 基本数値 ──
+    const avgNetChange365    = g('totalNetChange365');
+    const avgNetChange12     = g('completedMonthsNetChange');
+    const avgResidual        = g('residualNetChange');
+    const avgStoreProfit12   = g('completedMonthsStoreProfit');
+    const avgStoreProfit365  = g('totalStoreProfit365');
+    const avgRevenue         = g('totalRevenue');
+    const avgEndCash         = g('endCash');
+    const avgMinCash         = g('minCash');
+    const avgDeficit         = g('deficitMonths');
+    const avgAP              = g('avgAP');
+    const avgApShort         = g('apShortDays');
+    const avgCaseSolved      = g('caseSolved');
+    const avgCaseFailed      = g('caseFailed');
+    const avgProducts        = g('productCount');
+    const avgStaff           = g('staffCount');
+    const avgRep             = g('reputation');
+
+    const caseTotal = (avgCaseSolved||0) + (avgCaseFailed||0);
+    const caseRate  = caseTotal > 0 ? (avgCaseSolved||0) / caseTotal : null;
+
+    // 店舗総経費（= 売上 - 店舗損益12か月）→ 内訳は情報不足
+    const avgTotalExpense12 = (avgRevenue != null && avgStoreProfit12 != null)
+      ? avgRevenue - avgStoreProfit12 : null;
+
+    // イベントカテゴリ集計（頻度のみ。金銭損失額は情報不足）
+    const evCat = {};
+    for (const [id, d] of Object.entries(evFreq)) {
+      const lc = id.toLowerCase();
+      if (lc.includes('vacan'))  evCat.vacancy     = (evCat.vacancy    ||0) + (d.mean||0);
+      if (lc.includes('compe'))  evCat.competition = (evCat.competition||0) + (d.mean||0);
+      if (lc.includes('disas'))  evCat.disaster    = (evCat.disaster   ||0) + (d.mean||0);
+    }
+
+    // ── 赤字要因ランキング ──
+    const rankings = [];
+    // 費目別は情報不足
+    rankings.push({ item:'費目別経費（修繕費・広告費・人件費・家賃等）', amount:null, status:'情報不足',
+      note:'G.monthExpenseは費目合計のみ。費目別データはゲーム側での計上が必要。' });
+    // 経費合計（把握可能な上限値）
+    if (avgTotalExpense12 != null) {
+      rankings.push({ item:'年間経費合計（12か月）',
+        amount: -Math.round(avgTotalExpense12),
+        status: avgTotalExpense12 > 1200000 ? 'CRITICAL' : avgTotalExpense12 > 600000 ? 'WARN' : 'OK',
+        note: `¥${fmt0(avgTotalExpense12)}（= 年間売上 − 12か月店舗損益。内訳は情報不足）` });
+    }
+    if (evCat.vacancy)     rankings.push({ item:'空室イベント',   amount:null, status:'要注意',
+      note:`平均${evCat.vacancy.toFixed(1)}件/年。金銭損失額は情報不足。` });
+    if (evCat.competition) rankings.push({ item:'競合イベント',   amount:null, status:'要注意',
+      note:`平均${evCat.competition.toFixed(1)}件/年。金銭損失額は情報不足。` });
+    if (evCat.disaster)    rankings.push({ item:'防災・修繕系イベント', amount:null, status:'要注意',
+      note:`平均${evCat.disaster.toFixed(1)}件/年。金銭損失額は情報不足。` });
+    if (avgCaseFailed != null && avgCaseFailed > 0)
+      rankings.push({ item:'案件失敗', amount:null, status:'要注意',
+        note:`平均${avgCaseFailed.toFixed(1)}件/年失敗。AP消耗は把握済み。金銭損失は情報不足。` });
+
+    // ── ボトルネック ──
+    const INIT_PRODUCTS = 2;
+    const bottlenecks = {
+      productUnlock: {
+        value: avgProducts,
+        status: avgProducts != null && avgProducts <= INIT_PRODUCTS ? 'BLOCKED' : 'OK',
+        note: avgProducts != null && avgProducts <= INIT_PRODUCTS
+          ? `365日で追加解放0件（初期${INIT_PRODUCTS}個のまま）。解放条件が未達成の可能性。`
+          : `平均${fmt0(avgProducts)}個`,
+      },
+      cash: {
+        value: avgEndCash, minValue: avgMinCash,
+        status: avgMinCash != null && avgMinCash < 100000 ? 'CRITICAL'
+               : avgEndCash != null && avgEndCash < 300000 ? 'WARN' : 'OK',
+        note: `年末平均¥${fmt0(avgEndCash)} / 最低¥${fmt0(avgMinCash)}`,
+      },
+      ap: {
+        value: avgAP, shortDays: avgApShort,
+        status: avgAP == null ? 'UNKNOWN' : avgAP >= 75 ? 'OK' : avgAP >= 50 ? 'WARN' : 'CRITICAL',
+        note: `平均AP ${fmt0(avgAP)} / AP不足日 平均${fmt0(avgApShort)}日/年`,
+      },
+      reputation: {
+        value: avgRep,
+        status: avgRep == null ? 'UNKNOWN' : avgRep >= 50 ? 'OK' : avgRep >= 30 ? 'WARN' : 'CRITICAL',
+        note: `年末平均評判値 ${fmt0(avgRep)}`,
+      },
+      staff: {
+        value: avgStaff,
+        status: avgStaff == null ? 'UNKNOWN' : avgStaff >= 2 ? 'OK' : 'WARN',
+        note: `年末平均スタッフ ${fmt0(avgStaff)}人`,
+      },
+      cases: {
+        solved: avgCaseSolved, failed: avgCaseFailed, rate: caseRate,
+        status: caseRate == null ? 'UNKNOWN' : caseRate >= 0.7 ? 'OK' : caseRate >= 0.5 ? 'WARN' : 'CRITICAL',
+        note: `成功率 ${caseRate != null ? Math.round(caseRate*100)+'%' : '不明'}（解決${fmt0(avgCaseSolved)} / 失敗${fmt0(avgCaseFailed)}件）`,
+      },
+    };
+
+    // ── 感度分析（線形近似）──
+    const sensitivity = [];
+    if (avgRevenue != null)
+      sensitivity.push({ item:'店舗売上+10%', impact:Math.round(avgRevenue*0.1),
+        note:'年間売上10%改善時の効果（線形近似）' });
+    if (avgTotalExpense12 != null && avgTotalExpense12 > 0)
+      sensitivity.push({ item:'経費合計-10%（内訳不問）', impact:Math.round(avgTotalExpense12*0.1),
+        note:'全経費10%削減時の効果（線形近似）。費目別内訳は情報不足' });
+    sensitivity.push({ item:'案件失敗→成功（+1件）', impact:null,
+      note:'金銭効果は情報不足。AP消費・評判への副次効果あり。' });
+
+    // ── 難易度診断 ──
+    const d_cash = avgDeficit == null ? 3 : avgDeficit > 8 ? 5 : avgDeficit > 6 ? 4 : avgDeficit > 4 ? 3 : avgDeficit > 2 ? 2 : 1;
+    const d_ap   = avgAP == null ? 3 : avgAP < 40 ? 5 : avgAP < 60 ? 4 : avgAP < 75 ? 3 : avgAP < 85 ? 2 : 1;
+    const cv365  = (stats.totalNetChange365?.stddev || 0) / (Math.abs(avgNetChange365) || 1);
+    const d_luck = cv365 > 0.3 ? 4 : cv365 > 0.2 ? 3 : cv365 > 0.1 ? 2 : 1;
+    const d_prod = avgProducts == null ? 3 : avgProducts <= INIT_PRODUCTS ? 5 : avgProducts <= INIT_PRODUCTS+1 ? 4 : avgProducts <= INIT_PRODUCTS+2 ? 3 : 2;
+    const d_case = caseRate == null ? 3 : caseRate < 0.4 ? 5 : caseRate < 0.6 ? 4 : caseRate < 0.7 ? 3 : caseRate < 0.8 ? 2 : 1;
+    const diffAvg = (d_cash + d_ap + d_luck + d_prod + d_case) / 5;
+    const overallDiff = diffAvg >= 4.0 ? 'Very Hard' : diffAvg >= 3.0 ? 'Hard' : diffAvg >= 2.0 ? 'Normal' : 'Easy';
+    const difficulty = { cashManagement:d_cash, apManagement:d_ap, eventLuck:d_luck,
+                         productUnlock:d_prod, caseHandling:d_case, overall:overallDiff };
+
+    // ── スコア ──
+    let score = 0;
+    if      (avgNetChange365 >= 0)        score += 30;
+    else if (avgNetChange365 >= -300000)  score += 20;
+    else if (avgNetChange365 >= -800000)  score += 10;
+    if      (avgAP >= 80)  score += 20;
+    else if (avgAP >= 60)  score += 15;
+    else if (avgAP >= 40)  score += 5;
+    if      (avgDeficit <= 2) score += 20;
+    else if (avgDeficit <= 5) score += 10;
+    else if (avgDeficit <= 8) score += 5;
+    if      (caseRate >= 0.8) score += 15;
+    else if (caseRate >= 0.6) score += 10;
+    else if (caseRate >= 0.4) score += 5;
+    if      (avgProducts > INIT_PRODUCTS+2) score += 15;
+    else if (avgProducts > INIT_PRODUCTS+1) score += 8;
+    else if (avgProducts > INIT_PRODUCTS)   score += 3;
+
+    // ── 改善提案 ──
+    const starsStr = n => '★'.repeat(n) + '☆'.repeat(5-n);
+    const suggestions = [];
+    if (avgStoreProfit12 != null && avgStoreProfit12 < 0)
+      suggestions.push({ item:'費目別経費の可視化', effect:starsStr(5),
+        reason:`年間店舗損益 平均¥${fmt0(avgStoreProfit12)}。費目別内訳がないため根本原因が特定不可。`,
+        action:'ゲーム側でG.monthlyBreakdown（修繕費・広告費・人件費・家賃）を記録する。' });
+    if (avgProducts != null && avgProducts <= INIT_PRODUCTS)
+      suggestions.push({ item:'商品解放条件の見直し', effect:starsStr(5),
+        reason:'365日で追加商品解放が0件。中盤以降の成長実感が不足。',
+        action:'解放条件（評判値・資金・案件数の閾値）を確認し、到達可能な値に調整する。' });
+    if (avgDeficit != null && avgDeficit > 6)
+      suggestions.push({ item:'収支バランスの見直し', effect:starsStr(4),
+        reason:`年平均${avgDeficit.toFixed(1)}ヶ月赤字。固定費対売上比率が高い可能性。`,
+        action:'初期固定費削減または初期資金増加を検討。費目別データ取得後に精密調整。' });
+    if (avgMinCash != null && avgMinCash < 100000)
+      suggestions.push({ item:'資金ショート対策', effect:starsStr(4),
+        reason:`最低現金平均¥${fmt0(avgMinCash)}。ゲームオーバーリスクが高い。`,
+        action:'初期資金増加または緊急融資イベントの追加・頻度調整。' });
+    if (caseRate != null && caseRate < 0.6)
+      suggestions.push({ item:'案件難易度・期限調整', effect:starsStr(3),
+        reason:`案件成功率${Math.round(caseRate*100)}%。期限・AP要求が厳しすぎる可能性。`,
+        action:'案件の期限日数を延長するか、AP要求量を見直す。' });
+
+    // ── AIコメント ──
+    const lines = [];
+    if (avgNetChange365 != null)
+      lines.push(avgNetChange365 < -800000
+        ? `全試行で大幅赤字（年間平均¥${fmt0(avgNetChange365)}）。資金不足が慢性化しています。`
+        : avgNetChange365 < 0
+        ? `多くの試行で赤字（年間平均¥${fmt0(avgNetChange365)}）。収支改善が必要です。`
+        : `年間収支は平均で黒字（¥${fmt0(avgNetChange365)}）を達成しています。`);
+    if (avgAP != null && avgAP >= 75)
+      lines.push(`APは十分確保（平均${fmt0(avgAP)}）。難易度は「資金管理」に偏っています。`);
+    else if (avgAP != null && avgAP < 50)
+      lines.push(`APが低水準（平均${fmt0(avgAP)}）。AP管理も課題です。`);
+    if (avgProducts != null && avgProducts <= INIT_PRODUCTS)
+      lines.push('商品解放が365日で進行していません。中盤以降の成長実感が不足しています。');
+    lines.push('');
+    lines.push('【推奨する改善順序】');
+    suggestions.slice(0,5).forEach((s,i) => lines.push(`${i+1}. ${s.item} — ${s.reason}`));
+    lines.push('');
+    lines.push('【注意】費目別経費の内訳データがないため、コスト分析は概算レベルです。精密診断には費目別データの追加が必要です。');
+
+    return {
+      qaVersion: window._MAIKON_QA_VERSION,
+      numTrials: n,
+      score,
+      summary: { avgNetChange365, avgNetChange12, avgResidual, avgStoreProfit12, avgStoreProfit365,
+                 avgRevenue, avgEndCash, avgMinCash, avgDeficit, avgAP, avgApShort,
+                 caseRate, avgProducts, avgStaff, avgRep },
+      rankings,
+      bottlenecks,
+      sensitivity,
+      difficulty,
+      suggestions: suggestions.slice(0,5),
+      comment: lines.join('\n'),
+    };
+  }
+
+  function _sim3BusinessReportHtml(br) {
+    if (!br) return '<div style="color:#555;font-size:12px">Step3を先に実行してください。</div>';
+
+    const fmt0 = v => v == null ? '-' : Math.round(v).toLocaleString();
+    const statusColor = s => s==='OK'?'#66bb6a':s==='WARN'?'#f0c040':s==='CRITICAL'||s==='BLOCKED'?'#ff5252':'#888';
+    const stars = n => `<span style="color:#f0c040">${'★'.repeat(n)}</span><span style="color:#444">${'☆'.repeat(5-n)}</span>`;
+    const diffColors = {Easy:'#66bb6a',Normal:'#f0c040',Hard:'#ff8800','Very Hard':'#ff5252'};
+    const scoreColor  = br.score >= 70 ? '#66bb6a' : br.score >= 40 ? '#f0c040' : '#ff5252';
+    const diffColor   = diffColors[br.difficulty?.overall] || '#888';
+
+    // 赤字要因ランキング
+    const rankRows = br.rankings.map((r,i) => {
+      const amtStr = r.amount != null ? `¥${Math.abs(r.amount).toLocaleString()}` : '金額不明';
+      const sc = r.status==='情報不足'?'#888':r.status==='CRITICAL'?'#ff5252':r.status==='WARN'||r.status==='要注意'?'#f0c040':'#66bb6a';
+      return `<tr style="font-size:10px"><td style="padding:2px 6px;color:#aaa">${i+1}</td>
+        <td style="padding:2px 6px;color:#eee">${esc(r.item)}</td>
+        <td style="padding:2px 6px;font-weight:700;color:${sc}">${esc(r.status)}</td>
+        <td style="padding:2px 6px;color:#888">${amtStr}</td>
+        <td style="padding:2px 6px;color:#666;font-size:9px;max-width:200px">${esc(r.note)}</td></tr>`;
+    }).join('');
+
+    // ボトルネック
+    const bnLabels = { productUnlock:'商品解放', cash:'資金', ap:'AP', reputation:'評判', staff:'スタッフ', cases:'案件' };
+    const bnRows = Object.entries(bnLabels).map(([k,label]) => {
+      const b = br.bottlenecks?.[k];
+      if (!b) return '';
+      const icon = b.status==='OK'?'✅':b.status==='WARN'?'⚠️':b.status==='BLOCKED'||b.status==='CRITICAL'?'❌':'❓';
+      return `<tr style="font-size:10px">
+        <td style="padding:2px 8px;color:#aaa;white-space:nowrap">${label}</td>
+        <td style="padding:2px 8px;color:${statusColor(b.status)};font-weight:700">${icon} ${b.status}</td>
+        <td style="padding:2px 8px;color:#666;font-size:9px">${esc(b.note)}</td></tr>`;
+    }).join('');
+
+    // 感度分析
+    const sensRows = br.sensitivity.map(s => {
+      const impStr = s.impact != null ? `+¥${s.impact.toLocaleString()}` : '情報不足';
+      const ic = s.impact != null ? '#66bb6a' : '#888';
+      return `<tr style="font-size:10px">
+        <td style="padding:2px 6px;color:#eee">${esc(s.item)}</td>
+        <td style="padding:2px 6px;color:${ic};font-weight:700">${impStr}</td>
+        <td style="padding:2px 6px;color:#666;font-size:9px">${esc(s.note)}</td></tr>`;
+    }).join('');
+
+    // 難易度
+    const diffLabels = { cashManagement:'資金管理', apManagement:'AP管理', eventLuck:'イベント運', productUnlock:'商品解放', caseHandling:'案件処理' };
+    const diffRows = Object.entries(diffLabels).map(([k,label]) => {
+      const v = br.difficulty?.[k] ?? 0;
+      return `<div style="font-size:10px;margin-bottom:4px">
+        <span style="color:#aaa;display:inline-block;width:70px">${label}</span>${stars(v)}</div>`;
+    }).join('');
+
+    // 改善提案
+    const suggCards = (br.suggestions||[]).slice(0,5).map((s,i) => `
+<div style="background:#0a0a0a;border:1px solid #2a2a2a;border-radius:6px;padding:8px 10px;margin-bottom:6px">
+  <div style="font-size:11px;color:#eee;font-weight:700">${i+1}. ${esc(s.item)}<span style="margin-left:8px;font-size:10px">${esc(s.effect||'')}</span></div>
+  <div style="font-size:10px;color:#aaa;margin-top:3px">理由: ${esc(s.reason)}</div>
+  <div style="font-size:10px;color:#64b5f6;margin-top:2px">対策: ${esc(s.action)}</div>
+</div>`).join('');
+
+    const commentHtml = esc(br.comment||'').replace(/\n/g,'<br>');
+
+    return `
+<div style="display:flex;align-items:center;gap:14px;margin-bottom:10px">
+  <div style="background:rgba(0,0,0,.5);border:2px solid ${scoreColor};border-radius:8px;
+    padding:6px 18px;text-align:center;min-width:60px">
+    <div style="font-size:22px;font-weight:900;color:${scoreColor}">${br.score}</div>
+    <div style="font-size:9px;color:#888">/ 100</div>
+  </div>
+  <div>
+    <div style="font-size:14px;color:${diffColor};font-weight:700">${br.difficulty?.overall||'-'}</div>
+    <div style="font-size:10px;color:#888">${br.numTrials}試行平均</div>
+  </div>
+  <div style="font-size:10px;color:#555">qaVersion: ${esc(br.qaVersion||'-')}</div>
+</div>
+
+<div style="background:#0d1f2d;border:1px solid #1e3a5a;border-radius:6px;padding:10px 14px;margin-bottom:8px">
+  <div style="font-size:11px;color:#64b5f6;font-weight:700;margin-bottom:4px">📊 赤字要因ランキング</div>
+  <div style="font-size:9px;color:#888;margin-bottom:6px">※ 費目別（修繕費・広告費等）は現在取得不可。G.monthExpenseは合計のみ。</div>
+  <div style="overflow-x:auto"><table style="border-collapse:collapse;width:100%">
+    <tr style="color:#555;font-size:9px"><th>#</th><th style="text-align:left">項目</th><th>状態</th><th>金額</th><th style="text-align:left">備考</th></tr>
+    ${rankRows}
+  </table></div>
+</div>
+
+<div style="background:#0d1f2d;border:1px solid #1e3a5a;border-radius:6px;padding:10px 14px;margin-bottom:8px">
+  <div style="font-size:11px;color:#64b5f6;font-weight:700;margin-bottom:6px">🔍 ボトルネック診断</div>
+  <table style="border-collapse:collapse;width:100%">${bnRows}</table>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+  <div style="background:#0d1f2d;border:1px solid #1e3a5a;border-radius:6px;padding:10px 14px">
+    <div style="font-size:11px;color:#64b5f6;font-weight:700;margin-bottom:6px">📈 感度分析（線形近似）</div>
+    <table style="border-collapse:collapse;width:100%">
+      <tr style="color:#555;font-size:9px"><th style="text-align:left">施策</th><th>年間効果</th><th style="text-align:left">備考</th></tr>
+      ${sensRows}
+    </table>
+  </div>
+  <div style="background:#0d1f2d;border:1px solid #1e3a5a;border-radius:6px;padding:10px 14px">
+    <div style="font-size:11px;color:#64b5f6;font-weight:700;margin-bottom:6px">⭐ 難易度診断</div>
+    ${diffRows}
+    <div style="margin-top:8px;font-size:12px;font-weight:700;color:${diffColor}">総合難易度: ${br.difficulty?.overall||'-'}</div>
+  </div>
+</div>
+
+<div style="background:#0d1f2d;border:1px solid #1e3a5a;border-radius:6px;padding:10px 14px;margin-bottom:8px">
+  <div style="font-size:11px;color:#64b5f6;font-weight:700;margin-bottom:6px">🎯 改善提案 TOP${(br.suggestions||[]).length}</div>
+  ${suggCards}
+</div>
+
+<div style="background:#0d1f2d;border:1px solid #1e3a5a;border-radius:6px;padding:10px 14px;margin-bottom:8px">
+  <div style="font-size:11px;color:#64b5f6;font-weight:700;margin-bottom:6px">🤖 AIコメント</div>
+  <div style="font-size:10px;color:#aaa;line-height:1.7">${commentHtml}</div>
+</div>`;
+  }
+
   // ─── 3A-8. Phase 3A タブ描画 ───
   function renderPhase3Tab() {
     const panel = document.getElementById('qa-panel-phase3');
@@ -5758,7 +6083,13 @@ ${step2Html}
   </button>
   ${anaRunning ? `<button class="qa-btn" onclick="window._qa3aAnalyzeStop()" style="color:#ff8800;border-color:#ff8800">■ 停止</button>` : ''}
 </div>
-${step3Html}`;
+${step3Html}
+${ar && !anaRunning ? `
+<div style="background:#0d0d1a;border:2px solid #1e3a5a;border-radius:8px;padding:14px 16px;margin-top:12px">
+  <div style="font-size:14px;color:#64b5f6;font-weight:900;margin-bottom:10px">📋 経営診断レポート（Phase 3B-1）</div>
+  ${_sim3BusinessReportHtml(_sim3BusinessReport(ar))}
+</div>` : ''}
+`;
 
     window._qa3ReproRun = (seed) => _sim3StartReprod(seed);
   }
