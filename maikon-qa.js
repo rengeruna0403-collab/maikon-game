@@ -3,7 +3,7 @@
  * ?qa=1 または ?debug=1 の場合のみ動作
  * ゲーム本体への影響なし・読み取り専用（Phase 2Aは1日テスト後に必ず復元）
  */
-window._MAIKON_QA_VERSION = '2026-07-18-step3b1-business-report-fix1';
+window._MAIKON_QA_VERSION = '2026-07-18-step3b2-balance-sim';
 console.log('[MAIKON-QA] loaded version:', window._MAIKON_QA_VERSION);
 
 (function () {
@@ -4640,6 +4640,7 @@ function qa2cSwitchTab(tid,idx){
         staffCount:t.staffCount, productCount:t.productCount, reputation:t.reputation,
       })),
       businessReport: r.businessReport,
+      balanceSimulation: r.balanceSimulation || null,
     }, null, 2);
   }
 
@@ -5602,6 +5603,329 @@ function qa2cSwitchTab(tid,idx){
 </div>`;
   }
 
+  // ─── Phase 3B-2. バランスシミュレーター ───
+
+  // デフォルトパラメータ（倍率。1.0 = 変更なし）
+  const _SIM3_BAL_DEFAULT_PARAMS = {
+    revenueMult:    1.0,  // 店舗売上倍率
+    expenseMult:    1.0,  // 固定費+修繕費合計（費目別内訳は情報不足のため合計扱い）
+    compEventFreq:  1.0,  // 競合イベント頻度
+    unlockCondMult: 1.0,  // 商品解放条件（1.0 = 現状 / 0.8 = -20%緩和）
+    apCostMult:     1.0,  // AP消費量倍率（0.9 = -10%）
+    apRecoveryMult: 1.0,  // AP回復量倍率（1.1 = +10%）
+    caseRewardMult: 1.0,  // 案件報酬倍率（金銭額情報不足）
+    adEffectMult:   1.0,  // 広告効果倍率（評判効果量情報不足）
+  };
+
+  function _sim3BalanceSimulator(result, params) {
+    if (!result || !result.stats) return null;
+    const s  = result.stats;
+    const br = result.businessReport || _sim3BusinessReport(result);
+    if (!br) return null;
+
+    const p = Object.assign({}, _SIM3_BAL_DEFAULT_PARAMS, params || {});
+    const g = k => s[k]?.mean ?? null;
+
+    const avgRevenue      = g('totalRevenue');
+    const avgNetChange365 = g('totalNetChange365');
+    const avgStoreProfit12= g('completedMonthsStoreProfit');
+    const avgAP           = g('avgAP');
+    const avgDeficit      = g('deficitMonths');
+    const avgProducts     = g('productCount');
+    const INIT_PROD       = 2;
+
+    // 経費合計（売上 − 店舗損益の逆算）
+    const avgTotalExpense = (avgRevenue != null && avgStoreProfit12 != null)
+      ? avgRevenue - avgStoreProfit12 : null;
+
+    // ── 変化量（線形近似、取得可能なデータのみ） ──
+    const deltaRevenue = avgRevenue      != null ? Math.round(avgRevenue      * (p.revenueMult  - 1)) : null;
+    const deltaExpense = avgTotalExpense != null ? Math.round(avgTotalExpense * (p.expenseMult  - 1)) : null; // 正=増加
+    const knownDelta   = (deltaRevenue ?? 0) - (deltaExpense ?? 0);
+
+    const simNetChange365 = avgNetChange365 != null ? avgNetChange365 + knownDelta : null;
+    const simStoreProfit12= avgStoreProfit12 != null
+      ? avgStoreProfit12 + (deltaRevenue ?? 0) - (deltaExpense ?? 0) : null;
+
+    // ── AP変化（消費倍率↓ or 回復倍率↑ → AP増加、粗近似） ──
+    let simAP = avgAP;
+    if (avgAP != null) {
+      const costEff    = avgAP * (1 - p.apCostMult)    * 0.4;
+      const recovEff   = avgAP * (p.apRecoveryMult - 1) * 0.3;
+      simAP = Math.max(0, Math.min(100, avgAP + costEff + recovEff));
+    }
+
+    // ── 赤字月数変化（改善分を月平均で除算して概算） ──
+    let simDeficit = avgDeficit;
+    if (avgDeficit != null && avgRevenue != null && avgRevenue > 0) {
+      const monthlyGain   = knownDelta / 12;
+      const monthlyRevenue= avgRevenue / 12;
+      const improvRatio   = Math.min(1, Math.max(-1, monthlyGain / monthlyRevenue));
+      simDeficit = Math.max(0, Math.round(avgDeficit * (1 - improvRatio)));
+    }
+
+    // ── 商品解放数（解放条件緩和 → 到達しやすくなる概算） ──
+    let simProducts = avgProducts;
+    if (avgProducts != null && p.unlockCondMult !== 1.0) {
+      const condEase  = 1 - p.unlockCondMult;      // -20% → 0.2
+      const maxExtra  = 4;                          // 上限4個追加（概算）
+      simProducts = parseFloat((avgProducts + condEase * maxExtra).toFixed(1));
+      simProducts = Math.max(INIT_PROD, Math.min(avgProducts + maxExtra, simProducts));
+    }
+
+    // ── 難易度再計算 ──
+    const caseRate = br.summary.caseRate;
+    const cv365    = (s.totalNetChange365?.stddev || 0) / (Math.abs(avgNetChange365) || 1);
+    const d_cash = simDeficit > 8 ? 5 : simDeficit > 6 ? 4 : simDeficit > 4 ? 3 : simDeficit > 2 ? 2 : 1;
+    const d_ap   = simAP   == null ? 3 : simAP   < 40 ? 5 : simAP   < 60 ? 4 : simAP   < 75 ? 3 : simAP   < 85 ? 2 : 1;
+    const d_luck = cv365 > 0.3 ? 4 : cv365 > 0.2 ? 3 : cv365 > 0.1 ? 2 : 1;
+    const d_prod = simProducts == null ? 3 : simProducts <= INIT_PROD ? 5 : simProducts <= INIT_PROD+1 ? 4 : simProducts <= INIT_PROD+2 ? 3 : 2;
+    const d_case = caseRate == null ? 3 : caseRate < 0.4 ? 5 : caseRate < 0.6 ? 4 : caseRate < 0.7 ? 3 : caseRate < 0.8 ? 2 : 1;
+    const diffAvg = (d_cash + d_ap + d_luck + d_prod + d_case) / 5;
+    const overallDiff = diffAvg >= 4.0 ? 'Very Hard' : diffAvg >= 3.0 ? 'Hard' : diffAvg >= 2.0 ? 'Normal' : 'Easy';
+
+    // ── バランススコア再計算 ──
+    let score = 0;
+    if      (simNetChange365 >= 0)        score += 30;
+    else if (simNetChange365 >= -300000)  score += 20;
+    else if (simNetChange365 >= -800000)  score += 10;
+    if      (simAP >= 80)  score += 20;
+    else if (simAP >= 60)  score += 15;
+    else if (simAP >= 40)  score += 5;
+    if      (simDeficit <= 2) score += 20;
+    else if (simDeficit <= 5) score += 10;
+    else if (simDeficit <= 8) score += 5;
+    if      (caseRate >= 0.8) score += 15;
+    else if (caseRate >= 0.6) score += 10;
+    else if (caseRate >= 0.4) score += 5;
+    if      (simProducts > INIT_PROD+2) score += 15;
+    else if (simProducts > INIT_PROD+1) score += 8;
+    else if (simProducts > INIT_PROD)   score += 3;
+
+    // ── 改善効果ランキング ──
+    const rankings = [];
+    if (deltaRevenue  != null) rankings.push({ item:`店舗売上 ${_sim3BalPct(p.revenueMult)}`, impact: deltaRevenue,  known:true });
+    if (deltaExpense  != null) rankings.push({ item:`経費合計 ${_sim3BalPct(p.expenseMult)}`,  impact:-deltaExpense,  known:true,
+      note:'費目別内訳は情報不足。合計経費ベースの近似値。' });
+    if (p.caseRewardMult !== 1.0)
+      rankings.push({ item:`案件報酬 ${_sim3BalPct(p.caseRewardMult)}`, impact:null, known:false, note:'案件報酬金額が不明のため計算不可' });
+    if (p.adEffectMult !== 1.0)
+      rankings.push({ item:`広告効果 ${_sim3BalPct(p.adEffectMult)}`,   impact:null, known:false, note:'評判への効果量が不明のため計算不可' });
+    if (p.compEventFreq !== 1.0)
+      rankings.push({ item:`競合頻度 ${_sim3BalPct(p.compEventFreq)}`,  impact:null, known:false, note:'競合イベントの金銭損失額が不明のため計算不可' });
+    rankings.sort((a,b) => {
+      if (a.known && b.known) return Math.abs(b.impact||0) - Math.abs(a.impact||0);
+      if (a.known) return -1; if (b.known) return 1; return 0;
+    });
+
+    // ── AIコメント ──
+    const origDiff = br.difficulty?.overall;
+    const lines = [];
+    if (knownDelta !== 0) {
+      const sign = knownDelta > 0 ? '+' : '';
+      lines.push(`設定変更による年間現金への線形効果: ${sign}¥${Math.abs(Math.round(knownDelta)).toLocaleString()}（${knownDelta>0?'改善':'悪化'}）。`);
+    }
+    if (deltaRevenue != null && deltaExpense != null && Math.abs(deltaRevenue) > 0 && Math.abs(deltaExpense) > 0) {
+      const rv = Math.abs(deltaRevenue), ev = Math.abs(deltaExpense);
+      lines.push(rv > ev
+        ? `売上改善（¥${rv.toLocaleString()}）が経費削減（¥${ev.toLocaleString()}）より約${(rv/ev).toFixed(1)}倍の効果があります。売上バランスの調整を優先推奨します。`
+        : `経費削減（¥${ev.toLocaleString()}）が売上改善（¥${rv.toLocaleString()}）より約${(ev/rv).toFixed(1)}倍の効果があります。コスト管理の調整を優先推奨します。`);
+    }
+    lines.push(origDiff !== overallDiff
+      ? `難易度: ${origDiff} → ${overallDiff} に変化します。`
+      : `難易度 ${overallDiff} は変わりません。`);
+    if (p.unlockCondMult < 1 && simProducts != null && avgProducts != null && simProducts > avgProducts)
+      lines.push(`商品解放条件を緩めると解放数が平均${(avgProducts||0).toFixed(1)}個→${simProducts.toFixed(1)}個に増加する見込み（概算）。`);
+    lines.push('【情報不足】案件報酬・広告効果・競合イベント損失は金額不明のため線形計算から除外。');
+
+    return {
+      qaVersion: window._MAIKON_QA_VERSION,
+      params: p,
+      base: { netChange365: avgNetChange365, storeProfit12: avgStoreProfit12, ap: avgAP,
+              deficit: avgDeficit, products: avgProducts, difficulty: origDiff, score: br.score },
+      sim:  { netChange365: simNetChange365, storeProfit12: simStoreProfit12, ap: simAP,
+              deficit: simDeficit, products: simProducts, difficulty: overallDiff, score },
+      delta: { netChange365: simNetChange365 != null ? simNetChange365 - avgNetChange365 : null,
+               score: score - br.score },
+      rankings,
+      comment: lines.join('\n'),
+      infoMissing: ['案件報酬', '広告効果（評判量）', '競合イベント損失額', '固定費/修繕費の個別比率'],
+    };
+  }
+
+  function _sim3BalPct(mult) {
+    const d = Math.round((mult - 1) * 100);
+    return d === 0 ? '±0%' : (d > 0 ? `+${d}%` : `${d}%`);
+  }
+
+  function _sim3BalanceSimulatorHtml(sim, origBr) {
+    if (!sim) return '<div style="color:#555;font-size:12px">バランス分析データがありません。Step3を先に実行してください。</div>';
+    const fmt0  = v => v == null ? '-' : Math.round(v).toLocaleString();
+    const fmtD  = v => v == null ? '-' : (v > 0 ? `+¥${Math.round(v).toLocaleString()}` : `-¥${Math.abs(Math.round(v)).toLocaleString()}`);
+    const diffC = { Easy:'#66bb6a', Normal:'#f0c040', Hard:'#ff8800', 'Very Hard':'#ff5252' };
+    const scoreC= s => s >= 70 ? '#66bb6a' : s >= 40 ? '#f0c040' : '#ff5252';
+    const arrow = (base, sim) => {
+      if (base == null || sim == null) return '';
+      const d = sim - base;
+      return d > 0 ? `<span style="color:#66bb6a">▲</span>` : d < 0 ? `<span style="color:#ff5252">▼</span>` : `<span style="color:#555">━</span>`;
+    };
+    const b = sim.base, s2 = sim.sim;
+
+    // Before/After 比較テーブル
+    const rows = [
+      ['年間純現金変動', `¥${fmt0(b.netChange365)}`, `¥${fmt0(s2.netChange365)}`, arrow(b.netChange365, s2.netChange365), fmtD(sim.delta.netChange365)],
+      ['12か月店舗損益', `¥${fmt0(b.storeProfit12)}`, `¥${fmt0(s2.storeProfit12)}`, arrow(b.storeProfit12, s2.storeProfit12), ''],
+      ['平均AP',         `${fmt0(b.ap)}`,            `${fmt0(s2.ap)}`,            arrow(b.ap, s2.ap), ''],
+      ['赤字月数',       `${fmt0(b.deficit)}か月`,    `${fmt0(s2.deficit)}か月`,    arrow(s2.deficit, b.deficit), ''],
+      ['商品数',         `${fmt0(b.products)}個`,     `${fmt0(s2.products)}個`,     arrow(b.products, s2.products), ''],
+    ].map(([label, bv, sv, ar, delta]) => `
+      <tr style="font-size:10px;border-bottom:1px solid #1a1a1a">
+        <td style="padding:3px 6px;color:#aaa">${label}</td>
+        <td style="padding:3px 8px;color:#888;text-align:right">${bv}</td>
+        <td style="padding:3px 4px;text-align:center">${ar}</td>
+        <td style="padding:3px 8px;color:#eee;text-align:right;font-weight:700">${sv}</td>
+        <td style="padding:3px 6px;color:#64b5f6;text-align:right;font-size:9px">${delta}</td>
+      </tr>`).join('');
+
+    // 難易度
+    const origDiff = b.difficulty || '-';
+    const simDiff  = s2.difficulty || '-';
+    const diffArrow = origDiff === simDiff ? '' : `<span style="color:#888;margin:0 6px">→</span><span style="color:${diffC[simDiff]||'#888'};font-weight:700">${simDiff}</span>`;
+
+    // 改善効果ランキング
+    const rankRows = sim.rankings.map((r, i) => {
+      const imp = r.impact != null ? fmtD(r.impact) : '情報不足';
+      const ic  = r.impact == null ? '#666' : r.impact > 0 ? '#66bb6a' : '#ff5252';
+      const stars = r.impact == null ? '' : (() => {
+        const abs = Math.abs(r.impact);
+        const n   = abs > 500000 ? 5 : abs > 300000 ? 4 : abs > 100000 ? 3 : abs > 30000 ? 2 : 1;
+        return `<span style="color:#f0c040">${'★'.repeat(n)}</span><span style="color:#333">${'☆'.repeat(5-n)}</span>`;
+      })();
+      return `<tr style="font-size:10px;border-bottom:1px solid #111">
+        <td style="padding:3px 6px;color:#888">${i+1}</td>
+        <td style="padding:3px 6px;color:#eee">${esc(r.item)}</td>
+        <td style="padding:3px 8px;font-weight:700;color:${ic};text-align:right">${imp}</td>
+        <td style="padding:3px 6px">${stars}</td>
+        ${r.note ? `<td style="padding:3px 6px;color:#555;font-size:9px">${esc(r.note)}</td>` : '<td></td>'}
+      </tr>`;
+    }).join('');
+
+    const commentHtml = esc(sim.comment || '').replace(/\n/g, '<br>');
+
+    return `
+<div style="display:flex;align-items:center;gap:14px;margin-bottom:10px">
+  <div style="background:rgba(0,0,0,.5);border:2px solid ${scoreC(b.score)};border-radius:8px;padding:5px 14px;text-align:center">
+    <div style="font-size:9px;color:#555">現在</div>
+    <div style="font-size:18px;font-weight:900;color:${scoreC(b.score)}">${b.score}</div>
+  </div>
+  <div style="font-size:18px;color:#555">→</div>
+  <div style="background:rgba(0,0,0,.5);border:2px solid ${scoreC(s2.score)};border-radius:8px;padding:5px 14px;text-align:center">
+    <div style="font-size:9px;color:#555">変更後</div>
+    <div style="font-size:18px;font-weight:900;color:${scoreC(s2.score)}">${s2.score}</div>
+  </div>
+  <div style="margin-left:8px">
+    <div style="font-size:12px">
+      <span style="color:${diffC[origDiff]||'#888'};font-weight:700">${origDiff}</span>${diffArrow}
+    </div>
+    <div style="font-size:9px;color:#555;margin-top:2px">難易度</div>
+  </div>
+</div>
+
+<div style="background:#0a0a18;border:1px solid #1e3a5a;border-radius:6px;padding:8px 12px;margin-bottom:8px">
+  <div style="font-size:11px;color:#64b5f6;font-weight:700;margin-bottom:6px">📊 Before / After 比較</div>
+  <table style="border-collapse:collapse;width:100%">
+    <tr style="font-size:9px;color:#555">
+      <th style="text-align:left;padding:2px 6px">項目</th>
+      <th style="text-align:right;padding:2px 8px">現在</th>
+      <th></th>
+      <th style="text-align:right;padding:2px 8px">変更後</th>
+      <th style="text-align:right;padding:2px 6px">差分</th>
+    </tr>
+    ${rows}
+  </table>
+</div>
+
+<div style="background:#0a0a18;border:1px solid #1e3a5a;border-radius:6px;padding:8px 12px;margin-bottom:8px">
+  <div style="font-size:11px;color:#64b5f6;font-weight:700;margin-bottom:6px">📈 改善効果ランキング</div>
+  <table style="border-collapse:collapse;width:100%">
+    <tr style="font-size:9px;color:#555"><th>#</th><th style="text-align:left">施策</th><th style="text-align:right">年間効果</th><th>評価</th><th style="text-align:left">備考</th></tr>
+    ${rankRows}
+  </table>
+</div>
+
+<div style="background:#0a0a18;border:1px solid #1e3a5a;border-radius:6px;padding:8px 12px">
+  <div style="font-size:11px;color:#64b5f6;font-weight:700;margin-bottom:6px">🤖 AIコメント</div>
+  <div style="font-size:10px;color:#aaa;line-height:1.7">${commentHtml}</div>
+</div>`;
+  }
+
+  // バランスシミュレーター：コントロールUI生成
+  function _sim3BalSimControls() {
+    const opts = [-30,-20,-10,-5,0,5,10,20,30].map(v =>
+      `<option value="${v}" ${v===0?'selected':''}>${v>0?'+':''}${v}%</option>`).join('');
+    const sel = (id, label, note) => `
+<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+  <label style="font-size:10px;color:#aaa;width:130px;flex-shrink:0">${label}</label>
+  <select id="sim3bal-${id}" onchange="window._sim3BalUpdate()"
+    style="background:#111;color:#eee;border:1px solid #333;border-radius:4px;padding:2px 4px;font-size:10px">
+    ${opts}
+  </select>
+  ${note ? `<span style="font-size:9px;color:#444">${note}</span>` : ''}
+</div>`;
+    return `
+<div style="background:#080808;border:1px solid #222;border-radius:6px;padding:10px 14px;margin-bottom:8px">
+  <div style="font-size:10px;color:#81c784;font-weight:700;margin-bottom:8px">変更パラメータ（複数同時変更可）</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 20px">
+    ${sel('revenueMult',   '店舗売上倍率', '売上全体に乗算')}
+    ${sel('expenseMult',   '固定費+修繕費', '※費目別情報不足のため合計')}
+    ${sel('caseRewardMult','案件報酬',      '※金額情報不足')}
+    ${sel('compEventFreq', '競合イベント頻度','※金銭損失情報不足')}
+    ${sel('unlockCondMult','商品解放条件',  '緩和=-% / 厳化=+%')}
+    ${sel('adEffectMult',  '広告効果',      '※評判効果量情報不足')}
+    ${sel('apCostMult',    'AP消費量',      '削減=-%')}
+    ${sel('apRecoveryMult','AP回復量',      '増加=+%')}
+  </div>
+  <button onclick="window._sim3BalReset()"
+    style="margin-top:8px;background:#111;color:#888;border:1px solid #333;border-radius:4px;
+           padding:3px 10px;font-size:10px;cursor:pointer">
+    ↺ リセット
+  </button>
+</div>`;
+  }
+
+  // リアルタイム更新（select onchange から呼ばれる）
+  window._sim3BalUpdate = function() {
+    const r = window._qa3aAnalyzeResult;
+    if (!r) return;
+    const get = id => {
+      const el = document.getElementById(`sim3bal-${id}`);
+      return el ? 1 + parseInt(el.value, 10) / 100 : 1.0;
+    };
+    const params = {
+      revenueMult:    get('revenueMult'),
+      expenseMult:    get('expenseMult'),
+      caseRewardMult: get('caseRewardMult'),
+      compEventFreq:  get('compEventFreq'),
+      unlockCondMult: get('unlockCondMult'),
+      adEffectMult:   get('adEffectMult'),
+      apCostMult:     get('apCostMult'),
+      apRecoveryMult: get('apRecoveryMult'),
+    };
+    const sim = _sim3BalanceSimulator(r, params);
+    r.balanceSimulation = sim;  // JSON export 用に保存
+    const el = document.getElementById('sim3-bal-result');
+    if (el) el.innerHTML = _sim3BalanceSimulatorHtml(sim, r.businessReport);
+  };
+
+  window._sim3BalReset = function() {
+    ['revenueMult','expenseMult','caseRewardMult','compEventFreq',
+     'unlockCondMult','adEffectMult','apCostMult','apRecoveryMult'].forEach(id => {
+      const el = document.getElementById(`sim3bal-${id}`);
+      if (el) el.value = '0';
+    });
+    window._sim3BalUpdate();
+  };
+
   // ─── 3A-8. Phase 3A タブ描画 ───
   function renderPhase3Tab() {
     const panel = document.getElementById('qa-panel-phase3');
@@ -6090,7 +6414,15 @@ ${step3Html}
 ${ar && !anaRunning ? `
 <div style="background:#0d0d1a;border:2px solid #1e3a5a;border-radius:8px;padding:14px 16px;margin-top:12px">
   <div style="font-size:14px;color:#64b5f6;font-weight:900;margin-bottom:10px">📋 経営診断レポート（Phase 3B-1）</div>
-  ${_sim3BusinessReportHtml(_sim3BusinessReport(ar))}
+  ${_sim3BusinessReportHtml(ar.businessReport)}
+</div>
+<div style="background:#0d0d1a;border:2px solid #2a4a2a;border-radius:8px;padding:14px 16px;margin-top:12px">
+  <div style="font-size:14px;color:#81c784;font-weight:900;margin-bottom:10px">🎛 バランスシミュレーター（Phase 3B-2）</div>
+  <div style="font-size:10px;color:#555;margin-bottom:10px">ゲーム本体は変更しません。分析データから「もし○○だったら」を線形近似で計算します。</div>
+  ${_sim3BalSimControls()}
+  <div id="sim3-bal-result" style="margin-top:10px">
+    ${_sim3BalanceSimulatorHtml(_sim3BalanceSimulator(ar, {}), ar.businessReport)}
+  </div>
 </div>` : ''}
 `;
 
