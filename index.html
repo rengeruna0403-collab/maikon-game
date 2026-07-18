@@ -550,6 +550,9 @@ function getMaxLevel(s){ return getStaffTitles(s).length - 1; }
 // ─────────── DEV MODE ───────────
 const DEV_MODE = new URLSearchParams(location.search).get('debug') === '1';
 
+// ─────────── BALANCE VERSION ───────────
+window._MAIKON_BALANCE_VERSION = '0.1-baseline';
+
 // ─────────── GAME STATE ───────────
 let G = {
   money: 1500000,   // 現金（キャッシュ）
@@ -15378,7 +15381,7 @@ window.addEventListener('visibilitychange', ()=>{
 <script>
 if(/[?&](qa|debug)=1/.test(location.search)){
   var _qaScript=document.createElement('script');
-  _qaScript.src='maikon-qa.js?v=20260718-step3b2-fix1-validate';
+  _qaScript.src='maikon-qa.js?v=20260718-v02-step0-baseline';
   document.head.appendChild(_qaScript);
 }
 </script>
