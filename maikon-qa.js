@@ -4369,15 +4369,16 @@ function qa2cSwitchTab(tid,idx){
 
       const apValid       = (s.apHistory||[]).filter(x=>x!=null&&typeof x==='number');
       const monthlyData   = s.monthlyData||[];
-      const totalRevenue  = monthlyData.reduce((a,m)=>a+(m.storeRevenue||0),0);
-      const totalProfit   = monthlyData.reduce((a,m)=>a+(m.netChange||0),0);
+      const totalRevenue    = monthlyData.reduce((a,m)=>a+(m.storeRevenue||0),0);
+      const totalProfit     = monthlyData.reduce((a,m)=>a+(m.netChange||0),0);
+      const totalStoreProfit= monthlyData.reduce((a,m)=>a+(m.storeRevenue||0)-(m.storeExpense||0),0);
       const deficitMonths = monthlyData.filter(m=>(m.netChange||0)<0).length;
       const allMoney      = monthlyData.map(m=>m.money).filter(x=>typeof x==='number');
       const casesArr      = gEnd.cases||[];
 
       trial = {
         seed,
-        totalRevenue, totalProfit,
+        totalRevenue, totalProfit, totalStoreProfit,
         endCash:      gEnd.money||0,
         minCash:      allMoney.length ? Math.min(...allMoney) : (gEnd.money||0),
         avgAP:        apValid.length ? Math.round(apValid.reduce((a,b)=>a+b,0)/apValid.length) : null,
@@ -4494,16 +4495,25 @@ function qa2cSwitchTab(tid,idx){
         rate: Math.round(counts.filter(x=>x>0).length/n*100) };
     }
 
-    // 月別平均（第1年のみ）
+    // 月別平均（相対月 M1〜M12：開始月を M1 として配列順で集計）
+    // year===1 固定では4月開始ゲームの翌年1-3月が欠落するため相対インデックスで集計する
     const monthlyAvg = [];
-    for (let m = 1; m <= 12; m++) {
-      const rows = trials.map(t=>(t.monthlyData||[]).find(x=>x.month===m&&x.year===1)).filter(Boolean);
+    for (let mi = 0; mi < 12; mi++) {
+      const rows = trials.map(t => (t.monthlyData||[])[mi]).filter(Boolean);
+      const labelYM = rows.length ? (() => {
+        const freq = {};
+        rows.forEach(r => { const k = `${r.year}年${r.month}月`; freq[k] = (freq[k]||0)+1; });
+        return Object.entries(freq).sort((a,b)=>b[1]-a[1])[0][0];
+      })() : '-';
       monthlyAvg.push({
-        month: m,
-        avgRevenue: rows.length ? Math.round(rows.reduce((a,r)=>a+(r.storeRevenue||0),0)/rows.length) : 0,
-        avgProfit:  rows.length ? Math.round(rows.reduce((a,r)=>a+(r.netChange||0),0)/rows.length)    : 0,
-        avgCash:    rows.length ? Math.round(rows.reduce((a,r)=>a+(r.money||0),0)/rows.length)        : 0,
-        avgAP:      rows.length ? Math.round(rows.reduce((a,r)=>a+(r.apAvg||0),0)/rows.length)        : 0,
+        mIdx:           mi + 1,
+        label:          `M${mi+1}（${labelYM}）`,
+        avgRevenue:     rows.length ? Math.round(rows.reduce((a,r)=>a+(r.storeRevenue||0),0)/rows.length) : 0,
+        avgStoreProfit: rows.length ? Math.round(rows.reduce((a,r)=>a+(r.storeRevenue||0)-(r.storeExpense||0),0)/rows.length) : 0,
+        avgNetChange:   rows.length ? Math.round(rows.reduce((a,r)=>a+(r.netChange||0),0)/rows.length)    : 0,
+        avgCash:        rows.length ? Math.round(rows.reduce((a,r)=>a+(r.money||0),0)/rows.length)        : 0,
+        avgAP:          rows.length ? Math.round(rows.reduce((a,r)=>a+(r.apAvg||0),0)/rows.length)        : 0,
+        dataCount:      rows.length,
       });
     }
 
@@ -4545,8 +4555,9 @@ function qa2cSwitchTab(tid,idx){
     return {
       numTrials:n, trials,
       stats: {
-        totalRevenue:  sf('totalRevenue'),  totalProfit:   sf('totalProfit'),
-        endCash:       sf('endCash'),        minCash:       sf('minCash'),
+        totalRevenue:    sf('totalRevenue'),    totalProfit:      sf('totalProfit'),
+        totalStoreProfit:sf('totalStoreProfit'),
+        endCash:         sf('endCash'),         minCash:          sf('minCash'),
         avgAP:         sf('avgAP'),          minAP:         sf('minAP'),
         apShortDays:   sf('apShortDays'),    deficitMonths: sf('deficitMonths'),
         eventCount:    sf('eventCount'),     caseSolved:    sf('caseSolved'),
@@ -4566,7 +4577,7 @@ function qa2cSwitchTab(tid,idx){
     return [hdr.join(','), ...rows].join('\n');
   }
   function _sim3ExportMonthlyAvgCSV(r) {
-    const hdr = ['month','avgRevenue','avgProfit','avgCash','avgAP'];
+    const hdr = ['mIdx','label','avgRevenue','avgStoreProfit','avgNetChange','avgCash','avgAP'];
     const rows = r.monthlyAvg.map(m => hdr.map(k => m[k]??'').join(','));
     return [hdr.join(','), ...rows].join('\n');
   }
@@ -5369,8 +5380,9 @@ ${sr.anomalies.length ? `
 
       // ── 概要統計テーブル ──
       const statRows = [
-        ['年間売上',    fmtS(ar.stats.totalRevenue)],
-        ['年間利益',    fmtS(ar.stats.totalProfit)],
+        ['年間売上',          fmtS(ar.stats.totalRevenue)],
+        ['年間純現金変動',    fmtS(ar.stats.totalProfit)],
+        ['年間店舗損益',      fmtS(ar.stats.totalStoreProfit)],
         ['年末現金',    fmtS(ar.stats.endCash)],
         ['最低現金',    fmtS(ar.stats.minCash)],
         ['平均AP',      fmtS(ar.stats.avgAP)],
@@ -5405,13 +5417,15 @@ ${sr.anomalies.length ? `
       // ── 月別推移バーチャート ──
       const maxRev = Math.max(...ar.monthlyAvg.map(m=>m.avgRevenue), 1);
       const monthBarRows = ar.monthlyAvg.map(m => {
-        const barW = Math.round(m.avgRevenue/maxRev*120);
-        const profColor = m.avgProfit >= 0 ? '#66bb6a' : '#ff5252';
+        const barW        = Math.round(m.avgRevenue/maxRev*120);
+        const storeColor  = m.avgStoreProfit >= 0 ? '#66bb6a' : '#ff5252';
+        const netColor    = m.avgNetChange   >= 0 ? '#66bb6a' : '#ff5252';
         return `<tr style="font-size:10px">
-          <td style="padding:1px 5px;color:#aaa;white-space:nowrap">${m.month}月</td>
+          <td style="padding:1px 5px;color:#aaa;white-space:nowrap">${m.label}</td>
           <td style="padding:1px 5px"><div style="width:${barW}px;height:8px;background:#64b5f6;border-radius:2px;display:inline-block"></div></td>
           <td style="padding:1px 5px;text-align:right;color:#ccc">${fmt0(m.avgRevenue)}</td>
-          <td style="padding:1px 5px;text-align:right;color:${profColor}">${m.avgProfit>=0?'+':''}${fmt0(m.avgProfit)}</td>
+          <td style="padding:1px 5px;text-align:right;color:${storeColor}">${m.avgStoreProfit>=0?'+':''}${fmt0(m.avgStoreProfit)}</td>
+          <td style="padding:1px 5px;text-align:right;color:${netColor}">${m.avgNetChange>=0?'+':''}${fmt0(m.avgNetChange)}</td>
           <td style="padding:1px 5px;text-align:right;color:#888">${m.avgAP}</td>
         </tr>`;
       }).join('');
@@ -5471,13 +5485,13 @@ ${sr.anomalies.length ? `
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
   <div style="background:#1a0a0a;border:1px solid #5a1a1a;border-radius:6px;padding:8px 10px">
     <div style="font-size:10px;color:#ff5252;font-weight:700;margin-bottom:4px">📉 最低利益 (seed=${wt.seed})</div>
-    <div style="font-size:11px;color:#ccc">利益: <strong style="color:#ff5252">${fmt0(wt.totalProfit)}</strong></div>
+    <div style="font-size:11px;color:#ccc">純現金変動: <strong style="color:#ff5252">${fmt0(wt.totalProfit)}</strong></div>
     <div style="font-size:10px;color:#888;margin-top:4px">赤字月:${wt.deficitMonths} / 最低AP:${wt.minAP??'-'} / 案件失敗:${wt.caseFailed}</div>
     <div style="font-size:10px;color:#888">イベント:${wt.eventCount} / 商品:${wt.productCount}</div>
   </div>
   <div style="background:#0a1a0a;border:1px solid #1a5a1a;border-radius:6px;padding:8px 10px">
     <div style="font-size:10px;color:#66bb6a;font-weight:700;margin-bottom:4px">📈 最高利益 (seed=${bt.seed})</div>
-    <div style="font-size:11px;color:#ccc">利益: <strong style="color:#66bb6a">${fmt0(bt.totalProfit)}</strong></div>
+    <div style="font-size:11px;color:#ccc">純現金変動: <strong style="color:#66bb6a">${fmt0(bt.totalProfit)}</strong></div>
     <div style="font-size:10px;color:#888;margin-top:4px">赤字月:${bt.deficitMonths} / 最低AP:${bt.minAP??'-'} / 案件失敗:${bt.caseFailed}</div>
     <div style="font-size:10px;color:#888">イベント:${bt.eventCount} / 商品:${bt.productCount}</div>
   </div>
@@ -5511,7 +5525,7 @@ ${sr.anomalies.length ? `
   <table style="font-size:10px;border-collapse:collapse;width:100%">
     <tr style="color:#666">
       <th style="padding:1px 5px;text-align:left">Seed</th>
-      <th style="padding:1px 5px;text-align:right">利益</th>
+      <th style="padding:1px 5px;text-align:right">純現金変動</th>
       <th style="padding:1px 5px;text-align:right">売上</th>
       <th style="padding:1px 5px;text-align:right">年末現金</th>
       <th style="padding:1px 5px;text-align:right">AP平均</th>
@@ -5528,7 +5542,7 @@ ${sr.anomalies.length ? `
 <div style="background:#0d1f2d;border:1px solid #1e3a5a;border-radius:6px;padding:10px 14px;margin-bottom:8px">
   <div style="font-size:11px;color:#64b5f6;font-weight:700;margin-bottom:6px">📅 月別平均推移（売上・利益・AP）</div>
   <table style="font-size:10px;border-collapse:collapse">
-    <tr style="color:#666"><th style="padding:1px 5px">月</th><th style="padding:1px 5px">売上</th><th style="padding:1px 5px;text-align:right">売上額</th><th style="padding:1px 5px;text-align:right">利益</th><th style="padding:1px 5px;text-align:right">AP</th></tr>
+    <tr style="color:#666"><th style="padding:1px 5px">月</th><th style="padding:1px 5px">売上</th><th style="padding:1px 5px;text-align:right">売上額</th><th style="padding:1px 5px;text-align:right">店舗損益</th><th style="padding:1px 5px;text-align:right">純現金変動</th><th style="padding:1px 5px;text-align:right">AP</th></tr>
     ${monthBarRows}
   </table>
 </div>
