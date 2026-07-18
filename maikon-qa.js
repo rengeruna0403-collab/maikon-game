@@ -3,7 +3,7 @@
  * ?qa=1 または ?debug=1 の場合のみ動作
  * ゲーム本体への影響なし・読み取り専用（Phase 2Aは1日テスト後に必ず復元）
  */
-window._MAIKON_QA_VERSION = '2026-07-18-step3b1-business-report';
+window._MAIKON_QA_VERSION = '2026-07-18-step3b1-business-report-fix1';
 console.log('[MAIKON-QA] loaded version:', window._MAIKON_QA_VERSION);
 
 (function () {
@@ -4639,7 +4639,7 @@ function qa2cSwitchTab(tid,idx){
         eventCount:t.eventCount, caseSolved:t.caseSolved, caseFailed:t.caseFailed,
         staffCount:t.staffCount, productCount:t.productCount, reputation:t.reputation,
       })),
-      businessReport: _sim3BusinessReport(r),
+      businessReport: r.businessReport,
     }, null, 2);
   }
 
@@ -4716,8 +4716,11 @@ function qa2cSwitchTab(tid,idx){
     result.startSeed = startSeed;
 
     result.qaVersion = window._MAIKON_QA_VERSION || null;
+    result.businessReport = _sim3BusinessReport(result);
+    console.log('[QA] BusinessReport generated', result.businessReport);
     _sim3AnalyzeResult   = result;
     window._qa3aAnalyzeResult = result;
+    console.log('[QA] window._qa3aAnalyzeResult.businessReport exists:', !!result.businessReport);
     _sim3AnalyzeRunning  = false;
     if (typeof renderPhase3Tab === 'function') renderPhase3Tab();
 
