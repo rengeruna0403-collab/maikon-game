@@ -4367,18 +4367,43 @@ function qa2cSwitchTab(tid,idx){
       const s = _sim2c;
       let gEnd; try { gEnd = eval('G'); } catch(e) { gEnd = {}; }
 
-      const apValid       = (s.apHistory||[]).filter(x=>x!=null&&typeof x==='number');
-      const monthlyData   = s.monthlyData||[];
-      const totalRevenue    = monthlyData.reduce((a,m)=>a+(m.storeRevenue||0),0);
-      const totalProfit     = monthlyData.reduce((a,m)=>a+(m.netChange||0),0);
-      const totalStoreProfit= monthlyData.reduce((a,m)=>a+(m.storeRevenue||0)-(m.storeExpense||0),0);
-      const deficitMonths = monthlyData.filter(m=>(m.netChange||0)<0).length;
-      const allMoney      = monthlyData.map(m=>m.money).filter(x=>typeof x==='number');
-      const casesArr      = gEnd.cases||[];
+      const apValid     = (s.apHistory||[]).filter(x=>x!=null&&typeof x==='number');
+      const monthlyData = s.monthlyData||[];
+      const allMoney    = monthlyData.map(m=>m.money).filter(x=>typeof x==='number');
+      const casesArr    = gEnd.cases||[];
+
+      // ── 完了月次分（M1〜M12）──
+      const totalRevenue              = monthlyData.reduce((a,m)=>a+(m.storeRevenue||0),0);
+      const completedMonthsNetChange  = monthlyData.reduce((a,m)=>a+(m.netChange||0),0);
+      const completedMonthsStoreProfit= monthlyData.reduce((a,m)=>a+(m.storeRevenue||0)-(m.storeExpense||0),0);
+      const deficitMonths             = monthlyData.filter(m=>(m.netChange||0)<0).length;
+
+      // ── 残余期間（最終月次締め後〜試行終了日）──
+      // G.monthRevenue / G.monthExpense は月初に=0リセット済み（index.html 2644行・14644行確認済み）
+      const lastMonthlyCash      = monthlyData.length ? monthlyData[monthlyData.length-1].money : (gEnd.money||0);
+      const residualNetChange    = (gEnd.money||0) - lastMonthlyCash;
+      const residualStoreProfit  = (gEnd.monthRevenue||0) - (gEnd.monthExpense||0);
+
+      // ── 365日合計 ──
+      const totalNetChange365   = completedMonthsNetChange  + residualNetChange;
+      const totalStoreProfit365 = completedMonthsStoreProfit + residualStoreProfit;
+
+      // 互換性フィールド（旧名を維持）
+      const totalProfit      = completedMonthsNetChange;
+      const totalStoreProfit = completedMonthsStoreProfit;
 
       trial = {
         seed,
+        // 互換性維持（旧フィールド名）
         totalRevenue, totalProfit, totalStoreProfit,
+        // 正式フィールド
+        completedMonthsNetChange,
+        residualNetChange,
+        totalNetChange365,
+        completedMonthsStoreProfit,
+        residualStoreProfit,
+        totalStoreProfit365,
+        simulationEndDate: { year:gEnd.year||0, month:gEnd.month||0, day:gEnd.day||0 },
         endCash:      gEnd.money||0,
         minCash:      allMoney.length ? Math.min(...allMoney) : (gEnd.money||0),
         avgAP:        apValid.length ? Math.round(apValid.reduce((a,b)=>a+b,0)/apValid.length) : null,
@@ -4542,12 +4567,12 @@ function qa2cSwitchTab(tid,idx){
       '100+':   Math.round(apAll.filter(x=>x>100        ).length/apTotal*100),
     };
 
-    // 外れ値（最高・最低利益）
-    const sorted = [...trials].sort((a,b)=>a.totalProfit-b.totalProfit);
+    // 外れ値（365日総現金変動で順位付け）
+    const sorted = [...trials].sort((a,b)=>a.totalNetChange365-b.totalNetChange365);
     const worstTrial = sorted[0];
     const bestTrial  = sorted[n-1];
 
-    const profitStats  = sf('totalProfit');
+    const profitStats  = sf('totalNetChange365');
     const apStats      = sf('avgAP');
     const deficitStats = sf('deficitMonths');
     const rating = _sim3AnalyzeRating({ profitStats, apStats, deficitStats, trials });
@@ -4555,14 +4580,22 @@ function qa2cSwitchTab(tid,idx){
     return {
       numTrials:n, trials,
       stats: {
-        totalRevenue:    sf('totalRevenue'),    totalProfit:      sf('totalProfit'),
-        totalStoreProfit:sf('totalStoreProfit'),
-        endCash:         sf('endCash'),         minCash:          sf('minCash'),
-        avgAP:         sf('avgAP'),          minAP:         sf('minAP'),
-        apShortDays:   sf('apShortDays'),    deficitMonths: sf('deficitMonths'),
-        eventCount:    sf('eventCount'),     caseSolved:    sf('caseSolved'),
-        caseFailed:    sf('caseFailed'),     staffCount:    sf('staffCount'),
-        productCount:  sf('productCount'),   reputation:    sf('reputation'),
+        totalRevenue:              sf('totalRevenue'),
+        completedMonthsNetChange:  sf('completedMonthsNetChange'),
+        residualNetChange:         sf('residualNetChange'),
+        totalNetChange365:         sf('totalNetChange365'),
+        completedMonthsStoreProfit:sf('completedMonthsStoreProfit'),
+        residualStoreProfit:       sf('residualStoreProfit'),
+        totalStoreProfit365:       sf('totalStoreProfit365'),
+        // 互換性維持
+        totalProfit:      sf('totalProfit'),
+        totalStoreProfit: sf('totalStoreProfit'),
+        endCash:         sf('endCash'),         minCash:       sf('minCash'),
+        avgAP:           sf('avgAP'),           minAP:         sf('minAP'),
+        apShortDays:     sf('apShortDays'),     deficitMonths: sf('deficitMonths'),
+        eventCount:      sf('eventCount'),      caseSolved:    sf('caseSolved'),
+        caseFailed:      sf('caseFailed'),      staffCount:    sf('staffCount'),
+        productCount:    sf('productCount'),    reputation:    sf('reputation'),
       },
       eventFrequency, characterAnalysis, monthlyAvg,
       productAnalysis, apHistogram, worstTrial, bestTrial,
@@ -4572,7 +4605,7 @@ function qa2cSwitchTab(tid,idx){
 
   // ── CSV / JSON エクスポート ──
   function _sim3ExportTrialSummaryCSV(r) {
-    const hdr = ['seed','totalRevenue','totalProfit','endCash','minCash','avgAP','minAP','apShortDays','deficitMonths','eventCount','caseSolved','caseFailed','staffCount','productCount','reputation'];
+    const hdr = ['seed','totalRevenue','completedMonthsNetChange','residualNetChange','totalNetChange365','completedMonthsStoreProfit','residualStoreProfit','totalStoreProfit365','endCash','minCash','avgAP','minAP','apShortDays','deficitMonths','eventCount','caseSolved','caseFailed','staffCount','productCount','reputation'];
     const rows = r.trials.map(t => hdr.map(k => t[k]??'').join(','));
     return [hdr.join(','), ...rows].join('\n');
   }
@@ -5380,9 +5413,13 @@ ${sr.anomalies.length ? `
 
       // ── 概要統計テーブル ──
       const statRows = [
-        ['年間売上',          fmtS(ar.stats.totalRevenue)],
-        ['年間純現金変動',    fmtS(ar.stats.totalProfit)],
-        ['年間店舗損益',      fmtS(ar.stats.totalStoreProfit)],
+        ['年間売上',                   fmtS(ar.stats.totalRevenue)],
+        ['12か月純現金変動',           fmtS(ar.stats.completedMonthsNetChange)],
+        ['残余期間現金変動',           fmtS(ar.stats.residualNetChange)],
+        ['365日総現金変動',            fmtS(ar.stats.totalNetChange365)],
+        ['12か月店舗損益',             fmtS(ar.stats.completedMonthsStoreProfit)],
+        ['残余期間店舗損益',           fmtS(ar.stats.residualStoreProfit)],
+        ['365日総店舗損益',            fmtS(ar.stats.totalStoreProfit365)],
         ['年末現金',    fmtS(ar.stats.endCash)],
         ['最低現金',    fmtS(ar.stats.minCash)],
         ['平均AP',      fmtS(ar.stats.avgAP)],
@@ -5403,7 +5440,7 @@ ${sr.anomalies.length ? `
       const trialRows = ar.trials.map(t =>
         `<tr style="font-size:10px">
           <td style="padding:1px 5px;color:#888">${t.seed}</td>
-          <td style="padding:1px 5px;text-align:right;color:${t.totalProfit>=0?'#66bb6a':'#ff5252'}">${fmt0(t.totalProfit)}</td>
+          <td style="padding:1px 5px;text-align:right;color:${(t.totalNetChange365??t.totalProfit)>=0?'#66bb6a':'#ff5252'}">${fmt0(t.totalNetChange365??t.totalProfit)}</td>
           <td style="padding:1px 5px;text-align:right;color:#ccc">${fmt0(t.totalRevenue)}</td>
           <td style="padding:1px 5px;text-align:right;color:#ccc">${fmt0(t.endCash)}</td>
           <td style="padding:1px 5px;text-align:right;color:#ccc">${t.avgAP??'-'}</td>
@@ -5485,13 +5522,13 @@ ${sr.anomalies.length ? `
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
   <div style="background:#1a0a0a;border:1px solid #5a1a1a;border-radius:6px;padding:8px 10px">
     <div style="font-size:10px;color:#ff5252;font-weight:700;margin-bottom:4px">📉 最低利益 (seed=${wt.seed})</div>
-    <div style="font-size:11px;color:#ccc">純現金変動: <strong style="color:#ff5252">${fmt0(wt.totalProfit)}</strong></div>
+    <div style="font-size:11px;color:#ccc">365日総現金変動: <strong style="color:#ff5252">${fmt0(wt.totalNetChange365??wt.totalProfit)}</strong></div>
     <div style="font-size:10px;color:#888;margin-top:4px">赤字月:${wt.deficitMonths} / 最低AP:${wt.minAP??'-'} / 案件失敗:${wt.caseFailed}</div>
     <div style="font-size:10px;color:#888">イベント:${wt.eventCount} / 商品:${wt.productCount}</div>
   </div>
   <div style="background:#0a1a0a;border:1px solid #1a5a1a;border-radius:6px;padding:8px 10px">
     <div style="font-size:10px;color:#66bb6a;font-weight:700;margin-bottom:4px">📈 最高利益 (seed=${bt.seed})</div>
-    <div style="font-size:11px;color:#ccc">純現金変動: <strong style="color:#66bb6a">${fmt0(bt.totalProfit)}</strong></div>
+    <div style="font-size:11px;color:#ccc">365日総現金変動: <strong style="color:#66bb6a">${fmt0(bt.totalNetChange365??bt.totalProfit)}</strong></div>
     <div style="font-size:10px;color:#888;margin-top:4px">赤字月:${bt.deficitMonths} / 最低AP:${bt.minAP??'-'} / 案件失敗:${bt.caseFailed}</div>
     <div style="font-size:10px;color:#888">イベント:${bt.eventCount} / 商品:${bt.productCount}</div>
   </div>
