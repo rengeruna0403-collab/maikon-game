@@ -1,15 +1,18 @@
 /**
- * 舞昆茶屋物語 QAツール Phase 1 v1.1 / Phase 2A
+ * 舞昆茶屋物語 QAツール Phase 1 v1.1 / Phase 2A / Phase 3A
  * ?qa=1 または ?debug=1 の場合のみ動作
  * ゲーム本体への影響なし・読み取り専用（Phase 2Aは1日テスト後に必ず復元）
  */
+window._MAIKON_QA_VERSION = '2026-07-18-step3-cashflow-1';
+console.log('[MAIKON-QA] loaded version:', window._MAIKON_QA_VERSION);
+
 (function () {
   'use strict';
 
   // ─── ガード：QAモード以外では即終了 ───
   if (!/[?&](qa|debug)=1/.test(location.search)) return;
 
-  const QA_VERSION = 'Phase 1 v1.1 / Phase 2A';
+  const QA_VERSION = 'Phase 1 v1.1 / Phase 2A / Phase 3A';
 
   // ══════════════════════════════════════════════════════════════
   // ■ 0. グローバル変数アクセス ヘルパー
@@ -4711,6 +4714,7 @@ function qa2cSwitchTab(tid,idx){
     result.elapsedMs = elapsedMs;
     result.startSeed = startSeed;
 
+    result.qaVersion = window._MAIKON_QA_VERSION || null;
     _sim3AnalyzeResult   = result;
     window._qa3aAnalyzeResult = result;
     _sim3AnalyzeRunning  = false;
@@ -4723,6 +4727,28 @@ function qa2cSwitchTab(tid,idx){
       });
     }, 1000);
 
+    return result;
+  };
+
+  window._qa3aDiagnoseVersion = function() {
+    const t = window._qa3aAnalyzeResult?.trials?.[0] || null;
+    const result = {
+      qaVersion:         window._MAIKON_QA_VERSION || null,
+      analyzeRunExists:  typeof window._qa3aAnalyzeRun === 'function',
+      resultExists:      !!window._qa3aAnalyzeResult,
+      resultQaVersion:   window._qa3aAnalyzeResult?.qaVersion || null,
+      trialExists:       !!t,
+      fields: t ? {
+        completedMonthsNetChange:   Object.hasOwn(t, 'completedMonthsNetChange'),
+        residualNetChange:          Object.hasOwn(t, 'residualNetChange'),
+        totalNetChange365:          Object.hasOwn(t, 'totalNetChange365'),
+        completedMonthsStoreProfit: Object.hasOwn(t, 'completedMonthsStoreProfit'),
+        residualStoreProfit:        Object.hasOwn(t, 'residualStoreProfit'),
+        totalStoreProfit365:        Object.hasOwn(t, 'totalStoreProfit365'),
+      } : null,
+    };
+    console.table(result.fields || { '(trial未取得 — _qa3aAnalyzeRunを先に実行)': true });
+    console.log(result);
     return result;
   };
 
