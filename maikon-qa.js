@@ -3,7 +3,7 @@
  * ?qa=1 または ?debug=1 の場合のみ動作
  * ゲーム本体への影響なし・読み取り専用（Phase 2Aは1日テスト後に必ず復元）
  */
-window._MAIKON_QA_VERSION = '2026-07-19-v021-realplay';
+window._MAIKON_QA_VERSION = '2026-07-19-v021-validateall';
 console.log('[MAIKON-QA] loaded version:', window._MAIKON_QA_VERSION);
 
 (function () {
@@ -6780,6 +6780,163 @@ ${ar && !anaRunning ? `
 
   // renderPhase3Tab を window に公開
   window._qa3RefreshPhase3 = renderPhase3Tab;
+
+  // ─────────────────────────────────────────────────────────────────
+  // _qa3ValidateAll — v0.2.1 全自動検証ランナー
+  // ─────────────────────────────────────────────────────────────────
+  window._qa3ValidateAll = async function(opts) {
+    opts = opts || {};
+    const numTrials = opts.trials || 3;
+    const seed      = opts.seed   || 1001;
+
+    const results = [];
+    const pass = (lbl, detail) => { results.push({lbl,st:'PASS',detail}); console.log(`✅ PASS  ${lbl}: ${detail}`); };
+    const fail = (lbl, detail) => { results.push({lbl,st:'FAIL',detail}); console.error(`❌ FAIL  ${lbl}: ${detail}`); };
+    const warn = (lbl, detail) => { results.push({lbl,st:'WARN',detail}); console.warn(`⚠️ WARN  ${lbl}: ${detail}`); };
+
+    // JSON正規化比較（undefined値消去・キー順差異を無視）
+    const jnorm = str => { try { return JSON.stringify(JSON.parse(str)); } catch(e) { return str; } };
+    const gEq   = (a, b) => jnorm(a) === jnorm(b);
+
+    let g; try { g = eval('G'); } catch(e) { fail('G取得', e.message); return null; }
+    const realGStr = JSON.stringify(g);
+
+    console.group('🔬 [_qa3ValidateAll] v0.2.1 全自動検証 開始');
+
+    // ── 0. バージョン確認 ──────────────────────────────────────────
+    console.group('■ 0. バージョン');
+    const qaVer  = window._MAIKON_QA_VERSION  || null;
+    const balVer = window._MAIKON_BALANCE_VERSION || null;
+    qaVer  ? pass('QA バージョン', qaVer)  : fail('QA バージョン', 'undefined');
+    balVer ? pass('Balance バージョン', balVer) : fail('Balance バージョン', 'undefined');
+    console.groupEnd();
+
+    // ── 1. 不正JSON拒否 ────────────────────────────────────────────
+    console.group('■ 1. 不正JSON拒否');
+    const rInvalid = window._qa3aAnalyzeRun(1, seed, {mode:'json', jsonStr:'{"no_started_field":1}'});
+    rInvalid === null ? pass('不正JSON拒否', 'null を返した') : fail('不正JSON拒否', '分析が進んでしまった');
+    console.groupEnd();
+
+    // ── 2. newモード ───────────────────────────────────────────────
+    console.group('■ 2. 新規ゲームモード');
+    const rNew = window._qa3aAnalyzeRun(numTrials, seed, {mode:'new', label:'[検証]新規'});
+    if (!rNew) {
+      fail('new 実行', 'null を返した（開始状態構築失敗）');
+    } else {
+      const t0 = rNew.trials[0];
+      rNew.trials.length === numTrials
+        ? pass('new 試行完走', `${rNew.trials.length}/${numTrials}`)
+        : fail('new 試行完走', `${rNew.trials.length}/${numTrials}`);
+      t0.startMoney === 1500000
+        ? pass('new 開始資金', `¥${t0.startMoney.toLocaleString()}`)
+        : fail('new 開始資金', `¥${t0.startMoney} (期待:1500000)`);
+      t0.startStaffCount === 0
+        ? pass('new 開始スタッフ', `${t0.startStaffCount}人`)
+        : fail('new 開始スタッフ', `${t0.startStaffCount}人 (期待:0)`);
+      (t0.startDate.year===1 && t0.startDate.month===4 && t0.startDate.day===1)
+        ? pass('new 開始日', `${t0.startDate.year}年${t0.startDate.month}月${t0.startDate.day}日`)
+        : fail('new 開始日', JSON.stringify(t0.startDate) + ' (期待:1年4月1日)');
+      // 材料費モデル
+      const br = rNew.businessReport;
+      const fcr = br?.summary?.avgFoodCostRatio;
+      const opm = br?.summary?.avgOperatingMargin;
+      (fcr != null && fcr > 0.05 && fcr < 0.7)
+        ? pass('v0.2 原価率', `${(fcr*100).toFixed(1)}%`)
+        : fail('v0.2 原価率', fcr != null ? `${(fcr*100).toFixed(1)}% (期待:5-70%)` : 'null');
+      (opm != null)
+        ? (opm > 0 ? pass('v0.2 営業利益率', `${(opm*100).toFixed(1)}%`) : warn('v0.2 営業利益率', `${(opm*100).toFixed(1)}% (赤字)`))
+        : fail('v0.2 営業利益率', 'null');
+      // G汚染チェック（new後）
+      const afterNewG = JSON.stringify(eval('G'));
+      gEq(afterNewG, realGStr)
+        ? pass('G復元（new後）', '正規化比較一致')
+        : fail('G復元（new後）', `差異あり 元:${realGStr.length}b 後:${afterNewG.length}b`);
+    }
+    console.groupEnd();
+
+    // ── 3. currentモード ───────────────────────────────────────────
+    console.group('■ 3. 現在のセーブモード');
+    const origGObj = JSON.parse(realGStr);
+    const rCur = window._qa3aAnalyzeRun(numTrials, seed, {mode:'current', label:'[検証]現在'});
+    if (!rCur) {
+      fail('current 実行', 'null を返した');
+    } else {
+      const t0 = rCur.trials[0];
+      rCur.trials.length === numTrials
+        ? pass('current 試行完走', `${rCur.trials.length}/${numTrials}`)
+        : fail('current 試行完走', `${rCur.trials.length}/${numTrials}`);
+      t0.startMoney === origGObj.money
+        ? pass('current 開始資金一致', `¥${t0.startMoney.toLocaleString()}`)
+        : fail('current 開始資金一致', `試行:¥${t0.startMoney} 元G:¥${origGObj.money}`);
+      t0.startStaffCount === (origGObj.staff||[]).length
+        ? pass('current 開始スタッフ一致', `${t0.startStaffCount}人`)
+        : fail('current 開始スタッフ一致', `試行:${t0.startStaffCount} 元G:${(origGObj.staff||[]).length}`);
+      t0.startProductCount === (origGObj.unlockedProducts||[]).length
+        ? pass('current 開始商品数一致', `${t0.startProductCount}個`)
+        : fail('current 開始商品数一致', `試行:${t0.startProductCount} 元G:${(origGObj.unlockedProducts||[]).length}`);
+      // G汚染チェック（current後）
+      const afterCurG = JSON.stringify(eval('G'));
+      gEq(afterCurG, realGStr)
+        ? pass('G復元（current後）', '正規化比較一致')
+        : fail('G復元（current後）', `差異あり 元:${realGStr.length}b 後:${afterCurG.length}b`);
+    }
+    console.groupEnd();
+
+    // ── 4. JSONモード ──────────────────────────────────────────────
+    console.group('■ 4. JSON貼り付けモード');
+    const rJson = window._qa3aAnalyzeRun(numTrials, seed, {mode:'json', jsonStr:realGStr, label:'[検証]JSON'});
+    if (!rJson) {
+      fail('JSON 実行', 'null を返した');
+    } else {
+      const t0 = rJson.trials[0];
+      rJson.trials.length === numTrials
+        ? pass('JSON 試行完走', `${rJson.trials.length}/${numTrials}`)
+        : fail('JSON 試行完走', `${rJson.trials.length}/${numTrials}`);
+      // currentと同一seedなら同一結果になるはず
+      if (rCur && rCur.trials.length === numTrials) {
+        const allMatch = rJson.trials.every((t,i) =>
+          t.totalNetChange365 === rCur.trials[i].totalNetChange365 &&
+          t.eventCount        === rCur.trials[i].eventCount
+        );
+        allMatch
+          ? pass('JSON再現性（current同一seed）', '全試行 totalNetChange365・eventCount 一致')
+          : warn('JSON再現性（current同一seed）', '差異あり（Gに時刻依存フィールドがある可能性）');
+      }
+      // G汚染チェック（JSON後）
+      const afterJsonG = JSON.stringify(eval('G'));
+      gEq(afterJsonG, realGStr)
+        ? pass('G復元（JSON後）', '正規化比較一致')
+        : fail('G復元（JSON後）', `差異あり 元:${realGStr.length}b 後:${afterJsonG.length}b`);
+    }
+    console.groupEnd();
+
+    // ── 5. 比較テーブル・履歴 ──────────────────────────────────────
+    console.group('■ 5. 比較テーブル・履歴');
+    const histLen = _sim3AnalysisHistory.length;
+    histLen >= 2
+      ? pass('比較履歴件数', `${histLen}件`)
+      : warn('比較履歴件数', `${histLen}件 (2件以上で比較テーブル表示)`);
+    const allLabels = _sim3AnalysisHistory.map(h=>h.label).join(' / ');
+    pass('履歴ラベル一覧', allLabels || '(なし)');
+    console.groupEnd();
+
+    // ── 総合判定 ──────────────────────────────────────────────────
+    const nPass = results.filter(r=>r.st==='PASS').length;
+    const nFail = results.filter(r=>r.st==='FAIL').length;
+    const nWarn = results.filter(r=>r.st==='WARN').length;
+    const overall = nFail === 0 ? (nWarn === 0 ? '✅ ALL PASS' : '⚠️  PASS（WARN有）') : '❌ FAIL';
+
+    console.group(`\n━━━━━━━━ 総合判定: ${overall}  PASS:${nPass} FAIL:${nFail} WARN:${nWarn} ━━━━━━━━`);
+    results.forEach(r => {
+      const ic = r.st==='PASS'?'✅':r.st==='FAIL'?'❌':'⚠️';
+      console.log(`${ic} [${r.st}] ${r.lbl}: ${r.detail}`);
+    });
+    console.groupEnd();
+    console.groupEnd();
+
+    return { overall, nPass, nFail, nWarn, results };
+  };
+  window._qa3ValidateAll.help = 'await window._qa3ValidateAll({trials:3, seed:1001})';
 
   // DOMが準備できていれば即時、そうでなければ待つ
   if (document.readyState === 'loading') {
