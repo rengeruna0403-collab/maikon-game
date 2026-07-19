@@ -551,7 +551,7 @@ function getMaxLevel(s){ return getStaffTitles(s).length - 1; }
 const DEV_MODE = new URLSearchParams(location.search).get('debug') === '1';
 
 // ─────────── BALANCE VERSION ───────────
-window._MAIKON_BALANCE_VERSION = '0.1-baseline';
+window._MAIKON_BALANCE_VERSION = '0.2-revenue-1'; // Balance v0.2-model-1
 
 // ─────────── GAME STATE ───────────
 let G = {
@@ -586,7 +586,7 @@ let G = {
   tabHighlights: {}, // ハイライト中タブ { store:true, staff:true, ... }
   staffUnlocked: false, // 人材タブ解放フラグ（みどり採用で true）
   totalRevenue: 0, totalProfit: 0,
-  monthRevenue: 0, monthExpense: 0,
+  monthRevenue: 0, monthExpense: 0, monthIngredientCost: 0,
   lastDayRevenue: 0,
   news: [],
   storyLog: [], // 物語ログ
@@ -647,8 +647,8 @@ let G = {
 
   stores: [{
     id:1, name:'舞昆茶屋1号店', region:'桜橋ハイツ1F',
-    customers:6, newCustomers:5, regulars:1, satisfaction:52, unitPrice:700,
-    staffCost:15000, ingredientCost:12000, rent:50000,
+    customers:6, newCustomers:6, regulars:1, satisfaction:52, unitPrice:700, // Balance v0.2-model-1: newCustomers 5→6
+    staffCost:15000, dailyPrepCost:1000, ingredientCostPerCustomer:250, rent:50000, // Balance v0.2-model-1: 固定ingredientCost→客数比例モデル
     menu:[],
     menuAddedMonth: {},
     upgrades:[], level:1, monthlyBonus:0,
@@ -691,7 +691,7 @@ let G = {
         event:null
       }, rent:50000, satisfaction:60},
     ],
-    monthlyMaintenance: 80000
+    monthlyMaintenance: 70000 // Balance v0.2-model-1: 80000→70000
   }],
 
   regions: [
@@ -832,7 +832,7 @@ function calcSeasonMult(month, store) {
 }
 
 function calcDailyRevenue(){
-  let rev=0, exp=0;
+  let rev=0, exp=0, totalIngCost=0; // Balance v0.2-model-1: track ingredient cost separately
   G.stores.forEach(s=>{
     if(!s.isOpen){ exp += Math.round(s.rent/30); return; }
     const policy = s.policy || 'owner';
@@ -846,7 +846,8 @@ function calcDailyRevenue(){
       const cHalf = (s.newCustomers||s.customers) + (s.regulars||0);
       const up2 = s.unitPrice || 700;
       rev += Math.floor(cHalf * 0.5) * up2 + (s.monthlyBonus||0)/30;
-      exp += s.ingredientCost + Math.round(s.rent/30);
+      const _ingHalf = s.dailyPrepCost != null ? (s.dailyPrepCost + Math.floor(cHalf*0.5)*(s.ingredientCostPerCustomer||0)) : (s.ingredientCost||0); // Balance v0.2-model-1
+      exp += _ingHalf + Math.round(s.rent/30); totalIngCost += _ingHalf;
       return;
     }
     // 縮小運営補正
@@ -880,14 +881,15 @@ function calcDailyRevenue(){
     staffMult = Math.max(0.6, Math.min(1.1, staffMult));
     const seasonMult = calcSeasonMult(G.month, s);
     rev += cTotal * up * revMult * staffMult * seasonMult + (s.monthlyBonus||0)/30;
-    exp += s.ingredientCost + Math.round(s.rent/30);
+    const _dailyIngredient = s.dailyPrepCost != null ? (s.dailyPrepCost + cTotal*(s.ingredientCostPerCustomer||0)) : (s.ingredientCost||0); // Balance v0.2-model-1
+    exp += _dailyIngredient + Math.round(s.rent/30); totalIngCost += _dailyIngredient;
   });
   G.buildings.forEach(b=>{
     b.rooms.filter(r=>r.tenant).forEach(r=>rev+=Math.round(r.rent/30));
     exp += Math.round(b.monthlyMaintenance/30);
   });
   exp += G.staff.reduce((s,st)=>s+Math.round(st.salary/30),0);
-  return {rev:Math.round(rev), exp:Math.round(exp), profit:Math.round(rev-exp)};
+  return {rev:Math.round(rev), exp:Math.round(exp), profit:Math.round(rev-exp), ingredientCost:Math.round(totalIngCost)}; // Balance v0.2-model-1
 }
 function toggleLargeText(){
   const on = document.body.classList.toggle('large-text');
@@ -2337,7 +2339,7 @@ function advanceDay(){
     if(G.tut.daysAdvanced>=1) tutCompleteStep('advance');
     if(G.tut.daysAdvanced>=3) tutCheckMission('advance');
   }
-  const {rev,exp,profit}=calcDailyRevenue();
+  const {rev,exp,profit,ingredientCost:_dailyIngCost}=calcDailyRevenue();
   // キャッシュフロー分離：固定費は即日現金から引く、売上は月末に入金
   G.money -= exp;
   G.receivables += rev;
@@ -2345,6 +2347,7 @@ function advanceDay(){
   G.totalProfit += profit;
   G.monthRevenue += rev;
   G.monthExpense += exp;
+  G.monthIngredientCost = (G.monthIngredientCost||0) + (_dailyIngCost||0); // Balance v0.2-model-1
   G.lastDayRevenue = rev;
 
   // 信用度：黒字が続くと少し回復
@@ -2644,7 +2647,7 @@ function monthlyTick(){
   }
   sendMonthlyAnalytics(monthProfit);
 
-  G.monthRevenue=0; G.monthExpense=0;
+  G.monthRevenue=0; G.monthExpense=0; G.monthIngredientCost=0; // Balance v0.2-model-1
 }
 
 // ─────────── 月末評価会議モーダル ───────────
@@ -10086,13 +10089,14 @@ function _advanceDayCore(){
     if(G.tut.daysAdvanced>=1) tutCompleteStep('advance');
     if(G.tut.daysAdvanced>=3) tutCheckMission('advance');
   }
-  const {rev,exp,profit}=calcDailyRevenue();
+  const {rev,exp,profit,ingredientCost:_dailyIngCost2}=calcDailyRevenue();
   G._totalMaikonSold = (G._totalMaikonSold||0) + G.stores.reduce((sum,s)=>sum+(s.customers||0),0);
   G._peakStaff = Math.max(G._peakStaff||0, G.staff.length);
   G.money -= exp;
   G.receivables += rev;
   G.totalRevenue += rev; G.totalProfit += profit;
   G.monthRevenue += rev; G.monthExpense += exp;
+  G.monthIngredientCost = (G.monthIngredientCost||0) + (_dailyIngCost2||0); // Balance v0.2-model-1
   G.lastDayRevenue = rev;
   if(profit > 0) G.creditScore = Math.min(100, G.creditScore + 0.2);
   if(G.money < 0){ G.cashNegativeDays=(G.cashNegativeDays||0)+1; G.cashShortageEver=true; }
@@ -11637,14 +11641,14 @@ function buyMenu(si,name,cost,sat,cust){
   G.stores[si].newCustomers = (G.stores[si].newCustomers || G.stores[si].customers) + cust;
   G.stores[si].customers = G.stores[si].newCustomers + (G.stores[si].regulars||0);
   // トレードオフ：食材コスト増・スタッフ負担増
-  const ingUp=3000;
-  G.stores[si].ingredientCost+=ingUp;
+  const ingPerCustUp = 50; // Balance v0.2-model-1: 客数比例モデルのため客一人あたり原価を増加
+  G.stores[si].ingredientCostPerCustomer = (G.stores[si].ingredientCostPerCustomer||0) + ingPerCustUp;
   G.staff.filter(s=>s.store===G.stores[si].name).forEach(s=>{
     s.burden=Math.min(100,(s.burden||0)+10);
   });
   scoreOwner(3,'menu');
-  addNews(`🍱 「${name}」追加 / 食材費+¥${ingUp.toLocaleString()}/日・スタッフ負担+10`);
-  notify(`「${name}」追加！ 客数+${cust} / 食材費+¥${ingUp.toLocaleString()}`);
+  addNews(`🍱 「${name}」追加 / 食材原価+¥${ingPerCustUp}/人・スタッフ負担+10`);
+  notify(`「${name}」追加！ 客数+${cust} / 食材原価+¥${ingPerCustUp}/人`);
   tutCompleteStep('set_menu');
   if(name.includes('たもぎ茸')) tutCheckMission('menu');
   updateHeader();
@@ -11802,7 +11806,7 @@ function openNewStore(){
   G.stores.push({id,name:`舞昆茶屋${id}号店`,region:'桜橋区',
     isOpen:true, policy:'owner',
     customers:15, newCustomers:14, regulars:1, satisfaction:55,
-    unitPrice:700, staffCost:0, ingredientCost:8000, rent:45000,
+    unitPrice:700, staffCost:0, dailyPrepCost:2000, ingredientCostPerCustomer:300, rent:45000, // Balance v0.2-model-1
     menu:['たもぎ茸舞昆定食'],upgrades:[],level:1,monthlyBonus:0});
   if(G.stores.length === 2){
     G._store2OpenDay = (G.year-1)*360 + (G.month-1)*30 + G.day;
@@ -12970,7 +12974,7 @@ function renderStore(){
         </div>
         ${(()=>{
           const _sRev = s.isOpen && s.menu && s.menu.length > 0 ? Math.round(totalCust * unitP) : 0;
-          const _sCost = s.ingredientCost + Math.round(s.rent/30);
+          const _sCost = (s.dailyPrepCost != null ? (s.dailyPrepCost + ((s.newCustomers||s.customers||0)+(s.regulars||0))*(s.ingredientCostPerCustomer||0)) : (s.ingredientCost||0)) + Math.round(s.rent/30); // Balance v0.2-model-1
           const _sProfit = _sRev - _sCost;
           const _margin = _sRev > 0 ? _sProfit / _sRev : -1;
           const [_bc,_bt] = _margin >= 0.2 ? ['badge-g','🎉 地域の人気店'] : _margin >= 0.1 ? ['badge-g','😊 安定経営'] : _margin >= 0 ? ['badge-w','🌱 軌道に乗り始めた'] : ['badge-r','⚠ 採算ラインに届いていない'];
@@ -14814,7 +14818,7 @@ function _showDebugPanelLegacy(){
             ['常連客', s0.regulars||0, '人/日'],
             ['客単価', s0.unitPrice||700, '円'],
             ['満足度', s0.satisfaction||50, '%'],
-            ['食材費', s0.ingredientCost||0, '円/日'],
+            ['食材費', s0.dailyPrepCost != null ? (s0.dailyPrepCost+((s0.newCustomers||s0.customers||0)+(s0.regulars||0))*(s0.ingredientCostPerCustomer||0)) : (s0.ingredientCost||0), '円/日'], // Balance v0.2-model-1
           ].map(([lbl,v,u])=>`<tr><td style="color:#aaa;padding:2px 0">${lbl}</td><td style="color:#fff;font-weight:700">${v}<span style="color:#666">${u}</span></td></tr>`).join('')}
         </table>
       </div>
@@ -15381,7 +15385,7 @@ window.addEventListener('visibilitychange', ()=>{
 <script>
 if(/[?&](qa|debug)=1/.test(location.search)){
   var _qaScript=document.createElement('script');
-  _qaScript.src='maikon-qa.js?v=20260718-v02-step0-baseline';
+  _qaScript.src='maikon-qa.js?v=20260719-v02-revenue1';
   document.head.appendChild(_qaScript);
 }
 </script>

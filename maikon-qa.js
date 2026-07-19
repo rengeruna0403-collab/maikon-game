@@ -3,7 +3,7 @@
  * ?qa=1 または ?debug=1 の場合のみ動作
  * ゲーム本体への影響なし・読み取り専用（Phase 2Aは1日テスト後に必ず復元）
  */
-window._MAIKON_QA_VERSION = '2026-07-18-v02-step0-baseline';
+window._MAIKON_QA_VERSION = '2026-07-19-v02-revenue1';
 console.log('[MAIKON-QA] loaded version:', window._MAIKON_QA_VERSION);
 
 (function () {
@@ -2441,6 +2441,7 @@ ${sf.unrestoredFunctions.length>0?`<div style="color:#ff4444;margin-top:4px">復
       occupied, total,
       storeRevenue: _sim2cStoreRevenue(),
       storeExpense: _sim2cStoreExpense(),
+      ingredientCost: G.monthIngredientCost || 0, // Balance v0.2-model-1
     };
   }
 
@@ -2658,6 +2659,7 @@ ${sf.unrestoredFunctions.length>0?`<div style="color:#ff4444;margin-top:4px">復
       // 月末売上/経費を advanceDay 前にキャプチャ（月初リセット前の最終値）
       s._lastDayRevenue = _sim2cStoreRevenue();
       s._lastDayExpense = _sim2cStoreExpense();
+      s._lastDayIngCost = G.monthIngredientCost || 0; // Balance v0.2-model-1
 
       // AP 不足日数カウント
       if (G.ap <= 0) s.stats.apShortageDays++;
@@ -2701,9 +2703,10 @@ ${sf.unrestoredFunctions.length>0?`<div style="color:#ff4444;margin-top:4px">復
       // 月境界
       if (G.month !== prevDate.month || G.year !== prevDate.year) {
         const snap = _sim2cMonthSnap(prevDate);
-        snap.storeRevenue = s._lastDayRevenue || snap.storeRevenue;
-        snap.storeExpense = s._lastDayExpense || snap.storeExpense;
-        snap.storeProfit  = snap.storeRevenue - snap.storeExpense;
+        snap.storeRevenue   = s._lastDayRevenue || snap.storeRevenue;
+        snap.storeExpense   = s._lastDayExpense || snap.storeExpense;
+        snap.ingredientCost = s._lastDayIngCost || 0; // Balance v0.2-model-1
+        snap.storeProfit    = snap.storeRevenue - snap.storeExpense;
         const prevSnap = s.monthlyData[s.monthlyData.length-1];
         snap.netChange   = snap.money - (prevSnap ? prevSnap.money : s.startState.money);
         snap.apAvg       = (() => { const v=s.apHistory.filter(x=>x!=null); return v.length?Math.round(v.reduce((a,b)=>a+b,0)/v.length):null; })();
@@ -4377,6 +4380,7 @@ function qa2cSwitchTab(tid,idx){
 
       // ── 完了月次分（M1〜M12）──
       const totalRevenue              = monthlyData.reduce((a,m)=>a+(m.storeRevenue||0),0);
+      const totalIngredientCost       = monthlyData.reduce((a,m)=>a+(m.ingredientCost||0),0); // Balance v0.2-model-1
       const completedMonthsNetChange  = monthlyData.reduce((a,m)=>a+(m.netChange||0),0);
       const completedMonthsStoreProfit= monthlyData.reduce((a,m)=>a+(m.storeRevenue||0)-(m.storeExpense||0),0);
       const deficitMonths             = monthlyData.filter(m=>(m.netChange||0)<0).length;
@@ -4398,7 +4402,7 @@ function qa2cSwitchTab(tid,idx){
       trial = {
         seed,
         // 互換性維持（旧フィールド名）
-        totalRevenue, totalProfit, totalStoreProfit,
+        totalRevenue, totalIngredientCost, totalProfit, totalStoreProfit, // Balance v0.2-model-1: totalIngredientCost追加
         // 正式フィールド
         completedMonthsNetChange,
         residualNetChange,
@@ -4584,6 +4588,7 @@ function qa2cSwitchTab(tid,idx){
       numTrials:n, trials,
       stats: {
         totalRevenue:              sf('totalRevenue'),
+        totalIngredientCost:       sf('totalIngredientCost'), // Balance v0.2-model-1
         completedMonthsNetChange:  sf('completedMonthsNetChange'),
         residualNetChange:         sf('residualNetChange'),
         totalNetChange365:         sf('totalNetChange365'),
@@ -5320,6 +5325,13 @@ function qa2cSwitchTab(tid,idx){
     const avgTotalExpense12 = (avgRevenue != null && avgStoreProfit12 != null)
       ? avgRevenue - avgStoreProfit12 : null;
 
+    // Balance v0.2-model-1: 材料費・原価率・営業利益率
+    const avgIngredientCost   = g('totalIngredientCost');
+    const avgFoodCostRatio    = (avgIngredientCost != null && avgRevenue != null && avgRevenue > 0)
+      ? avgIngredientCost / avgRevenue : null;
+    const avgOperatingMargin  = (avgStoreProfit12 != null && avgRevenue != null && avgRevenue > 0)
+      ? avgStoreProfit12 / avgRevenue : null;
+
     // イベントカテゴリ集計（頻度のみ。金銭損失額は情報不足）
     const evCat = {};
     for (const [id, d] of Object.entries(evFreq)) {
@@ -5480,7 +5492,8 @@ function qa2cSwitchTab(tid,idx){
       score,
       summary: { avgNetChange365, avgNetChange12, avgResidual, avgStoreProfit12, avgStoreProfit365,
                  avgRevenue, avgEndCash, avgMinCash, avgDeficit, avgAP, avgApShort,
-                 caseRate, avgProducts, avgStaff, avgRep },
+                 caseRate, avgProducts, avgStaff, avgRep,
+                 avgIngredientCost, avgFoodCostRatio, avgOperatingMargin }, // Balance v0.2-model-1
       rankings,
       bottlenecks,
       sensitivity,
@@ -5551,6 +5564,19 @@ function qa2cSwitchTab(tid,idx){
 
     const commentHtml = esc(br.comment||'').replace(/\n/g,'<br>');
 
+    // Balance v0.2-model-1: 収益モデル指標（バージョン比較用）
+    const sm = br.summary || {};
+    const fmtPct = v => v == null ? '-' : (v*100).toFixed(1)+'%';
+    const revenueModelRows = [
+      ['平均売上（12か月）',    fmt0(sm.avgRevenue),        '円/年'],
+      ['平均材料費（12か月）',  fmt0(sm.avgIngredientCost), '円/年'],
+      ['平均原価率',            fmtPct(sm.avgFoodCostRatio),    '(材料費/売上)'],
+      ['平均営業利益率',        fmtPct(sm.avgOperatingMargin),  '(店舗損益/売上)'],
+    ].map(([lbl,v,u])=>`<tr style="font-size:10px">
+      <td style="padding:2px 8px;color:#aaa;white-space:nowrap">${lbl}</td>
+      <td style="padding:2px 8px;color:#eee;font-weight:700;text-align:right">${v}</td>
+      <td style="padding:2px 8px;color:#666;font-size:9px">${u}</td></tr>`).join('');
+
     return `
 <div style="display:flex;align-items:center;gap:14px;margin-bottom:10px">
   <div style="background:rgba(0,0,0,.5);border:2px solid ${scoreColor};border-radius:8px;
@@ -5597,6 +5623,12 @@ function qa2cSwitchTab(tid,idx){
 <div style="background:#0d1f2d;border:1px solid #1e3a5a;border-radius:6px;padding:10px 14px;margin-bottom:8px">
   <div style="font-size:11px;color:#64b5f6;font-weight:700;margin-bottom:6px">🎯 改善提案 TOP${(br.suggestions||[]).length}</div>
   ${suggCards}
+</div>
+
+<div style="background:#0d1f2d;border:1px solid #1e3a5a;border-radius:6px;padding:10px 14px;margin-bottom:8px">
+  <div style="font-size:11px;color:#64b5f6;font-weight:700;margin-bottom:6px">📦 収益モデル指標（バランスバージョン比較用）</div>
+  <div style="font-size:9px;color:#888;margin-bottom:6px">balanceVersion: ${esc(br.qaVersion||'-')} — Balance v0.2-model-1以降で材料費が取得可能</div>
+  <table style="border-collapse:collapse;width:100%">${revenueModelRows}</table>
 </div>
 
 <div style="background:#0d1f2d;border:1px solid #1e3a5a;border-radius:6px;padding:10px 14px;margin-bottom:8px">
