@@ -3,7 +3,7 @@
  * ?qa=1 または ?debug=1 の場合のみ動作
  * ゲーム本体への影響なし・読み取り専用（Phase 2Aは1日テスト後に必ず復元）
  */
-window._MAIKON_QA_VERSION = '2026-07-19-v03-event-analytics';
+window._MAIKON_QA_VERSION = '2026-07-19-v03b-event-analytics';
 console.log('[MAIKON-QA] loaded version:', window._MAIKON_QA_VERSION);
 
 (function () {
@@ -4730,13 +4730,26 @@ function qa2cSwitchTab(tid,idx){
 
     // 収益構造（4区分平均）
     const avg = k => Math.round(trials.reduce((a,t)=>a+(t[k]||0),0)/n);
-    const storeProfit365 = avg('totalStoreProfit365');
-    const rentNet        = avg('totalRentNet');
-    const eventMoney     = avg('totalEventMoney');
-    const caseMoney      = avg('totalCaseMoney');
-    const total          = storeProfit365 + rentNet + eventMoney + caseMoney;
+    const storeProfit  = avg('totalStoreProfit365');
+    const residualNet  = avg('totalRentNet');   // 残差：家賃等その他（直接計測不可）
+    const eventProfit  = avg('totalEventMoney');
+    const caseProfit   = avg('totalCaseMoney');
+    const total        = storeProfit + residualNet + eventProfit + caseProfit;
+    // 寄与率（totalがゼロなら null）
+    const rate = (v) => total !== 0 ? +(v / Math.abs(total) * 100).toFixed(1) : null;
+    const revenueBreakdown = {
+      storeProfit, residualNet, eventProfit, caseProfit, total,
+      // 後方互換エイリアス
+      storeProfit365: storeProfit, rentNet: residualNet,
+      eventMoney: eventProfit, caseMoney: caseProfit,
+      // 寄与率
+      storeRate:   rate(storeProfit),
+      residualRate: rate(residualNet),
+      eventRate:   rate(eventProfit),
+      caseRate:    rate(caseProfit),
+    };
 
-    return { perEvent, byCategory, revenueBreakdown: { storeProfit365, rentNet, eventMoney, caseMoney, total } };
+    return { perEvent, byCategory, revenueBreakdown };
   }
 
   // ── CSV / JSON エクスポート ──
@@ -5054,6 +5067,8 @@ function qa2cSwitchTab(tid,idx){
     result.startMode  = runMode;
     result.startLabel = runLabel;
     result.businessReport = _sim3BusinessReport(result);
+    // v0.3: revenueBreakdown を result 直下にも公開（アクセスしやすくする）
+    result.revenueBreakdown = result.eventAnalytics ? result.eventAnalytics.revenueBreakdown : null;
     console.log('[QA] BusinessReport generated', result.businessReport);
     _sim3AnalyzeResult   = result;
     window._qa3aAnalyzeResult = result;
@@ -6243,23 +6258,26 @@ function qa2cSwitchTab(tid,idx){
     const fmts = v => v == null ? '-' : (v >= 0 ? '+¥'+Math.round(v).toLocaleString() : '-¥'+Math.round(Math.abs(v)).toLocaleString());
 
     // ── 収益構造テキストバー ──
+    // 「家賃等の残余収支」は残差のため正確な内訳ではなく、その旨を明示する
     const total = rb.total || 1;
     const segments = [
-      { label:'店舗営業', value:rb.storeProfit365, color:'#4fc3f7' },
-      { label:'家賃純益', value:rb.rentNet,         color:'#81c784' },
-      { label:'イベント', value:rb.eventMoney,       color:'#ffb74d' },
-      { label:'案件',     value:rb.caseMoney,        color:'#ce93d8' },
+      { label:'店舗営業',         key:'storeProfit',  value:rb.storeProfit,  color:'#4fc3f7' },
+      { label:'家賃等の残余収支', key:'residualNet',   value:rb.residualNet,  color:'#81c784',
+        note:'※ 家賃収入・維持費・その他の残差' },
+      { label:'イベント',         key:'eventProfit',  value:rb.eventProfit,  color:'#ffb74d' },
+      { label:'案件',             key:'caseProfit',   value:rb.caseProfit,   color:'#ce93d8' },
     ].map(seg => ({ ...seg, pct: total !== 0 ? (seg.value / Math.abs(total) * 100) : 0 }));
 
-    const BAR_WIDTH = 36;
+    const BAR_WIDTH = 32;
     const barRows = segments.map(seg => {
       const absPct = Math.min(Math.abs(seg.pct), 100);
       const filled = Math.round(absPct / 100 * BAR_WIDTH);
       const bar = (seg.value >= 0 ? '█' : '░').repeat(filled).padEnd(BAR_WIDTH);
       const pctStr = (seg.pct >= 0 ? '+' : '') + seg.pct.toFixed(1) + '%';
+      const rateStr = rb[seg.key+'Rate'] != null ? rb[seg.key+'Rate'] : seg.pct.toFixed(1);
       return `<tr>
-        <td style="padding:2px 8px;color:${seg.color};white-space:nowrap;font-weight:700">${esc(seg.label)}</td>
-        <td style="padding:2px 4px;font-family:monospace;color:${seg.value>=0?seg.color:'#ff7043'};letter-spacing:0;font-size:11px">${bar}</td>
+        <td style="padding:2px 8px;color:${seg.color};white-space:nowrap;font-weight:700;font-size:10px">${esc(seg.label)}</td>
+        <td style="padding:2px 2px;font-family:monospace;color:${seg.value>=0?seg.color:'#ff7043'};letter-spacing:0;font-size:11px">${bar}</td>
         <td style="padding:2px 8px;text-align:right;color:#ccc;font-size:10px">${pctStr}</td>
         <td style="padding:2px 8px;text-align:right;color:#888;font-size:10px">${fmts(seg.value)}</td>
       </tr>`;
@@ -6271,15 +6289,26 @@ function qa2cSwitchTab(tid,idx){
       <td style="padding:2px 8px;text-align:right;color:${c.avgMoney>=0?'#66bb6a':'#ff5252'}">${fmts(c.avgMoney)}</td>
     </tr>`).join('');
 
-    // ── イベント別テーブル（上位20件） ──
-    const evRows = perEvent.slice(0, 20).map(ev => `<tr>
-      <td style="padding:2px 6px;color:${ev.isCase?'#ce93d8':'#64b5f6'};font-size:9px">${ev.isCase?'案件':'EV'}</td>
-      <td style="padding:2px 6px;color:#ccc;font-size:10px;max-width:180px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${esc(ev.title||ev.eventId)}</td>
-      <td style="padding:2px 6px;text-align:right;color:#eee;font-size:10px">${ev.avgCount}</td>
-      <td style="padding:2px 6px;text-align:right;color:${ev.avgTotalMoney>=0?'#66bb6a':'#ff5252'};font-size:10px">${fmts(ev.avgTotalMoney)}</td>
-      <td style="padding:2px 6px;text-align:right;color:#aaa;font-size:10px">${fmts(ev.avgMoneyPerEvent)}</td>
-      <td style="padding:2px 6px;text-align:right;color:#f0c040;font-size:10px">${ev.avgAPPerEvent}</td>
-    </tr>`).join('');
+    // ── イベント別テーブル（|年間収支|降順 上位20件）──
+    const evSorted = [...perEvent].sort((a,b)=>Math.abs(b.avgTotalMoney)-Math.abs(a.avgTotalMoney));
+    const evRows = evSorted.slice(0, 20).map(ev => {
+      // AP変動/回：消費はマイナス、回復はプラスで表示
+      const apSign = ev.avgAPPerEvent !== 0 ? (ev.avgAPPerEvent > 0 ? '-' : '+') : '±0';
+      const apDisp = ev.avgAPPerEvent !== 0 ? apSign + Math.abs(ev.avgAPPerEvent) : '±0';
+      // 計算根拠チェック: avgCount × avgMoneyPerEvent ≒ avgTotalMoney
+      const computed = Math.round(ev.avgCount * ev.avgMoneyPerEvent);
+      const diff = Math.abs(computed - ev.avgTotalMoney);
+      const consistent = diff <= Math.max(100, Math.abs(ev.avgTotalMoney) * 0.01);
+      return `<tr style="${!consistent?'background:#1a0a0a':''}">
+        <td style="padding:2px 6px;color:${ev.isCase?'#ce93d8':'#64b5f6'};font-size:9px">${ev.isCase?'案件':'EV'}</td>
+        <td style="padding:2px 6px;color:#ccc;font-size:10px;max-width:180px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis" title="${esc(ev.eventId)}">${esc(ev.title||ev.eventId)}</td>
+        <td style="padding:2px 6px;text-align:right;color:#eee;font-size:10px">${ev.avgCount}</td>
+        <td style="padding:2px 6px;text-align:right;color:${ev.avgTotalMoney>=0?'#66bb6a':'#ff5252'};font-size:10px">${fmts(ev.avgTotalMoney)}</td>
+        <td style="padding:2px 6px;text-align:right;color:#aaa;font-size:10px">${fmts(ev.avgMoneyPerEvent)}</td>
+        <td style="padding:2px 6px;text-align:right;color:${ev.avgAPPerEvent>0?'#ff7043':ev.avgAPPerEvent<0?'#66bb6a':'#555'};font-size:10px">${apDisp}</td>
+        ${!consistent?`<td style="color:#ff5252;font-size:9px">⚠</td>`:'<td></td>'}
+      </tr>`;
+    }).join('');
 
     return `
 <div style="background:#0d0d1a;border:2px solid #2a2a5a;border-radius:8px;padding:14px 16px;margin-top:12px">
@@ -6287,7 +6316,8 @@ function qa2cSwitchTab(tid,idx){
 
   <div style="font-size:11px;color:#64b5f6;font-weight:700;margin-bottom:6px">■ 年間利益の内訳（365日平均）</div>
   <div style="background:#060610;border:1px solid #1e1e4a;border-radius:4px;padding:8px 10px;margin-bottom:12px">
-    <div style="font-size:10px;color:#555;margin-bottom:6px">総現金変動: ${fmts(rb.total)} （正 = 黒字）</div>
+    <div style="font-size:10px;color:#555;margin-bottom:6px">総現金変動: ${fmts(rb.total)} （正 = 黒字）&nbsp;
+      <span style="color:#444">※「家賃等の残余収支」は直接計測不可の残差です</span></div>
     <table style="border-collapse:collapse;width:100%;font-size:11px">${barRows}</table>
   </div>
 
@@ -6301,10 +6331,10 @@ function qa2cSwitchTab(tid,idx){
     </div>
     <div style="flex:1;min-width:200px">
       <div style="font-size:11px;color:#64b5f6;font-weight:700;margin-bottom:4px">■ 収益寄与率</div>
-      ${segments.filter(s=>rb.total!==0).map(s=>{
-        const pct = (s.value/Math.abs(rb.total)*100);
+      ${segments.filter(()=>rb.total!==0).map(s=>{
+        const pct = s.pct;
         return `<div style="margin-bottom:4px;font-size:10px">
-          <span style="color:${s.color};font-weight:700;display:inline-block;width:60px">${s.label}</span>
+          <span style="color:${s.color};font-weight:700;display:inline-block;width:80px">${s.label}</span>
           <span style="color:${pct>=0?s.color:'#ff7043'}">${pct>=0?'+':''}${pct.toFixed(1)}%</span>
           <span style="color:#555;margin-left:8px">${fmts(s.value)}</span>
         </div>`;
@@ -6312,7 +6342,10 @@ function qa2cSwitchTab(tid,idx){
     </div>
   </div>
 
-  <div style="font-size:11px;color:#64b5f6;font-weight:700;margin-bottom:6px">■ イベント・案件別詳細（発生数順 上位20件）</div>
+  <div style="font-size:11px;color:#64b5f6;font-weight:700;margin-bottom:6px">
+    ■ イベント・案件別詳細（|年間収支|降順 上位20件）
+    <span style="font-size:9px;color:#555;font-weight:400;margin-left:8px">⚠ = 発生数×期待値と年間収支の乖離あり</span>
+  </div>
   <div style="overflow-x:auto">
     <table style="border-collapse:collapse;width:100%;font-size:10px">
       <tr style="color:#555">
@@ -6321,7 +6354,8 @@ function qa2cSwitchTab(tid,idx){
         <th style="padding:2px 6px;text-align:right">平均発生数</th>
         <th style="padding:2px 6px;text-align:right">年間収支</th>
         <th style="padding:2px 6px;text-align:right">1回期待値</th>
-        <th style="padding:2px 6px;text-align:right">AP/回</th>
+        <th style="padding:2px 6px;text-align:right">AP変動/回</th>
+        <th></th>
       </tr>
       ${evRows}
     </table>
@@ -7119,6 +7153,56 @@ ${ar.eventAnalytics ? _sim3EventAnalyticsHtml(ar.eventAnalytics) : ''}
       : warn('比較履歴件数', `${histLen}件 (2件以上で比較テーブル表示)`);
     const allLabels = _sim3AnalysisHistory.map(h=>h.label).join(' / ');
     pass('履歴ラベル一覧', allLabels || '(なし)');
+    console.groupEnd();
+
+    // ── 6. v0.3 収益構造分析 ──────────────────────────────────────
+    console.group('■ 6. v0.3 収益構造分析');
+    const rb = rNew?.revenueBreakdown || null;
+    if (!rb) {
+      fail('revenueBreakdown 存在', 'null (newモード結果が未取得)');
+    } else {
+      // 6-1: total が有限値
+      Number.isFinite(rb.total)
+        ? pass('rb.total 有限値', rb.total.toLocaleString())
+        : fail('rb.total 有限値', String(rb.total));
+      // 6-2: total === 4項目の合計（丸め誤差 ±1 許容）
+      const recomputed = (rb.storeProfit||0)+(rb.residualNet||0)+(rb.eventProfit||0)+(rb.caseProfit||0);
+      Math.abs(rb.total - recomputed) <= 1
+        ? pass('rb.total 合計一致', `total=${rb.total} recomputed=${recomputed}`)
+        : fail('rb.total 合計一致', `total=${rb.total} recomputed=${recomputed} diff=${rb.total-recomputed}`);
+      // 6-3: 寄与率合計が約100%（±1.0%）
+      const sumRate = (rb.storeRate||0)+(rb.residualRate||0)+(rb.eventRate||0)+(rb.caseRate||0);
+      Math.abs(Math.abs(sumRate) - 100) <= 1.5   // 混在ケースではズレあり
+        ? pass('寄与率合計', `${sumRate.toFixed(1)}% (≒±100%)`)
+        : warn('寄与率合計', `${sumRate.toFixed(1)}% (収益・損失混在の可能性)`);
+      // 6-4: NaN / Infinity がないか
+      const rbVals = [rb.storeProfit, rb.residualNet, rb.eventProfit, rb.caseProfit, rb.total,
+                      rb.storeRate, rb.residualRate, rb.eventRate, rb.caseRate];
+      const nanFields = rbVals.filter(v => !Number.isFinite(v));
+      nanFields.length === 0
+        ? pass('rb NaN/Infinity なし', '全フィールド有限値')
+        : fail('rb NaN/Infinity あり', `${nanFields.length}フィールド異常`);
+    }
+    // 6-5: イベント詳細の整合性（perEventStats）
+    const ea = rNew?.eventAnalytics;
+    if (ea && ea.perEvent && ea.perEvent.length > 0) {
+      pass('perEvent 件数', `${ea.perEvent.length}件`);
+      // avgCount × avgMoneyPerEvent ≒ avgTotalMoney のチェック
+      const inconsistent = ea.perEvent.filter(ev => {
+        const computed = Math.round(ev.avgCount * ev.avgMoneyPerEvent);
+        return Math.abs(computed - ev.avgTotalMoney) > Math.max(200, Math.abs(ev.avgTotalMoney)*0.02);
+      });
+      inconsistent.length === 0
+        ? pass('発生数×期待値 整合性', '全件 ±2%以内')
+        : warn('発生数×期待値 乖離', `${inconsistent.length}件乖離（${inconsistent.slice(0,3).map(e=>e.title||e.eventId).join(', ')}...）`);
+      // 正収支・負収支それぞれ存在するか
+      const hasPlus  = ea.perEvent.some(e=>e.avgTotalMoney>0);
+      const hasMinus = ea.perEvent.some(e=>e.avgTotalMoney<0);
+      hasPlus  ? pass('正収支イベント存在', '1件以上') : warn('正収支イベント存在', '0件（全てゼロ or マイナス）');
+      hasMinus ? pass('負収支イベント存在', '1件以上') : warn('負収支イベント存在', '0件（全てゼロ or プラス）');
+    } else {
+      warn('perEvent 件数', ea ? '0件（イベント未発生）' : 'eventAnalytics null');
+    }
     console.groupEnd();
 
     // ── 総合判定 ──────────────────────────────────────────────────
