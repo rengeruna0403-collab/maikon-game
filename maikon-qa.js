@@ -3,7 +3,7 @@
  * ?qa=1 または ?debug=1 の場合のみ動作
  * ゲーム本体への影響なし・読み取り専用（Phase 2Aは1日テスト後に必ず復元）
  */
-window._MAIKON_QA_VERSION = '2026-07-19-v03b-event-analytics';
+window._MAIKON_QA_VERSION = '2026-07-19-v03c-weighted-avg';
 console.log('[MAIKON-QA] loaded version:', window._MAIKON_QA_VERSION);
 
 (function () {
@@ -4684,36 +4684,40 @@ function qa2cSwitchTab(tid,idx){
   // ─── v0.3: 全試行のイベント別データを平均化 ───
   function _sim3AggregateEventAnalytics(trials) {
     if (!trials || !trials.length) return null;
-    // 全試行の perEventStats をマージ
+    // タイトル単位で全試行を合算（同名の結果分岐も統合）
     const map = {};
     for (const t of trials) {
       for (const ev of (t.perEventStats||[])) {
-        if (!map[ev.eventId]) map[ev.eventId] = {
+        const key = ev.title || ev.eventId;
+        if (!map[key]) map[key] = {
           eventId:ev.eventId, title:ev.title, category:ev.category, isCase:ev.isCase,
-          _counts:[], _moneys:[], _aps:[],
+          totalCount:0, totalMoney:0, totalAP:0,
         };
-        map[ev.eventId]._counts.push(ev.count);
-        map[ev.eventId]._moneys.push(ev.totalMoney);
-        map[ev.eventId]._aps.push(ev.totalAP);
+        map[key].totalCount += ev.count;
+        map[key].totalMoney += ev.totalMoney;
+        map[key].totalAP    += ev.totalAP;
       }
     }
     const n = trials.length;
     const perEvent = Object.values(map).map(r => {
-      const avgCount = r._counts.reduce((a,b)=>a+b,0) / n;
-      const avgTotal = r._moneys.reduce((a,b)=>a+b,0) / n;
-      const avgAP    = r._aps.reduce((a,b)=>a+b,0) / n;
-      const avgMoney = avgCount > 0 ? Math.round(avgTotal / avgCount) : 0;
+      // 全試行合計から直接計算。rawAvgCount × rawAvgMoneyPerEvent = rawAvgMoney が恒等式
+      const rawAvgCount         = r.totalCount / n;
+      const rawAvgMoney         = r.totalMoney / n;
+      const rawAvgMoneyPerEvent = r.totalCount > 0 ? r.totalMoney / r.totalCount : 0;
+      const rawAvgAPPerEvent    = r.totalCount > 0 ? r.totalAP    / r.totalCount : 0;
       return {
         eventId:    r.eventId,
         title:      r.title,
         category:   r.category,
         isCase:     r.isCase,
-        avgCount:   +avgCount.toFixed(1),
-        avgTotalMoney: Math.round(avgTotal),
-        avgMoneyPerEvent: avgMoney,
-        avgAPPerEvent: avgCount > 0 ? +(avgAP/avgCount).toFixed(1) : 0,
+        avgCount:         +rawAvgCount.toFixed(1),
+        avgTotalMoney:    Math.round(rawAvgMoney),
+        avgMoneyPerEvent: Math.round(rawAvgMoneyPerEvent),
+        avgAPPerEvent:    +rawAvgAPPerEvent.toFixed(1),
+        // 検証用未丸め値：rawAvgCount × rawAvgMoneyPerEvent === rawAvgMoney（数学的に厳密）
+        _raw: { avgCount: rawAvgCount, avgMoney: rawAvgMoney, avgMoneyPerEvent: rawAvgMoneyPerEvent },
       };
-    }).sort((a,b) => b.avgCount - a.avgCount);
+    }).sort((a,b) => Math.abs(b.avgTotalMoney) - Math.abs(a.avgTotalMoney));
 
     // カテゴリ別集計
     const catMap = {};
@@ -7187,13 +7191,14 @@ ${ar.eventAnalytics ? _sim3EventAnalyticsHtml(ar.eventAnalytics) : ''}
     const ea = rNew?.eventAnalytics;
     if (ea && ea.perEvent && ea.perEvent.length > 0) {
       pass('perEvent 件数', `${ea.perEvent.length}件`);
-      // avgCount × avgMoneyPerEvent ≒ avgTotalMoney のチェック
+      // avgCount × avgMoneyPerEvent = avgTotalMoney の厳密チェック（未丸め値で検証）
       const inconsistent = ea.perEvent.filter(ev => {
-        const computed = Math.round(ev.avgCount * ev.avgMoneyPerEvent);
-        return Math.abs(computed - ev.avgTotalMoney) > Math.max(200, Math.abs(ev.avgTotalMoney)*0.02);
+        if (!ev._raw) return true;
+        const diff = Math.abs(ev._raw.avgCount * ev._raw.avgMoneyPerEvent - ev._raw.avgMoney);
+        return diff > 1e-6;
       });
       inconsistent.length === 0
-        ? pass('発生数×期待値 整合性', '全件 ±2%以内')
+        ? pass('発生数×期待値 整合性', '全件 厳密一致（未丸め）')
         : warn('発生数×期待値 乖離', `${inconsistent.length}件乖離（${inconsistent.slice(0,3).map(e=>e.title||e.eventId).join(', ')}...）`);
       // 正収支・負収支それぞれ存在するか
       const hasPlus  = ea.perEvent.some(e=>e.avgTotalMoney>0);
