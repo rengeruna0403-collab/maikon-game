@@ -3,7 +3,7 @@
  * ?qa=1 または ?debug=1 の場合のみ動作
  * ゲーム本体への影響なし・読み取り専用（Phase 2Aは1日テスト後に必ず復元）
  */
-window._MAIKON_QA_VERSION = '2026-07-19-v02-revenue1';
+window._MAIKON_QA_VERSION = '2026-07-19-v021-realplay';
 console.log('[MAIKON-QA] loaded version:', window._MAIKON_QA_VERSION);
 
 (function () {
@@ -4305,6 +4305,10 @@ function qa2cSwitchTab(tid,idx){
   let _sim3AnalyzeStopReq  = false;
   let _sim3AnalyzeResult   = null;
 
+  // ─── v0.2.1: 開始状態モード ───
+  let _sim3StartMode     = 'current'; // 'new' | 'current' | 'json'
+  let _sim3AnalysisHistory = [];      // [{label, mode, result}] max 3件
+
   window._qa3aAnalyzeStop = function() {
     _sim3AnalyzeStopReq = true;
     console.log('[QA-Ana] 停止要求受付');
@@ -4347,13 +4351,26 @@ function qa2cSwitchTab(tid,idx){
     const rng = _mkTrackedRng(seed);
     let trial = null;
     try {
+      // v0.2.1: 試行開始前に必ずGをgSnapに設定する（new/jsonモード対応）
+      try { eval('G = JSON.parse(gSnap)'); } catch(e) {
+        console.error('[QA-Ana] G初期化失敗:', e); return null;
+      }
       _sim3LockstepSetup(gSnap);
       Math.random = rng;
+
+      // 初期状態を記録（G=gSnapセット後なので正確な開始値）
+      let gStart; try { gStart = eval('G'); } catch(e) { gStart = {}; }
+      const startYear  = gStart.year  || 1;
+      const startMonth = gStart.month || 4;
+      const startDay   = gStart.day   || 1;
+      const startMoney = gStart.money || 0;
+      const startStaffCount   = (gStart.staff||[]).length;
+      const startProductCount = (gStart.unlockedProducts||[]).length;
 
       // 初期解放済み商品を記録
       const productUnlockDays = {};
       let prevUnlocked = [];
-      try { prevUnlocked = [...(eval('G').unlockedProducts||[])]; } catch(e) {}
+      try { prevUnlocked = [...(gStart.unlockedProducts||[])]; } catch(e) {}
 
       for (let d = 0; d < 365; d++) {
         if (_sim3AnalyzeStopReq) break;
@@ -4399,8 +4416,12 @@ function qa2cSwitchTab(tid,idx){
       const totalProfit      = completedMonthsNetChange;
       const totalStoreProfit = completedMonthsStoreProfit;
 
+      const caseCountAll = casesArr.length; // 生成された案件総数（成功+失敗+未完了）
       trial = {
         seed,
+        // v0.2.1: 開始状態
+        startDate: { year:startYear, month:startMonth, day:startDay },
+        startMoney, startStaffCount, startProductCount,
         // 互換性維持（旧フィールド名）
         totalRevenue, totalIngredientCost, totalProfit, totalStoreProfit, // Balance v0.2-model-1: totalIngredientCost追加
         // 正式フィールド
@@ -4418,6 +4439,7 @@ function qa2cSwitchTab(tid,idx){
         apShortDays:  apValid.filter(x=>x<=0).length,
         deficitMonths,
         eventCount:   s.stats.totalEvents||0,
+        caseCount:    caseCountAll,
         caseSolved:   casesArr.filter(c=>c.resolved&&!c._expired).length,
         caseFailed:   casesArr.filter(c=>c._expired).length,
         staffCount:   (gEnd.staff||[]).length,
@@ -4601,9 +4623,10 @@ function qa2cSwitchTab(tid,idx){
         endCash:         sf('endCash'),         minCash:       sf('minCash'),
         avgAP:           sf('avgAP'),           minAP:         sf('minAP'),
         apShortDays:     sf('apShortDays'),     deficitMonths: sf('deficitMonths'),
-        eventCount:      sf('eventCount'),      caseSolved:    sf('caseSolved'),
-        caseFailed:      sf('caseFailed'),      staffCount:    sf('staffCount'),
-        productCount:    sf('productCount'),    reputation:    sf('reputation'),
+        eventCount:      sf('eventCount'),      caseCount:     sf('caseCount'),
+        caseSolved:      sf('caseSolved'),      caseFailed:    sf('caseFailed'),
+        staffCount:      sf('staffCount'),      productCount:  sf('productCount'),
+        reputation:      sf('reputation'),
       },
       eventFrequency, characterAnalysis, monthlyAvg,
       productAnalysis, apHistogram, worstTrial, bestTrial,
@@ -4649,10 +4672,180 @@ function qa2cSwitchTab(tid,idx){
     }, null, 2);
   }
 
+  // ─── v0.2.1: 開始状態ヘルパー ───
+
+  function _sim3MakeFreshStartSnap(g) {
+    const snap = JSON.parse(JSON.stringify(g));
+    snap.year = 1; snap.month = 4; snap.day = 1;
+    snap.money = 1500000; snap.receivables = 0;
+    snap.totalRevenue = 0; snap.totalProfit = 0;
+    snap.monthRevenue = 0; snap.monthExpense = 0; snap.monthIngredientCost = 0;
+    snap.creditScore = 60; snap.ap = 100; snap.apMax = 100; snap.fatigue = 0;
+    snap.staff = []; snap.cases = []; snap.history = snap.history || [];
+    snap.tut = Object.assign({}, snap.tut || {}, { phase: 'done' });
+    snap.activeEvent = null; snap.processingMonthly = false;
+    snap.isAdvancingDay = false; snap.autoTesting = false;
+    const s0 = snap.stores[0];
+    s0.isOpen = true; s0.policy = 'owner';
+    s0.newCustomers = 6; s0.customers = 7; s0.regulars = 1;
+    s0.satisfaction = 50; s0.unitPrice = 700; s0.level = 1; s0.monthlyBonus = 0;
+    s0.menu = []; s0.menuAddedMonth = {}; s0.servedToday = false;
+    delete s0.ingredientCost;
+    s0.dailyPrepCost = s0.dailyPrepCost != null ? s0.dailyPrepCost : 1000;
+    s0.ingredientCostPerCustomer = s0.ingredientCostPerCustomer != null ? s0.ingredientCostPerCustomer : 250;
+    if (snap.buildings && snap.buildings[0] && snap.buildings[0].rooms) {
+      const rm = snap.buildings[0].rooms;
+      if (rm[2]) rm[2].tenant = null;
+      if (rm[3]) rm[3].tenant = null;
+      if (rm[5]) rm[5].tenant = null;
+    }
+    return JSON.stringify(snap);
+  }
+
+  function _sim3ApplyJsonSnap(jsonStr) {
+    const parsed = JSON.parse(jsonStr.trim());
+    if (!parsed || !parsed.started) throw new Error('有効なゲームセーブではありません（started フィールドがありません）');
+    const snap = JSON.parse(JSON.stringify(parsed));
+    snap.monthIngredientCost = snap.monthIngredientCost || 0;
+    (snap.stores || []).forEach(s => {
+      if (s.dailyPrepCost == null && s.ingredientCost != null) {
+        s.dailyPrepCost = 1000; s.ingredientCostPerCustomer = 250;
+        delete s.ingredientCost;
+      }
+    });
+    snap.tut = snap.tut || {};
+    if (snap.tut.phase !== 'done') snap.tut.phase = 'done';
+    snap.activeEvent = null; snap.processingMonthly = false;
+    snap.isAdvancingDay = false; snap.autoTesting = false;
+    return JSON.stringify(snap);
+  }
+
+  // ─── v0.2.1: 開始状態コントロール UI ───
+  function _sim3StartStateControls() {
+    const mode = _sim3StartMode;
+    return `
+<div style="background:#0d0d1a;border:1px solid #2a2a4a;border-radius:6px;padding:10px 14px;margin-bottom:12px">
+  <div style="font-size:11px;color:#81c784;font-weight:700;margin-bottom:8px">📂 開始状態（v0.2.1）</div>
+  <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:8px">
+    ${['new','current','json'].map(m => {
+      const labels = {new:'🆕 新規ゲーム', current:'💾 現在のセーブ', json:'📋 JSON貼り付け'};
+      const descs  = {
+        new:     '店舗開店直後の初期状態から開始',
+        current: '今ロードされているセーブから開始（イベント・商品あり）',
+        json:    'exportしたJSONを貼り付けて任意の状態から開始'
+      };
+      return `<label style="display:flex;align-items:flex-start;gap:6px;cursor:pointer">
+        <input type="radio" name="qa3a-mode" value="${m}" ${mode===m?'checked':''} onchange="_sim3StartMode='${m}';if(typeof renderPhase3Tab==='function')renderPhase3Tab();" style="margin-top:2px">
+        <span><span style="font-size:11px;color:#eee;font-weight:700">${labels[m]}</span><br>
+        <span style="font-size:9px;color:#666">${descs[m]}</span></span>
+      </label>`;
+    }).join('')}
+  </div>
+  ${mode === 'json' ? `
+  <div style="margin-top:8px">
+    <div style="font-size:10px;color:#888;margin-bottom:4px">ゲーム内「エクスポート」ボタン → JSONをここへ貼り付け</div>
+    <textarea id="qa3a-json-paste" rows="4" placeholder='{"started":true,"year":1,"month":6,...}'
+      style="width:100%;box-sizing:border-box;background:#0a0a0a;color:#ccc;border:1px solid #444;border-radius:4px;padding:6px;font-size:10px;font-family:monospace;resize:vertical"></textarea>
+  </div>` : ''}
+  <div style="font-size:9px;color:#555;margin-top:6px">
+    比較ラベル: <input id="qa3a-run-label" type="text" placeholder="${mode==='new'?'新規ゲーム':mode==='current'?'現在のセーブ':'JSON'}"
+      style="background:#0a0a0a;color:#ccc;border:1px solid #333;padding:2px 6px;border-radius:3px;font-size:10px;width:120px">
+  </div>
+</div>`;
+  }
+
+  // ─── v0.2.1: 比較テーブル ───
+  function _sim3ComparisonHtml(history) {
+    if (!history || history.length < 2) return '';
+    const fv  = v => v == null ? '-' : Math.round(v).toLocaleString();
+    const pv  = v => v == null ? '-' : (v*100).toFixed(1)+'%';
+    const f1  = v => v == null ? '-' : Number(v).toFixed(1);
+    const modeLabel = {new:'🆕 新規', current:'💾 現在', json:'📋 JSON'};
+    const cols = history.map(h => {
+      const br = h.result.businessReport;
+      const sm = br ? br.summary : {};
+      const st = h.result.stats || {};
+      const gv = k => st[k]?.mean ?? null;
+      const trials = h.result.trials || [];
+      // 試行平均の開始状態
+      const avgStartMoney   = trials.length ? Math.round(trials.reduce((a,t)=>a+(t.startMoney||0),0)/trials.length) : null;
+      const avgStartStaff   = trials.length ? (trials.reduce((a,t)=>a+(t.startStaffCount||0),0)/trials.length) : null;
+      const avgStartProd    = trials.length ? (trials.reduce((a,t)=>a+(t.startProductCount||0),0)/trials.length) : null;
+      const startDate       = trials.length && trials[0].startDate
+                              ? `${trials[0].startDate.year}年${trials[0].startDate.month}月${trials[0].startDate.day}日`
+                              : '-';
+      return {
+        label:    h.label,
+        mode:     modeLabel[h.mode] || h.mode,
+        n:        h.result.numTrials,
+        startDate,
+        startMoney: fv(avgStartMoney),
+        endCash:  fv(gv('endCash')),
+        net365:   fv(gv('totalNetChange365')),
+        storeProfit: fv(gv('totalStoreProfit365')),
+        rev:      fv(sm.avgRevenue),
+        ing:      fv(sm.avgIngredientCost),
+        fcr:      pv(sm.avgFoodCostRatio),
+        opm:      pv(sm.avgOperatingMargin),
+        events:   f1(gv('eventCount')),
+        caseCount:f1(gv('caseCount')),
+        caseSolved:f1(gv('caseSolved')),
+        staffRange: `${f1(avgStartStaff)} → ${f1(gv('staffCount'))}`,
+        prodRange:  `${f1(avgStartProd)} → ${f1(gv('productCount'))}`,
+        defMon:   f1(gv('deficitMonths')),
+        ap:       fv(gv('avgAP')),
+        diff:     br ? br.difficulty?.overall : '-',
+      };
+    });
+    const rows = [
+      ['比較ラベル',          cols.map(c=>`<b style="color:#81c784">${c.label}</b>`)],
+      ['開始モード',          cols.map(c=>c.mode)],
+      ['試行回数',            cols.map(c=>c.n+'回')],
+      ['SEP:開始状態',        null],
+      ['開始日',              cols.map(c=>c.startDate)],
+      ['開始資金',            cols.map(c=>c.startMoney)],
+      ['スタッフ数(開始→終了)',cols.map(c=>c.staffRange)],
+      ['商品数(開始→終了)',   cols.map(c=>c.prodRange)],
+      ['SEP:経営結果',        null],
+      ['終了資金',            cols.map(c=>c.endCash)],
+      ['365日総現金変動',     cols.map(c=>c.net365)],
+      ['店舗損益(365日)',     cols.map(c=>c.storeProfit)],
+      ['赤字月数(平均)',      cols.map(c=>c.defMon)],
+      ['SEP:収益モデル',      null],
+      ['平均売上/年',         cols.map(c=>c.rev)],
+      ['平均材料費/年',       cols.map(c=>c.ing)],
+      ['平均原価率',          cols.map(c=>c.fcr)],
+      ['平均営業利益率',      cols.map(c=>c.opm)],
+      ['SEP:ゲーム性',        null],
+      ['イベント数(平均)',    cols.map(c=>c.events)],
+      ['案件生成数(平均)',    cols.map(c=>c.caseCount)],
+      ['案件成功数(平均)',    cols.map(c=>c.caseSolved)],
+      ['平均AP',              cols.map(c=>c.ap)],
+      ['難易度',              cols.map(c=>c.diff)],
+    ];
+    return `
+<div style="background:#0d1f0d;border:2px solid #2a4a2a;border-radius:8px;padding:14px;margin-top:12px;overflow-x:auto">
+  <div style="font-size:13px;color:#81c784;font-weight:900;margin-bottom:10px">📊 開始状態別 比較（v0.2.1）</div>
+  <table style="border-collapse:collapse;font-size:10px;width:100%">
+    ${rows.map(([lbl,vals])=>{
+      if(lbl.startsWith('SEP:')) return `<tr><td colspan="${1+cols.length}" style="padding:6px 0 2px;color:#555;font-size:9px;border-top:1px solid #1a2a1a">${lbl.replace('SEP:','─ ')} ─</td></tr>`;
+      return `<tr>
+        <td style="padding:3px 8px;color:#888;white-space:nowrap">${lbl}</td>
+        ${vals.map(v=>`<td style="padding:3px 10px;color:#eee;text-align:right">${v}</td>`).join('')}
+      </tr>`;
+    }).join('')}
+  </table>
+</div>`;
+  }
+
   // ── メイン実行 ──
-  window._qa3aAnalyzeRun = function(numTrials, startSeed) {
+  window._qa3aAnalyzeRun = function(numTrials, startSeed, opts) {
     numTrials  = numTrials  || 10;
     startSeed  = startSeed  || 1001;
+    opts = opts || {};
+    const runMode  = opts.mode  || _sim3StartMode  || 'current';
+    const runLabel = opts.label || (document.getElementById('qa3a-run-label')?.value) ||
+                     (runMode === 'new' ? '新規ゲーム' : runMode === 'json' ? 'JSON' : '現在のセーブ');
 
     if (_sim3AnalyzeRunning || _sim3Running || _sim2cRunning || _qa3aSafetyRunning) {
       console.error('[QA-Ana] 別のシミュレーションが実行中です');
@@ -4660,10 +4853,14 @@ function qa2cSwitchTab(tid,idx){
     }
 
     let g; try { g = eval('G'); } catch(e) { console.error('[QA-Ana] G取得失敗:', e); return null; }
-    const tutPhase = (g.tut||{}).phase;
-    if (tutPhase !== 'done' || g.activeEvent != null || g.isAdvancingDay || g.processingMonthly) {
-      console.error('[QA-Ana] 通常プレイ可能なセーブをロードしてから実行してください');
-      return null;
+
+    // 'current' モードのみ現在Gのtut.phase確認。new/jsonは独自にスナップを構築する
+    if (runMode === 'current') {
+      const tutPhase = (g.tut||{}).phase;
+      if (tutPhase !== 'done' || g.activeEvent != null || g.isAdvancingDay || g.processingMonthly) {
+        console.error('[QA-Ana] 通常プレイ可能なセーブをロードしてから実行してください');
+        return null;
+      }
     }
 
     _sim3AnalyzeRunning = true;
@@ -4681,7 +4878,28 @@ function qa2cSwitchTab(tid,idx){
       const el = document.getElementById(id); if (el) el.style.display = 'none';
     });
 
-    const gSnap = JSON.stringify(g);
+    // ─── v0.2.1: 開始状態スナップ構築 ───
+    // v0.2.1: new/jsonモードではGが書き換えられるため、試行前に本物のGを保存しておく
+    const realGStrBackup = JSON.stringify(g);
+    let gSnap;
+    try {
+      if (runMode === 'new') {
+        gSnap = _sim3MakeFreshStartSnap(g);
+        console.log('[QA-Ana] 開始状態: 新規ゲーム（初期化済みスナップ）');
+      } else if (runMode === 'json') {
+        const jsonStr = opts.jsonStr || document.getElementById('qa3a-json-paste')?.value || '';
+        if (!jsonStr.trim()) { console.error('[QA-Ana] JSONが空です'); _sim3AnalyzeRunning = false; return null; }
+        gSnap = _sim3ApplyJsonSnap(jsonStr);
+        console.log('[QA-Ana] 開始状態: JSON貼り付け');
+      } else {
+        gSnap = JSON.stringify(g); // current モードではgSnap=realGStrBackupと同じ
+        console.log('[QA-Ana] 開始状態: 現在のセーブ');
+      }
+    } catch(e) {
+      console.error('[QA-Ana] 開始状態の構築に失敗:', e.message);
+      _sim3AnalyzeRunning = false;
+      return null;
+    }
     const overallStart = Date.now();
     const trials = [];
 
@@ -4701,6 +4919,10 @@ function qa2cSwitchTab(tid,idx){
         }
       }
     } finally {
+      // v0.2.1: new/jsonモードでは teardown がgSnapに戻してしまうため、本物のGを必ず復元
+      try { eval('G = JSON.parse(realGStrBackup)'); } catch(e) {
+        console.error('[QA-Ana] 本物G復元失敗:', e);
+      }
       Object.keys(_lsUiSave3.modals).forEach(id => {
         const el = document.getElementById(id); if (el) el.style.display = 'none';
       });
@@ -4724,10 +4946,15 @@ function qa2cSwitchTab(tid,idx){
     result.qaVersion      = window._MAIKON_QA_VERSION || null;
     result.balanceVersion = (typeof window._MAIKON_BALANCE_VERSION !== 'undefined')
                             ? window._MAIKON_BALANCE_VERSION : null;
+    result.startMode  = runMode;
+    result.startLabel = runLabel;
     result.businessReport = _sim3BusinessReport(result);
     console.log('[QA] BusinessReport generated', result.businessReport);
     _sim3AnalyzeResult   = result;
     window._qa3aAnalyzeResult = result;
+    // v0.2.1: 履歴保存（最大3件）
+    _sim3AnalysisHistory.push({ label: runLabel, mode: runMode, result });
+    if (_sim3AnalysisHistory.length > 3) _sim3AnalysisHistory.shift();
     console.log('[QA] window._qa3aAnalyzeResult.businessReport exists:', !!result.businessReport);
     _sim3AnalyzeRunning  = false;
     if (typeof renderPhase3Tab === 'function') renderPhase3Tab();
@@ -6508,6 +6735,7 @@ ${step2Html}
   複数seedでシミュレーションし、利益・AP・イベント頻度・人物密度・商品解放速度などを定量評価します。<br>
   Step1 PASSが前提です。設計者がバランスを客観的に判断するためのツールです。
 </div>
+${_sim3StartStateControls()}
 <div style="display:flex;gap:12px;align-items:center;margin-bottom:16px;flex-wrap:wrap">
   <label style="font-size:12px;color:#aaa">試行回数:
     <select id="qa3a-trials"
@@ -6524,13 +6752,14 @@ ${step2Html}
       style="width:80px;background:#111;color:#eee;border:1px solid #444;padding:3px 6px;margin-left:6px;border-radius:4px">
   </label>
   <button class="qa-btn" id="qa3a-run-btn"
-    onclick="(function(){const n=parseInt(document.getElementById('qa3a-trials').value)||10;const s=parseInt(document.getElementById('qa3a-seed').value)||1001;window._qa3aAnalyzeRun(n,s);})()"
+    onclick="(function(){const n=parseInt(document.getElementById('qa3a-trials').value)||10;const s=parseInt(document.getElementById('qa3a-seed').value)||1001;const jsonStr=document.getElementById('qa3a-json-paste')?document.getElementById('qa3a-json-paste').value:'';window._qa3aAnalyzeRun(n,s,{mode:_sim3StartMode,jsonStr:jsonStr,label:document.getElementById('qa3a-run-label')?document.getElementById('qa3a-run-label').value:''});})()"
     ${step3Disabled ? 'disabled' : ''}>
     ${anaRunning ? '⏳ 分析中…' : '▶ バランス分析実行'}
   </button>
   ${anaRunning ? `<button class="qa-btn" onclick="window._qa3aAnalyzeStop()" style="color:#ff8800;border-color:#ff8800">■ 停止</button>` : ''}
 </div>
 ${step3Html}
+${_sim3AnalysisHistory.length > 1 ? _sim3ComparisonHtml(_sim3AnalysisHistory) : ''}
 ${ar && !anaRunning ? `
 <div style="background:#0d0d1a;border:2px solid #1e3a5a;border-radius:8px;padding:14px 16px;margin-top:12px">
   <div style="font-size:14px;color:#64b5f6;font-weight:900;margin-bottom:10px">📋 経営診断レポート（Phase 3B-1）</div>
