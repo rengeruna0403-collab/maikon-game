@@ -7200,6 +7200,20 @@ ${ar.eventAnalytics ? _sim3EventAnalyticsHtml(ar.eventAnalytics) : ''}
       inconsistent.length === 0
         ? pass('発生数×期待値 整合性', '全件 厳密一致（未丸め）')
         : warn('発生数×期待値 乖離', `${inconsistent.length}件乖離（${inconsistent.slice(0,3).map(e=>e.title||e.eventId).join(', ')}...）`);
+      // 独立経路クロスチェック：perEvent合計 vs revenueBreakdown（別集計パス）
+      if (ea.revenueBreakdown) {
+        const rb = ea.revenueBreakdown;
+        const sumEventMoney = ea.perEvent.filter(e=>!e.isCase).reduce((a,e)=>a+e.avgTotalMoney,0);
+        const sumCaseMoney  = ea.perEvent.filter(e=> e.isCase).reduce((a,e)=>a+e.avgTotalMoney,0);
+        const evTol  = Math.max(500, Math.abs(rb.eventProfit)*0.01);
+        const caTol  = Math.max(500, Math.abs(rb.caseProfit) *0.01);
+        Math.abs(sumEventMoney - rb.eventProfit) <= evTol
+          ? pass('イベント収支 クロスチェック', `perEvent合計 ${sumEventMoney.toLocaleString()} ≈ breakdown ${rb.eventProfit.toLocaleString()}`)
+          : warn('イベント収支 クロスチェック', `perEvent合計 ${sumEventMoney.toLocaleString()} vs breakdown ${rb.eventProfit.toLocaleString()} 乖離大`);
+        Math.abs(sumCaseMoney - rb.caseProfit) <= caTol
+          ? pass('案件収支 クロスチェック', `perEvent合計 ${sumCaseMoney.toLocaleString()} ≈ breakdown ${rb.caseProfit.toLocaleString()}`)
+          : warn('案件収支 クロスチェック', `perEvent合計 ${sumCaseMoney.toLocaleString()} vs breakdown ${rb.caseProfit.toLocaleString()} 乖離大`);
+      }
       // 正収支・負収支それぞれ存在するか
       const hasPlus  = ea.perEvent.some(e=>e.avgTotalMoney>0);
       const hasMinus = ea.perEvent.some(e=>e.avgTotalMoney<0);
