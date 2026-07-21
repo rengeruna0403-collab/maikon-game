@@ -7269,6 +7269,38 @@ ${ar.eventAnalytics ? _sim3EventAnalyticsHtml(ar.eventAnalytics) : ''}
     }
     console.groupEnd();
 
+    // ── Section 7: v0.4 dailyFlags 構造検証 ────────────────────────
+    console.group('Section 7: v0.4 dailyFlags');
+    const df = rNew?.trials?.[0]?.dailyFlags;
+    if (!df || !Array.isArray(df)) {
+      fail('dailyFlags 存在', 'null または非配列');
+    } else {
+      // 7-1: 件数
+      df.length === 365
+        ? pass('dailyFlags 件数', `${df.length}件`)
+        : fail('dailyFlags 件数', `${df.length}件（期待:365）`);
+      // 7-2: day の連続性（1〜365）
+      const wrongDay = df.findIndex((d, i) => d.day !== i + 1);
+      wrongDay === -1
+        ? pass('dailyFlags.day 連続性', '1〜365 順番通り')
+        : fail('dailyFlags.day 連続性', `index ${wrongDay}: day=${df[wrongDay]?.day}（期待:${wrongDay+1}）`);
+      // 7-3: cash / ap が有限値
+      const nanCash = df.filter(d => !Number.isFinite(d.cash)).length;
+      const nanAP   = df.filter(d => !Number.isFinite(d.ap)).length;
+      nanCash === 0
+        ? pass('dailyFlags.cash 有限値', '全日')
+        : fail('dailyFlags.cash 有限値', `${nanCash}日で NaN/Infinity`);
+      nanAP === 0
+        ? pass('dailyFlags.ap 有限値', '全日')
+        : fail('dailyFlags.ap 有限値', `${nanAP}日で NaN/Infinity`);
+      // 7-4: dayActivity が各日で独立オブジェクト（参照共有バグの検出）
+      const sharedRef = df.findIndex((d, i, a) => i > 0 && d.dayActivity === a[i-1].dayActivity);
+      sharedRef === -1
+        ? pass('dayActivity 参照独立', '全日で別オブジェクト')
+        : fail('dayActivity 参照独立', `index ${sharedRef} が前日と同じ参照`);
+    }
+    console.groupEnd();
+
     // ── 総合判定 ──────────────────────────────────────────────────
     const nPass = results.filter(r=>r.st==='PASS').length;
     const nFail = results.filter(r=>r.st==='FAIL').length;
