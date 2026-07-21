@@ -3,7 +3,7 @@
  * ?qa=1 または ?debug=1 の場合のみ動作
  * ゲーム本体への影響なし・読み取り専用（Phase 2Aは1日テスト後に必ず復元）
  */
-window._MAIKON_QA_VERSION = '2026-07-19-v03c-weighted-avg';
+window._MAIKON_QA_VERSION = '2026-07-21-v04a-dailyflags';
 console.log('[MAIKON-QA] loaded version:', window._MAIKON_QA_VERSION);
 
 (function () {
@@ -4372,19 +4372,62 @@ function qa2cSwitchTab(tid,idx){
       let prevUnlocked = [];
       try { prevUnlocked = [...(gStart.unlockedProducts||[])]; } catch(e) {}
 
+      // v0.4: 日次フラグ（事実のみ。閾値判定・集計は後段で行う）
+      const dailyFlags = [];
+
       for (let d = 0; d < 365; d++) {
         if (_sim3AnalyzeStopReq) break;
+
+        // 日前の状態と eventLog 長を記録
+        let gPre = {};
+        try { gPre = eval('G'); } catch(e) {}
+        const logLen0 = (_sim2c?.eventLog || []).length;
+
         try { _sim2cDoChunk(1); } catch(e) { break; }
+
+        // 日後の状態（事実）
+        let gPost = {};
+        try { gPost = eval('G'); } catch(e) {}
+
+        // 当日の eventLog 差分
+        const dayEvents = (_sim2c?.eventLog || []).slice(logLen0);
+        const dayEventOccurred = dayEvents.some(e => e.source !== 'daily_case');
+        const dayCaseOccurred  = dayEvents.some(e => e.source === 'daily_case');
+
+        // 有意な行動を dayActivity として記録（noAction は後段で計算）
+        const dayActivity = {
+          eventChoiceMade:             dayEventOccurred,
+          caseProcessed:               dayCaseOccurred,
+          productDeveloped:            false,  // 商品解放追跡で更新
+          staffActionTaken:            false,  // 将来実装
+          storePolicyChanged:          false,  // 将来実装
+          tenantApplicationProcessed:  false,  // 将来実装
+          expansionActionTaken:        false,  // 将来実装
+        };
+
         // 商品解放追跡
         try {
-          const nowUnlocked = eval('G').unlockedProducts || [];
+          const nowUnlocked = gPost.unlockedProducts || [];
           for (const p of nowUnlocked) {
             if (!prevUnlocked.includes(p) && !(p in productUnlockDays)) {
               productUnlockDays[p] = d + 1;
+              dayActivity.productDeveloped = true;
             }
           }
           prevUnlocked = [...nowUnlocked];
         } catch(e) {}
+
+        // dailyFlags に事実だけを記録（Rule 1: Simulation は記録だけ）
+        dailyFlags.push({
+          day:   d + 1,           // 1〜365
+          month: gPre.month || 1, // 進行前の月（試行中の月番号）
+          year:  gPre.year  || 1,
+          cash:  gPost.money ?? 0, // 日末の現金（生値）
+          ap:    gPost.ap   ?? 0,  // 日末のAP（生値）
+          dayActivity,
+          eventOccurred: dayEventOccurred,
+          caseOccurred:  dayCaseOccurred,
+        });
       }
 
       const s = _sim2c;
@@ -4491,6 +4534,8 @@ function qa2cSwitchTab(tid,idx){
         monthlyData:      [...monthlyData],
         productUnlockDays:{...productUnlockDays},
         apHistory:        [...apValid],
+        // v0.4: 日次フラグ（生データ。Analytics は後段でここから読む）
+        dailyFlags,
       };
     } finally {
       Math.random = origMath;
