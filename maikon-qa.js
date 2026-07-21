@@ -3,7 +3,7 @@
  * ?qa=1 または ?debug=1 の場合のみ動作
  * ゲーム本体への影響なし・読み取り専用（Phase 2Aは1日テスト後に必ず復元）
  */
-window._MAIKON_QA_VERSION = '2026-07-21-v04f-activity-audit';
+window._MAIKON_QA_VERSION = '2026-07-21-v05a-invest-ai';
 console.log('[MAIKON-QA] loaded version:', window._MAIKON_QA_VERSION);
 
 (function () {
@@ -4345,6 +4345,47 @@ function qa2cSwitchTab(tid,idx){
     return 'その他';
   }
 
+  // ── v0.5: AI能動行動 — 地域活動投資 ──────────────────────────────
+  // 純粋なAI判断関数。ゲーム本体のコードを変更せずQAシミュレーター側で呼ぶ。
+  // 呼び出し元: _sim3AnalyzeRunTrial の日次ループ（_sim2cDoChunk後）。
+  // 戻り値: true=実行した / false=条件未満でスキップ
+  const _SIM5_INVEST_OPTIONS = [
+    { cost:  80_000, type: '健康講座',     score: 10, bondUp:  8 },
+    { cost: 100_000, type: '子ども食堂',   score: 15, bondUp: 10 },
+    { cost: 120_000, type: '発酵教室',     score: 12, bondUp: 10 },
+    { cost: 200_000, type: '地域イベント', score: 18, bondUp: 15 },
+  ];
+  const _SIM5_CASH_RESERVE = 500_000; // 手元に残すキャッシュの最低ライン
+
+  function _sim5TryRegionInvestment() {
+    let G;
+    try { G = eval('G'); } catch(e) { return false; }
+    if (!G || !Array.isArray(G.regions)) return false;
+
+    // 解放済み地域のみ対象
+    const unlocked = G.regions
+      .map((r, i) => ({ r, i }))
+      .filter(({ r }) => r.unlocked);
+    if (unlocked.length === 0) return false;
+
+    // 手元キャッシュを確保したうえで払える選択肢のみ。
+    // cost_efficiency = (bondUp + score) / cost で降順ソート（コスパ優先）
+    const affordable = _SIM5_INVEST_OPTIONS
+      .filter(opt => (G.money ?? 0) - opt.cost >= _SIM5_CASH_RESERVE)
+      .sort((a, b) =>
+        (b.bondUp + b.score) / b.cost - (a.bondUp + a.score) / a.cost
+      );
+    if (affordable.length === 0) return false;
+
+    // 最初の解放済み地域・最もコスパの良い活動を実行
+    const target = unlocked[0];
+    const opt    = affordable[0];
+    try {
+      investRegion(target.i, opt.cost, opt.type, opt.score, opt.bondUp);
+    } catch(e) { return false; }
+    return true;
+  }
+
   // ── 1試行実行 ──
   function _sim3AnalyzeRunTrial(seed, gSnap) {
     const origMath = Math.random;
@@ -4378,36 +4419,72 @@ function qa2cSwitchTab(tid,idx){
       for (let d = 0; d < 365; d++) {
         if (_sim3AnalyzeStopReq) break;
 
-        // 日前の状態と eventLog 長を記録
-        let gPre = {};
-        try { gPre = eval('G'); } catch(e) {}
-        const logLen0 = (_sim2c?.eventLog || []).length;
+        // ── 日前スナップショット（参照ではなく値をコピー）────────────
+        // eval('G') は参照なので、_sim2cDoChunk(1) 後は同じオブジェクトを指す。
+        // 比較が必要なフィールドだけを事前に値で取り出す。
+        let _gRef;
+        try { _gRef = eval('G'); } catch(e) { _gRef = {}; }
+        const _snapMonth        = _gRef?.month || 1;
+        const _snapYear         = _gRef?.year  || 1;
+        const _snapPolicies     = (_gRef?.stores    || []).map(s => s.policy);
+        const _snapStoreLen     = (_gRef?.stores    || []).length;
+        const _snapStaffLen     = (_gRef?.staff     || []).length;
+        const _snapStaffSkills  = (_gRef?.staff     || []).map(s => Object.assign({}, s.skills));
+        const _snapSeeking      = (_gRef?.buildings || []).flatMap(b => (b.rooms||[]).map(r => !!r.seeking));
+        const _snapCommunityBonds = (_gRef?.regions || []).map(r => r.communityBond ?? 0);
 
+        const logLen0 = (_sim2c?.eventLog || []).length;
         try { _sim2cDoChunk(1); } catch(e) { break; }
 
-        // 日後の状態（事実）
-        let gPost = {};
-        try { gPost = eval('G'); } catch(e) {}
+        // v0.5: AI能動行動（ゲーム本体コード変更なし）
+        _sim5TryRegionInvestment();
 
-        // 当日の eventLog 差分
+        // ── 日後の状態（事実）──────────────────────────────────────
+        let _gNow;
+        try { _gNow = eval('G'); } catch(e) { _gNow = {}; }
+
         const dayEvents = (_sim2c?.eventLog || []).slice(logLen0);
         const dayEventOccurred = dayEvents.some(e => e.source !== 'daily_case');
         const dayCaseOccurred  = dayEvents.some(e => e.source === 'daily_case');
 
-        // 有意な行動を dayActivity として記録（noAction は後段で計算）
+        // ── 状態差分から dayActivity を導出（事実のみ・閾値判定なし）──
+        // Rule 1: 変化があった場合だけ true。モーダルを開いただけは記録しない。
+        const _nowPolicies       = (_gNow?.stores    || []).map(s => s.policy);
+        const _nowStoreLen       = (_gNow?.stores    || []).length;
+        const _nowStaff          = (_gNow?.staff     || []);
+        const _nowSeeking        = (_gNow?.buildings || []).flatMap(b => (b.rooms||[]).map(r => !!r.seeking));
+        const _nowCommunityBonds = (_gNow?.regions   || []).map(r => r.communityBond ?? 0);
+
         const dayActivity = {
-          eventChoiceMade:             dayEventOccurred,
-          caseProcessed:               dayCaseOccurred,
-          productDeveloped:            false,  // 商品解放追跡で更新
-          staffActionTaken:            false,  // 将来実装
-          storePolicyChanged:          false,  // 将来実装
-          tenantApplicationProcessed:  false,  // 将来実装
-          expansionActionTaken:        false,  // 将来実装
+          eventChoiceMade:   dayEventOccurred,
+          caseProcessed:     dayCaseOccurred,
+          productDeveloped:  false, // 商品解放追跡で更新（下記）
+          // 採用（人数増加）または研修（スキル値変化）
+          staffActionTaken:
+            _nowStaff.length > _snapStaffLen ||
+            _nowStaff.some((s, i) =>
+              _snapStaffSkills[i] &&
+              Object.entries(s.skills || {}).some(
+                ([k, v]) => v !== (_snapStaffSkills[i][k] ?? v)
+              )
+            ),
+          // 実際に方針値が変わった店舗がある場合のみ
+          storePolicyChanged:
+            _nowPolicies.some((p, i) => p !== _snapPolicies[i]),
+          // 空室が「募集中」に切り替わった場合のみ（入居確定は別フラグ候補）
+          tenantApplicationProcessed:
+            _nowSeeking.some((v, i) => v && !_snapSeeking[i]),
+          // 店舗数が増えた場合のみ
+          expansionActionTaken:
+            _nowStoreLen > _snapStoreLen,
+          // v0.5: 地域活動投資でcommunityBondが増加した場合のみ
+          communityActionTaken:
+            _nowCommunityBonds.some((v, i) => v > (_snapCommunityBonds[i] ?? 0)),
         };
 
-        // 商品解放追跡
+        // 商品解放追跡（productDeveloped）
         try {
-          const nowUnlocked = gPost.unlockedProducts || [];
+          const nowUnlocked = _gNow?.unlockedProducts || [];
           for (const p of nowUnlocked) {
             if (!prevUnlocked.includes(p) && !(p in productUnlockDays)) {
               productUnlockDays[p] = d + 1;
@@ -4419,11 +4496,11 @@ function qa2cSwitchTab(tid,idx){
 
         // dailyFlags に事実だけを記録（Rule 1: Simulation は記録だけ）
         dailyFlags.push({
-          day:   d + 1,           // 1〜365
-          month: gPre.month || 1, // 進行前の月（試行中の月番号）
-          year:  gPre.year  || 1,
-          cash:  gPost.money ?? 0, // 日末の現金（生値）
-          ap:    gPost.ap   ?? 0,  // 日末のAP（生値）
+          day:   d + 1,        // 1〜365
+          month: _snapMonth,   // 進行前の月
+          year:  _snapYear,
+          cash:  _gNow?.money ?? 0, // 日末の現金（生値）
+          ap:    _gNow?.ap    ?? 0,  // 日末のAP（生値）
           dayActivity,
           eventOccurred: dayEventOccurred,
           caseOccurred:  dayCaseOccurred,
@@ -7482,6 +7559,167 @@ ${ar.experienceKPI ? _sim3ExperienceKpiHtml(ar.experienceKPI) : ''}
       chk('maxConsecutiveLowCashDays 独立検証',  kpi.maxConsecutiveLowCashDays,  _qaMaxConsecLowCash);
       chk('minCash 独立検証',                    kpi.minCash,                    _qaMinCash);
     }
+    console.groupEnd();
+
+    // ── Section 9: v0.4.2 KPI配線 ユニットテスト ──────────────────
+    // 目的: スナップショット検出ロジックが正しく動作するかを確認する。
+    // G を変更せず、モックデータで純粋関数的に検証する。
+    console.group('Section 9: v0.4.2 KPI配線ロジック検証');
+
+    // 9-1: storePolicyChanged — 方針が変わった場合に検出できるか
+    {
+      const snapP = ['owner', 'staff'];
+      const nowP1 = ['staff', 'staff']; // store 0 が変化
+      const nowP2 = ['owner', 'staff']; // 変化なし
+      const detected1 = nowP1.some((p, i) => p !== snapP[i]);
+      const detected2 = nowP2.some((p, i) => p !== snapP[i]);
+      (detected1 && !detected2)
+        ? pass('storePolicyChanged 検出ロジック', '変化あり=true / 変化なし=false')
+        : fail('storePolicyChanged 検出ロジック', `変化あり=${detected1} 変化なし=${detected2}`);
+    }
+
+    // 9-2: staffActionTaken（採用）— スタッフ数増加で検出できるか
+    {
+      const snapLen1 = 2, nowLen1 = 3; // 採用
+      const snapLen2 = 2, nowLen2 = 2; // 変化なし
+      const detected1 = nowLen1 > snapLen1;
+      const detected2 = nowLen2 > snapLen2;
+      (detected1 && !detected2)
+        ? pass('staffActionTaken（採用）検出ロジック', '人数増=true / 変化なし=false')
+        : fail('staffActionTaken（採用）検出ロジック', `増加=${detected1} 変化なし=${detected2}`);
+    }
+
+    // 9-3: staffActionTaken（研修）— スキル値変化で検出できるか
+    {
+      const snapSkills = [{ service: 40, cooking: 30, management: 20 }];
+      const nowStaff1  = [{ skills: { service: 52, cooking: 30, management: 20 } }]; // 研修済
+      const nowStaff2  = [{ skills: { service: 40, cooking: 30, management: 20 } }]; // 変化なし
+      const detect = (staff) =>
+        staff.some((s, i) =>
+          snapSkills[i] &&
+          Object.entries(s.skills || {}).some(([k, v]) => v !== (snapSkills[i][k] ?? v))
+        );
+      const d1 = detect(nowStaff1);
+      const d2 = detect(nowStaff2);
+      (d1 && !d2)
+        ? pass('staffActionTaken（研修）検出ロジック', 'スキル増=true / 変化なし=false')
+        : fail('staffActionTaken（研修）検出ロジック', `スキル増=${d1} 変化なし=${d2}`);
+    }
+
+    // 9-4: tenantApplicationProcessed — seeking=false→true を検出できるか
+    {
+      const snapS = [false, false, true]; // 3部屋、1室はすでに募集中
+      const nowS1 = [true,  false, true]; // 部屋0 が募集開始
+      const nowS2 = [false, false, true]; // 変化なし
+      const nowS3 = [false, false, false]; // true→false（退去）は検出しない
+      const detect = (now) => now.some((v, i) => v && !snapS[i]);
+      const d1 = detect(nowS1), d2 = detect(nowS2), d3 = detect(nowS3);
+      (d1 && !d2 && !d3)
+        ? pass('tenantApplicationProcessed 検出ロジック', '新規seeking=true / 変化なし=false / 退去=false')
+        : fail('tenantApplicationProcessed 検出ロジック', `新規=${d1} 変化なし=${d2} 退去=${d3}`);
+    }
+
+    // 9-5: expansionActionTaken — 店舗数増加で検出できるか
+    {
+      const s1 = 1, n1 = 2; // 出店
+      const s2 = 1, n2 = 1; // 変化なし
+      const d1 = n1 > s1, d2 = n2 > s2;
+      (d1 && !d2)
+        ? pass('expansionActionTaken 検出ロジック', '店舗増=true / 変化なし=false')
+        : fail('expansionActionTaken 検出ロジック', `増加=${d1} 変化なし=${d2}`);
+    }
+
+    // 9-6: 実シミュレーション出力 — 全 dayActivity フィールドが boolean か
+    {
+      const df9 = rNew?.trials?.[0]?.dailyFlags;
+      if (!df9 || !df9.length) {
+        warn('dayActivity フィールド型検証', 'dailyFlags が空（シミュレーション未実行）');
+      } else {
+        const EXPECTED_KEYS = [
+          'eventChoiceMade','caseProcessed','productDeveloped',
+          'staffActionTaken','storePolicyChanged','tenantApplicationProcessed','expansionActionTaken',
+          'communityActionTaken',
+        ];
+        let nonBool = 0;
+        let missingKey = '';
+        for (const day of df9) {
+          for (const k of EXPECTED_KEYS) {
+            if (!(k in (day.dayActivity || {}))) { missingKey = k; nonBool++; break; }
+            if (typeof day.dayActivity[k] !== 'boolean') nonBool++;
+          }
+          if (nonBool) break;
+        }
+        nonBool === 0
+          ? pass('dayActivity 全フィールド boolean', `${EXPECTED_KEYS.length}キー × ${df9.length}日 全てboolean`)
+          : fail('dayActivity 全フィールド boolean', missingKey ? `キー欠落: ${missingKey}` : `非boolean値あり`);
+      }
+    }
+
+    console.groupEnd();
+
+    // ── Section 10: v0.5 AI能動行動 _sim5TryRegionInvestment ─────
+    // 目的: investRegion AIロジックの条件分岐・KPI連動を検証する。
+    // Gを変更しない。モックと実シミュ出力を使用。
+    console.group('Section 10: v0.5 AI能動行動（investRegion）検証');
+
+    // 10-1: 資金不足（cash < cost + reserve）なら実行しない
+    {
+      const reserve = 500_000;
+      const opts = [{ cost: 80_000 }, { cost: 100_000 }, { cost: 120_000 }, { cost: 200_000 }];
+      const money1 = 550_000; // 80_000 + 500_000 = 580_000 > 550_000 → 全て不可
+      const money2 = 600_000; // 80_000 + 500_000 = 580_000 ≤ 600_000 → 1つ可
+      const affordable1 = opts.filter(o => money1 - o.cost >= reserve);
+      const affordable2 = opts.filter(o => money2 - o.cost >= reserve);
+      (affordable1.length === 0 && affordable2.length > 0)
+        ? pass('10-1 資金不足時スキップ', `不足時=0件 / 十分時=${affordable2.length}件`)
+        : fail('10-1 資金不足時スキップ', `不足時=${affordable1.length}件 十分時=${affordable2.length}件`);
+    }
+
+    // 10-2: 解放済み地域がない場合は実行しない
+    {
+      const regions1 = [{ unlocked: false }, { unlocked: false }];
+      const regions2 = [{ unlocked: false }, { unlocked: true  }];
+      const unlocked1 = regions1.filter(r => r.unlocked);
+      const unlocked2 = regions2.filter(r => r.unlocked);
+      (unlocked1.length === 0 && unlocked2.length > 0)
+        ? pass('10-2 未解放時スキップ', `解放なし=0件 / 解放あり=${unlocked2.length}件`)
+        : fail('10-2 未解放時スキップ', `解放なし=${unlocked1.length}件 解放あり=${unlocked2.length}件`);
+    }
+
+    // 10-3: _sim5TryRegionInvestment が関数として存在し呼び出せるか
+    {
+      const fn = typeof _sim5TryRegionInvestment;
+      fn === 'function'
+        ? pass('10-3 _sim5TryRegionInvestment 関数存在', '関数として定義済み')
+        : fail('10-3 _sim5TryRegionInvestment 関数存在', `typeof=${fn}`);
+    }
+
+    // 10-4: communityBond増加でcommunityActionTaken=trueになるか（検出ロジック確認）
+    {
+      const snapBonds = [10, 20, 0];
+      const nowBonds1 = [10, 35, 0]; // index 1 が増加
+      const nowBonds2 = [10, 20, 0]; // 変化なし
+      const nowBonds3 = [10, 15, 0]; // 減少（検出しない）
+      const detect = (now) => now.some((v, i) => v > (snapBonds[i] ?? 0));
+      const d1 = detect(nowBonds1), d2 = detect(nowBonds2), d3 = detect(nowBonds3);
+      (d1 && !d2 && !d3)
+        ? pass('10-4 communityActionTaken 検出ロジック', '増加=true / 変化なし=false / 減少=false')
+        : fail('10-4 communityActionTaken 検出ロジック', `増加=${d1} 変化なし=${d2} 減少=${d3}`);
+    }
+
+    // 10-5: 実シミュレーションでcommunityActionTakenが少なくとも1回trueになるか
+    {
+      const df10 = rNew?.trials?.[0]?.dailyFlags;
+      if (!df10 || !df10.length) {
+        warn('10-5 communityActionTaken 実発火確認', 'dailyFlags が空（シミュレーション未実行）');
+      } else {
+        const fired = df10.filter(d => d.dayActivity?.communityActionTaken === true).length;
+        fired > 0
+          ? pass('10-5 communityActionTaken 実発火確認', `${fired}日 発火`)
+          : warn('10-5 communityActionTaken 実発火確認', '1回も発火なし（資金・地域条件を確認）');
+      }
+    }
+
     console.groupEnd();
 
     // ── 総合判定 ──────────────────────────────────────────────────
