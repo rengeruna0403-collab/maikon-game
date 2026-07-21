@@ -3,7 +3,7 @@
  * ?qa=1 または ?debug=1 の場合のみ動作
  * ゲーム本体への影響なし・読み取り専用（Phase 2Aは1日テスト後に必ず復元）
  */
-window._MAIKON_QA_VERSION = '2026-07-21-v04e-independent-qa';
+window._MAIKON_QA_VERSION = '2026-07-21-v04f-activity-audit';
 console.log('[MAIKON-QA] loaded version:', window._MAIKON_QA_VERSION);
 
 (function () {
@@ -4769,16 +4769,32 @@ function qa2cSwitchTab(tid,idx){
     const n = valid.length;
     const avg  = key => valid.reduce((a, t) => a + (t.experienceKPI[key] ?? 0), 0) / n;
     const mins = valid.map(t => t.experienceKPI.minCash ?? 0);
+
+    // dayActivity 棚卸し（全試行の dailyFlags から集計）
+    // 各キーが「1試行あたり平均何日発火したか」を示す
+    const actTotals = {};
+    for (const t of valid) {
+      for (const day of (t.dailyFlags || [])) {
+        for (const [key, val] of Object.entries(day.dayActivity || {})) {
+          actTotals[key] = (actTotals[key] || 0) + (val ? 1 : 0);
+        }
+      }
+    }
+    const dayActivitySummary = {};
+    for (const [key, total] of Object.entries(actTotals)) {
+      dayActivitySummary[key] = +(total / n).toFixed(1);
+    }
+
     return {
       daysNoAction:               +avg('daysNoAction').toFixed(1),
       daysLowCash:                +avg('daysLowCash').toFixed(1),
       daysNegativeCash:           +avg('daysNegativeCash').toFixed(1),
       maxConsecutiveNoActionDays: +avg('maxConsecutiveNoActionDays').toFixed(1),
       maxConsecutiveLowCashDays:  +avg('maxConsecutiveLowCashDays').toFixed(1),
-      averageMinCash:             Math.round(avg('minCash')),   // 各試行の最低資金の平均
-      worstMinCash:               Math.min(...mins),            // 全試行中の最悪値
+      averageMinCash:             Math.round(avg('minCash')),
+      worstMinCash:               Math.min(...mins),
       trialCount: n,
-      // 将来の分布分析（ヒートマップ・月別等）のために生値を保持
+      dayActivitySummary,   // 棚卸し: 各キーの平均発火日数
       _perTrial: valid.map(t => t.experienceKPI),
     };
   }
@@ -6375,17 +6391,51 @@ function qa2cSwitchTab(tid,idx){
     <span style="font-size:10px;color:#666;font-weight:400;margin-left:8px">${n}試行平均</span>
   </div>
   <table style="border-collapse:collapse;width:100%">
-    <tr><td colspan="3" style="padding:4px 0;color:#9575cd;font-size:10px;font-weight:700">■ 行動密度</td></tr>
-    ${row('無行動日数',         fmtD(ekpi.daysNoAction),         pct(ekpi.daysNoAction))}
-    ${row('無行動 最大連続',     fmtD(ekpi.maxConsecutiveNoActionDays))}
+    <tr><td colspan="3" style="padding:4px 0;color:#9575cd;font-size:10px;font-weight:700">■ 行動密度（記録対象行動を基準）</td></tr>
+    ${row('記録対象行動なし日数', fmtD(ekpi.daysNoAction),         pct(ekpi.daysNoAction))}
+    ${row('  最大連続日数',       fmtD(ekpi.maxConsecutiveNoActionDays))}
     <tr><td colspan="3" style="padding:4px 0;color:#9575cd;font-size:10px;font-weight:700">■ 資金プレッシャー</td></tr>
-    ${row('低資金日数',          fmtD(ekpi.daysLowCash),          pct(ekpi.daysLowCash))}
-    ${row('低資金 最大連続',      fmtD(ekpi.maxConsecutiveLowCashDays))}
-    ${row('資金マイナス日数',    fmtD(ekpi.daysNegativeCash),     pct(ekpi.daysNegativeCash))}
+    ${row('低資金日数',           fmtD(ekpi.daysLowCash),          pct(ekpi.daysLowCash))}
+    ${row('  最大連続日数',       fmtD(ekpi.maxConsecutiveLowCashDays))}
+    ${row('資金マイナス日数',     fmtD(ekpi.daysNegativeCash),     pct(ekpi.daysNegativeCash))}
     <tr><td colspan="3" style="padding:4px 0;color:#9575cd;font-size:10px;font-weight:700">■ 最低資金</td></tr>
-    ${row('平均最低資金',        fmtM(ekpi.averageMinCash),       '各試行の最低値の平均')}
-    ${row('全試行中の最悪値',    fmtM(ekpi.worstMinCash),         '最も厳しかった試行')}
+    ${row('平均最低資金',         fmtM(ekpi.averageMinCash),       '各試行の最低値の平均')}
+    ${row('全試行中の最悪値',     fmtM(ekpi.worstMinCash),         '最も厳しかった試行')}
   </table>
+  <div style="font-size:9px;color:#e57373;margin-top:6px;line-height:1.5">
+    ⚠ 「記録対象行動なし日数」は自動シミュレーターが記録対象行動を実行しなかった日数です。<br>
+    プレイヤーの退屈度を直接示す値ではありません。能動的経営行動の自動化状況は下表を参照。
+  </div>
+  ${(() => {
+    const summary = ekpi.dayActivitySummary;
+    if (!summary) return '';
+    const REACTIVE  = ['eventChoiceMade','caseProcessed','applicationReviewed'];
+    const PROACTIVE = ['productDeveloped','propertyPurchased','propertyUpgraded','storeRenovated',
+                       'menuChanged','staffHired','staffTrained','operatingPolicyChanged',
+                       'expansionActionTaken','staffActionTaken','storePolicyChanged',
+                       'tenantApplicationProcessed'];
+    const renderKey = (key) => {
+      const v = summary[key];
+      const fired = v != null && v > 0;
+      const color = fired ? '#66bb6a' : '#ff5252';
+      const mark  = fired ? '✅' : '❌';
+      return `<tr>
+        <td style="padding:2px 8px;color:#aaa;font-size:9px">${mark} ${key}</td>
+        <td style="padding:2px 4px;color:${color};font-size:9px;text-align:right">${v != null ? v+'日/試行' : '未定義'}</td>
+      </tr>`;
+    };
+    return `
+  <div style="margin-top:10px">
+    <div style="font-size:10px;color:#9575cd;font-weight:700;margin-bottom:4px">■ dayActivity 棚卸し（${n}試行平均）</div>
+    <table style="border-collapse:collapse;width:100%">
+      <tr><td colspan="2" style="padding:2px 8px;color:#7986cb;font-size:9px;font-weight:700">受動対応</td></tr>
+      ${REACTIVE.map(renderKey).join('')}
+      <tr><td colspan="2" style="padding:4px 8px 2px;color:#7986cb;font-size:9px;font-weight:700">能動的経営</td></tr>
+      ${PROACTIVE.filter(k => k in summary).map(renderKey).join('')}
+      ${PROACTIVE.filter(k => !(k in summary)).map(k => `<tr><td style="padding:2px 8px;color:#444;font-size:9px">— ${k}</td><td style="color:#444;font-size:9px">未実装</td></tr>`).join('')}
+    </table>
+  </div>`;
+  })()}
   <div style="font-size:9px;color:#555;margin-top:8px">低資金閾値: ¥${_EXP_LOW_CASH_THRESHOLD.toLocaleString()}</div>
 </div>`;
   }
