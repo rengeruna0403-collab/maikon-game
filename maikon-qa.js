@@ -3,7 +3,7 @@
  * ?qa=1 または ?debug=1 の場合のみ動作
  * ゲーム本体への影響なし・読み取り専用（Phase 2Aは1日テスト後に必ず復元）
  */
-window._MAIKON_QA_VERSION = '2026-07-21-v04d-kpi-display';
+window._MAIKON_QA_VERSION = '2026-07-21-v04e-independent-qa';
 console.log('[MAIKON-QA] loaded version:', window._MAIKON_QA_VERSION);
 
 (function () {
@@ -7394,28 +7394,43 @@ ${ar.experienceKPI ? _sim3ExperienceKpiHtml(ar.experienceKPI) : ''}
     }
     console.groupEnd();
 
-    // ── Section 8: v0.4 体験KPI 整合性（生データ → KPI を独立再計算）──
-    console.group('Section 8: v0.4 experienceKPI');
-    const t0 = rNew?.trials?.[0];
+    // ── Section 8: v0.4 体験KPI 独立再計算（_sim3ComputeExperienceKPI とは別実装）──
+    // 計算式自体のバグを検出するため、QA専用の単純実装で照合する
+    console.group('Section 8: v0.4 experienceKPI 独立検証');
+    const t0  = rNew?.trials?.[0];
     const kpi = t0?.experienceKPI;
     const df8 = t0?.dailyFlags;
     if (!kpi || !df8) {
       fail('experienceKPI 存在', 'null（Step 2 未実装またはエラー）');
     } else {
-      // QA側で dailyFlags から独立再計算（_sim3ComputeExperienceKPI とは別経路）
-      const reCalc = _sim3ComputeExperienceKPI(df8);
-
-      const chk = (label, key) => {
-        reCalc[key] === kpi[key]
-          ? pass(label, String(kpi[key]))
-          : fail(label, `KPI=${kpi[key]} 再計算=${reCalc[key]}`);
-      };
-      chk('daysNoAction 再計算一致',               'daysNoAction');
-      chk('daysLowCash 再計算一致',                'daysLowCash');
-      chk('daysNegativeCash 再計算一致',           'daysNegativeCash');
-      chk('maxConsecutiveNoActionDays 再計算一致', 'maxConsecutiveNoActionDays');
-      chk('maxConsecutiveLowCashDays 再計算一致',  'maxConsecutiveLowCashDays');
-      chk('minCash 再計算一致',                    'minCash');
+      // QA専用の独立再実装（生産コードと共有なし）──────────────────
+      let _qaDaysNoAction = 0, _qaDaysLowCash = 0, _qaDaysNegCash = 0;
+      let _qaMaxConsecNoAction = 0, _qaMaxConsecLowCash = 0, _curNoAction = 0, _curLowCash = 0;
+      let _qaMinCash = Infinity;
+      for (const d of df8) {
+        // daysNoAction: dayActivity のどのフラグも立っていない日
+        const noAct = !Object.values(d.dayActivity).some(Boolean);
+        if (noAct) { _qaDaysNoAction++; _curNoAction++; if (_curNoAction > _qaMaxConsecNoAction) _qaMaxConsecNoAction = _curNoAction; }
+        else _curNoAction = 0;
+        // daysLowCash: 現金 < 閾値
+        const lowC = d.cash < _EXP_LOW_CASH_THRESHOLD;
+        if (lowC) { _qaDaysLowCash++; _curLowCash++; if (_curLowCash > _qaMaxConsecLowCash) _qaMaxConsecLowCash = _curLowCash; }
+        else _curLowCash = 0;
+        // daysNegativeCash / minCash
+        if (d.cash < 0) _qaDaysNegCash++;
+        if (d.cash < _qaMinCash) _qaMinCash = d.cash;
+      }
+      // ────────────────────────────────────────────────────────────
+      const chk = (label, expected, actual) =>
+        expected === actual
+          ? pass(label, String(actual))
+          : fail(label, `KPI=${expected} 独立再計算=${actual}`);
+      chk('daysNoAction 独立検証',               kpi.daysNoAction,               _qaDaysNoAction);
+      chk('daysLowCash 独立検証',                kpi.daysLowCash,                _qaDaysLowCash);
+      chk('daysNegativeCash 独立検証',           kpi.daysNegativeCash,           _qaDaysNegCash);
+      chk('maxConsecutiveNoActionDays 独立検証', kpi.maxConsecutiveNoActionDays, _qaMaxConsecNoAction);
+      chk('maxConsecutiveLowCashDays 独立検証',  kpi.maxConsecutiveLowCashDays,  _qaMaxConsecLowCash);
+      chk('minCash 独立検証',                    kpi.minCash,                    _qaMinCash);
     }
     console.groupEnd();
 
