@@ -3,7 +3,7 @@
  * ?qa=1 または ?debug=1 の場合のみ動作
  * ゲーム本体への影響なし・読み取り専用（Phase 2Aは1日テスト後に必ず復元）
  */
-window._MAIKON_QA_VERSION = '2026-07-21-v04b-experience-kpi';
+window._MAIKON_QA_VERSION = '2026-07-21-v04c-kpi-aggregate';
 console.log('[MAIKON-QA] loaded version:', window._MAIKON_QA_VERSION);
 
 (function () {
@@ -4725,6 +4725,8 @@ function qa2cSwitchTab(tid,idx){
       ...rating,
       // v0.3: 全試行のイベント別集計（avgMoney の平均を取る）
       eventAnalytics: _sim3AggregateEventAnalytics(trials),
+      // v0.4: 体験KPI平均（複数試行の平均値 + _perTrial で生値も保持）
+      experienceKPI: _sim3AggregateExperienceKPI(trials),
     };
   }
 
@@ -4756,6 +4758,26 @@ function qa2cSwitchTab(tid,idx){
       maxConsecutiveNoActionDays: maxConsecutive(isNoAction),
       maxConsecutiveLowCashDays:  maxConsecutive(isLowCash),
       minCash:                   Math.min(...dailyFlags.map(d => d.cash)),
+    };
+  }
+
+  // ─── v0.4: 複数試行の体験KPIを平均化 ───
+  function _sim3AggregateExperienceKPI(trials) {
+    if (!trials || !trials.length) return null;
+    const valid = trials.filter(t => t.experienceKPI);
+    if (!valid.length) return null;
+    const n = valid.length;
+    const avg = key => valid.reduce((a, t) => a + (t.experienceKPI[key] ?? 0), 0) / n;
+    return {
+      daysNoAction:               +avg('daysNoAction').toFixed(1),
+      daysLowCash:                +avg('daysLowCash').toFixed(1),
+      daysNegativeCash:           +avg('daysNegativeCash').toFixed(1),
+      maxConsecutiveNoActionDays: +avg('maxConsecutiveNoActionDays').toFixed(1),
+      maxConsecutiveLowCashDays:  +avg('maxConsecutiveLowCashDays').toFixed(1),
+      minCash:                    Math.round(avg('minCash')),
+      trialCount: n,
+      // 将来の分布分析（ヒートマップ・月別等）のために生値を保持
+      _perTrial: valid.map(t => t.experienceKPI),
     };
   }
 
