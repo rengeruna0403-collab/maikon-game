@@ -3,7 +3,7 @@
  * ?qa=1 または ?debug=1 の場合のみ動作
  * ゲーム本体への影響なし・読み取り専用（Phase 2Aは1日テスト後に必ず復元）
  */
-window._MAIKON_QA_VERSION = '2026-07-21-v04c-kpi-aggregate';
+window._MAIKON_QA_VERSION = '2026-07-21-v04d-kpi-display';
 console.log('[MAIKON-QA] loaded version:', window._MAIKON_QA_VERSION);
 
 (function () {
@@ -4767,14 +4767,16 @@ function qa2cSwitchTab(tid,idx){
     const valid = trials.filter(t => t.experienceKPI);
     if (!valid.length) return null;
     const n = valid.length;
-    const avg = key => valid.reduce((a, t) => a + (t.experienceKPI[key] ?? 0), 0) / n;
+    const avg  = key => valid.reduce((a, t) => a + (t.experienceKPI[key] ?? 0), 0) / n;
+    const mins = valid.map(t => t.experienceKPI.minCash ?? 0);
     return {
       daysNoAction:               +avg('daysNoAction').toFixed(1),
       daysLowCash:                +avg('daysLowCash').toFixed(1),
       daysNegativeCash:           +avg('daysNegativeCash').toFixed(1),
       maxConsecutiveNoActionDays: +avg('maxConsecutiveNoActionDays').toFixed(1),
       maxConsecutiveLowCashDays:  +avg('maxConsecutiveLowCashDays').toFixed(1),
-      minCash:                    Math.round(avg('minCash')),
+      averageMinCash:             Math.round(avg('minCash')),   // 各試行の最低資金の平均
+      worstMinCash:               Math.min(...mins),            // 全試行中の最悪値
       trialCount: n,
       // 将来の分布分析（ヒートマップ・月別等）のために生値を保持
       _perTrial: valid.map(t => t.experienceKPI),
@@ -6353,6 +6355,41 @@ function qa2cSwitchTab(tid,idx){
 </div>`;
   }
 
+  // ─── v0.4: Experience KPI HTML ────────────────────────────────
+  function _sim3ExperienceKpiHtml(ekpi) {
+    if (!ekpi) return '';
+    const pct  = (days) => `（${(days / 365 * 100).toFixed(1)}%）`;
+    const fmtD = (v) => v == null ? '-' : `${v.toFixed(1)}日`;
+    const fmtM = (v) => v == null ? '-' : (v >= 0 ? `¥${Math.round(v).toLocaleString()}` : `-¥${Math.round(Math.abs(v)).toLocaleString()}`);
+    const row = (label, value, sub='') => `
+      <tr>
+        <td style="padding:3px 10px 3px 0;color:#aaa;font-size:11px;white-space:nowrap">${label}</td>
+        <td style="padding:3px 0;color:#fff;font-size:11px;font-weight:700">${value}</td>
+        <td style="padding:3px 0 3px 8px;color:#666;font-size:10px">${sub}</td>
+      </tr>`;
+    const n = ekpi.trialCount;
+    return `
+<div style="background:#0d0d1a;border:2px solid #4a2a6a;border-radius:8px;padding:14px 16px;margin-top:12px">
+  <div style="font-size:14px;color:#ce93d8;font-weight:900;margin-bottom:10px">
+    🎮 体験KPI（v0.4）
+    <span style="font-size:10px;color:#666;font-weight:400;margin-left:8px">${n}試行平均</span>
+  </div>
+  <table style="border-collapse:collapse;width:100%">
+    <tr><td colspan="3" style="padding:4px 0;color:#9575cd;font-size:10px;font-weight:700">■ 行動密度</td></tr>
+    ${row('無行動日数',         fmtD(ekpi.daysNoAction),         pct(ekpi.daysNoAction))}
+    ${row('無行動 最大連続',     fmtD(ekpi.maxConsecutiveNoActionDays))}
+    <tr><td colspan="3" style="padding:4px 0;color:#9575cd;font-size:10px;font-weight:700">■ 資金プレッシャー</td></tr>
+    ${row('低資金日数',          fmtD(ekpi.daysLowCash),          pct(ekpi.daysLowCash))}
+    ${row('低資金 最大連続',      fmtD(ekpi.maxConsecutiveLowCashDays))}
+    ${row('資金マイナス日数',    fmtD(ekpi.daysNegativeCash),     pct(ekpi.daysNegativeCash))}
+    <tr><td colspan="3" style="padding:4px 0;color:#9575cd;font-size:10px;font-weight:700">■ 最低資金</td></tr>
+    ${row('平均最低資金',        fmtM(ekpi.averageMinCash),       '各試行の最低値の平均')}
+    ${row('全試行中の最悪値',    fmtM(ekpi.worstMinCash),         '最も厳しかった試行')}
+  </table>
+  <div style="font-size:9px;color:#555;margin-top:8px">低資金閾値: ¥${_EXP_LOW_CASH_THRESHOLD.toLocaleString()}</div>
+</div>`;
+  }
+
   // ─── v0.3: Event Analytics HTML ───────────────────────────────
   function _sim3EventAnalyticsHtml(ea) {
     if (!ea) return '<div style="color:#555;font-size:11px">イベント分析データなし</div>';
@@ -7104,6 +7141,7 @@ ${ar && !anaRunning ? `
   ${_sim3BusinessReportHtml(ar.businessReport)}
 </div>
 ${ar.eventAnalytics ? _sim3EventAnalyticsHtml(ar.eventAnalytics) : ''}
+${ar.experienceKPI ? _sim3ExperienceKpiHtml(ar.experienceKPI) : ''}
 <div style="background:#0d0d1a;border:2px solid #2a4a2a;border-radius:8px;padding:14px 16px;margin-top:12px">
   <div style="font-size:14px;color:#81c784;font-weight:900;margin-bottom:10px">🎛 バランスシミュレーター（Phase 3B-2）</div>
   <div style="font-size:10px;color:#555;margin-bottom:10px">ゲーム本体は変更しません。分析データから「もし○○だったら」を線形近似で計算します。</div>
