@@ -3,7 +3,7 @@
  * ?qa=1 または ?debug=1 の場合のみ動作
  * ゲーム本体への影響なし・読み取り専用（Phase 2Aは1日テスト後に必ず復元）
  */
-window._MAIKON_QA_VERSION = '2026-07-21-v04a-dailyflags';
+window._MAIKON_QA_VERSION = '2026-07-21-v04b-experience-kpi';
 console.log('[MAIKON-QA] loaded version:', window._MAIKON_QA_VERSION);
 
 (function () {
@@ -4536,6 +4536,8 @@ function qa2cSwitchTab(tid,idx){
         apHistory:        [...apValid],
         // v0.4: 日次フラグ（生データ。Analytics は後段でここから読む）
         dailyFlags,
+        // v0.4: 体験KPI（dailyFlags からの派生値。純粋関数で計算）
+        experienceKPI: _sim3ComputeExperienceKPI(dailyFlags),
       };
     } finally {
       Math.random = origMath;
@@ -4723,6 +4725,37 @@ function qa2cSwitchTab(tid,idx){
       ...rating,
       // v0.3: 全試行のイベント別集計（avgMoney の平均を取る）
       eventAnalytics: _sim3AggregateEventAnalytics(trials),
+    };
+  }
+
+  // ─── v0.4: 体験KPI定数（閾値変更はここだけ）───
+  const _EXP_LOW_CASH_THRESHOLD = 300_000;
+
+  // ─── v0.4: dailyFlags → 体験KPI（純粋関数。G/グローバル参照なし）───
+  function _sim3ComputeExperienceKPI(dailyFlags) {
+    if (!dailyFlags || !dailyFlags.length) return null;
+
+    // 連続日数の最大値を求める汎用ヘルパー
+    const maxConsecutive = (predFn) => {
+      let max = 0, cur = 0;
+      for (const d of dailyFlags) {
+        if (predFn(d)) { if (++cur > max) max = cur; }
+        else cur = 0;
+      }
+      return max;
+    };
+
+    const isNoAction   = d => !Object.values(d.dayActivity).some(Boolean);
+    const isLowCash    = d => d.cash < _EXP_LOW_CASH_THRESHOLD;
+    const isNegCash    = d => d.cash < 0;
+
+    return {
+      daysNoAction:              dailyFlags.filter(isNoAction).length,
+      daysLowCash:               dailyFlags.filter(isLowCash).length,
+      daysNegativeCash:          dailyFlags.filter(isNegCash).length,
+      maxConsecutiveNoActionDays: maxConsecutive(isNoAction),
+      maxConsecutiveLowCashDays:  maxConsecutive(isLowCash),
+      minCash:                   Math.min(...dailyFlags.map(d => d.cash)),
     };
   }
 
@@ -7298,6 +7331,31 @@ ${ar.eventAnalytics ? _sim3EventAnalyticsHtml(ar.eventAnalytics) : ''}
       sharedRef === -1
         ? pass('dayActivity 参照独立', '全日で別オブジェクト')
         : fail('dayActivity 参照独立', `index ${sharedRef} が前日と同じ参照`);
+    }
+    console.groupEnd();
+
+    // ── Section 8: v0.4 体験KPI 整合性（生データ → KPI を独立再計算）──
+    console.group('Section 8: v0.4 experienceKPI');
+    const t0 = rNew?.trials?.[0];
+    const kpi = t0?.experienceKPI;
+    const df8 = t0?.dailyFlags;
+    if (!kpi || !df8) {
+      fail('experienceKPI 存在', 'null（Step 2 未実装またはエラー）');
+    } else {
+      // QA側で dailyFlags から独立再計算（_sim3ComputeExperienceKPI とは別経路）
+      const reCalc = _sim3ComputeExperienceKPI(df8);
+
+      const chk = (label, key) => {
+        reCalc[key] === kpi[key]
+          ? pass(label, String(kpi[key]))
+          : fail(label, `KPI=${kpi[key]} 再計算=${reCalc[key]}`);
+      };
+      chk('daysNoAction 再計算一致',               'daysNoAction');
+      chk('daysLowCash 再計算一致',                'daysLowCash');
+      chk('daysNegativeCash 再計算一致',           'daysNegativeCash');
+      chk('maxConsecutiveNoActionDays 再計算一致', 'maxConsecutiveNoActionDays');
+      chk('maxConsecutiveLowCashDays 再計算一致',  'maxConsecutiveLowCashDays');
+      chk('minCash 再計算一致',                    'minCash');
     }
     console.groupEnd();
 
