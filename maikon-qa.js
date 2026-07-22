@@ -4377,15 +4377,16 @@ function qa2cSwitchTab(tid,idx){
   function _sim5TryRegionInvestment() {
     _sim5Diag.called++;
 
-    let G;
-    try { G = eval('G'); } catch(e) { return false; }
-    if (!G || !Array.isArray(G.regions)) {
+    // 注意: ローカル変数をGと命名するとグローバルGをシャドウするため _g5 を使用する
+    let _g5;
+    try { _g5 = eval('G'); } catch(e) { return false; }
+    if (!_g5 || !Array.isArray(_g5.regions)) {
       _sim5Diag.noRegions++;
       return false;
     }
 
     // 解放済み地域のみ対象
-    const unlocked = G.regions
+    const unlocked = _g5.regions
       .map((r, i) => ({ r, i }))
       .filter(({ r }) => r.unlocked);
     if (unlocked.length === 0) {
@@ -4396,7 +4397,7 @@ function qa2cSwitchTab(tid,idx){
     // 手元キャッシュを確保したうえで払える選択肢のみ。
     // cost_efficiency = (bondUp + score) / cost で降順ソート（コスパ優先）
     const affordable = _SIM5_INVEST_OPTIONS
-      .filter(opt => (G.money ?? 0) - opt.cost >= _SIM5_CASH_RESERVE)
+      .filter(opt => (_g5.money ?? 0) - opt.cost >= _SIM5_CASH_RESERVE)
       .sort((a, b) =>
         (b.bondUp + b.score) / b.cost - (a.bondUp + a.score) / a.cost
       );
@@ -4406,8 +4407,8 @@ function qa2cSwitchTab(tid,idx){
     }
 
     // AP不足チェック（investRegion内のuseAP(20)と同じ条件）
-    const apNow    = G.ap    ?? 0;
-    const moneyNow = G.money ?? 0;
+    const apNow    = _g5.ap    ?? 0;
+    const moneyNow = _g5.money ?? 0;
     if (apNow < 20) {
       _sim5Diag.insufficientAP++;
       return false;
@@ -4424,15 +4425,15 @@ function qa2cSwitchTab(tid,idx){
     if (moneyNow < _sim5Diag.minMoney) _sim5Diag.minMoney = moneyNow;
     if (moneyNow > _sim5Diag.maxMoney) _sim5Diag.maxMoney = moneyNow;
 
-    const bondBefore = (G.regions[target.i]?.communityBond ?? 0);
+    const bondBefore = (_g5.regions[target.i]?.communityBond ?? 0);
     try {
       investRegion(target.i, opt.cost, opt.type, opt.score, opt.bondUp);
     } catch(e) { return false; }
 
     // investRegion後にcommunityBondが実際に増えたか確認
-    let gAfter;
-    try { gAfter = eval('G'); } catch(e) { gAfter = null; }
-    const bondAfter = (gAfter?.regions[target.i]?.communityBond ?? bondBefore);
+    let _g5After;
+    try { _g5After = eval('G'); } catch(e) { _g5After = null; }
+    const bondAfter = (_g5After?.regions[target.i]?.communityBond ?? bondBefore);
     if (bondAfter > bondBefore) _sim5Diag.succeeded++;
 
     return true;
