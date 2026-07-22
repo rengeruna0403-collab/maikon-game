@@ -3,8 +3,9 @@
  * ?qa=1 または ?debug=1 の場合のみ動作
  * ゲーム本体への影響なし・読み取り専用（Phase 2Aは1日テスト後に必ず復元）
  */
-window._MAIKON_QA_VERSION = '2026-07-21-v05a-invest-ai';
+window._MAIKON_QA_VERSION = '2026-07-22-v05a-g5-shadow-fix';
 console.log('[MAIKON-QA] loaded version:', window._MAIKON_QA_VERSION);
+console.log('[QA FILE LOADED] g5-shadow-fix-20260722');
 
 (function () {
   'use strict';
@@ -4380,6 +4381,15 @@ function qa2cSwitchTab(tid,idx){
     // 注意: ローカル変数をGと命名するとグローバルGをシャドウするため _g5 を使用する
     let _g5;
     try { _g5 = eval('G'); } catch(e) { return false; }
+
+    // 初回のみ: 修正版が実際に動いているか確認するための一時ログ
+    if (_sim5Diag.called === 1) {
+      console.log('[SIM5 CODE CHECK]', {
+        marker: 'g5-shadow-fix-20260722',
+        hasGameState: _g5 !== null && _g5 !== undefined,
+        regionsExists: Array.isArray(_g5?.regions),
+      });
+    }
     if (!_g5 || !Array.isArray(_g5.regions)) {
       _sim5Diag.noRegions++;
       return false;
