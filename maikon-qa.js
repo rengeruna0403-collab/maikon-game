@@ -4357,16 +4357,41 @@ function qa2cSwitchTab(tid,idx){
   ];
   const _SIM5_CASH_RESERVE = 500_000; // 手元に残すキャッシュの最低ライン
 
+  // 診断カウンター（_qa3ValidateAll 呼び出しごとにリセット）
+  const _sim5Diag = {
+    called: 0, noRegions: 0, noUnlockedRegion: 0,
+    insufficientCash: 0, insufficientAP: 0,
+    attempted: 0, succeeded: 0,
+    minAP: Infinity, maxAP: -Infinity,
+    minMoney: Infinity, maxMoney: -Infinity,
+    reset() {
+      this.called = 0; this.noRegions = 0; this.noUnlockedRegion = 0;
+      this.insufficientCash = 0; this.insufficientAP = 0;
+      this.attempted = 0; this.succeeded = 0;
+      this.minAP = Infinity; this.maxAP = -Infinity;
+      this.minMoney = Infinity; this.maxMoney = -Infinity;
+    },
+  };
+  window._sim5Diag = _sim5Diag; // コンソールから直接参照可能にする
+
   function _sim5TryRegionInvestment() {
+    _sim5Diag.called++;
+
     let G;
     try { G = eval('G'); } catch(e) { return false; }
-    if (!G || !Array.isArray(G.regions)) return false;
+    if (!G || !Array.isArray(G.regions)) {
+      _sim5Diag.noRegions++;
+      return false;
+    }
 
     // 解放済み地域のみ対象
     const unlocked = G.regions
       .map((r, i) => ({ r, i }))
       .filter(({ r }) => r.unlocked);
-    if (unlocked.length === 0) return false;
+    if (unlocked.length === 0) {
+      _sim5Diag.noUnlockedRegion++;
+      return false;
+    }
 
     // 手元キャッシュを確保したうえで払える選択肢のみ。
     // cost_efficiency = (bondUp + score) / cost で降順ソート（コスパ優先）
@@ -4375,14 +4400,41 @@ function qa2cSwitchTab(tid,idx){
       .sort((a, b) =>
         (b.bondUp + b.score) / b.cost - (a.bondUp + a.score) / a.cost
       );
-    if (affordable.length === 0) return false;
+    if (affordable.length === 0) {
+      _sim5Diag.insufficientCash++;
+      return false;
+    }
+
+    // AP不足チェック（investRegion内のuseAP(20)と同じ条件）
+    const apNow    = G.ap    ?? 0;
+    const moneyNow = G.money ?? 0;
+    if (apNow < 20) {
+      _sim5Diag.insufficientAP++;
+      return false;
+    }
 
     // 最初の解放済み地域・最もコスパの良い活動を実行
     const target = unlocked[0];
     const opt    = affordable[0];
+
+    // 呼び出し直前のAP・資金を記録
+    _sim5Diag.attempted++;
+    if (apNow    < _sim5Diag.minAP)    _sim5Diag.minAP    = apNow;
+    if (apNow    > _sim5Diag.maxAP)    _sim5Diag.maxAP    = apNow;
+    if (moneyNow < _sim5Diag.minMoney) _sim5Diag.minMoney = moneyNow;
+    if (moneyNow > _sim5Diag.maxMoney) _sim5Diag.maxMoney = moneyNow;
+
+    const bondBefore = (G.regions[target.i]?.communityBond ?? 0);
     try {
       investRegion(target.i, opt.cost, opt.type, opt.score, opt.bondUp);
     } catch(e) { return false; }
+
+    // investRegion後にcommunityBondが実際に増えたか確認
+    let gAfter;
+    try { gAfter = eval('G'); } catch(e) { gAfter = null; }
+    const bondAfter = (gAfter?.regions[target.i]?.communityBond ?? bondBefore);
+    if (bondAfter > bondBefore) _sim5Diag.succeeded++;
+
     return true;
   }
 
@@ -7293,6 +7345,9 @@ ${ar.experienceKPI ? _sim3ExperienceKpiHtml(ar.experienceKPI) : ''}
     const numTrials = opts.trials || 3;
     const seed      = opts.seed   || 1001;
 
+    // 診断カウンターをリセット（試行をまたいで累積集計する）
+    _sim5Diag.reset();
+
     const results = [];
     const pass = (lbl, detail) => { results.push({lbl,st:'PASS',detail}); console.log(`✅ PASS  ${lbl}: ${detail}`); };
     const fail = (lbl, detail) => { results.push({lbl,st:'FAIL',detail}); console.error(`❌ FAIL  ${lbl}: ${detail}`); };
@@ -7721,6 +7776,28 @@ ${ar.experienceKPI ? _sim3ExperienceKpiHtml(ar.experienceKPI) : ''}
     }
 
     console.groupEnd();
+
+    // ── _sim5TryRegionInvestment 診断集計 ────────────────────────
+    {
+      const d = _sim5Diag;
+      const summary = {
+        called:           d.called,
+        noRegions:        d.noRegions,
+        noUnlockedRegion: d.noUnlockedRegion,
+        insufficientCash: d.insufficientCash,
+        insufficientAP:   d.insufficientAP,
+        attempted:        d.attempted,
+        succeeded:        d.succeeded,
+        minAP:    d.minAP    === Infinity  ? null : d.minAP,
+        maxAP:    d.maxAP    === -Infinity ? null : d.maxAP,
+        minMoney: d.minMoney === Infinity  ? null : d.minMoney,
+        maxMoney: d.maxMoney === -Infinity ? null : d.maxMoney,
+      };
+      console.group('📊 _sim5TryRegionInvestment 診断集計');
+      console.table(summary);
+      console.groupEnd();
+      console.log('[sim5Diag]', JSON.stringify(summary));
+    }
 
     // ── 総合判定 ──────────────────────────────────────────────────
     const nPass = results.filter(r=>r.st==='PASS').length;
