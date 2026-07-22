@@ -3,9 +3,9 @@
  * ?qa=1 または ?debug=1 の場合のみ動作
  * ゲーム本体への影響なし・読み取り専用（Phase 2Aは1日テスト後に必ず復元）
  */
-window._MAIKON_QA_VERSION = '2026-07-22-v05a-g5-shadow-fix';
+window._MAIKON_QA_VERSION = '2026-07-22-v05b-train-staff-ai';
 console.log('[MAIKON-QA] loaded version:', window._MAIKON_QA_VERSION);
-console.log('[QA FILE LOADED] g5-shadow-fix-20260722');
+console.log('[QA FILE LOADED] v05b-train-staff-ai-20260722');
 
 (function () {
   'use strict';
@@ -4449,6 +4449,81 @@ function qa2cSwitchTab(tid,idx){
     return true;
   }
 
+  // ── v0.5b: trainStaff AI ───────────────────────────────────────
+  const _SIM5_TRAIN_CASH_RESERVE = 200_000; // 手元に残すキャッシュの最低ライン
+
+  // 診断カウンター（_qa3ValidateAll 呼び出しごとにリセット）
+  const _sim5TrainDiag = {
+    called: 0, noStaff: 0, insufficientCash: 0, insufficientAP: 0,
+    allServiceMax: 0, attempted: 0, succeeded: 0,
+    serviceTraining: 0, cookingTraining: 0, managementTraining: 0,
+    reset() {
+      this.called = 0; this.noStaff = 0; this.insufficientCash = 0;
+      this.insufficientAP = 0; this.allServiceMax = 0;
+      this.attempted = 0; this.succeeded = 0;
+      this.serviceTraining = 0; this.cookingTraining = 0; this.managementTraining = 0;
+    },
+  };
+  window._sim5TrainDiag = _sim5TrainDiag;
+
+  // スキル選択ロジック（将来 management / cooking 戦略切り替え時はここだけ変える）
+  function _sim5SelectTrainTarget(staff) {
+    // v0.5b: service 固定。service < 100 のスタッフの中で最も値が低いものを選ぶ
+    const candidates = staff.filter(s => (s.skills?.service ?? 0) < 100);
+    if (candidates.length === 0) return null;
+    candidates.sort((a, b) => (a.skills?.service ?? 0) - (b.skills?.service ?? 0));
+    return { staff: candidates[0], skill: 'service' };
+  }
+
+  function _sim5TryTrainStaff() {
+    _sim5TrainDiag.called++;
+
+    // 注意: ローカル変数をGと命名するとグローバルGをシャドウするため _g5t を使用する
+    let _g5t;
+    try { _g5t = eval('G'); } catch(e) { return false; }
+
+    if (!_g5t || !_g5t.staffUnlocked || !Array.isArray(_g5t.staff) || _g5t.staff.length === 0) {
+      _sim5TrainDiag.noStaff++;
+      return false;
+    }
+
+    if ((_g5t.money ?? 0) < 50_000 + _SIM5_TRAIN_CASH_RESERVE) {
+      _sim5TrainDiag.insufficientCash++;
+      return false;
+    }
+
+    if ((_g5t.ap ?? 0) < 15) {
+      _sim5TrainDiag.insufficientAP++;
+      return false;
+    }
+
+    const target = _sim5SelectTrainTarget(_g5t.staff);
+    if (!target) {
+      _sim5TrainDiag.allServiceMax++;
+      return false;
+    }
+
+    const { staff: s, skill } = target;
+    const skillBefore = s.skills?.[skill] ?? 0;
+
+    _sim5TrainDiag.attempted++;
+    if (skill === 'service')    _sim5TrainDiag.serviceTraining++;
+    if (skill === 'cooking')    _sim5TrainDiag.cookingTraining++;
+    if (skill === 'management') _sim5TrainDiag.managementTraining++;
+
+    try {
+      trainStaff(s.id, skill);
+    } catch(e) { return false; }
+
+    // 実際にスキルが増加したか確認
+    let _g5tAfter;
+    try { _g5tAfter = eval('G'); } catch(e) { _g5tAfter = null; }
+    const sAfter = (_g5tAfter?.staff || []).find(x => x.id === s.id);
+    if ((sAfter?.skills?.[skill] ?? skillBefore) > skillBefore) _sim5TrainDiag.succeeded++;
+
+    return true;
+  }
+
   // ── 1試行実行 ──
   function _sim3AnalyzeRunTrial(seed, gSnap) {
     const origMath = Math.random;
@@ -4501,6 +4576,7 @@ function qa2cSwitchTab(tid,idx){
 
         // v0.5: AI能動行動（ゲーム本体コード変更なし）
         _sim5TryRegionInvestment();
+        _sim5TryTrainStaff();
 
         // ── 日後の状態（事実）──────────────────────────────────────
         let _gNow;
@@ -7358,6 +7434,7 @@ ${ar.experienceKPI ? _sim3ExperienceKpiHtml(ar.experienceKPI) : ''}
 
     // 診断カウンターをリセット（試行をまたいで累積集計する）
     _sim5Diag.reset();
+    _sim5TrainDiag.reset();
 
     const results = [];
     const pass = (lbl, detail) => { results.push({lbl,st:'PASS',detail}); console.log(`✅ PASS  ${lbl}: ${detail}`); };
@@ -7787,6 +7864,119 @@ ${ar.experienceKPI ? _sim3ExperienceKpiHtml(ar.experienceKPI) : ''}
     }
 
     console.groupEnd();
+
+    // ── Section 11: v0.5b AI能動行動 _sim5TryTrainStaff ──────────
+    console.group('Section 11: v0.5b AI能動行動（trainStaff）検証');
+
+    // 11-1: スタッフ不在なら実行しない
+    {
+      const mockStaff1 = [];
+      const mockStaff2 = [{ id:1, skills:{ service:40, cooking:30, management:20 } }];
+      const target1 = _sim5SelectTrainTarget(mockStaff1);
+      const target2 = _sim5SelectTrainTarget(mockStaff2);
+      (target1 === null && target2 !== null)
+        ? pass('11-1 スタッフ不在時スキップ', 'スタッフなし=null / あり=対象あり')
+        : fail('11-1 スタッフ不在時スキップ', `スタッフなし=${target1} あり=${JSON.stringify(target2)}`);
+    }
+
+    // 11-2: 資金不足なら実行しない
+    {
+      const need = 50_000 + _SIM5_TRAIN_CASH_RESERVE;
+      const ok1  = 300_000 >= need;  // 300_000 < 250_000+50000=250000 → 不足
+      const ok2  = 500_000 >= need;  // 500_000 >= 250_000 → 十分
+      (!ok1 && ok2)
+        ? pass('11-2 資金不足時スキップ', `不足(300k)=false / 十分(500k)=true (必要額${need.toLocaleString()})`)
+        : fail('11-2 資金不足時スキップ', `不足=${ok1} 十分=${ok2}`);
+    }
+
+    // 11-3: AP不足なら実行しない
+    {
+      const d1 = 14 < 15; // AP=14 → 不足
+      const d2 = 15 >= 15; // AP=15 → 十分
+      (d1 && d2)
+        ? pass('11-3 AP不足時スキップ', 'AP=14:不足 / AP=15:OK')
+        : fail('11-3 AP不足時スキップ', `14<15=${d1} 15>=15=${d2}`);
+    }
+
+    // 11-4: 全員 service==100 なら実行しない
+    {
+      const allMax = [
+        { id:1, skills:{ service:100, cooking:50, management:30 } },
+        { id:2, skills:{ service:100, cooking:80, management:60 } },
+      ];
+      const oneLeft = [
+        { id:1, skills:{ service:100, cooking:50, management:30 } },
+        { id:2, skills:{ service: 88, cooking:80, management:60 } },
+      ];
+      const t1 = _sim5SelectTrainTarget(allMax);
+      const t2 = _sim5SelectTrainTarget(oneLeft);
+      (t1 === null && t2 !== null && t2.staff.id === 2)
+        ? pass('11-4 全員service=100時スキップ', '全員100=null / 1人未満=対象あり(id=2)')
+        : fail('11-4 全員service=100時スキップ', `全員100=${t1} 1人未満=${JSON.stringify(t2)}`);
+    }
+
+    // 11-5: 実行するとserviceが増加する（スキル差分検出ロジック確認）
+    {
+      const snapSkills = [{ service: 40, cooking: 30, management: 20 }];
+      const nowStaff1  = [{ skills:{ service: 52, cooking: 30, management: 20 } }]; // service+12
+      const nowStaff2  = [{ skills:{ service: 40, cooking: 30, management: 20 } }]; // 変化なし
+      const detect = (staff) =>
+        staff.some((s, i) =>
+          snapSkills[i] &&
+          Object.entries(s.skills || {}).some(([k, v]) => v !== (snapSkills[i][k] ?? v))
+        );
+      const d1 = detect(nowStaff1), d2 = detect(nowStaff2);
+      (d1 && !d2)
+        ? pass('11-5 serviceスキル増加検出', 'service+12=true / 変化なし=false')
+        : fail('11-5 serviceスキル増加検出', `増加=${d1} 変化なし=${d2}`);
+    }
+
+    // 11-6: staffActionTaken が true になる（11-5と同じロジックの統合確認）
+    {
+      const snap = [{ service: 40 }];
+      const now  = [{ service: 52 }];
+      const triggered = now.some((s, i) => (s.service ?? 0) > (snap[i]?.service ?? 0));
+      triggered
+        ? pass('11-6 staffActionTaken連動確認', 'service増加 → staffActionTaken=true')
+        : fail('11-6 staffActionTaken連動確認', 'service増加でも検出されない');
+    }
+
+    // 11-7: 実シミュレーションで発火確認
+    {
+      const df11 = rNew?.trials?.[0]?.dailyFlags;
+      if (!df11 || !df11.length) {
+        warn('11-7 trainStaff 実発火確認', 'dailyFlags が空（シミュレーション未実行）');
+      } else {
+        const fired = df11.filter(d => d.dayActivity?.staffActionTaken === true).length;
+        const diagAtt = _sim5TrainDiag.attempted;
+        fired > 0
+          ? pass('11-7 trainStaff 実発火確認', `staffActionTaken: ${fired}日 / AI試行: ${diagAtt}回`)
+          : warn('11-7 trainStaff 実発火確認', `staffActionTaken=true なし (AI試行=${diagAtt}, スタッフ=${_sim5TrainDiag.noStaff > 0 ? 'なし' : 'あり'})`);
+      }
+    }
+
+    console.groupEnd();
+
+    // ── _sim5TryTrainStaff 診断集計 ──────────────────────────────
+    {
+      const d = _sim5TrainDiag;
+      const summary = {
+        called:           d.called,
+        noStaff:          d.noStaff,
+        insufficientCash: d.insufficientCash,
+        insufficientAP:   d.insufficientAP,
+        allServiceMax:    d.allServiceMax,
+        attempted:        d.attempted,
+        succeeded:        d.succeeded,
+        serviceTraining:  d.serviceTraining,
+        cookingTraining:  d.cookingTraining,
+        managementTraining: d.managementTraining,
+      };
+      console.group('📊 _sim5TryTrainStaff 診断集計');
+      console.table(summary);
+      console.groupEnd();
+      console.log('[sim5TrainDiag]', JSON.stringify(summary));
+    }
 
     // ── _sim5TryRegionInvestment 診断集計 ────────────────────────
     {
