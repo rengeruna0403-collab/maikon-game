@@ -7880,13 +7880,29 @@ ${ar.experienceKPI ? _sim3ExperienceKpiHtml(ar.experienceKPI) : ''}
     }
 
     // 11-2: 資金不足なら実行しない
+    // 最低必要額 = 50_000(コスト) + 200_000(リザーブ) = 250_000
+    // 不足ケース: 249_999（最低必要額より1円少ない）
+    // 十分ケース: 250_000（最低必要額ちょうど）
     {
-      const need = 50_000 + _SIM5_TRAIN_CASH_RESERVE;
-      const ok1  = 300_000 >= need;  // 300_000 < 250_000+50000=250000 → 不足
-      const ok2  = 500_000 >= need;  // 500_000 >= 250_000 → 十分
-      (!ok1 && ok2)
-        ? pass('11-2 資金不足時スキップ', `不足(300k)=false / 十分(500k)=true (必要額${need.toLocaleString()})`)
-        : fail('11-2 資金不足時スキップ', `不足=${ok1} 十分=${ok2}`);
+      const need       = 50_000 + _SIM5_TRAIN_CASH_RESERVE; // 250_000
+      const mockBase   = { ap: 100, staffUnlocked: true,
+                           staff: [{ id:1, skills:{ service:20, cooking:20, management:20 } }] };
+      const origG = eval('G');
+      let res1, res2;
+      const origTrainStaff = window.trainStaff;
+      try {
+        window.trainStaff = () => {}; // 副作用を封じて条件判定のみ確認
+        eval('G = Object.assign({}, mockBase, { money: 249_999 })');
+        res1 = _sim5TryTrainStaff(); // 不足 → false を期待
+        eval('G = Object.assign({}, mockBase, { money: 250_000 })');
+        res2 = _sim5TryTrainStaff(); // 十分 → true を期待
+      } finally {
+        eval('G = origG');
+        window.trainStaff = origTrainStaff;
+      }
+      (!res1 && res2)
+        ? pass('11-2 資金不足時スキップ', `不足(249,999)=false / 十分(250,000)=true (必要額${need.toLocaleString()})`)
+        : fail('11-2 資金不足時スキップ', `不足=${res1} 十分=${res2}`);
     }
 
     // 11-3: AP不足なら実行しない
