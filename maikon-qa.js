@@ -7939,6 +7939,8 @@ ${ar.experienceKPI ? _sim3ExperienceKpiHtml(ar.experienceKPI) : ''}
       const origG = eval('G');
       let res1, res2;
       const origTrainStaff = window.trainStaff;
+      // 診断カウンターをスナップショット保存（モック実行の汚染を防ぐ）
+      const trainDiagBefore11_2 = Object.assign({}, _sim5TrainDiag);
       try {
         window.trainStaff = () => {}; // 副作用を封じて条件判定のみ確認
         eval('G = Object.assign({}, mockBase, { money: 249_999 })');
@@ -7948,6 +7950,10 @@ ${ar.experienceKPI ? _sim3ExperienceKpiHtml(ar.experienceKPI) : ''}
       } finally {
         eval('G = origG');
         window.trainStaff = origTrainStaff;
+        // 診断カウンターの数値フィールドを復元（reset()関数は上書きしない）
+        for (const [k, v] of Object.entries(trainDiagBefore11_2)) {
+          if (typeof v === 'number') _sim5TrainDiag[k] = v;
+        }
       }
       (!res1 && res2)
         ? pass('11-2 資金不足時スキップ', `不足(249,999)=false / 十分(250,000)=true (必要額${need.toLocaleString()})`)
