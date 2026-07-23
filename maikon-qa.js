@@ -3,9 +3,9 @@
  * ?qa=1 または ?debug=1 の場合のみ動作
  * ゲーム本体への影響なし・読み取り専用（Phase 2Aは1日テスト後に必ず復元）
  */
-window._MAIKON_QA_VERSION = '2026-07-22-v05b-train-staff-ai';
+window._MAIKON_QA_VERSION = '2026-07-22-v05c-action-comparison';
 console.log('[MAIKON-QA] loaded version:', window._MAIKON_QA_VERSION);
-console.log('[QA FILE LOADED] v05b-train-staff-ai-20260722');
+console.log('[QA FILE LOADED] v05c-action-comparison-20260722');
 
 (function () {
   'use strict';
@@ -4524,6 +4524,54 @@ function qa2cSwitchTab(tid,idx){
     return true;
   }
 
+  // ── v0.5c: AI行動定義テーブル & 共通比較レポート ───────────────
+  // 新しいAI行動は _SIM5_ACTION_DEFS に1件追加するだけで比較対象に加わる。
+  const _SIM5_ACTION_DEFS = [
+    {
+      key:             'investRegion',
+      label:           '地域活動',
+      diag:            () => _sim5Diag,
+      otherBlockedKeys: ['noRegions', 'noUnlockedRegion'],
+    },
+    {
+      key:             'trainStaff',
+      label:           'スタッフ研修',
+      diag:            () => _sim5TrainDiag,
+      otherBlockedKeys: ['noStaff', 'allServiceMax'],
+    },
+  ];
+
+  function _sim5BuildActionComparison() {
+    const r = v => (isFinite(v) && !isNaN(v)) ? v : 0;
+    return _SIM5_ACTION_DEFS.map(def => {
+      const d = def.diag();
+      const called      = d.called      || 0;
+      const attempted   = d.attempted   || 0;
+      const succeeded   = d.succeeded   || 0;
+      const insuffCash  = d.insufficientCash || 0;
+      const insuffAP    = d.insufficientAP   || 0;
+      const otherBlocked = def.otherBlockedKeys.reduce((sum, k) => sum + (d[k] || 0), 0);
+      const safe = (num, den) => den > 0 ? r(num / den) : 0;
+      return {
+        key:                   def.key,
+        label:                 def.label,
+        called,
+        attempted,
+        succeeded,
+        insufficientCash:      insuffCash,
+        insufficientAP:        insuffAP,
+        otherBlocked,
+        attemptRate:           safe(attempted,  called),
+        successRatePerAttempt: safe(succeeded,  attempted),
+        successRatePerCall:    safe(succeeded,  called),
+        cashBlockRate:         safe(insuffCash, called),
+        apBlockRate:           safe(insuffAP,   called),
+        otherBlockRate:        safe(otherBlocked, called),
+      };
+    });
+  }
+  window._sim5BuildActionComparison = _sim5BuildActionComparison;
+
   // ── 1試行実行 ──
   function _sim3AnalyzeRunTrial(seed, gSnap) {
     const origMath = Math.random;
@@ -6185,6 +6233,7 @@ function qa2cSwitchTab(tid,idx){
       difficulty,
       suggestions: suggestions.slice(0,5),
       comment: lines.join('\n'),
+      actionComparison: _sim5BuildActionComparison(), // v0.5c: AI行動横断比較
     };
   }
 
@@ -7992,6 +8041,135 @@ ${ar.experienceKPI ? _sim3ExperienceKpiHtml(ar.experienceKPI) : ''}
       console.table(summary);
       console.groupEnd();
       console.log('[sim5TrainDiag]', JSON.stringify(summary));
+    }
+
+    // ── Section 12: v0.5c AI行動比較レポート検証 ──────────────────
+    console.group('Section 12: AI行動比較レポート検証');
+    const _cmp = _sim5BuildActionComparison();
+
+    // 12-1: _sim5BuildActionComparison 存在確認
+    typeof _sim5BuildActionComparison === 'function'
+      ? pass('12-1 _sim5BuildActionComparison 存在', '関数として定義済み')
+      : fail('12-1 _sim5BuildActionComparison 存在', `typeof=${typeof _sim5BuildActionComparison}`);
+
+    // 12-2: 比較対象が investRegion / trainStaff の2件ある
+    {
+      const keys = _cmp.map(r => r.key);
+      (keys.length === 2 && keys.includes('investRegion') && keys.includes('trainStaff'))
+        ? pass('12-2 比較対象2件', `keys=${JSON.stringify(keys)}`)
+        : fail('12-2 比較対象2件', `keys=${JSON.stringify(keys)}`);
+    }
+
+    // 12-3: 全数値が Finite（NaN・Infinity なし）
+    {
+      const badFields = [];
+      for (const row of _cmp) {
+        for (const [k, v] of Object.entries(row)) {
+          if (typeof v === 'number' && (!isFinite(v) || isNaN(v))) badFields.push(`${row.key}.${k}=${v}`);
+        }
+      }
+      badFields.length === 0
+        ? pass('12-3 全数値 Finite', '全フィールド有限値')
+        : fail('12-3 全数値 Finite', badFields.join(', '));
+    }
+
+    // 12-4: 全率が 0〜1
+    {
+      const RATE_KEYS = ['attemptRate','successRatePerAttempt','successRatePerCall','cashBlockRate','apBlockRate','otherBlockRate'];
+      const badRates = [];
+      for (const row of _cmp) {
+        for (const k of RATE_KEYS) {
+          const v = row[k];
+          if (typeof v === 'number' && (v < 0 || v > 1)) badRates.push(`${row.key}.${k}=${v}`);
+        }
+      }
+      badRates.length === 0
+        ? pass('12-4 全率 0〜1', '全率フィールド範囲内')
+        : fail('12-4 全率 0〜1', badRates.join(', '));
+    }
+
+    // 12-5: attemptRate = attempted / called
+    {
+      const mismatches = _cmp.filter(r => {
+        const expected = r.called > 0 ? r.attempted / r.called : 0;
+        return Math.abs(r.attemptRate - expected) > 1e-9;
+      }).map(r => r.key);
+      mismatches.length === 0
+        ? pass('12-5 attemptRate = attempted/called', '全行動一致')
+        : fail('12-5 attemptRate = attempted/called', mismatches.join(', '));
+    }
+
+    // 12-6: successRatePerAttempt = succeeded / attempted
+    {
+      const mismatches = _cmp.filter(r => {
+        const expected = r.attempted > 0 ? r.succeeded / r.attempted : 0;
+        return Math.abs(r.successRatePerAttempt - expected) > 1e-9;
+      }).map(r => r.key);
+      mismatches.length === 0
+        ? pass('12-6 successRatePerAttempt = succeeded/attempted', '全行動一致')
+        : fail('12-6 successRatePerAttempt = succeeded/attempted', mismatches.join(', '));
+    }
+
+    // 12-7: successRatePerCall = succeeded / called
+    {
+      const mismatches = _cmp.filter(r => {
+        const expected = r.called > 0 ? r.succeeded / r.called : 0;
+        return Math.abs(r.successRatePerCall - expected) > 1e-9;
+      }).map(r => r.key);
+      mismatches.length === 0
+        ? pass('12-7 successRatePerCall = succeeded/called', '全行動一致')
+        : fail('12-7 successRatePerCall = succeeded/called', mismatches.join(', '));
+    }
+
+    // 12-8: called = attempted + insufficientCash + insufficientAP + otherBlocked
+    {
+      const mismatches = _cmp.filter(r =>
+        r.called !== r.attempted + r.insufficientCash + r.insufficientAP + r.otherBlocked
+      ).map(r => `${r.key}(called=${r.called} sum=${r.attempted+r.insufficientCash+r.insufficientAP+r.otherBlocked})`);
+      mismatches.length === 0
+        ? pass('12-8 called = attempted+insuffCash+insuffAP+otherBlocked', '全行動整合')
+        : fail('12-8 called = attempted+insuffCash+insuffAP+otherBlocked', mismatches.join(', '));
+    }
+
+    // 12-9: trainStaff は serviceTraining==succeeded、cooking/management==0
+    {
+      const td = _sim5TrainDiag;
+      (td.serviceTraining === td.succeeded && td.cookingTraining === 0 && td.managementTraining === 0)
+        ? pass('12-9 trainStaff service固定', `service=${td.serviceTraining} cooking=${td.cookingTraining} management=${td.managementTraining}`)
+        : fail('12-9 trainStaff service固定', `service=${td.serviceTraining} cooking=${td.cookingTraining} management=${td.managementTraining} succeeded=${td.succeeded}`);
+    }
+
+    // 12-10: 実シミュレーション結果から比較レポート生成成功
+    {
+      const br = rNew?.businessReport;
+      const ac = br?.actionComparison;
+      (Array.isArray(ac) && ac.length === 2)
+        ? pass('12-10 BusinessReport.actionComparison', `${ac.length}件 / keys=${ac.map(r=>r.key).join(',')}`)
+        : fail('12-10 BusinessReport.actionComparison', `ac=${JSON.stringify(ac)}`);
+    }
+
+    console.groupEnd();
+
+    // ── AI行動 共通比較 console.table ────────────────────────────
+    {
+      const pct = v => `${(v * 100).toFixed(1)}%`;
+      const tableData = {};
+      for (const r of _cmp) {
+        tableData[r.label] = {
+          '判定':        r.called,
+          '試行':        r.attempted,
+          '成功':        r.succeeded,
+          '試行率':      pct(r.attemptRate),
+          '試行成功率':  pct(r.successRatePerAttempt),
+          '全判定成功率':pct(r.successRatePerCall),
+          '資金不足率':  pct(r.cashBlockRate),
+          'AP不足率':    pct(r.apBlockRate),
+          'その他阻害率':pct(r.otherBlockRate),
+        };
+      }
+      console.group('📊 AI行動 共通比較');
+      console.table(tableData);
+      console.groupEnd();
     }
 
     // ── _sim5TryRegionInvestment 診断集計 ────────────────────────
