@@ -3,9 +3,9 @@
  * ?qa=1 または ?debug=1 の場合のみ動作
  * ゲーム本体への影響なし・読み取り専用（Phase 2Aは1日テスト後に必ず復元）
  */
-window._MAIKON_QA_VERSION = '2026-07-22-v05d-buy-menu-ai';
+window._MAIKON_QA_VERSION = '2026-07-24-v05d-cmp-fix';
 console.log('[MAIKON-QA] loaded version:', window._MAIKON_QA_VERSION);
-console.log('[QA FILE LOADED] v05d-buy-menu-ai-20260722');
+console.log('[QA FILE LOADED] v05d-cmp-fix-20260724');
 
 (function () {
   'use strict';
@@ -8258,7 +8258,9 @@ ${ar.experienceKPI ? _sim3ExperienceKpiHtml(ar.experienceKPI) : ''}
 
     // 13-8: 比較レポートへ反映（buyMenu が3件目に含まれる）
     {
-      const keys13 = _cmp.map(r => r.key);
+      const actionComparison13 = typeof _sim5BuildActionComparison === 'function'
+        ? _sim5BuildActionComparison() : [];
+      const keys13 = actionComparison13.map(r => r.key);
       keys13.includes('buyMenu')
         ? pass('13-8 比較レポートへ反映', `buyMenu を含む${keys13.length}件: ${JSON.stringify(keys13)}`)
         : fail('13-8 比較レポートへ反映', `buyMenu がない: ${JSON.stringify(keys13)}`);
@@ -8289,7 +8291,7 @@ ${ar.experienceKPI ? _sim3ExperienceKpiHtml(ar.experienceKPI) : ''}
 
     // ── Section 12: v0.5c AI行動比較レポート検証 ──────────────────
     console.group('Section 12: AI行動比較レポート検証');
-    const _cmp = _sim5BuildActionComparison();
+    const actionComparison = _sim5BuildActionComparison();
 
     // 12-1: _sim5BuildActionComparison 存在確認
     typeof _sim5BuildActionComparison === 'function'
@@ -8298,7 +8300,7 @@ ${ar.experienceKPI ? _sim3ExperienceKpiHtml(ar.experienceKPI) : ''}
 
     // 12-2: 比較対象が investRegion / trainStaff / buyMenu の3件ある
     {
-      const keys = _cmp.map(r => r.key);
+      const keys = actionComparison.map(r => r.key);
       (keys.length === 3 && keys.includes('investRegion') && keys.includes('trainStaff') && keys.includes('buyMenu'))
         ? pass('12-2 比較対象3件', `keys=${JSON.stringify(keys)}`)
         : fail('12-2 比較対象3件', `keys=${JSON.stringify(keys)}`);
@@ -8307,7 +8309,7 @@ ${ar.experienceKPI ? _sim3ExperienceKpiHtml(ar.experienceKPI) : ''}
     // 12-3: 全数値が Finite（NaN・Infinity なし）
     {
       const badFields = [];
-      for (const row of _cmp) {
+      for (const row of actionComparison) {
         for (const [k, v] of Object.entries(row)) {
           if (typeof v === 'number' && (!isFinite(v) || isNaN(v))) badFields.push(`${row.key}.${k}=${v}`);
         }
@@ -8321,7 +8323,7 @@ ${ar.experienceKPI ? _sim3ExperienceKpiHtml(ar.experienceKPI) : ''}
     {
       const RATE_KEYS = ['attemptRate','successRatePerAttempt','successRatePerCall','cashBlockRate','apBlockRate','otherBlockRate'];
       const badRates = [];
-      for (const row of _cmp) {
+      for (const row of actionComparison) {
         for (const k of RATE_KEYS) {
           const v = row[k];
           if (typeof v === 'number' && (v < 0 || v > 1)) badRates.push(`${row.key}.${k}=${v}`);
@@ -8334,7 +8336,7 @@ ${ar.experienceKPI ? _sim3ExperienceKpiHtml(ar.experienceKPI) : ''}
 
     // 12-5: attemptRate = attempted / called
     {
-      const mismatches = _cmp.filter(r => {
+      const mismatches = actionComparison.filter(r => {
         const expected = r.called > 0 ? r.attempted / r.called : 0;
         return Math.abs(r.attemptRate - expected) > 1e-9;
       }).map(r => r.key);
@@ -8345,7 +8347,7 @@ ${ar.experienceKPI ? _sim3ExperienceKpiHtml(ar.experienceKPI) : ''}
 
     // 12-6: successRatePerAttempt = succeeded / attempted
     {
-      const mismatches = _cmp.filter(r => {
+      const mismatches = actionComparison.filter(r => {
         const expected = r.attempted > 0 ? r.succeeded / r.attempted : 0;
         return Math.abs(r.successRatePerAttempt - expected) > 1e-9;
       }).map(r => r.key);
@@ -8356,7 +8358,7 @@ ${ar.experienceKPI ? _sim3ExperienceKpiHtml(ar.experienceKPI) : ''}
 
     // 12-7: successRatePerCall = succeeded / called
     {
-      const mismatches = _cmp.filter(r => {
+      const mismatches = actionComparison.filter(r => {
         const expected = r.called > 0 ? r.succeeded / r.called : 0;
         return Math.abs(r.successRatePerCall - expected) > 1e-9;
       }).map(r => r.key);
@@ -8367,7 +8369,7 @@ ${ar.experienceKPI ? _sim3ExperienceKpiHtml(ar.experienceKPI) : ''}
 
     // 12-8: called = attempted + insufficientCash + insufficientAP + otherBlocked
     {
-      const mismatches = _cmp.filter(r =>
+      const mismatches = actionComparison.filter(r =>
         r.called !== r.attempted + r.insufficientCash + r.insufficientAP + r.otherBlocked
       ).map(r => `${r.key}(called=${r.called} sum=${r.attempted+r.insufficientCash+r.insufficientAP+r.otherBlocked})`);
       mismatches.length === 0
@@ -8387,7 +8389,7 @@ ${ar.experienceKPI ? _sim3ExperienceKpiHtml(ar.experienceKPI) : ''}
     {
       const br = rNew?.businessReport;
       const ac = br?.actionComparison;
-      (Array.isArray(ac) && ac.length === 2)
+      (Array.isArray(ac) && ac.length === 3)
         ? pass('12-10 BusinessReport.actionComparison', `${ac.length}件 / keys=${ac.map(r=>r.key).join(',')}`)
         : fail('12-10 BusinessReport.actionComparison', `ac=${JSON.stringify(ac)}`);
     }
@@ -8398,7 +8400,7 @@ ${ar.experienceKPI ? _sim3ExperienceKpiHtml(ar.experienceKPI) : ''}
     {
       const pct = v => `${(v * 100).toFixed(1)}%`;
       const tableData = {};
-      for (const r of _cmp) {
+      for (const r of actionComparison) {
         tableData[r.label] = {
           '判定':        r.called,
           '試行':        r.attempted,
