@@ -3,9 +3,9 @@
  * ?qa=1 または ?debug=1 の場合のみ動作
  * ゲーム本体への影響なし・読み取り専用（Phase 2Aは1日テスト後に必ず復元）
  */
-window._MAIKON_QA_VERSION = '2026-07-24-v05e-mock-fix';
+window._MAIKON_QA_VERSION = '2026-07-24-v05e-delta-fix';
 console.log('[MAIKON-QA] loaded version:', window._MAIKON_QA_VERSION);
-console.log('[QA FILE LOADED] v05e-mock-fix-20260724');
+console.log('[QA FILE LOADED] v05e-delta-fix-20260724');
 
 (function () {
   'use strict';
@@ -8515,18 +8515,19 @@ ${ar.experienceKPI ? _sim3ExperienceKpiHtml(ar.experienceKPI) : ''}
     {
       const snap = Object.assign({}, _sim5AdDiag);
       const origG = eval('G');
-      let res14_2;
+      let res14_2, noStoreDelta;
       try {
         eval('G = { stores: [], staff: [], money: 1_000_000, ap: 100 }');
-        _sim5AdDiag.reset();
+        const before14_2 = _sim5AdDiag.noStore;
         res14_2 = _sim5TryBuyAd();
+        noStoreDelta = _sim5AdDiag.noStore - before14_2; // finally 前に差分を確定
       } finally {
         eval('G = origG');
         for (const [k, v] of Object.entries(snap)) { if (typeof v === 'number') _sim5AdDiag[k] = v; }
       }
-      res14_2 === false && _sim5AdDiag.noStore > 0
-        ? pass('14-2 店舗なしスキップ', `noStore=${_sim5AdDiag.noStore}`)
-        : fail('14-2 店舗なしスキップ', `res=${res14_2} noStore=${_sim5AdDiag.noStore}`);
+      (res14_2 === false && noStoreDelta === 1)
+        ? pass('14-2 店舗なしスキップ', `noStoreDelta=${noStoreDelta}`)
+        : fail('14-2 店舗なしスキップ', `res=${res14_2} noStoreDelta=${noStoreDelta}`);
     }
 
     // 14-3: 開店済み店舗なしならスキップ
@@ -8589,18 +8590,19 @@ ${ar.experienceKPI ? _sim3ExperienceKpiHtml(ar.experienceKPI) : ''}
     {
       const snap = Object.assign({}, _sim5AdDiag);
       const origG = eval('G');
-      let res14_6;
+      let res14_6, noAvailableAdDelta;
       try {
         eval('G = { stores: [{ name: "本店", isOpen: true, customers: 10 }], staff: [], money: 1_000_000, ap: 100 }');
-        _sim5AdDiag.reset();
+        const before14_6 = _sim5AdDiag.noAvailableAd;
         res14_6 = _sim5TryBuyAd([]); // 空の広告リストを注入
+        noAvailableAdDelta = _sim5AdDiag.noAvailableAd - before14_6; // finally 前に差分を確定
       } finally {
         eval('G = origG');
         for (const [k, v] of Object.entries(snap)) { if (typeof v === 'number') _sim5AdDiag[k] = v; }
       }
-      res14_6 === false && _sim5AdDiag.noAvailableAd > 0
-        ? pass('14-6 広告なしスキップ', `noAvailableAd=${_sim5AdDiag.noAvailableAd}`)
-        : fail('14-6 広告なしスキップ', `res=${res14_6} noAvailableAd=${_sim5AdDiag.noAvailableAd}`);
+      (res14_6 === false && noAvailableAdDelta === 1)
+        ? pass('14-6 広告なしスキップ', `noAvailableAdDelta=${noAvailableAdDelta}`)
+        : fail('14-6 広告なしスキップ', `res=${res14_6} noAvailableAdDelta=${noAvailableAdDelta}`);
     }
 
     // 14-7: 最安広告を選択して buyAd を呼ぶ（成功確認）
