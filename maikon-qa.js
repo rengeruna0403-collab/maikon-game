@@ -3,9 +3,9 @@
  * ?qa=1 または ?debug=1 の場合のみ動作
  * ゲーム本体への影響なし・読み取り専用（Phase 2Aは1日テスト後に必ず復元）
  */
-window._MAIKON_QA_VERSION = '2026-07-24-v05d-cmp-fix';
+window._MAIKON_QA_VERSION = '2026-07-24-v05e-buy-ad-ai';
 console.log('[MAIKON-QA] loaded version:', window._MAIKON_QA_VERSION);
-console.log('[QA FILE LOADED] v05d-cmp-fix-20260724');
+console.log('[QA FILE LOADED] v05e-buy-ad-ai-20260724');
 
 (function () {
   'use strict';
@@ -4599,6 +4599,80 @@ function qa2cSwitchTab(tid,idx){
     return true;
   }
 
+  // ── v0.5e: buyAd AI ───────────────────────────────────────────
+  // 呼び出し順注意: investRegion→trainStaff→buyMenu→buyAdの順。
+  // 先行行動が資金・APを消費するため、buyAdの発火率は呼び出し順に依存する。
+  const _SIM5_AD_CASH_RESERVE = 150_000; // 手元に残すキャッシュの最低ライン
+
+  const _sim5AdDiag = {
+    called: 0, noStore: 0, noOpenStore: 0,
+    insufficientCash: 0, insufficientAP: 0,
+    noAvailableAd: 0, attempted: 0, succeeded: 0, adPurchased: 0,
+    reset() {
+      this.called = 0; this.noStore = 0; this.noOpenStore = 0;
+      this.insufficientCash = 0; this.insufficientAP = 0;
+      this.noAvailableAd = 0; this.attempted = 0; this.succeeded = 0; this.adPurchased = 0;
+    },
+  };
+  window._sim5AdDiag = _sim5AdDiag;
+
+  function _sim5TryBuyAd() {
+    _sim5AdDiag.called++;
+
+    // 注意: ローカル変数をGと命名するとグローバルGをシャドウするため _g5a を使用する
+    let _g5a;
+    try { _g5a = eval('G'); } catch(e) { return false; }
+    if (!_g5a || !Array.isArray(_g5a.stores) || _g5a.stores.length === 0) {
+      _sim5AdDiag.noStore++;
+      return false;
+    }
+
+    // 開店済みの最初の店舗を対象とする
+    const si    = _g5a.stores.findIndex(s => s.isOpen);
+    if (si < 0) { _sim5AdDiag.noOpenStore++; return false; }
+    const store = _g5a.stores[si];
+
+    // AD_OPTIONS が存在するか確認
+    const adOptions = (typeof AD_OPTIONS !== 'undefined') ? AD_OPTIONS : [];
+    if (adOptions.length === 0) { _sim5AdDiag.noAvailableAd++; return false; }
+
+    // 最も安い広告を選択
+    const sorted = [...adOptions].sort((a, b) => a.cost - b.cost);
+    const opt = sorted[0];
+
+    // 資金チェック
+    if ((_g5a.money ?? 0) < opt.cost + _SIM5_AD_CASH_RESERVE) {
+      _sim5AdDiag.insufficientCash++;
+      return false;
+    }
+
+    // APコストチェック（スタッフ配置済みなら0、なければ10）
+    const hasStaff = (_g5a.staff || []).some(s => s.store === store.name);
+    const apCost   = hasStaff ? 0 : 10;
+    if (apCost > 0 && (_g5a.ap ?? 0) < apCost) {
+      _sim5AdDiag.insufficientAP++;
+      return false;
+    }
+
+    const custBefore = store.customers;
+    _sim5AdDiag.attempted++;
+
+    try {
+      buyAd(si, opt.name, opt.cost, opt.cust);
+    } catch(e) { return false; }
+
+    // 実際に客数が増加したか確認
+    let _g5aAfter;
+    try { _g5aAfter = eval('G'); } catch(e) { _g5aAfter = null; }
+    const custAfter = _g5aAfter?.stores?.[si]?.customers ?? custBefore;
+    if (custAfter > custBefore) {
+      _sim5AdDiag.succeeded++;
+      _sim5AdDiag.adPurchased++;
+    }
+
+    return true;
+  }
+
   // ── v0.5c: AI行動定義テーブル & 共通比較レポート ───────────────
   // 新しいAI行動は _SIM5_ACTION_DEFS に1件追加するだけで比較対象に加わる。
   const _SIM5_ACTION_DEFS = [
@@ -4619,6 +4693,12 @@ function qa2cSwitchTab(tid,idx){
       label:           'メニュー追加',
       diag:            () => _sim5MenuDiag,
       otherBlockedKeys: ['allPurchased'],
+    },
+    {
+      key:             'buyAd',
+      label:           '広告',
+      diag:            () => _sim5AdDiag,
+      otherBlockedKeys: ['noStore', 'noOpenStore', 'noAvailableAd'],
     },
   ];
 
@@ -4707,6 +4787,7 @@ function qa2cSwitchTab(tid,idx){
         _sim5TryRegionInvestment();
         _sim5TryTrainStaff();
         _sim5TryBuyMenu();
+        _sim5TryBuyAd(); // v0.5e: 先行行動の資金・AP消費後に広告判定
 
         // ── 日後の状態（事実）──────────────────────────────────────
         let _gNow;
@@ -7567,6 +7648,7 @@ ${ar.experienceKPI ? _sim3ExperienceKpiHtml(ar.experienceKPI) : ''}
     _sim5Diag.reset();
     _sim5TrainDiag.reset();
     _sim5MenuDiag.reset();
+    _sim5AdDiag.reset();
 
     const results = [];
     const pass = (lbl, detail) => { results.push({lbl,st:'PASS',detail}); console.log(`✅ PASS  ${lbl}: ${detail}`); };
@@ -8298,12 +8380,13 @@ ${ar.experienceKPI ? _sim3ExperienceKpiHtml(ar.experienceKPI) : ''}
       ? pass('12-1 _sim5BuildActionComparison 存在', '関数として定義済み')
       : fail('12-1 _sim5BuildActionComparison 存在', `typeof=${typeof _sim5BuildActionComparison}`);
 
-    // 12-2: 比較対象が investRegion / trainStaff / buyMenu の3件ある
+    // 12-2: 比較対象が _SIM5_ACTION_DEFS 定義どおり4件ある
     {
       const keys = actionComparison.map(r => r.key);
-      (keys.length === 3 && keys.includes('investRegion') && keys.includes('trainStaff') && keys.includes('buyMenu'))
-        ? pass('12-2 比較対象3件', `keys=${JSON.stringify(keys)}`)
-        : fail('12-2 比較対象3件', `keys=${JSON.stringify(keys)}`);
+      const expectedKeys = _SIM5_ACTION_DEFS.map(d => d.key);
+      (keys.length === expectedKeys.length && expectedKeys.every(k => keys.includes(k)))
+        ? pass(`12-2 比較対象${expectedKeys.length}件`, `keys=${JSON.stringify(keys)}`)
+        : fail(`12-2 比較対象${expectedKeys.length}件`, `keys=${JSON.stringify(keys)} expected=${JSON.stringify(expectedKeys)}`);
     }
 
     // 12-3: 全数値が Finite（NaN・Infinity なし）
@@ -8385,13 +8468,14 @@ ${ar.experienceKPI ? _sim3ExperienceKpiHtml(ar.experienceKPI) : ''}
         : fail('12-9 trainStaff service固定', `service=${td.serviceTraining} cooking=${td.cookingTraining} management=${td.managementTraining} succeeded=${td.succeeded}`);
     }
 
-    // 12-10: 実シミュレーション結果から比較レポート生成成功
+    // 12-10: 実シミュレーション結果から比較レポート生成成功（件数は _SIM5_ACTION_DEFS と一致）
     {
       const br = rNew?.businessReport;
       const ac = br?.actionComparison;
-      (Array.isArray(ac) && ac.length === 3)
+      const expectedLen = _SIM5_ACTION_DEFS.length;
+      (Array.isArray(ac) && ac.length === expectedLen)
         ? pass('12-10 BusinessReport.actionComparison', `${ac.length}件 / keys=${ac.map(r=>r.key).join(',')}`)
-        : fail('12-10 BusinessReport.actionComparison', `ac=${JSON.stringify(ac)}`);
+        : fail('12-10 BusinessReport.actionComparison', `ac=${JSON.stringify(ac?.map(r=>r.key))} expected=${expectedLen}`);
     }
 
     console.groupEnd();
@@ -8417,6 +8501,172 @@ ${ar.experienceKPI ? _sim3ExperienceKpiHtml(ar.experienceKPI) : ''}
       console.table(tableData);
       console.groupEnd();
     }
+
+    // ── Section 14: v0.5e AI能動行動 _sim5TryBuyAd 検証 ──────────
+    console.group('Section 14: v0.5e AI能動行動（buyAd）検証');
+
+    // 14-1: _sim5TryBuyAd 存在確認
+    typeof _sim5TryBuyAd === 'function'
+      ? pass('14-1 _sim5TryBuyAd 存在', '関数として定義済み')
+      : fail('14-1 _sim5TryBuyAd 存在', `typeof=${typeof _sim5TryBuyAd}`);
+
+    // 14-2: 店舗なしならスキップ
+    // 14-3: 開店済み店舗なしならスキップ
+    // 14-4: 資金不足ならスキップ
+    // 14-5: AP不足ならスキップ（スタッフなし店舗でAPコスト=10）
+    {
+      const adDiagBefore14 = Object.assign({}, _sim5AdDiag);
+      const origG    = typeof G !== 'undefined' ? G : null;
+      const origBuyAd = typeof buyAd !== 'undefined' ? buyAd : null;
+      let res14_2, res14_3, res14_4, res14_5;
+      try {
+        // 14-2: 店舗なし
+        window.G = { stores: [], staff: [], money: 9_999_999, ap: 99 };
+        if (typeof notify === 'undefined') window.notify = () => {};
+        if (typeof addNews === 'undefined') window.addNews = () => {};
+        _sim5AdDiag.reset();
+        res14_2 = _sim5TryBuyAd();
+        res14_2 === false && _sim5AdDiag.noStore > 0
+          ? pass('14-2 店舗なしスキップ', `noStore=${_sim5AdDiag.noStore}`)
+          : fail('14-2 店舗なしスキップ', `res=${res14_2} noStore=${_sim5AdDiag.noStore}`);
+
+        // 14-3: 開店済み店舗なし
+        window.G = { stores: [{ name: '本店', isOpen: false, customers: 10 }], staff: [], money: 9_999_999, ap: 99 };
+        _sim5AdDiag.reset();
+        res14_3 = _sim5TryBuyAd();
+        res14_3 === false && _sim5AdDiag.noOpenStore > 0
+          ? pass('14-3 開店済みなしスキップ', `noOpenStore=${_sim5AdDiag.noOpenStore}`)
+          : fail('14-3 開店済みなしスキップ', `res=${res14_3} noOpenStore=${_sim5AdDiag.noOpenStore}`);
+
+        // 14-4: 資金不足
+        // AD_OPTIONS最安 = LINE配信¥15,000。不足条件: money < 15,000 + 150,000 = 164,999
+        window.G = { stores: [{ name: '本店', isOpen: true, customers: 10 }], staff: [], money: 164_999, ap: 99 };
+        _sim5AdDiag.reset();
+        res14_4 = _sim5TryBuyAd();
+        res14_4 === false && _sim5AdDiag.insufficientCash > 0
+          ? pass('14-4 資金不足スキップ', `insufficientCash=${_sim5AdDiag.insufficientCash}`)
+          : fail('14-4 資金不足スキップ', `res=${res14_4} insuffCash=${_sim5AdDiag.insufficientCash}`);
+
+        // 14-5: AP不足（スタッフなし→apCost=10、AP=5で不足）
+        window.G = { stores: [{ name: '本店', isOpen: true, customers: 10 }], staff: [], money: 9_999_999, ap: 5 };
+        _sim5AdDiag.reset();
+        res14_5 = _sim5TryBuyAd();
+        res14_5 === false && _sim5AdDiag.insufficientAP > 0
+          ? pass('14-5 AP不足スキップ', `insufficientAP=${_sim5AdDiag.insufficientAP}`)
+          : fail('14-5 AP不足スキップ', `res=${res14_5} insuffAP=${_sim5AdDiag.insufficientAP}`);
+
+      } finally {
+        if (origG !== null) window.G = origG; else delete window.G;
+        if (origBuyAd !== null) window.buyAd = origBuyAd;
+        Object.keys(adDiagBefore14).forEach(k => {
+          if (typeof _sim5AdDiag[k] === 'number') _sim5AdDiag[k] = adDiagBefore14[k];
+        });
+      }
+    }
+
+    // 14-6: 購入可能広告なしならスキップ
+    {
+      const adDiagBefore14_6 = Object.assign({}, _sim5AdDiag);
+      const origG     = typeof G !== 'undefined' ? G : null;
+      const origBuyAd = typeof buyAd !== 'undefined' ? buyAd : null;
+      const origAD    = typeof AD_OPTIONS !== 'undefined' ? AD_OPTIONS : null;
+      let res14_6;
+      try {
+        window.G = { stores: [{ name: '本店', isOpen: true, customers: 10 }], staff: [], money: 9_999_999, ap: 99 };
+        window.AD_OPTIONS = []; // 空にする
+        _sim5AdDiag.reset();
+        res14_6 = _sim5TryBuyAd();
+        res14_6 === false && _sim5AdDiag.noAvailableAd > 0
+          ? pass('14-6 広告なしスキップ', `noAvailableAd=${_sim5AdDiag.noAvailableAd}`)
+          : fail('14-6 広告なしスキップ', `res=${res14_6} noAvailableAd=${_sim5AdDiag.noAvailableAd}`);
+      } finally {
+        if (origG !== null) window.G = origG; else delete window.G;
+        if (origBuyAd !== null) window.buyAd = origBuyAd;
+        if (origAD !== null) window.AD_OPTIONS = origAD; else delete window.AD_OPTIONS;
+        Object.keys(adDiagBefore14_6).forEach(k => {
+          if (typeof _sim5AdDiag[k] === 'number') _sim5AdDiag[k] = adDiagBefore14_6[k];
+        });
+      }
+    }
+
+    // 14-7: 最安広告を選択して buyAd を呼ぶ（成功確認）
+    {
+      const adDiagBefore14_7 = Object.assign({}, _sim5AdDiag);
+      const origG     = typeof G !== 'undefined' ? G : null;
+      const origBuyAd = typeof window.buyAd !== 'undefined' ? window.buyAd : null;
+      const origNotify = typeof window.notify !== 'undefined' ? window.notify : null;
+      const origAddNews = typeof window.addNews !== 'undefined' ? window.addNews : null;
+      let res14_7;
+      try {
+        window.notify  = () => {};
+        window.addNews = () => {};
+        // AD_OPTIONS最安=LINE配信¥15,000 cust=3。customers増加を確認する
+        window.G = {
+          stores: [{ name: '本店', isOpen: true, customers: 20 }],
+          staff:  [],
+          money:  9_999_999,
+          ap:     99,
+        };
+        // useAP モック（APを消費してtrueを返す）
+        const origUseAP = typeof window.useAP !== 'undefined' ? window.useAP : null;
+        window.useAP = (cost, label, cb) => { if (window.G) window.G.ap -= cost; return true; };
+        // scoreOwner モック
+        const origScoreOwner = typeof window.scoreOwner !== 'undefined' ? window.scoreOwner : null;
+        window.scoreOwner = () => {};
+        // buyAd を実際の実装で呼ぶ（mocked依存関数で安全に実行）
+        _sim5AdDiag.reset();
+        res14_7 = _sim5TryBuyAd();
+        res14_7 === true && _sim5AdDiag.succeeded > 0
+          ? pass('14-7 最安広告選択・buyAd実行', `attempted=${_sim5AdDiag.attempted} succeeded=${_sim5AdDiag.succeeded} adPurchased=${_sim5AdDiag.adPurchased}`)
+          : fail('14-7 最安広告選択・buyAd実行', `res=${res14_7} attempted=${_sim5AdDiag.attempted} succeeded=${_sim5AdDiag.succeeded}`);
+        if (origUseAP !== null) window.useAP = origUseAP; else delete window.useAP;
+        if (origScoreOwner !== null) window.scoreOwner = origScoreOwner; else delete window.scoreOwner;
+      } finally {
+        if (origG !== null) window.G = origG; else delete window.G;
+        if (origBuyAd !== null) window.buyAd = origBuyAd;
+        if (origNotify  !== null) window.notify  = origNotify;  else delete window.notify;
+        if (origAddNews !== null) window.addNews = origAddNews; else delete window.addNews;
+        Object.keys(adDiagBefore14_7).forEach(k => {
+          if (typeof _sim5AdDiag[k] === 'number') _sim5AdDiag[k] = adDiagBefore14_7[k];
+        });
+      }
+    }
+
+    // 14-8: 診断カウンター整合性確認
+    {
+      const ad = _sim5AdDiag;
+      const sum = ad.attempted + ad.insufficientCash + ad.insufficientAP +
+                  ad.noStore + ad.noOpenStore + ad.noAvailableAd;
+      (ad.called === 0 || ad.called === sum)
+        ? pass('14-8 診断カウンター整合', `called=${ad.called} = attempted(${ad.attempted})+cash(${ad.insufficientCash})+ap(${ad.insufficientAP})+other(${ad.noStore+ad.noOpenStore+ad.noAvailableAd})`)
+        : fail('14-8 診断カウンター整合', `called=${ad.called} sum=${sum}`);
+    }
+
+    // 14-9: 共通比較レポートと BusinessReport の両方に buyAd が含まれる
+    {
+      const actionComparison14 = typeof _sim5BuildActionComparison === 'function'
+        ? _sim5BuildActionComparison() : [];
+      const inCmp = actionComparison14.some(r => r.key === 'buyAd');
+      const ac14  = rNew?.businessReport?.actionComparison || [];
+      const inBR  = ac14.some(r => r.key === 'buyAd');
+      (inCmp && inBR)
+        ? pass('14-9 比較レポート・BusinessReport に buyAd', `比較${actionComparison14.length}件中・BR${ac14.length}件中 両方に buyAd 含む`)
+        : fail('14-9 比較レポート・BusinessReport に buyAd', `cmp=${inCmp}(keys=${JSON.stringify(actionComparison14.map(r=>r.key))}) BR=${inBR}(keys=${JSON.stringify(ac14.map(r=>r.key))})`);
+    }
+
+    // 14-10: 実シミュレーションで buyAd 発火確認
+    {
+      const ad = _sim5AdDiag;
+      if (ad.called === 0) {
+        warn('14-10 buyAd 実発火確認', 'called=0（シミュレーション未実行）');
+      } else if (ad.attempted > 0) {
+        pass('14-10 buyAd 実発火確認', `attempted=${ad.attempted} succeeded=${ad.succeeded} adPurchased=${ad.adPurchased}`);
+      } else {
+        warn('14-10 buyAd 実発火確認', `called=${ad.called} で attempted=0（資金不足${ad.insufficientCash} AP不足${ad.insufficientAP} 店舗${ad.noStore+ad.noOpenStore} 広告なし${ad.noAvailableAd}）`);
+      }
+    }
+
+    console.groupEnd();
 
     // ── _sim5TryRegionInvestment 診断集計 ────────────────────────
     {
