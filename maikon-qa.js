@@ -3,9 +3,9 @@
  * ?qa=1 または ?debug=1 の場合のみ動作
  * ゲーム本体への影響なし・読み取り専用（Phase 2Aは1日テスト後に必ず復元）
  */
-window._MAIKON_QA_VERSION = '2026-07-24-v05e-buy-ad-ai';
+window._MAIKON_QA_VERSION = '2026-07-24-v05e-mock-fix';
 console.log('[MAIKON-QA] loaded version:', window._MAIKON_QA_VERSION);
-console.log('[QA FILE LOADED] v05e-buy-ad-ai-20260724');
+console.log('[QA FILE LOADED] v05e-mock-fix-20260724');
 
 (function () {
   'use strict';
@@ -4616,7 +4616,8 @@ function qa2cSwitchTab(tid,idx){
   };
   window._sim5AdDiag = _sim5AdDiag;
 
-  function _sim5TryBuyAd() {
+  // _adOpts: テスト時のみ AD_OPTIONS 代替を渡す。本番は省略（undefined）
+  function _sim5TryBuyAd(_adOpts) {
     _sim5AdDiag.called++;
 
     // 注意: ローカル変数をGと命名するとグローバルGをシャドウするため _g5a を使用する
@@ -4632,8 +4633,8 @@ function qa2cSwitchTab(tid,idx){
     if (si < 0) { _sim5AdDiag.noOpenStore++; return false; }
     const store = _g5a.stores[si];
 
-    // AD_OPTIONS が存在するか確認
-    const adOptions = (typeof AD_OPTIONS !== 'undefined') ? AD_OPTIONS : [];
+    // 広告オプション取得（テスト時は _adOpts を使用、本番は AD_OPTIONS グローバル）
+    const adOptions = _adOpts !== undefined ? _adOpts : (typeof AD_OPTIONS !== 'undefined' ? AD_OPTIONS : []);
     if (adOptions.length === 0) { _sim5AdDiag.noAvailableAd++; return false; }
 
     // 最も安い広告を選択
@@ -8511,125 +8512,126 @@ ${ar.experienceKPI ? _sim3ExperienceKpiHtml(ar.experienceKPI) : ''}
       : fail('14-1 _sim5TryBuyAd 存在', `typeof=${typeof _sim5TryBuyAd}`);
 
     // 14-2: 店舗なしならスキップ
-    // 14-3: 開店済み店舗なしならスキップ
-    // 14-4: 資金不足ならスキップ
-    // 14-5: AP不足ならスキップ（スタッフなし店舗でAPコスト=10）
     {
-      const adDiagBefore14 = Object.assign({}, _sim5AdDiag);
-      const origG    = typeof G !== 'undefined' ? G : null;
-      const origBuyAd = typeof buyAd !== 'undefined' ? buyAd : null;
-      let res14_2, res14_3, res14_4, res14_5;
+      const snap = Object.assign({}, _sim5AdDiag);
+      const origG = eval('G');
+      let res14_2;
       try {
-        // 14-2: 店舗なし
-        window.G = { stores: [], staff: [], money: 9_999_999, ap: 99 };
-        if (typeof notify === 'undefined') window.notify = () => {};
-        if (typeof addNews === 'undefined') window.addNews = () => {};
+        eval('G = { stores: [], staff: [], money: 1_000_000, ap: 100 }');
         _sim5AdDiag.reset();
         res14_2 = _sim5TryBuyAd();
-        res14_2 === false && _sim5AdDiag.noStore > 0
-          ? pass('14-2 店舗なしスキップ', `noStore=${_sim5AdDiag.noStore}`)
-          : fail('14-2 店舗なしスキップ', `res=${res14_2} noStore=${_sim5AdDiag.noStore}`);
+      } finally {
+        eval('G = origG');
+        for (const [k, v] of Object.entries(snap)) { if (typeof v === 'number') _sim5AdDiag[k] = v; }
+      }
+      res14_2 === false && _sim5AdDiag.noStore > 0
+        ? pass('14-2 店舗なしスキップ', `noStore=${_sim5AdDiag.noStore}`)
+        : fail('14-2 店舗なしスキップ', `res=${res14_2} noStore=${_sim5AdDiag.noStore}`);
+    }
 
-        // 14-3: 開店済み店舗なし
-        window.G = { stores: [{ name: '本店', isOpen: false, customers: 10 }], staff: [], money: 9_999_999, ap: 99 };
+    // 14-3: 開店済み店舗なしならスキップ
+    {
+      const snap = Object.assign({}, _sim5AdDiag);
+      const origG = eval('G');
+      let res14_3;
+      try {
+        eval('G = { stores: [{ name: "本店", isOpen: false, customers: 0 }], staff: [], money: 1_000_000, ap: 100 }');
         _sim5AdDiag.reset();
         res14_3 = _sim5TryBuyAd();
-        res14_3 === false && _sim5AdDiag.noOpenStore > 0
-          ? pass('14-3 開店済みなしスキップ', `noOpenStore=${_sim5AdDiag.noOpenStore}`)
-          : fail('14-3 開店済みなしスキップ', `res=${res14_3} noOpenStore=${_sim5AdDiag.noOpenStore}`);
+      } finally {
+        eval('G = origG');
+        for (const [k, v] of Object.entries(snap)) { if (typeof v === 'number') _sim5AdDiag[k] = v; }
+      }
+      res14_3 === false && _sim5AdDiag.noOpenStore > 0
+        ? pass('14-3 開店済みなしスキップ', `noOpenStore=${_sim5AdDiag.noOpenStore}`)
+        : fail('14-3 開店済みなしスキップ', `res=${res14_3} noOpenStore=${_sim5AdDiag.noOpenStore}`);
+    }
 
-        // 14-4: 資金不足
-        // AD_OPTIONS最安 = LINE配信¥15,000。不足条件: money < 15,000 + 150,000 = 164,999
-        window.G = { stores: [{ name: '本店', isOpen: true, customers: 10 }], staff: [], money: 164_999, ap: 99 };
+    // 14-4: 資金不足ならスキップ
+    // AD_OPTIONS最安=LINE配信¥15,000。不足条件: money < 15,000 + 150,000 = 164,999
+    {
+      const snap = Object.assign({}, _sim5AdDiag);
+      const origG = eval('G');
+      let res14_4;
+      try {
+        eval('G = { stores: [{ name: "本店", isOpen: true, customers: 10 }], staff: [], money: 164_999, ap: 100 }');
         _sim5AdDiag.reset();
         res14_4 = _sim5TryBuyAd();
-        res14_4 === false && _sim5AdDiag.insufficientCash > 0
-          ? pass('14-4 資金不足スキップ', `insufficientCash=${_sim5AdDiag.insufficientCash}`)
-          : fail('14-4 資金不足スキップ', `res=${res14_4} insuffCash=${_sim5AdDiag.insufficientCash}`);
+      } finally {
+        eval('G = origG');
+        for (const [k, v] of Object.entries(snap)) { if (typeof v === 'number') _sim5AdDiag[k] = v; }
+      }
+      res14_4 === false && _sim5AdDiag.insufficientCash > 0
+        ? pass('14-4 資金不足スキップ', `insufficientCash=${_sim5AdDiag.insufficientCash}`)
+        : fail('14-4 資金不足スキップ', `res=${res14_4} insuffCash=${_sim5AdDiag.insufficientCash}`);
+    }
 
-        // 14-5: AP不足（スタッフなし→apCost=10、AP=5で不足）
-        window.G = { stores: [{ name: '本店', isOpen: true, customers: 10 }], staff: [], money: 9_999_999, ap: 5 };
+    // 14-5: AP不足ならスキップ（スタッフなし→apCost=10、AP=9で不足）
+    {
+      const snap = Object.assign({}, _sim5AdDiag);
+      const origG = eval('G');
+      let res14_5;
+      try {
+        eval('G = { stores: [{ name: "本店", isOpen: true, customers: 10 }], staff: [], money: 1_000_000, ap: 9 }');
         _sim5AdDiag.reset();
         res14_5 = _sim5TryBuyAd();
-        res14_5 === false && _sim5AdDiag.insufficientAP > 0
-          ? pass('14-5 AP不足スキップ', `insufficientAP=${_sim5AdDiag.insufficientAP}`)
-          : fail('14-5 AP不足スキップ', `res=${res14_5} insuffAP=${_sim5AdDiag.insufficientAP}`);
-
       } finally {
-        if (origG !== null) window.G = origG; else delete window.G;
-        if (origBuyAd !== null) window.buyAd = origBuyAd;
-        Object.keys(adDiagBefore14).forEach(k => {
-          if (typeof _sim5AdDiag[k] === 'number') _sim5AdDiag[k] = adDiagBefore14[k];
-        });
+        eval('G = origG');
+        for (const [k, v] of Object.entries(snap)) { if (typeof v === 'number') _sim5AdDiag[k] = v; }
       }
+      res14_5 === false && _sim5AdDiag.insufficientAP > 0
+        ? pass('14-5 AP不足スキップ', `insufficientAP=${_sim5AdDiag.insufficientAP}`)
+        : fail('14-5 AP不足スキップ', `res=${res14_5} insuffAP=${_sim5AdDiag.insufficientAP}`);
     }
 
     // 14-6: 購入可能広告なしならスキップ
+    // AD_OPTIONS は const のため再代入不可 → _sim5TryBuyAd の _adOpts 引数で空配列を渡す
     {
-      const adDiagBefore14_6 = Object.assign({}, _sim5AdDiag);
-      const origG     = typeof G !== 'undefined' ? G : null;
-      const origBuyAd = typeof buyAd !== 'undefined' ? buyAd : null;
-      const origAD    = typeof AD_OPTIONS !== 'undefined' ? AD_OPTIONS : null;
+      const snap = Object.assign({}, _sim5AdDiag);
+      const origG = eval('G');
       let res14_6;
       try {
-        window.G = { stores: [{ name: '本店', isOpen: true, customers: 10 }], staff: [], money: 9_999_999, ap: 99 };
-        window.AD_OPTIONS = []; // 空にする
+        eval('G = { stores: [{ name: "本店", isOpen: true, customers: 10 }], staff: [], money: 1_000_000, ap: 100 }');
         _sim5AdDiag.reset();
-        res14_6 = _sim5TryBuyAd();
-        res14_6 === false && _sim5AdDiag.noAvailableAd > 0
-          ? pass('14-6 広告なしスキップ', `noAvailableAd=${_sim5AdDiag.noAvailableAd}`)
-          : fail('14-6 広告なしスキップ', `res=${res14_6} noAvailableAd=${_sim5AdDiag.noAvailableAd}`);
+        res14_6 = _sim5TryBuyAd([]); // 空の広告リストを注入
       } finally {
-        if (origG !== null) window.G = origG; else delete window.G;
-        if (origBuyAd !== null) window.buyAd = origBuyAd;
-        if (origAD !== null) window.AD_OPTIONS = origAD; else delete window.AD_OPTIONS;
-        Object.keys(adDiagBefore14_6).forEach(k => {
-          if (typeof _sim5AdDiag[k] === 'number') _sim5AdDiag[k] = adDiagBefore14_6[k];
-        });
+        eval('G = origG');
+        for (const [k, v] of Object.entries(snap)) { if (typeof v === 'number') _sim5AdDiag[k] = v; }
       }
+      res14_6 === false && _sim5AdDiag.noAvailableAd > 0
+        ? pass('14-6 広告なしスキップ', `noAvailableAd=${_sim5AdDiag.noAvailableAd}`)
+        : fail('14-6 広告なしスキップ', `res=${res14_6} noAvailableAd=${_sim5AdDiag.noAvailableAd}`);
     }
 
     // 14-7: 最安広告を選択して buyAd を呼ぶ（成功確認）
+    // mockBuyAd が受け取った引数を記録しつつ eval('G') の customers を増やす
     {
-      const adDiagBefore14_7 = Object.assign({}, _sim5AdDiag);
-      const origG     = typeof G !== 'undefined' ? G : null;
-      const origBuyAd = typeof window.buyAd !== 'undefined' ? window.buyAd : null;
-      const origNotify = typeof window.notify !== 'undefined' ? window.notify : null;
-      const origAddNews = typeof window.addNews !== 'undefined' ? window.addNews : null;
+      const snap = Object.assign({}, _sim5AdDiag);
+      const origG = eval('G');
+      const mockAds = [
+        { name: '高額広告', cost: 100_000, cust: 20 },
+        { name: '最安広告', cost: 30_000,  cust: 5  },
+      ];
+      let calledArgs = null;
+      const mockBuyAdFn = (si, name, cost, cust) => {
+        calledArgs = { si, name, cost, cust };
+        try { eval('G').stores[si].customers += cust; } catch(e) {}
+      };
+      const origBuyAd = window.buyAd;
       let res14_7;
       try {
-        window.notify  = () => {};
-        window.addNews = () => {};
-        // AD_OPTIONS最安=LINE配信¥15,000 cust=3。customers増加を確認する
-        window.G = {
-          stores: [{ name: '本店', isOpen: true, customers: 20 }],
-          staff:  [],
-          money:  9_999_999,
-          ap:     99,
-        };
-        // useAP モック（APを消費してtrueを返す）
-        const origUseAP = typeof window.useAP !== 'undefined' ? window.useAP : null;
-        window.useAP = (cost, label, cb) => { if (window.G) window.G.ap -= cost; return true; };
-        // scoreOwner モック
-        const origScoreOwner = typeof window.scoreOwner !== 'undefined' ? window.scoreOwner : null;
-        window.scoreOwner = () => {};
-        // buyAd を実際の実装で呼ぶ（mocked依存関数で安全に実行）
+        window.buyAd = mockBuyAdFn;
+        eval('G = { stores: [{ name: "本店", isOpen: true, customers: 20 }], staff: [], money: 1_000_000, ap: 100 }');
         _sim5AdDiag.reset();
-        res14_7 = _sim5TryBuyAd();
-        res14_7 === true && _sim5AdDiag.succeeded > 0
-          ? pass('14-7 最安広告選択・buyAd実行', `attempted=${_sim5AdDiag.attempted} succeeded=${_sim5AdDiag.succeeded} adPurchased=${_sim5AdDiag.adPurchased}`)
-          : fail('14-7 最安広告選択・buyAd実行', `res=${res14_7} attempted=${_sim5AdDiag.attempted} succeeded=${_sim5AdDiag.succeeded}`);
-        if (origUseAP !== null) window.useAP = origUseAP; else delete window.useAP;
-        if (origScoreOwner !== null) window.scoreOwner = origScoreOwner; else delete window.scoreOwner;
+        res14_7 = _sim5TryBuyAd(mockAds);
       } finally {
-        if (origG !== null) window.G = origG; else delete window.G;
-        if (origBuyAd !== null) window.buyAd = origBuyAd;
-        if (origNotify  !== null) window.notify  = origNotify;  else delete window.notify;
-        if (origAddNews !== null) window.addNews = origAddNews; else delete window.addNews;
-        Object.keys(adDiagBefore14_7).forEach(k => {
-          if (typeof _sim5AdDiag[k] === 'number') _sim5AdDiag[k] = adDiagBefore14_7[k];
-        });
+        eval('G = origG');
+        window.buyAd = origBuyAd;
+        for (const [k, v] of Object.entries(snap)) { if (typeof v === 'number') _sim5AdDiag[k] = v; }
       }
+      (res14_7 === true && _sim5AdDiag.succeeded > 0 && calledArgs?.name === '最安広告')
+        ? pass('14-7 最安広告選択・buyAd実行', `attempted=${_sim5AdDiag.attempted} succeeded=${_sim5AdDiag.succeeded} adPurchased=${_sim5AdDiag.adPurchased} 選択='${calledArgs?.name}'`)
+        : fail('14-7 最安広告選択・buyAd実行', `res=${res14_7} attempted=${_sim5AdDiag.attempted} succeeded=${_sim5AdDiag.succeeded} calledArgs=${JSON.stringify(calledArgs)}`);
     }
 
     // 14-8: 診断カウンター整合性確認
