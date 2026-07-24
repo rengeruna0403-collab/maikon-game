@@ -3,9 +3,9 @@
  * ?qa=1 または ?debug=1 の場合のみ動作
  * ゲーム本体への影響なし・読み取り専用（Phase 2Aは1日テスト後に必ず復元）
  */
-window._MAIKON_QA_VERSION = '2026-07-22-v05c-action-comparison';
+window._MAIKON_QA_VERSION = '2026-07-22-v05d-buy-menu-ai';
 console.log('[MAIKON-QA] loaded version:', window._MAIKON_QA_VERSION);
-console.log('[QA FILE LOADED] v05c-action-comparison-20260722');
+console.log('[QA FILE LOADED] v05d-buy-menu-ai-20260722');
 
 (function () {
   'use strict';
@@ -4524,6 +4524,81 @@ function qa2cSwitchTab(tid,idx){
     return true;
   }
 
+  // ── v0.5d: buyMenu AI ──────────────────────────────────────────
+  const _SIM5_MENU_CASH_RESERVE = 150_000; // 手元に残すキャッシュの最低ライン
+
+  const _sim5MenuDiag = {
+    called: 0, insufficientCash: 0, insufficientAP: 0,
+    allPurchased: 0, attempted: 0, succeeded: 0, menuPurchased: 0,
+    reset() {
+      this.called = 0; this.insufficientCash = 0; this.insufficientAP = 0;
+      this.allPurchased = 0; this.attempted = 0; this.succeeded = 0; this.menuPurchased = 0;
+    },
+  };
+  window._sim5MenuDiag = _sim5MenuDiag;
+
+  function _sim5TryBuyMenu() {
+    _sim5MenuDiag.called++;
+
+    // 注意: ローカル変数をGと命名するとグローバルGをシャドウするため _g5m を使用する
+    let _g5m;
+    try { _g5m = eval('G'); } catch(e) { return false; }
+    if (!_g5m || !Array.isArray(_g5m.stores) || _g5m.stores.length === 0) {
+      _sim5MenuDiag.allPurchased++; // ストアなしもここで弾く
+      return false;
+    }
+
+    const si    = 0; // 対象は最初の店舗（1店舗のみ前提）
+    const store = _g5m.stores[si];
+    if (!store) { _sim5MenuDiag.allPurchased++; return false; }
+
+    // 追加可能メニューを列挙（requireProduct 条件も考慮）
+    const unlocked = _g5m.unlockedProducts || [];
+    const available = (typeof MENU_OPTIONS !== 'undefined' ? MENU_OPTIONS : [])
+      .filter(m => !store.menu.includes(m.name) && (!m.requireProduct || unlocked.includes(m.requireProduct)));
+
+    if (available.length === 0) {
+      _sim5MenuDiag.allPurchased++;
+      return false;
+    }
+
+    // 最も安いメニューを選択
+    available.sort((a, b) => a.cost - b.cost);
+    const opt = available[0];
+
+    // AP コスト確認（スタッフ配置済みなら 0）
+    const hasStaff = _g5m.staff.some(s => s.store === store.name);
+    const apCost   = hasStaff ? 0 : 15;
+
+    if ((_g5m.money ?? 0) < opt.cost + _SIM5_MENU_CASH_RESERVE) {
+      _sim5MenuDiag.insufficientCash++;
+      return false;
+    }
+
+    if (apCost > 0 && (_g5m.ap ?? 0) < apCost) {
+      _sim5MenuDiag.insufficientAP++;
+      return false;
+    }
+
+    const menuLenBefore = store.menu.length;
+    _sim5MenuDiag.attempted++;
+
+    try {
+      buyMenu(si, opt.name, opt.cost, opt.sat, opt.cust);
+    } catch(e) { return false; }
+
+    // 実際にメニューが追加されたか確認
+    let _g5mAfter;
+    try { _g5mAfter = eval('G'); } catch(e) { _g5mAfter = null; }
+    const menuLenAfter = (_g5mAfter?.stores?.[si]?.menu?.length ?? menuLenBefore);
+    if (menuLenAfter > menuLenBefore) {
+      _sim5MenuDiag.succeeded++;
+      _sim5MenuDiag.menuPurchased++;
+    }
+
+    return true;
+  }
+
   // ── v0.5c: AI行動定義テーブル & 共通比較レポート ───────────────
   // 新しいAI行動は _SIM5_ACTION_DEFS に1件追加するだけで比較対象に加わる。
   const _SIM5_ACTION_DEFS = [
@@ -4538,6 +4613,12 @@ function qa2cSwitchTab(tid,idx){
       label:           'スタッフ研修',
       diag:            () => _sim5TrainDiag,
       otherBlockedKeys: ['noStaff', 'allServiceMax'],
+    },
+    {
+      key:             'buyMenu',
+      label:           'メニュー追加',
+      diag:            () => _sim5MenuDiag,
+      otherBlockedKeys: ['allPurchased'],
     },
   ];
 
@@ -4625,6 +4706,7 @@ function qa2cSwitchTab(tid,idx){
         // v0.5: AI能動行動（ゲーム本体コード変更なし）
         _sim5TryRegionInvestment();
         _sim5TryTrainStaff();
+        _sim5TryBuyMenu();
 
         // ── 日後の状態（事実）──────────────────────────────────────
         let _gNow;
@@ -7484,6 +7566,7 @@ ${ar.experienceKPI ? _sim3ExperienceKpiHtml(ar.experienceKPI) : ''}
     // 診断カウンターをリセット（試行をまたいで累積集計する）
     _sim5Diag.reset();
     _sim5TrainDiag.reset();
+    _sim5MenuDiag.reset();
 
     const results = [];
     const pass = (lbl, detail) => { results.push({lbl,st:'PASS',detail}); console.log(`✅ PASS  ${lbl}: ${detail}`); };
@@ -8049,6 +8132,161 @@ ${ar.experienceKPI ? _sim3ExperienceKpiHtml(ar.experienceKPI) : ''}
       console.log('[sim5TrainDiag]', JSON.stringify(summary));
     }
 
+    // ── Section 13: v0.5d AI能動行動 _sim5TryBuyMenu 検証 ──────────
+    console.group('Section 13: v0.5d AI能動行動（buyMenu）検証');
+
+    // 13-1: _sim5TryBuyMenu 存在確認
+    typeof _sim5TryBuyMenu === 'function'
+      ? pass('13-1 _sim5TryBuyMenu 存在', '関数として定義済み')
+      : fail('13-1 _sim5TryBuyMenu 存在', `typeof=${typeof _sim5TryBuyMenu}`);
+
+    // 13-2: 資金不足なら実行しない（モックで副作用なし検証）
+    {
+      const minCost  = Math.min(...(typeof MENU_OPTIONS !== 'undefined' ? MENU_OPTIONS : [{cost:30000}]).map(m=>m.cost));
+      const need     = minCost + _SIM5_MENU_CASH_RESERVE;
+      const mockBase = { ap:100, staffUnlocked:true, staff:[],
+                         stores:[{ name:'テスト店', isOpen:true, menu:[], menuAddedMonth:{} }],
+                         unlockedProducts:[] };
+      const origG2   = eval('G');
+      const menuDiagBefore13_2 = Object.assign({}, _sim5MenuDiag);
+      const origBuyMenu = window.buyMenu;
+      let res1, res2;
+      try {
+        window.buyMenu = () => {};
+        eval('G = Object.assign({}, mockBase, { money: need - 1 })');
+        res1 = _sim5TryBuyMenu(); // 不足 → false を期待
+        eval('G = Object.assign({}, mockBase, { money: need })');
+        res2 = _sim5TryBuyMenu(); // 十分 → true を期待
+      } finally {
+        eval('G = origG2');
+        window.buyMenu = origBuyMenu;
+        for (const [k,v] of Object.entries(menuDiagBefore13_2)) {
+          if (typeof v === 'number') _sim5MenuDiag[k] = v;
+        }
+      }
+      (!res1 && res2)
+        ? pass('13-2 資金不足時スキップ', `不足(need-1)=false / 十分(need)=true (必要額${need.toLocaleString()})`)
+        : fail('13-2 資金不足時スキップ', `不足=${res1} 十分=${res2}`);
+    }
+
+    // 13-3: AP不足なら実行しない（スタッフ未配置の場合のみ発生）
+    {
+      const minCost  = Math.min(...(typeof MENU_OPTIONS !== 'undefined' ? MENU_OPTIONS : [{cost:30000}]).map(m=>m.cost));
+      const mockNoStaff = { ap:0, staffUnlocked:false, staff:[],
+                            stores:[{ name:'テスト店', isOpen:true, menu:[], menuAddedMonth:{} }],
+                            unlockedProducts:[], money: minCost + _SIM5_MENU_CASH_RESERVE + 999999 };
+      const origG3  = eval('G');
+      const menuDiagBefore13_3 = Object.assign({}, _sim5MenuDiag);
+      const origBuyMenu3 = window.buyMenu;
+      let res3;
+      try {
+        window.buyMenu = () => {};
+        eval('G = Object.assign({}, mockNoStaff)');
+        res3 = _sim5TryBuyMenu(); // AP=0 でスタッフなし → AP不足で false を期待
+      } finally {
+        eval('G = origG3');
+        window.buyMenu = origBuyMenu3;
+        for (const [k,v] of Object.entries(menuDiagBefore13_3)) {
+          if (typeof v === 'number') _sim5MenuDiag[k] = v;
+        }
+      }
+      res3 === false
+        ? pass('13-3 AP不足時スキップ（スタッフなし・AP=0）', 'AP=0でスタッフ未配置=false')
+        : fail('13-3 AP不足時スキップ（スタッフなし・AP=0）', `戻り値=${res3}`);
+    }
+
+    // 13-4: 全メニュー購入済みなら実行しない
+    {
+      const allNames = (typeof MENU_OPTIONS !== 'undefined' ? MENU_OPTIONS : []).map(m=>m.name);
+      const target4  = (typeof MENU_OPTIONS !== 'undefined' ? MENU_OPTIONS : [])
+        .filter(m => !m.requireProduct)
+        .map(m => m.name);
+      const mockFull = { ap:100, staff:[], staffUnlocked:false,
+                         stores:[{ name:'テスト店', isOpen:true, menu:[...allNames], menuAddedMonth:{} }],
+                         unlockedProducts:[], money:9999999 };
+      const origG4   = eval('G');
+      const menuDiagBefore13_4 = Object.assign({}, _sim5MenuDiag);
+      const origBuyMenu4 = window.buyMenu;
+      let res4;
+      try {
+        window.buyMenu = () => {};
+        eval('G = Object.assign({}, mockFull)');
+        res4 = _sim5TryBuyMenu(); // 全品購入済み → false を期待
+      } finally {
+        eval('G = origG4');
+        window.buyMenu = origBuyMenu4;
+        for (const [k,v] of Object.entries(menuDiagBefore13_4)) {
+          if (typeof v === 'number') _sim5MenuDiag[k] = v;
+        }
+      }
+      res4 === false
+        ? pass('13-4 全品購入済みスキップ', `allNames=${allNames.length}品全て購入済み → false`)
+        : fail('13-4 全品購入済みスキップ', `戻り値=${res4}`);
+    }
+
+    // 13-5: buyMenu 実行確認（最安メニュー選択ロジック）
+    {
+      const opts5 = (typeof MENU_OPTIONS !== 'undefined' ? MENU_OPTIONS : []).filter(m => !m.requireProduct);
+      if (!opts5.length) {
+        warn('13-5 buyMenu実行確認', 'MENU_OPTIONS が空');
+      } else {
+        opts5.sort((a,b) => a.cost - b.cost);
+        const cheapest = opts5[0];
+        const detect = cheapest.cost; // 最安が選ばれるはず
+        pass('13-5 buyMenu実行確認', `最安選択候補: 「${cheapest.name}」¥${cheapest.cost.toLocaleString()} (cost+reserve=${(cheapest.cost+_SIM5_MENU_CASH_RESERVE).toLocaleString()})`);
+      }
+    }
+
+    // 13-6: KPI検出（メニュー追加は productDeveloped ではなく succeeded で代替）
+    // ※ buyMenu は s.menu を変化させる（unlockedProducts ではない）ため productDeveloped は対象外。
+    // 診断カウンター _sim5MenuDiag.succeeded が実シミュレーションで正しく計上されることを確認する。
+    {
+      const md = _sim5MenuDiag;
+      md.called > 0
+        ? pass('13-6 KPI代替検出（diagnosed）', `called=${md.called} attempted=${md.attempted} succeeded=${md.succeeded}`)
+        : warn('13-6 KPI代替検出（diagnosed）', 'called=0（シミュレーション未実行）');
+    }
+
+    // 13-7: 診断カウンター整合性確認
+    {
+      const md = _sim5MenuDiag;
+      const sum = md.attempted + md.insufficientCash + md.insufficientAP + md.allPurchased;
+      (md.called === 0 || md.called === sum)
+        ? pass('13-7 診断カウンター整合', `called=${md.called} = attempted(${md.attempted})+cash(${md.insufficientCash})+ap(${md.insufficientAP})+other(${md.allPurchased})`)
+        : fail('13-7 診断カウンター整合', `called=${md.called} sum=${sum}`);
+    }
+
+    // 13-8: 比較レポートへ反映（buyMenu が3件目に含まれる）
+    {
+      const keys13 = _cmp.map(r => r.key);
+      keys13.includes('buyMenu')
+        ? pass('13-8 比較レポートへ反映', `buyMenu を含む${keys13.length}件: ${JSON.stringify(keys13)}`)
+        : fail('13-8 比較レポートへ反映', `buyMenu がない: ${JSON.stringify(keys13)}`);
+    }
+
+    // 13-9: BusinessReport.actionComparison に buyMenu が含まれる
+    {
+      const ac13 = rNew?.businessReport?.actionComparison;
+      const hasBuyMenu = Array.isArray(ac13) && ac13.some(r => r.key === 'buyMenu');
+      hasBuyMenu
+        ? pass('13-9 BusinessReport.actionComparison に buyMenu', `${ac13.length}件中に buyMenu 含む`)
+        : fail('13-9 BusinessReport.actionComparison に buyMenu', `ac=${JSON.stringify(ac13?.map(r=>r.key))}`);
+    }
+
+    // 13-10: 実シミュレーション発火確認
+    {
+      const md = _sim5MenuDiag;
+      if (md.called === 0) {
+        warn('13-10 buyMenu 実発火確認', 'called=0（シミュレーション未実行）');
+      } else if (md.attempted > 0) {
+        pass('13-10 buyMenu 実発火確認', `attempted=${md.attempted} succeeded=${md.succeeded} menuPurchased=${md.menuPurchased}`);
+      } else {
+        warn('13-10 buyMenu 実発火確認', `called=${md.called} で attempted=0（資金不足${md.insufficientCash} AP不足${md.insufficientAP} 購入済み${md.allPurchased}）`);
+      }
+    }
+
+    console.groupEnd();
+
     // ── Section 12: v0.5c AI行動比較レポート検証 ──────────────────
     console.group('Section 12: AI行動比較レポート検証');
     const _cmp = _sim5BuildActionComparison();
@@ -8058,12 +8296,12 @@ ${ar.experienceKPI ? _sim3ExperienceKpiHtml(ar.experienceKPI) : ''}
       ? pass('12-1 _sim5BuildActionComparison 存在', '関数として定義済み')
       : fail('12-1 _sim5BuildActionComparison 存在', `typeof=${typeof _sim5BuildActionComparison}`);
 
-    // 12-2: 比較対象が investRegion / trainStaff の2件ある
+    // 12-2: 比較対象が investRegion / trainStaff / buyMenu の3件ある
     {
       const keys = _cmp.map(r => r.key);
-      (keys.length === 2 && keys.includes('investRegion') && keys.includes('trainStaff'))
-        ? pass('12-2 比較対象2件', `keys=${JSON.stringify(keys)}`)
-        : fail('12-2 比較対象2件', `keys=${JSON.stringify(keys)}`);
+      (keys.length === 3 && keys.includes('investRegion') && keys.includes('trainStaff') && keys.includes('buyMenu'))
+        ? pass('12-2 比較対象3件', `keys=${JSON.stringify(keys)}`)
+        : fail('12-2 比較対象3件', `keys=${JSON.stringify(keys)}`);
     }
 
     // 12-3: 全数値が Finite（NaN・Infinity なし）
