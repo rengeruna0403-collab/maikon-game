@@ -3,9 +3,9 @@
  * ?qa=1 または ?debug=1 の場合のみ動作
  * ゲーム本体への影響なし・読み取り専用（Phase 2Aは1日テスト後に必ず復元）
  */
-window._MAIKON_QA_VERSION = '2026-07-25-v05h-stability-analysis';
+window._MAIKON_QA_VERSION = '2026-07-25-v05i-ad-policy-analysis';
 console.log('[MAIKON-QA] loaded version:', window._MAIKON_QA_VERSION);
-console.log('[QA FILE LOADED] v05h-stability-analysis-20260725');
+console.log('[QA FILE LOADED] v05i-ad-policy-analysis-20260725');
 
 (function () {
   'use strict';
@@ -4607,14 +4607,24 @@ function qa2cSwitchTab(tid,idx){
   const _sim5AdDiag = {
     called: 0, noStore: 0, noOpenStore: 0,
     insufficientCash: 0, insufficientAP: 0,
-    noAvailableAd: 0, attempted: 0, succeeded: 0, adPurchased: 0,
+    noAvailableAd: 0, cooldownBlocked: 0,
+    attempted: 0, succeeded: 0, adPurchased: 0,
+    adCostTotal: 0, // v0.5i: 実際に支出された広告費の合計
     reset() {
       this.called = 0; this.noStore = 0; this.noOpenStore = 0;
       this.insufficientCash = 0; this.insufficientAP = 0;
-      this.noAvailableAd = 0; this.attempted = 0; this.succeeded = 0; this.adPurchased = 0;
+      this.noAvailableAd = 0; this.cooldownBlocked = 0;
+      this.attempted = 0; this.succeeded = 0; this.adPurchased = 0;
+      this.adCostTotal = 0;
     },
   };
   window._sim5AdDiag = _sim5AdDiag;
+
+  // v0.5i: 広告ポリシー比較用の QA 専用状態
+  // _sim5AdCurrentPolicy が null のとき従来動作（クールダウンなし）
+  let _sim5AdCurrentPolicy = null; // { cooldownDays: number|null, enabled: boolean }
+  let _sim5AdCurrentDay    = 0;    // シミュレーションループの現在日（d と同期）
+  const _sim5AdPolicyState = { lastPurchaseDayByStore: {} };
 
   // _adOpts: テスト時のみ AD_OPTIONS 代替を渡す。本番は省略（undefined）
   function _sim5TryBuyAd(_adOpts) {
@@ -4637,6 +4647,16 @@ function qa2cSwitchTab(tid,idx){
     const adOptions = _adOpts !== undefined ? _adOpts : (typeof AD_OPTIONS !== 'undefined' ? AD_OPTIONS : []);
     if (adOptions.length === 0) { _sim5AdDiag.noAvailableAd++; return false; }
 
+    // v0.5i: クールダウン判定（_sim5AdCurrentPolicy が設定されている場合のみ）
+    const _pol = _sim5AdCurrentPolicy;
+    if (_pol && (_pol.cooldownDays ?? 0) > 0) {
+      const lastDay = _sim5AdPolicyState.lastPurchaseDayByStore[si] ?? -Infinity;
+      if (_sim5AdCurrentDay - lastDay < _pol.cooldownDays) {
+        _sim5AdDiag.cooldownBlocked++;
+        return false;
+      }
+    }
+
     // 最も安い広告を選択
     const sorted = [...adOptions].sort((a, b) => a.cost - b.cost);
     const opt = sorted[0];
@@ -4657,9 +4677,15 @@ function qa2cSwitchTab(tid,idx){
 
     const custBefore = store.customers;
     _sim5AdDiag.attempted++;
+    const _thisCost = opt.cost;
 
     try {
       buyAd(si, opt.name, opt.cost, opt.cust);
+      _sim5AdDiag.adCostTotal += _thisCost; // 支出確定後に積算
+      // v0.5i: 購入成功後にクールダウン状態を更新
+      if (_pol && (_pol.cooldownDays ?? 0) > 0) {
+        _sim5AdPolicyState.lastPurchaseDayByStore[si] = _sim5AdCurrentDay;
+      }
     } catch(e) { return false; }
 
     // 実際に客数が増加したか確認
@@ -4990,6 +5016,21 @@ function qa2cSwitchTab(tid,idx){
   }
   window._sim5RunMarginalImpactAnalysis = _sim5RunMarginalImpactAnalysis;
 
+  // ── v0.5h/v0.5i 共通: 統計計算ヘルパー ──────────────────────────
+  function _sim5CalcStats(arr) {
+    if (!arr.length) return { mean:0, median:0, min:0, max:0, stddev:0 };
+    const sorted = [...arr].sort((a, b) => a - b);
+    const n    = arr.length;
+    const mean = arr.reduce((s, v) => s + v, 0) / n;
+    const mid  = Math.floor(n / 2);
+    const median = n % 2 === 0 ? (sorted[mid-1] + sorted[mid]) / 2 : sorted[mid];
+    const min  = sorted[0];
+    const max  = sorted[n-1];
+    const stddev = Math.sqrt(arr.reduce((s, v) => s + (v - mean) ** 2, 0) / n);
+    return { mean, median, min, max, stddev };
+  }
+  window._sim5CalcStats = _sim5CalcStats;
+
   // ── v0.5h: AI安定性分析（Multi-Seed Stability Analysis） ────────
   function _sim5RunStabilityAnalysis({ seeds, trialsPerSeed } = {}) {
     seeds         = Array.isArray(seeds) && seeds.length > 0 ? seeds : [1001,2001,3001,4001,5001,6001,7001,8001,9001,10001];
@@ -5022,30 +5063,15 @@ function qa2cSwitchTab(tid,idx){
       }
     }
 
-    // 統計計算ヘルパー
-    const calcStats = (arr) => {
-      if (!arr.length) return { mean:0, median:0, min:0, max:0, stddev:0 };
-      const sorted = [...arr].sort((a, b) => a - b);
-      const n    = arr.length;
-      const mean = arr.reduce((s, v) => s + v, 0) / n;
-      const mid  = Math.floor(n / 2);
-      const median = n % 2 === 0 ? (sorted[mid-1] + sorted[mid]) / 2 : sorted[mid];
-      const min  = sorted[0];
-      const max  = sorted[n-1];
-      const variance = arr.reduce((s, v) => s + (v - mean) ** 2, 0) / n;
-      const stddev   = Math.sqrt(variance);
-      return { mean, median, min, max, stddev };
-    };
-
     // 各シナリオの統計・勝率・安定指数を計算
     const scLabels = {};
     _SIM5_IMPACT_SCENARIOS.forEach(s => { scLabels[s.key] = s.label; });
 
     const scenarios = scenarioKeys.map(key => {
       const raw    = rawBySc[key];
-      const profit = calcStats(raw.profitDiffs);
-      const revenue= calcStats(raw.revenueDiffs);
-      const endCash= calcStats(raw.endCashDiffs);
+      const profit = _sim5CalcStats(raw.profitDiffs);
+      const revenue= _sim5CalcStats(raw.revenueDiffs);
+      const endCash= _sim5CalcStats(raw.endCashDiffs);
       const wins   = raw.profitDiffs.filter(v => v > 0).length;
       const winRate = seeds.length > 0 ? wins / seeds.length : 0;
       const stabilityScore = profit.stddev > 0 ? profit.mean / profit.stddev : 0;
@@ -5116,6 +5142,224 @@ function qa2cSwitchTab(tid,idx){
   }
   window._sim5RunStabilityAnalysis = _sim5RunStabilityAnalysis;
 
+  // ── v0.5i: 広告ポリシー比較 ──────────────────────────────────────
+  const _SIM5_AD_POLICY_SCENARIOS = [
+    { key: 'adOff',    label: '広告なし',   enabled: false, cooldownDays: null },
+    { key: 'adDaily',  label: '毎日判定',   enabled: true,  cooldownDays: 0    },
+    { key: 'ad7Days',  label: '7日間隔',    enabled: true,  cooldownDays: 7    },
+    { key: 'ad14Days', label: '14日間隔',   enabled: true,  cooldownDays: 14   },
+    { key: 'ad30Days', label: '30日間隔',   enabled: true,  cooldownDays: 30   },
+  ];
+  window._SIM5_AD_POLICY_SCENARIOS = _SIM5_AD_POLICY_SCENARIOS;
+
+  function _sim5RunAdPolicyComparison({ seeds, trialsPerSeed } = {}) {
+    seeds         = Array.isArray(seeds) && seeds.length > 0 ? seeds : [1001, 2001, 3001];
+    trialsPerSeed = trialsPerSeed || 3;
+
+    // 現在のGとフレッシュスナップ
+    let _gApc;
+    try { _gApc = eval('G'); } catch(e) { return null; }
+    const realGStr = JSON.stringify(_gApc);
+    let gSnap;
+    try { gSnap = _sim3MakeFreshStartSnap(_gApc); } catch(e) { return null; }
+
+    // 診断カウンタースナップ（全AI）
+    const allDiags  = [_sim5Diag, _sim5TrainDiag, _sim5MenuDiag, _sim5AdDiag];
+    const diagSnaps = allDiags.map(d => Object.assign({}, d));
+    const origEnable = Object.assign({}, _SIM5_ENABLE);
+    const origPolicy = _sim5AdCurrentPolicy;
+
+    // 安全ヘルパー
+    const safe = (num, den) => (den > 0 && isFinite(num) && !isNaN(num)) ? num / den : 0;
+
+    // 1ポリシー × 全seedで試行を実行し、集計メトリクスを返す
+    const runPolicy = (pol) => {
+      // 広告以外のAIはすべてOFF、広告のみポリシーに従う
+      _SIM5_ENABLE.investRegion = false;
+      _SIM5_ENABLE.trainStaff   = false;
+      _SIM5_ENABLE.buyMenu      = false;
+      _SIM5_ENABLE.buyAd        = pol.enabled;
+      _sim5AdCurrentPolicy      = pol.enabled ? pol : null;
+
+      // seed横断で集める値
+      const profitDiffs_arr   = [];
+      const revenueDiffs_arr  = [];
+      const endCashDiffs_arr  = [];
+
+      let totalProfit = 0, totalRevenue = 0, totalEndCash = 0;
+      let totalMinCash = 0, totalDeficitMonths = 0, totalBankruptcy = 0;
+      let totalAdAttempted = 0, totalAdPurchased = 0, totalCooldownBlocked = 0;
+      let totalAdCostTotal = 0;
+      let trialCount = 0;
+
+      for (const seed of seeds) {
+        _sim5AdDiag.reset();
+        _sim5AdPolicyState.lastPurchaseDayByStore = {}; // seedごとにリセット
+
+        const trials = [];
+        for (let i = 0; i < trialsPerSeed; i++) {
+          const t = _sim3AnalyzeRunTrial(seed + i, gSnap);
+          if (t) trials.push(t);
+        }
+        if (!trials.length) continue;
+        const agg = _sim3AnalyzeAggregate(trials);
+        const g   = k => agg.stats[k]?.mean ?? 0;
+
+        totalProfit        += g('totalNetChange365');
+        totalRevenue       += g('totalRevenue');
+        totalEndCash       += g('endCash');
+        totalMinCash       += g('minCash');
+        totalDeficitMonths += g('deficitMonths');
+        totalBankruptcy    += trials.filter(t => (t.minCash ?? 0) < 0).length / trials.length;
+        totalAdAttempted      += _sim5AdDiag.attempted;
+        totalAdPurchased      += _sim5AdDiag.adPurchased;
+        totalCooldownBlocked  += _sim5AdDiag.cooldownBlocked;
+        totalAdCostTotal      += _sim5AdDiag.adCostTotal;
+        trialCount++;
+
+        profitDiffs_arr.push(g('totalNetChange365'));
+        revenueDiffs_arr.push(g('totalRevenue'));
+        endCashDiffs_arr.push(g('endCash'));
+      }
+
+      if (!trialCount) return null;
+      const n = trialCount;
+      return {
+        profit:           totalProfit / n,
+        revenue:          totalRevenue / n,
+        endCash:          totalEndCash / n,
+        minCash:          totalMinCash / n,
+        deficitMonths:    totalDeficitMonths / n,
+        bankruptcyRate:   totalBankruptcy / n,
+        adCount:          totalAdAttempted / n,
+        adPurchased:      totalAdPurchased / n,
+        cooldownBlocked:  totalCooldownBlocked / n,
+        adCostTotal:      totalAdCostTotal / n,
+        _profitArr:       profitDiffs_arr,
+        _revenueArr:      revenueDiffs_arr,
+        _endCashArr:      endCashDiffs_arr,
+      };
+    };
+
+    try {
+      // 各ポリシーを実行
+      const rawResults = [];
+      for (const pol of _SIM5_AD_POLICY_SCENARIOS) {
+        _sim5AdPolicyState.lastPurchaseDayByStore = {};
+        const metrics = runPolicy(pol);
+        if (!metrics) return null;
+        rawResults.push({ key: pol.key, label: pol.label, cooldownDays: pol.cooldownDays, enabled: pol.enabled, metrics });
+      }
+
+      // 基準: adOff
+      const baseline = rawResults.find(r => r.key === 'adOff');
+      if (!baseline) return null;
+      const bm = baseline.metrics;
+
+      // 各ポリシーに差分・1広告あたり指標・安定性統計を付与
+      const policies = rawResults.map(r => {
+        const m = r.metrics;
+        const diffFromAdOff = {
+          profit:        m.profit        - bm.profit,
+          revenue:       m.revenue       - bm.revenue,
+          endCash:       m.endCash       - bm.endCash,
+          minCash:       m.minCash       - bm.minCash,
+          deficitMonths: m.deficitMonths - bm.deficitMonths,
+          bankruptcyRate:m.bankruptcyRate - bm.bankruptcyRate,
+        };
+        const adCount    = m.adCount    || 0;
+        const adCostTotal = m.adCostTotal || 0;
+        const perActionMetrics = {
+          profitDiffPerAd:      safe(diffFromAdOff.profit,  adCount),
+          revenueDiffPerAd:     safe(diffFromAdOff.revenue, adCount),
+          revenueReturnPerAdCost: safe(diffFromAdOff.revenue, adCostTotal),
+          adCount,
+          adCostTotal,
+          cooldownBlocked: m.cooldownBlocked,
+        };
+        // 安定性統計（v0.5h の共通ヘルパーを再利用）
+        const profitDiffArr = m._profitArr.map(p => p - bm.profit);
+        const stability = _sim5CalcStats(profitDiffArr);
+        const winRate   = profitDiffArr.filter(v => v > 0).length / (profitDiffArr.length || 1);
+        const stabilityScore = stability.stddev > 0 ? stability.mean / stability.stddev : 0;
+
+        return {
+          key: r.key, label: r.label, cooldownDays: r.cooldownDays,
+          metrics: m, diffFromAdOff, perActionMetrics,
+          stability: { ...stability, winRate, stabilityScore },
+        };
+      });
+
+      // ランキング（adOff除く・利益差分降順、同額なら最低現金高い順）
+      const rankTargets = policies.filter(p => p.key !== 'adOff');
+      rankTargets.sort((a, b) => {
+        const pd = b.diffFromAdOff.profit - a.diffFromAdOff.profit;
+        if (pd !== 0) return pd;
+        return b.metrics.minCash - a.metrics.minCash;
+      });
+      const rankings = rankTargets.map((p, i) => ({
+        rank:            i + 1,
+        key:             p.key,
+        label:           p.label,
+        cooldownDays:    p.cooldownDays,
+        profitDiff:      p.diffFromAdOff.profit,
+        revenueDiff:     p.diffFromAdOff.revenue,
+        stabilityScore:  p.stability.stabilityScore,
+        winRate:         p.stability.winRate,
+      }));
+
+      // コンソール表示
+      {
+        const fmt0 = v => Math.round(v).toLocaleString();
+        const sign  = v => (v >= 0 ? '+' : '') + Math.round(v).toLocaleString();
+        const pct   = v => (v * 100).toFixed(0) + '%';
+        const tableData = {};
+        policies.forEach(p => {
+          const m = p.metrics;
+          const d = p.diffFromAdOff;
+          const pa = p.perActionMetrics;
+          tableData[p.label] = {
+            '間隔':                p.cooldownDays == null ? '-' : p.cooldownDays === 0 ? '毎日' : `${p.cooldownDays}日`,
+            '利益':                fmt0(m.profit),
+            '利益差分':            sign(d.profit),
+            '売上':                fmt0(m.revenue),
+            '売上差分':            sign(d.revenue),
+            '年末現金':            fmt0(m.endCash),
+            '最低現金':            fmt0(m.minCash),
+            '赤字月数':            fmt0(m.deficitMonths),
+            '広告回数':            fmt0(pa.adCount),
+            '広告費':              fmt0(pa.adCostTotal),
+            'クールダウン阻止':    fmt0(pa.cooldownBlocked),
+            '1広告あたり利益差分': pa.adCount > 0 ? Math.round(pa.profitDiffPerAd).toLocaleString() : '-',
+            '1広告あたり売上差分': pa.adCount > 0 ? Math.round(pa.revenueDiffPerAd).toLocaleString() : '-',
+          };
+        });
+        console.group('📊 広告AI ポリシー比較');
+        console.table(tableData);
+        console.group('🏆 広告ポリシーランキング（利益差分降順）');
+        rankings.forEach(r =>
+          console.log(`${r.rank}. ${r.label}: 利益差分 ${sign(r.profitDiff)} / 安定指数 ${r.stabilityScore.toFixed(2)} / 勝率 ${pct(r.winRate)}`)
+        );
+        console.groupEnd();
+        console.groupEnd();
+      }
+
+      return { policies, rankings, seeds, trialsPerSeed };
+
+    } finally {
+      try { eval('G = JSON.parse(realGStr)'); } catch(e) {}
+      Object.assign(_SIM5_ENABLE, origEnable);
+      _sim5AdCurrentPolicy = origPolicy;
+      _sim5AdPolicyState.lastPurchaseDayByStore = {};
+      diagSnaps.forEach((snap, i) => {
+        for (const [k, v] of Object.entries(snap)) {
+          if (typeof v === 'number') allDiags[i][k] = v;
+        }
+      });
+    }
+  }
+  window._sim5RunAdPolicyComparison = _sim5RunAdPolicyComparison;
+
   // ── 1試行実行 ──
   function _sim3AnalyzeRunTrial(seed, gSnap) {
     const origMath = Math.random;
@@ -5168,6 +5412,7 @@ function qa2cSwitchTab(tid,idx){
 
         // v0.5: AI能動行動（ゲーム本体コード変更なし）
         // _SIM5_ENABLE で各行動のON/OFFを制御（v0.5f: 効果比較用）
+        _sim5AdCurrentDay = d; // v0.5i: クールダウン判定用に現在日を同期
         if (_SIM5_ENABLE.investRegion) _sim5TryRegionInvestment();
         if (_SIM5_ENABLE.trainStaff)   _sim5TryTrainStaff();
         if (_SIM5_ENABLE.buyMenu)      _sim5TryBuyMenu();
@@ -6783,7 +7028,8 @@ function qa2cSwitchTab(tid,idx){
       actionComparison: _sim5BuildActionComparison(), // v0.5c: AI行動横断比較
       aiImpact: null,         // v0.5f: _qa3ValidateAll または _sim5RunImpactComparison で設定
       aiMarginalImpact: null, // v0.5g: _qa3ValidateAll または _sim5RunMarginalImpactAnalysis で設定
-      aiStability: null,      // v0.5h: _qa3ValidateAll または _sim5RunStabilityAnalysis で設定
+      aiStability: null,        // v0.5h: _qa3ValidateAll または _sim5RunStabilityAnalysis で設定
+      adPolicyComparison: null, // v0.5i: _qa3ValidateAll または _sim5RunAdPolicyComparison で設定
     };
   }
 
@@ -9361,6 +9607,164 @@ ${ar.experienceKPI ? _sim3ExperienceKpiHtml(ar.experienceKPI) : ''}
       tableOk
         ? pass('17-12 console.table用データ生成成功', `${stabilityResult.scenarios.length}行`)
         : fail('17-12 console.table用データ生成成功', `scenarios=${stabilityResult?.scenarios?.length}`);
+    }
+
+    console.groupEnd();
+
+    // ── Section 18: v0.5i 広告ポリシー比較 検証 ──────────────────
+    console.group('Section 18: v0.5i 広告AIポリシー比較（Ad Policy Comparison）検証');
+
+    // Section 18 は seeds を少数に絞って実行（3seed × 3trials）
+    const adPolSeeds        = [1001, 2001, 3001];
+    const adPolTrialsPerSeed = 3;
+
+    // 18-1: _sim5RunAdPolicyComparison 存在確認
+    typeof _sim5RunAdPolicyComparison === 'function'
+      ? pass('18-1 _sim5RunAdPolicyComparison 存在', '関数として定義済み')
+      : fail('18-1 _sim5RunAdPolicyComparison 存在', `typeof=${typeof _sim5RunAdPolicyComparison}`);
+
+    // 18-2: 5ポリシーが定義されている
+    Array.isArray(_SIM5_AD_POLICY_SCENARIOS) && _SIM5_AD_POLICY_SCENARIOS.length === 5
+      ? pass('18-2 5ポリシー定義', _SIM5_AD_POLICY_SCENARIOS.map(p=>p.key).join(','))
+      : fail('18-2 5ポリシー定義', `length=${_SIM5_AD_POLICY_SCENARIOS?.length}`);
+
+    // ポリシー比較を実行（18-3〜18-14 の検証用）
+    const adPolResult = typeof _sim5RunAdPolicyComparison === 'function'
+      ? _sim5RunAdPolicyComparison({ seeds: adPolSeeds, trialsPerSeed: adPolTrialsPerSeed }) : null;
+
+    // BusinessReport に adPolicyComparison を付与
+    if (rNew && rNew.businessReport) rNew.businessReport.adPolicyComparison = adPolResult
+      ? { policies: adPolResult.policies, rankings: adPolResult.rankings } : null;
+
+    const _adPol = (key) => adPolResult?.policies?.find(p => p.key === key);
+
+    // 18-3: 広告なしで広告回数が0
+    {
+      const adOff = _adPol('adOff');
+      const cnt   = adOff?.perActionMetrics?.adCount ?? -1;
+      cnt === 0
+        ? pass('18-3 adOff 広告回数0', `adCount=${cnt}`)
+        : fail('18-3 adOff 広告回数0', `adCount=${cnt}`);
+    }
+
+    // 18-4: 毎日判定でcooldownBlocked=0
+    {
+      const adDaily = _adPol('adDaily');
+      const cb = adDaily?.perActionMetrics?.cooldownBlocked ?? -1;
+      cb === 0
+        ? pass('18-4 adDaily cooldownBlocked=0', `cooldownBlocked=${cb}`)
+        : fail('18-4 adDaily cooldownBlocked=0', `cooldownBlocked=${cb}`);
+    }
+
+    // 18-5〜18-7: クールダウン設定ポリシーの広告回数が毎日判定より少ない（単調減少）
+    {
+      const daily  = _adPol('adDaily')?.perActionMetrics?.adCount ?? 0;
+      const d7     = _adPol('ad7Days')?.perActionMetrics?.adCount ?? 0;
+      const d14    = _adPol('ad14Days')?.perActionMetrics?.adCount ?? 0;
+      const d30    = _adPol('ad30Days')?.perActionMetrics?.adCount ?? 0;
+      daily >= d7
+        ? pass('18-5 7日間隔で広告回数 ≤ 毎日', `daily=${daily.toFixed(1)} 7d=${d7.toFixed(1)}`)
+        : fail('18-5 7日間隔で広告回数 ≤ 毎日', `daily=${daily.toFixed(1)} 7d=${d7.toFixed(1)}`);
+      d7 >= d14
+        ? pass('18-6 14日間隔で広告回数 ≤ 7日間隔', `7d=${d7.toFixed(1)} 14d=${d14.toFixed(1)}`)
+        : fail('18-6 14日間隔で広告回数 ≤ 7日間隔', `7d=${d7.toFixed(1)} 14d=${d14.toFixed(1)}`);
+      d14 >= d30
+        ? pass('18-7 30日間隔で広告回数 ≤ 14日間隔', `14d=${d14.toFixed(1)} 30d=${d30.toFixed(1)}`)
+        : fail('18-7 30日間隔で広告回数 ≤ 14日間隔', `14d=${d14.toFixed(1)} 30d=${d30.toFixed(1)}`);
+    }
+
+    // 18-8: cooldownBlocked 増加の単体検証
+    {
+      let cbBefore18_8, cbDelta18_8, res18_8;
+      const snap18_8 = Object.assign({}, _sim5AdDiag);
+      const origG18_8 = eval('G');
+      const origPol18_8 = _sim5AdCurrentPolicy;
+      try {
+        // 7日クールダウン・現在日=3・最後の購入日=0 → ブロックされるはず
+        eval('G = { stores: [{ name:"本店", isOpen:true, customers:20 }], staff:[], money:1_000_000, ap:100 }');
+        _sim5AdCurrentPolicy = { cooldownDays: 7, enabled: true };
+        _sim5AdPolicyState.lastPurchaseDayByStore = { 0: 0 };
+        _sim5AdCurrentDay = 3; // 3-0=3 < 7 → クールダウン
+        cbBefore18_8 = _sim5AdDiag.cooldownBlocked;
+        res18_8 = _sim5TryBuyAd();
+        cbDelta18_8 = _sim5AdDiag.cooldownBlocked - cbBefore18_8;
+      } finally {
+        eval('G = origG18_8');
+        _sim5AdCurrentPolicy = origPol18_8;
+        _sim5AdPolicyState.lastPurchaseDayByStore = {};
+        _sim5AdCurrentDay = 0;
+        for (const [k, v] of Object.entries(snap18_8)) { if (typeof v === 'number') _sim5AdDiag[k] = v; }
+      }
+      (res18_8 === false && cbDelta18_8 === 1)
+        ? pass('18-8 cooldownBlocked増加', `res=${res18_8} cbDelta=${cbDelta18_8}`)
+        : fail('18-8 cooldownBlocked増加', `res=${res18_8} cbDelta=${cbDelta18_8}`);
+    }
+
+    // 18-9: 全ポリシーの数値がFinite
+    {
+      const ok = adPolResult?.policies?.every(p =>
+        isFinite(p.metrics.profit) && isFinite(p.metrics.revenue) &&
+        isFinite(p.diffFromAdOff.profit) && isFinite(p.perActionMetrics.adCount)
+      );
+      ok
+        ? pass('18-9 全ポリシー数値Finite', `policies=${adPolResult?.policies?.length}`)
+        : fail('18-9 全ポリシー数値Finite', 'Finite check failed');
+    }
+
+    // 18-10: adOff との差分が再計算値と一致（adDaily で検証）
+    {
+      const adOff   = _adPol('adOff');
+      const adDaily = _adPol('adDaily');
+      if (adOff && adDaily) {
+        const expected = adDaily.metrics.profit - adOff.metrics.profit;
+        const actual   = adDaily.diffFromAdOff.profit;
+        Math.abs(expected - actual) < 1
+          ? pass('18-10 差分再計算一致', `expected=${Math.round(expected)} actual=${Math.round(actual)}`)
+          : fail('18-10 差分再計算一致', `expected=${Math.round(expected)} actual=${Math.round(actual)}`);
+      } else {
+        fail('18-10 差分再計算一致', 'adOff or adDaily が null');
+      }
+    }
+
+    // 18-11: 1広告あたり指標が再計算値と一致
+    {
+      const adDaily = _adPol('adDaily');
+      if (adDaily && adDaily.perActionMetrics.adCount > 0) {
+        const expected = adDaily.diffFromAdOff.profit / adDaily.perActionMetrics.adCount;
+        const actual   = adDaily.perActionMetrics.profitDiffPerAd;
+        Math.abs(expected - actual) < 1
+          ? pass('18-11 1広告あたり指標一致', `expected=${Math.round(expected)} actual=${Math.round(actual)}`)
+          : fail('18-11 1広告あたり指標一致', `expected=${Math.round(expected)} actual=${Math.round(actual)}`);
+      } else {
+        pass('18-11 1広告あたり指標一致', 'adCount=0のためスキップ（広告購入なし）');
+      }
+    }
+
+    // 18-12: ランキングが利益差分降順
+    {
+      const ranks = adPolResult?.rankings || [];
+      let ordered = true;
+      for (let i = 1; i < ranks.length; i++) {
+        if (ranks[i].profitDiff > ranks[i-1].profitDiff) { ordered = false; break; }
+      }
+      ordered && ranks.length === 4
+        ? pass('18-12 ランキング降順', ranks.map(r=>`${r.label}:${Math.round(r.profitDiff)}`).join(' ≥ '))
+        : fail('18-12 ランキング降順', `ordered=${ordered} length=${ranks.length}`);
+    }
+
+    // 18-13: BusinessReport.adPolicyComparison 存在
+    (rNew?.businessReport?.adPolicyComparison?.policies?.length === 5)
+      ? pass('18-13 BusinessReport.adPolicyComparison存在', `policies=${rNew.businessReport.adPolicyComparison.policies.length}`)
+      : fail('18-13 BusinessReport.adPolicyComparison存在', `${JSON.stringify(rNew?.businessReport?.adPolicyComparison)?.slice(0,60)}`);
+
+    // 18-14: 既存AI比較レポート整合性（cooldownBlocked を含む otherBlockedKeys 拡張確認）
+    {
+      const adDef = _SIM5_ACTION_DEFS?.find(d => d.key === 'buyAd');
+      // cooldownBlocked は広告固有阻害理由として _sim5AdDiag に存在すること確認
+      const hasCB = typeof _sim5AdDiag.cooldownBlocked === 'number';
+      hasCB
+        ? pass('18-14 cooldownBlocked _sim5AdDiag存在', `_sim5AdDiag.cooldownBlocked=${_sim5AdDiag.cooldownBlocked}`)
+        : fail('18-14 cooldownBlocked _sim5AdDiag存在', 'cooldownBlocked プロパティなし');
     }
 
     console.groupEnd();
