@@ -3,9 +3,9 @@
  * ?qa=1 または ?debug=1 の場合のみ動作
  * ゲーム本体への影響なし・読み取り専用（Phase 2Aは1日テスト後に必ず復元）
  */
-window._MAIKON_QA_VERSION = '2026-07-25-v05g-marginal-impact';
+window._MAIKON_QA_VERSION = '2026-07-25-v05h-stability-analysis';
 console.log('[MAIKON-QA] loaded version:', window._MAIKON_QA_VERSION);
-console.log('[QA FILE LOADED] v05g-marginal-impact-20260725');
+console.log('[QA FILE LOADED] v05h-stability-analysis-20260725');
 
 (function () {
   'use strict';
@@ -4990,6 +4990,132 @@ function qa2cSwitchTab(tid,idx){
   }
   window._sim5RunMarginalImpactAnalysis = _sim5RunMarginalImpactAnalysis;
 
+  // ── v0.5h: AI安定性分析（Multi-Seed Stability Analysis） ────────
+  function _sim5RunStabilityAnalysis({ seeds, trialsPerSeed } = {}) {
+    seeds         = Array.isArray(seeds) && seeds.length > 0 ? seeds : [1001,2001,3001,4001,5001,6001,7001,8001,9001,10001];
+    trialsPerSeed = trialsPerSeed || 10;
+
+    // 各seedでmarginal analysisを実行し結果を収集
+    const perSeedResults = [];
+    for (const seed of seeds) {
+      const r = _sim5RunMarginalImpactAnalysis(trialsPerSeed, seed);
+      if (r) perSeedResults.push({ seed, result: r });
+    }
+    if (!perSeedResults.length) return null;
+
+    // シナリオキー一覧
+    const scenarioKeys = _SIM5_IMPACT_SCENARIOS.map(s => s.key);
+
+    // シナリオごとに利益差分・売上差分・endCash差分を配列化
+    const rawBySc = {};
+    for (const key of scenarioKeys) {
+      rawBySc[key] = { profitDiffs: [], revenueDiffs: [], endCashDiffs: [] };
+    }
+    for (const { result } of perSeedResults) {
+      for (const sc of result.scenarios) {
+        const r = rawBySc[sc.key];
+        if (!r) continue;
+        const d = sc.diffFromBaseline;
+        r.profitDiffs.push(d.profit);
+        r.revenueDiffs.push(d.revenue);
+        r.endCashDiffs.push(d.endCash);
+      }
+    }
+
+    // 統計計算ヘルパー
+    const calcStats = (arr) => {
+      if (!arr.length) return { mean:0, median:0, min:0, max:0, stddev:0 };
+      const sorted = [...arr].sort((a, b) => a - b);
+      const n    = arr.length;
+      const mean = arr.reduce((s, v) => s + v, 0) / n;
+      const mid  = Math.floor(n / 2);
+      const median = n % 2 === 0 ? (sorted[mid-1] + sorted[mid]) / 2 : sorted[mid];
+      const min  = sorted[0];
+      const max  = sorted[n-1];
+      const variance = arr.reduce((s, v) => s + (v - mean) ** 2, 0) / n;
+      const stddev   = Math.sqrt(variance);
+      return { mean, median, min, max, stddev };
+    };
+
+    // 各シナリオの統計・勝率・安定指数を計算
+    const scLabels = {};
+    _SIM5_IMPACT_SCENARIOS.forEach(s => { scLabels[s.key] = s.label; });
+
+    const scenarios = scenarioKeys.map(key => {
+      const raw    = rawBySc[key];
+      const profit = calcStats(raw.profitDiffs);
+      const revenue= calcStats(raw.revenueDiffs);
+      const endCash= calcStats(raw.endCashDiffs);
+      const wins   = raw.profitDiffs.filter(v => v > 0).length;
+      const winRate = seeds.length > 0 ? wins / seeds.length : 0;
+      const stabilityScore = profit.stddev > 0 ? profit.mean / profit.stddev : 0;
+      return {
+        key,
+        label: scLabels[key],
+        profitDiffs:  raw.profitDiffs,
+        revenueDiffs: raw.revenueDiffs,
+        endCashDiffs: raw.endCashDiffs,
+        profit,
+        revenue,
+        endCash,
+        wins,
+        winRate,
+        stabilityScore,
+      };
+    });
+
+    // 安定指数ランキング（allOff/allOn除く単独AI4種）
+    const soloAIs = scenarios.filter(s => !['allOff','allOn'].includes(s.key));
+    const stabilityRanking = [...soloAIs]
+      .sort((a, b) => b.stabilityScore - a.stabilityScore)
+      .map((s, i) => ({
+        rank:            i + 1,
+        key:             s.key,
+        label:           s.label,
+        meanProfitDiff:  s.profit.mean,
+        stabilityScore:  s.stabilityScore,
+        winRate:         s.winRate,
+      }));
+
+    // console出力
+    {
+      const fmt0 = v => Math.round(v).toLocaleString();
+      const pct  = v => (v * 100).toFixed(0) + '%';
+      const tableData = {};
+      scenarios.forEach(s => {
+        tableData[s.label] = {
+          '平均利益差分': fmt0(s.profit.mean),
+          '中央値':        fmt0(s.profit.median),
+          '最小':          fmt0(s.profit.min),
+          '最大':          fmt0(s.profit.max),
+          '標準偏差':      fmt0(s.profit.stddev),
+          '勝率':          pct(s.winRate),
+          '安定指数':      s.stabilityScore.toFixed(2),
+        };
+      });
+      console.group('📊 AI Stability Analysis');
+      console.table(tableData);
+      console.group('🏆 安定指数ランキング（単独AI）');
+      stabilityRanking.forEach(r =>
+        console.log(`${r.rank}. ${r.label}: 安定指数 ${r.stabilityScore.toFixed(2)} / 平均利益差分 ${fmt0(r.meanProfitDiff)} / 勝率 ${pct(r.winRate)}`)
+      );
+      console.groupEnd();
+      console.groupEnd();
+    }
+
+    return {
+      seeds,
+      trialsPerSeed,
+      scenarios,
+      stabilityRanking,
+      stability: {
+        totalSeeds:  seeds.length,
+        scenarios:   scenarios.map(s => ({ key: s.key, label: s.label, winRate: s.winRate, stabilityScore: s.stabilityScore })),
+      },
+    };
+  }
+  window._sim5RunStabilityAnalysis = _sim5RunStabilityAnalysis;
+
   // ── 1試行実行 ──
   function _sim3AnalyzeRunTrial(seed, gSnap) {
     const origMath = Math.random;
@@ -6657,6 +6783,7 @@ function qa2cSwitchTab(tid,idx){
       actionComparison: _sim5BuildActionComparison(), // v0.5c: AI行動横断比較
       aiImpact: null,         // v0.5f: _qa3ValidateAll または _sim5RunImpactComparison で設定
       aiMarginalImpact: null, // v0.5g: _qa3ValidateAll または _sim5RunMarginalImpactAnalysis で設定
+      aiStability: null,      // v0.5h: _qa3ValidateAll または _sim5RunStabilityAnalysis で設定
     };
   }
 
@@ -9136,6 +9263,104 @@ ${ar.experienceKPI ? _sim3ExperienceKpiHtml(ar.experienceKPI) : ''}
       (gAfterMarginal && typeof gAfterMarginal === 'object' && Array.isArray(gAfterMarginal.stores))
         ? pass('16-12 G復元確認', `stores=${gAfterMarginal.stores.length} money=${gAfterMarginal.money}`)
         : fail('16-12 G復元確認', `G=${JSON.stringify(gAfterMarginal)?.slice(0,80)}`);
+    }
+
+    console.groupEnd();
+
+    // ── Section 17: v0.5h AI安定性分析 検証 ──────────────────────
+    console.group('Section 17: v0.5h AI安定性分析（Multi-Seed Stability Analysis）検証');
+
+    // Section 17 は seeds を少数に絞って実行（テスト速度優先: 3seed × 3trials）
+    const stabSeeds        = [1001, 2001, 3001];
+    const stabTrialsPerSeed = 3;
+
+    // 17-1: _sim5RunStabilityAnalysis 存在確認
+    typeof _sim5RunStabilityAnalysis === 'function'
+      ? pass('17-1 _sim5RunStabilityAnalysis 存在', '関数として定義済み')
+      : fail('17-1 _sim5RunStabilityAnalysis 存在', `typeof=${typeof _sim5RunStabilityAnalysis}`);
+
+    const stabilityResult = typeof _sim5RunStabilityAnalysis === 'function'
+      ? _sim5RunStabilityAnalysis({ seeds: stabSeeds, trialsPerSeed: stabTrialsPerSeed }) : null;
+
+    // BusinessReport に aiStability を付与
+    if (rNew && rNew.businessReport) rNew.businessReport.aiStability = stabilityResult
+      ? { scenarios: stabilityResult.scenarios, stabilityRanking: stabilityResult.stabilityRanking } : null;
+
+    // 17-2: seed数一致
+    (stabilityResult && stabilityResult.seeds.length === stabSeeds.length)
+      ? pass('17-2 seed数一致', `seeds=${stabilityResult.seeds.join(',')}`)
+      : fail('17-2 seed数一致', `seeds=${stabilityResult?.seeds?.length}`);
+
+    // 17-3: 6シナリオ存在
+    (Array.isArray(stabilityResult?.scenarios) && stabilityResult.scenarios.length === 6)
+      ? pass('17-3 6シナリオ存在', stabilityResult.scenarios.map(s=>s.key).join(','))
+      : fail('17-3 6シナリオ存在', `length=${stabilityResult?.scenarios?.length}`);
+
+    // 17-4: 利益差分配列長一致（各シナリオ = seed数）
+    {
+      const ok = stabilityResult?.scenarios?.every(s => s.profitDiffs.length === stabSeeds.length);
+      ok
+        ? pass('17-4 利益差分配列長一致', `各シナリオ length=${stabSeeds.length}`)
+        : fail('17-4 利益差分配列長一致', `${stabilityResult?.scenarios?.map(s=>`${s.key}:${s.profitDiffs?.length}`).join(',')}`);
+    }
+
+    // 17-5: 平均がFinite
+    {
+      const ok = stabilityResult?.scenarios?.every(s => isFinite(s.profit?.mean));
+      ok
+        ? pass('17-5 平均Finite', stabilityResult.scenarios.map(s=>`${s.label}:${Math.round(s.profit.mean)}`).join(' '))
+        : fail('17-5 平均Finite', `${stabilityResult?.scenarios?.map(s=>`${s.key}:${s.profit?.mean}`).join(',')}`);
+    }
+
+    // 17-6: 中央値がFinite
+    {
+      const ok = stabilityResult?.scenarios?.every(s => isFinite(s.profit?.median));
+      ok
+        ? pass('17-6 中央値Finite', stabilityResult.scenarios.map(s=>`${s.label}:${Math.round(s.profit.median)}`).join(' '))
+        : fail('17-6 中央値Finite', `${stabilityResult?.scenarios?.map(s=>`${s.key}:${s.profit?.median}`).join(',')}`);
+    }
+
+    // 17-7: 標準偏差がFinite（stddev >= 0）
+    {
+      const ok = stabilityResult?.scenarios?.every(s => isFinite(s.profit?.stddev) && s.profit.stddev >= 0);
+      ok
+        ? pass('17-7 標準偏差Finite', stabilityResult.scenarios.map(s=>`${s.label}:${Math.round(s.profit.stddev)}`).join(' '))
+        : fail('17-7 標準偏差Finite', `${stabilityResult?.scenarios?.map(s=>`${s.key}:${s.profit?.stddev}`).join(',')}`);
+    }
+
+    // 17-8: 勝率 0〜1
+    {
+      const ok = stabilityResult?.scenarios?.every(s => s.winRate >= 0 && s.winRate <= 1);
+      ok
+        ? pass('17-8 勝率0〜1', stabilityResult.scenarios.map(s=>`${s.label}:${(s.winRate*100).toFixed(0)}%`).join(' '))
+        : fail('17-8 勝率0〜1', `${stabilityResult?.scenarios?.map(s=>`${s.key}:${s.winRate}`).join(',')}`);
+    }
+
+    // 17-9: 安定指数がFinite
+    {
+      const ok = stabilityResult?.scenarios?.every(s => isFinite(s.stabilityScore));
+      ok
+        ? pass('17-9 安定指数Finite', stabilityResult.scenarios.map(s=>`${s.label}:${s.stabilityScore.toFixed(2)}`).join(' '))
+        : fail('17-9 安定指数Finite', `${stabilityResult?.scenarios?.map(s=>`${s.key}:${s.stabilityScore}`).join(',')}`);
+    }
+
+    // 17-10: 順位件数一致（単独AI 4件）
+    (Array.isArray(stabilityResult?.stabilityRanking) && stabilityResult.stabilityRanking.length === 4)
+      ? pass('17-10 順位件数一致', `top1=${stabilityResult.stabilityRanking[0]?.label} score=${stabilityResult.stabilityRanking[0]?.stabilityScore?.toFixed(2)}`)
+      : fail('17-10 順位件数一致', `length=${stabilityResult?.stabilityRanking?.length}`);
+
+    // 17-11: BusinessReport.aiStability 存在
+    (rNew?.businessReport?.aiStability && Array.isArray(rNew.businessReport.aiStability.scenarios))
+      ? pass('17-11 BusinessReport.aiStability存在', `scenarios=${rNew.businessReport.aiStability.scenarios.length}`)
+      : fail('17-11 BusinessReport.aiStability存在', `aiStability=${JSON.stringify(rNew?.businessReport?.aiStability)?.slice(0,60)}`);
+
+    // 17-12: console.table用データ生成成功（6行）
+    {
+      const tableOk = stabilityResult?.scenarios?.length === 6
+        && stabilityResult.scenarios.every(s => s.label && isFinite(s.profit.mean));
+      tableOk
+        ? pass('17-12 console.table用データ生成成功', `${stabilityResult.scenarios.length}行`)
+        : fail('17-12 console.table用データ生成成功', `scenarios=${stabilityResult?.scenarios?.length}`);
     }
 
     console.groupEnd();
