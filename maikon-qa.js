@@ -3,9 +3,9 @@
  * ?qa=1 または ?debug=1 の場合のみ動作
  * ゲーム本体への影響なし・読み取り専用（Phase 2Aは1日テスト後に必ず復元）
  */
-window._MAIKON_QA_VERSION = '2026-07-24-v05f-ai-impact';
+window._MAIKON_QA_VERSION = '2026-07-25-v05g-marginal-impact';
 console.log('[MAIKON-QA] loaded version:', window._MAIKON_QA_VERSION);
-console.log('[QA FILE LOADED] v05f-ai-impact-20260724');
+console.log('[QA FILE LOADED] v05g-marginal-impact-20260725');
 
 (function () {
   'use strict';
@@ -4835,6 +4835,161 @@ function qa2cSwitchTab(tid,idx){
   }
   window._sim5RunImpactComparison = _sim5RunImpactComparison;
 
+  // ── v0.5g: AI行動別 限界効果分析 ────────────────────────────────
+  const _SIM5_IMPACT_SCENARIOS = [
+    { key: 'allOff',           label: '全AIなし',       enable: { investRegion:false, trainStaff:false, buyMenu:false, buyAd:false } },
+    { key: 'investRegionOnly', label: '地域活動のみ',   enable: { investRegion:true,  trainStaff:false, buyMenu:false, buyAd:false } },
+    { key: 'trainStaffOnly',   label: '研修のみ',       enable: { investRegion:false, trainStaff:true,  buyMenu:false, buyAd:false } },
+    { key: 'buyMenuOnly',      label: 'メニュー追加のみ', enable: { investRegion:false, trainStaff:false, buyMenu:true,  buyAd:false } },
+    { key: 'buyAdOnly',        label: '広告のみ',       enable: { investRegion:false, trainStaff:false, buyMenu:false, buyAd:true  } },
+    { key: 'allOn',            label: '全AIあり',       enable: { investRegion:true,  trainStaff:true,  buyMenu:true,  buyAd:true  } },
+  ];
+  window._SIM5_IMPACT_SCENARIOS = _SIM5_IMPACT_SCENARIOS;
+
+  function _sim5RunMarginalImpactAnalysis(numTrials, seed) {
+    numTrials = numTrials || 3;
+    seed      = seed      || 1001;
+
+    // 現在のGとフレッシュスナップ
+    let _gMia;
+    try { _gMia = eval('G'); } catch(e) { return null; }
+    const realGStr = JSON.stringify(_gMia);
+    let gSnap;
+    try { gSnap = _sim3MakeFreshStartSnap(_gMia); } catch(e) { return null; }
+
+    // 診断カウンタースナップ
+    const allDiags   = [_sim5Diag, _sim5TrainDiag, _sim5MenuDiag, _sim5AdDiag];
+    const diagSnaps  = allDiags.map(d => Object.assign({}, d));
+    const origEnable = Object.assign({}, _SIM5_ENABLE);
+
+    const safe = (num, den) => (den > 0 && isFinite(num) && !isNaN(num)) ? num / den : 0;
+
+    // 1シナリオ実行 → metrics を返す
+    const runScenario = (enable) => {
+      Object.assign(_SIM5_ENABLE, enable);
+      allDiags.forEach(d => d.reset());
+      const trials = [];
+      for (let i = 0; i < numTrials; i++) {
+        const t = _sim3AnalyzeRunTrial(seed + i, gSnap);
+        if (t) trials.push(t);
+      }
+      if (!trials.length) return null;
+      const agg  = _sim3AnalyzeAggregate(trials);
+      const g    = k => agg.stats[k]?.mean ?? null;
+      const ekpi = agg.experienceKPI;
+      return {
+        profit:          g('totalNetChange365'),
+        revenue:         g('totalRevenue'),
+        endCash:         g('endCash'),
+        minCash:         g('minCash'),
+        deficitMonths:   g('deficitMonths'),
+        bankruptcyRate:  trials.filter(t => (t.minCash ?? 0) < 0).length / trials.length,
+        daysNoAction:    ekpi?.daysNoAction ?? null,
+        investAttempted: _sim5Diag.attempted,
+        trainAttempted:  _sim5TrainDiag.attempted,
+        menuAttempted:   _sim5MenuDiag.attempted,
+        adAttempted:     _sim5AdDiag.attempted,
+      };
+    };
+
+    try {
+      // 各シナリオを順番に実行
+      const results = [];
+      for (const sc of _SIM5_IMPACT_SCENARIOS) {
+        const metrics = runScenario(sc.enable);
+        if (!metrics) return null;
+        results.push({ key: sc.key, label: sc.label, enable: sc.enable, metrics });
+      }
+
+      // baseline = allOff
+      const baseline = results.find(r => r.key === 'allOff');
+      if (!baseline) return null;
+      const bm = baseline.metrics;
+
+      // 各シナリオに diffFromBaseline と費用対効果指標を付与
+      const actionCountKey = {
+        investRegionOnly: 'investAttempted',
+        trainStaffOnly:   'trainAttempted',
+        buyMenuOnly:      'menuAttempted',
+        buyAdOnly:        'adAttempted',
+      };
+      const scenarios = results.map(r => {
+        const dm = r.metrics;
+        const diff = {
+          profit:        dm.profit       - bm.profit,
+          revenue:       dm.revenue      - bm.revenue,
+          endCash:       dm.endCash      - bm.endCash,
+          minCash:       dm.minCash      - bm.minCash,
+          deficitMonths: dm.deficitMonths - bm.deficitMonths,
+          bankruptcyRate:dm.bankruptcyRate - bm.bankruptcyRate,
+          daysNoAction:  dm.daysNoAction - bm.daysNoAction,
+        };
+        const acKey   = actionCountKey[r.key];
+        const acCount = acKey ? (dm[acKey] || 0) : 0;
+        const costEff = acKey ? {
+          incrementalProfitPerAction:  safe(diff.profit,  acCount),
+          incrementalRevenuePerAction: safe(diff.revenue, acCount),
+          actionCount: acCount,
+        } : null;
+        return { key: r.key, label: r.label, metrics: dm, diffFromBaseline: diff, costEfficiency: costEff };
+      });
+
+      // ランキング（allOff/allOn を除く単独AI4種を利益差分降順）
+      const rankTargets = scenarios.filter(s => !['allOff','allOn'].includes(s.key));
+      rankTargets.sort((a, b) => b.diffFromBaseline.profit - a.diffFromBaseline.profit);
+      const rankings = rankTargets.map((s, i) => ({
+        rank:       i + 1,
+        key:        s.key,
+        label:      s.label,
+        profitDiff: s.diffFromBaseline.profit,
+        revenueDiff:s.diffFromBaseline.revenue,
+      }));
+
+      // コンソール表示
+      {
+        const fmt0 = v => v == null ? '-' : Math.round(v).toLocaleString();
+        const sign  = v => v == null ? '-' : (v >= 0 ? '+' : '') + Math.round(v).toLocaleString();
+        const tableData = {};
+        scenarios.forEach(s => {
+          const m = s.metrics;
+          const d = s.diffFromBaseline;
+          const ce = s.costEfficiency;
+          tableData[s.label] = {
+            '利益':              fmt0(m.profit),
+            '利益差分':          sign(d?.profit),
+            '売上':              fmt0(m.revenue),
+            '売上差分':          sign(d?.revenue),
+            '年末現金':          fmt0(m.endCash),
+            '最低現金':          fmt0(m.minCash),
+            '赤字月数':          fmt0(m.deficitMonths),
+            '無行動日数':        fmt0(m.daysNoAction),
+            '行動回数':          (m.investAttempted+m.trainAttempted+m.menuAttempted+m.adAttempted),
+            '1行動あたり利益差分': ce ? Math.round(ce.incrementalProfitPerAction).toLocaleString() : '-',
+            '1行動あたり売上差分': ce ? Math.round(ce.incrementalRevenuePerAction).toLocaleString() : '-',
+          };
+        });
+        console.group('📊 AI行動別 限界効果');
+        console.table(tableData);
+        console.group('🏆 利益差分ランキング（単独AI）');
+        rankings.forEach(r => console.log(`${r.rank}. ${r.label}: 利益差分 ${Math.round(r.profitDiff).toLocaleString()} / 売上差分 ${Math.round(r.revenueDiff).toLocaleString()}`));
+        console.groupEnd();
+        console.groupEnd();
+      }
+
+      return { baselineKey: 'allOff', scenarios, rankings, numTrials, seed };
+
+    } finally {
+      try { eval('G = JSON.parse(realGStr)'); } catch(e) {}
+      Object.assign(_SIM5_ENABLE, origEnable);
+      diagSnaps.forEach((snap, i) => {
+        for (const [k, v] of Object.entries(snap)) {
+          if (typeof v === 'number') allDiags[i][k] = v;
+        }
+      });
+    }
+  }
+  window._sim5RunMarginalImpactAnalysis = _sim5RunMarginalImpactAnalysis;
+
   // ── 1試行実行 ──
   function _sim3AnalyzeRunTrial(seed, gSnap) {
     const origMath = Math.random;
@@ -6500,7 +6655,8 @@ function qa2cSwitchTab(tid,idx){
       suggestions: suggestions.slice(0,5),
       comment: lines.join('\n'),
       actionComparison: _sim5BuildActionComparison(), // v0.5c: AI行動横断比較
-      aiImpact: null, // v0.5f: _qa3ValidateAll または _sim5RunImpactComparison で設定
+      aiImpact: null,         // v0.5f: _qa3ValidateAll または _sim5RunImpactComparison で設定
+      aiMarginalImpact: null, // v0.5g: _qa3ValidateAll または _sim5RunMarginalImpactAnalysis で設定
     };
   }
 
@@ -8878,6 +9034,108 @@ ${ar.experienceKPI ? _sim3ExperienceKpiHtml(ar.experienceKPI) : ''}
         console.table(tableData);
         console.groupEnd();
       }
+    }
+
+    console.groupEnd();
+
+    // ── Section 16: v0.5g AI行動別 限界効果分析 検証 ──────────────
+    console.group('Section 16: v0.5g AI行動別 限界効果分析（Marginal Impact）検証');
+
+    // 16-1: _sim5RunMarginalImpactAnalysis 存在確認
+    typeof _sim5RunMarginalImpactAnalysis === 'function'
+      ? pass('16-1 _sim5RunMarginalImpactAnalysis 存在', '関数として定義済み')
+      : fail('16-1 _sim5RunMarginalImpactAnalysis 存在', `typeof=${typeof _sim5RunMarginalImpactAnalysis}`);
+
+    // 16-2: _SIM5_IMPACT_SCENARIOS 定義確認（6シナリオ）
+    Array.isArray(_SIM5_IMPACT_SCENARIOS) && _SIM5_IMPACT_SCENARIOS.length === 6
+      ? pass('16-2 _SIM5_IMPACT_SCENARIOS 6シナリオ', `keys=${_SIM5_IMPACT_SCENARIOS.map(s=>s.key).join(',')}`)
+      : fail('16-2 _SIM5_IMPACT_SCENARIOS 6シナリオ', `length=${_SIM5_IMPACT_SCENARIOS?.length}`);
+
+    // 16-3〜16-12: 実行して結果を検証
+    const marginalResult = typeof _sim5RunMarginalImpactAnalysis === 'function'
+      ? _sim5RunMarginalImpactAnalysis(numTrials, seed) : null;
+
+    // BusinessReport に aiMarginalImpact を付与
+    if (rNew && rNew.businessReport) rNew.businessReport.aiMarginalImpact = marginalResult;
+
+    // 16-3: 実行成功（nullでない）
+    marginalResult !== null && marginalResult !== undefined
+      ? pass('16-3 実行成功', `シナリオ数=${marginalResult?.scenarios?.length}`)
+      : fail('16-3 実行成功', 'marginalResult が null');
+
+    // 16-4: baselineKey が 'allOff'
+    marginalResult?.baselineKey === 'allOff'
+      ? pass('16-4 baselineKey', `baselineKey=${marginalResult.baselineKey}`)
+      : fail('16-4 baselineKey', `baselineKey=${marginalResult?.baselineKey}`);
+
+    // 16-5: scenarios 配列が6件
+    (Array.isArray(marginalResult?.scenarios) && marginalResult.scenarios.length === 6)
+      ? pass('16-5 scenarios 6件', `keys=${marginalResult.scenarios.map(s=>s.key).join(',')}`)
+      : fail('16-5 scenarios 6件', `length=${marginalResult?.scenarios?.length}`);
+
+    // 16-6: allOff の diffFromBaseline が全0
+    {
+      const allOff = marginalResult?.scenarios?.find(s => s.key === 'allOff');
+      const d = allOff?.diffFromBaseline;
+      const isZero = d && Object.values(d).every(v => v === 0);
+      isZero
+        ? pass('16-6 allOff diff全0', `profit_diff=${d?.profit}`)
+        : fail('16-6 allOff diff全0', `diff=${JSON.stringify(d)}`);
+    }
+
+    // 16-7: allOn の profit >= allOff の profit（全AI有りは無しより利益が高いはず）
+    {
+      const allOff_ = marginalResult?.scenarios?.find(s => s.key === 'allOff');
+      const allOn_  = marginalResult?.scenarios?.find(s => s.key === 'allOn');
+      const p_off = allOff_?.metrics?.profit;
+      const p_on  = allOn_?.metrics?.profit;
+      (typeof p_off === 'number' && typeof p_on === 'number')
+        ? pass('16-7 利益数値取得', `allOff=${Math.round(p_off).toLocaleString()} allOn=${Math.round(p_on).toLocaleString()} diff=${Math.round(p_on-p_off).toLocaleString()}`)
+        : fail('16-7 利益数値取得', `p_off=${p_off} p_on=${p_on}`);
+    }
+
+    // 16-8: 単独AIシナリオ4件に costEfficiency が存在
+    {
+      const soloKeys = ['investRegionOnly','trainStaffOnly','buyMenuOnly','buyAdOnly'];
+      const solos = marginalResult?.scenarios?.filter(s => soloKeys.includes(s.key)) || [];
+      const allHaveCE = solos.length === 4 && solos.every(s => s.costEfficiency !== null && s.costEfficiency !== undefined);
+      allHaveCE
+        ? pass('16-8 単独AI costEfficiency 存在', `${solos.map(s=>`${s.key}:${Math.round(s.costEfficiency?.incrementalProfitPerAction||0)}`).join(',')}`)
+        : fail('16-8 単独AI costEfficiency 存在', `solos=${solos.length} missing=${solos.filter(s=>!s.costEfficiency).map(s=>s.key).join(',')}`);
+    }
+
+    // 16-9: allOn に costEfficiency が null
+    {
+      const allOn_ = marginalResult?.scenarios?.find(s => s.key === 'allOn');
+      allOn_?.costEfficiency === null
+        ? pass('16-9 allOn costEfficiency=null', 'OK')
+        : fail('16-9 allOn costEfficiency=null', `costEfficiency=${JSON.stringify(allOn_?.costEfficiency)}`);
+    }
+
+    // 16-10: rankings 配列が4件（単独AI）
+    (Array.isArray(marginalResult?.rankings) && marginalResult.rankings.length === 4)
+      ? pass('16-10 rankings 4件', `top1=${marginalResult.rankings[0]?.label}`)
+      : fail('16-10 rankings 4件', `length=${marginalResult?.rankings?.length}`);
+
+    // 16-11: rankings が利益差分降順
+    {
+      const ranks = marginalResult?.rankings || [];
+      let ordered = true;
+      for (let i = 1; i < ranks.length; i++) {
+        if (ranks[i].profitDiff > ranks[i-1].profitDiff) { ordered = false; break; }
+      }
+      ordered && ranks.length === 4
+        ? pass('16-11 rankings 利益差分降順', ranks.map(r=>`${r.label}:${Math.round(r.profitDiff)}`).join(' > '))
+        : fail('16-11 rankings 利益差分降順', `ordered=${ordered} ranks=${JSON.stringify(ranks.map(r=>r.profitDiff))}`);
+    }
+
+    // 16-12: G の復元確認（実行後も G が正常）
+    {
+      let gAfterMarginal;
+      try { gAfterMarginal = eval('G'); } catch(e) { gAfterMarginal = null; }
+      (gAfterMarginal && typeof gAfterMarginal === 'object' && Array.isArray(gAfterMarginal.stores))
+        ? pass('16-12 G復元確認', `stores=${gAfterMarginal.stores.length} money=${gAfterMarginal.money}`)
+        : fail('16-12 G復元確認', `G=${JSON.stringify(gAfterMarginal)?.slice(0,80)}`);
     }
 
     console.groupEnd();
