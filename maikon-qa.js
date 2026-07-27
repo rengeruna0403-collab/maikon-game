@@ -3,7 +3,7 @@
  * ?qa=1 または ?debug=1 の場合のみ動作
  * ゲーム本体への影響なし・読み取り専用（Phase 2Aは1日テスト後に必ず復元）
  */
-window._MAIKON_QA_VERSION = '2026-07-25-v05k-ad-ai-rejected';
+window._MAIKON_QA_VERSION = '2026-07-27-v05k-diag-delta-fix';
 console.log('[MAIKON-QA] loaded version:', window._MAIKON_QA_VERSION);
 console.log('[QA FILE LOADED] v05k-ad-ai-rejected-20260725');
 
@@ -9437,21 +9437,23 @@ ${ar.experienceKPI ? _sim3ExperienceKpiHtml(ar.experienceKPI) : ''}
     }
 
     // 14-3: 開店済み店舗なしならスキップ
+    // v0.5k: reset()→finally復元パターンは buyAd=false 環境でスナップが0になるため、デルタパターンに変更
     {
       const snap = Object.assign({}, _sim5AdDiag);
       const origG = eval('G');
-      let res14_3;
+      let res14_3, noOpenStoreDelta;
       try {
         eval('G = { stores: [{ name: "本店", isOpen: false, customers: 0 }], staff: [], money: 1_000_000, ap: 100 }');
-        _sim5AdDiag.reset();
+        const before14_3 = _sim5AdDiag.noOpenStore;
         res14_3 = _sim5TryBuyAd();
+        noOpenStoreDelta = _sim5AdDiag.noOpenStore - before14_3; // finally 前に差分を確定
       } finally {
         eval('G = origG');
         for (const [k, v] of Object.entries(snap)) { if (typeof v === 'number') _sim5AdDiag[k] = v; }
       }
-      res14_3 === false && _sim5AdDiag.noOpenStore > 0
-        ? pass('14-3 開店済みなしスキップ', `noOpenStore=${_sim5AdDiag.noOpenStore}`)
-        : fail('14-3 開店済みなしスキップ', `res=${res14_3} noOpenStore=${_sim5AdDiag.noOpenStore}`);
+      res14_3 === false && noOpenStoreDelta === 1
+        ? pass('14-3 開店済みなしスキップ', `noOpenStoreDelta=${noOpenStoreDelta}`)
+        : fail('14-3 開店済みなしスキップ', `res=${res14_3} noOpenStoreDelta=${noOpenStoreDelta}`);
     }
 
     // 14-4: 資金不足ならスキップ
@@ -9459,36 +9461,38 @@ ${ar.experienceKPI ? _sim3ExperienceKpiHtml(ar.experienceKPI) : ''}
     {
       const snap = Object.assign({}, _sim5AdDiag);
       const origG = eval('G');
-      let res14_4;
+      let res14_4, insufficientCashDelta;
       try {
         eval('G = { stores: [{ name: "本店", isOpen: true, customers: 10 }], staff: [], money: 164_999, ap: 100 }');
-        _sim5AdDiag.reset();
+        const before14_4 = _sim5AdDiag.insufficientCash;
         res14_4 = _sim5TryBuyAd();
+        insufficientCashDelta = _sim5AdDiag.insufficientCash - before14_4;
       } finally {
         eval('G = origG');
         for (const [k, v] of Object.entries(snap)) { if (typeof v === 'number') _sim5AdDiag[k] = v; }
       }
-      res14_4 === false && _sim5AdDiag.insufficientCash > 0
-        ? pass('14-4 資金不足スキップ', `insufficientCash=${_sim5AdDiag.insufficientCash}`)
-        : fail('14-4 資金不足スキップ', `res=${res14_4} insuffCash=${_sim5AdDiag.insufficientCash}`);
+      res14_4 === false && insufficientCashDelta === 1
+        ? pass('14-4 資金不足スキップ', `insufficientCashDelta=${insufficientCashDelta}`)
+        : fail('14-4 資金不足スキップ', `res=${res14_4} insufficientCashDelta=${insufficientCashDelta}`);
     }
 
     // 14-5: AP不足ならスキップ（スタッフなし→apCost=10、AP=9で不足）
     {
       const snap = Object.assign({}, _sim5AdDiag);
       const origG = eval('G');
-      let res14_5;
+      let res14_5, insufficientAPDelta;
       try {
         eval('G = { stores: [{ name: "本店", isOpen: true, customers: 10 }], staff: [], money: 1_000_000, ap: 9 }');
-        _sim5AdDiag.reset();
+        const before14_5 = _sim5AdDiag.insufficientAP;
         res14_5 = _sim5TryBuyAd();
+        insufficientAPDelta = _sim5AdDiag.insufficientAP - before14_5;
       } finally {
         eval('G = origG');
         for (const [k, v] of Object.entries(snap)) { if (typeof v === 'number') _sim5AdDiag[k] = v; }
       }
-      res14_5 === false && _sim5AdDiag.insufficientAP > 0
-        ? pass('14-5 AP不足スキップ', `insufficientAP=${_sim5AdDiag.insufficientAP}`)
-        : fail('14-5 AP不足スキップ', `res=${res14_5} insuffAP=${_sim5AdDiag.insufficientAP}`);
+      res14_5 === false && insufficientAPDelta === 1
+        ? pass('14-5 AP不足スキップ', `insufficientAPDelta=${insufficientAPDelta}`)
+        : fail('14-5 AP不足スキップ', `res=${res14_5} insufficientAPDelta=${insufficientAPDelta}`);
     }
 
     // 14-6: 購入可能広告なしならスキップ
@@ -9513,6 +9517,7 @@ ${ar.experienceKPI ? _sim3ExperienceKpiHtml(ar.experienceKPI) : ''}
 
     // 14-7: 最安広告を選択して buyAd を呼ぶ（成功確認）
     // mockBuyAd が受け取った引数を記録しつつ eval('G') の customers を増やす
+    // v0.5k: reset()→finally復元パターンを廃止しデルタパターンに変更（snap=0問題の回避）
     {
       const snap = Object.assign({}, _sim5AdDiag);
       const origG = eval('G');
@@ -9526,20 +9531,25 @@ ${ar.experienceKPI ? _sim3ExperienceKpiHtml(ar.experienceKPI) : ''}
         try { eval('G').stores[si].customers += cust; } catch(e) {}
       };
       const origBuyAd = window.buyAd;
-      let res14_7;
+      let res14_7, succeededDelta, attemptedDelta, adPurchasedDelta;
       try {
         window.buyAd = mockBuyAdFn;
         eval('G = { stores: [{ name: "本店", isOpen: true, customers: 20 }], staff: [], money: 1_000_000, ap: 100 }');
-        _sim5AdDiag.reset();
+        const before14_7_s = _sim5AdDiag.succeeded;
+        const before14_7_a = _sim5AdDiag.attempted;
+        const before14_7_p = _sim5AdDiag.adPurchased;
         res14_7 = _sim5TryBuyAd(mockAds);
+        succeededDelta   = _sim5AdDiag.succeeded   - before14_7_s;
+        attemptedDelta   = _sim5AdDiag.attempted   - before14_7_a;
+        adPurchasedDelta = _sim5AdDiag.adPurchased  - before14_7_p;
       } finally {
         eval('G = origG');
         window.buyAd = origBuyAd;
         for (const [k, v] of Object.entries(snap)) { if (typeof v === 'number') _sim5AdDiag[k] = v; }
       }
-      (res14_7 === true && _sim5AdDiag.succeeded > 0 && calledArgs?.name === '最安広告')
-        ? pass('14-7 最安広告選択・buyAd実行', `attempted=${_sim5AdDiag.attempted} succeeded=${_sim5AdDiag.succeeded} adPurchased=${_sim5AdDiag.adPurchased} 選択='${calledArgs?.name}'`)
-        : fail('14-7 最安広告選択・buyAd実行', `res=${res14_7} attempted=${_sim5AdDiag.attempted} succeeded=${_sim5AdDiag.succeeded} calledArgs=${JSON.stringify(calledArgs)}`);
+      (res14_7 === true && succeededDelta > 0 && calledArgs?.name === '最安広告')
+        ? pass('14-7 最安広告選択・buyAd実行', `attemptedDelta=${attemptedDelta} succeededDelta=${succeededDelta} adPurchasedDelta=${adPurchasedDelta} 選択='${calledArgs?.name}'`)
+        : fail('14-7 最安広告選択・buyAd実行', `res=${res14_7} succeededDelta=${succeededDelta} calledArgs=${JSON.stringify(calledArgs)}`);
     }
 
     // 14-8: 診断カウンター整合性確認
@@ -9564,15 +9574,17 @@ ${ar.experienceKPI ? _sim3ExperienceKpiHtml(ar.experienceKPI) : ''}
         : fail('14-9 比較レポート・BusinessReport に buyAd', `cmp=${inCmp}(keys=${JSON.stringify(actionComparison14.map(r=>r.key))}) BR=${inBR}(keys=${JSON.stringify(ac14.map(r=>r.key))})`);
     }
 
-    // 14-10: 実シミュレーションで buyAd 発火確認
+    // 14-10: buyAd デフォルトOFF確認（v0.5k: 正式不採用によりデフォルトfalse）
+    // called=0 は正常（シミュレーション未実行ではなく buyAd=false が設計通り）
     {
       const ad = _sim5AdDiag;
-      if (ad.called === 0) {
-        warn('14-10 buyAd 実発火確認', 'called=0（シミュレーション未実行）');
-      } else if (ad.attempted > 0) {
-        pass('14-10 buyAd 実発火確認', `attempted=${ad.attempted} succeeded=${ad.succeeded} adPurchased=${ad.adPurchased}`);
+      const isDefaultOff = typeof _SIM5_ENABLE !== 'undefined' && _SIM5_ENABLE.buyAd === false;
+      if (isDefaultOff && ad.called === 0) {
+        pass('14-10 buyAd デフォルトOFF確認', `_SIM5_ENABLE.buyAd=false called=${ad.called}（v0.5k正式不採用・デフォルトOFF正常）`);
+      } else if (!isDefaultOff && ad.attempted > 0) {
+        pass('14-10 buyAd デフォルトOFF確認', `buyAd=true attempted=${ad.attempted} succeeded=${ad.succeeded} adPurchased=${ad.adPurchased}`);
       } else {
-        warn('14-10 buyAd 実発火確認', `called=${ad.called} で attempted=0（資金不足${ad.insufficientCash} AP不足${ad.insufficientAP} 店舗${ad.noStore+ad.noOpenStore} 広告なし${ad.noAvailableAd}）`);
+        warn('14-10 buyAd デフォルトOFF確認', `isDefaultOff=${isDefaultOff} called=${ad.called} attempted=${ad.attempted}（想定外の状態）`);
       }
     }
 
