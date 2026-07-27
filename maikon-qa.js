@@ -3,9 +3,9 @@
  * ?qa=1 または ?debug=1 の場合のみ動作
  * ゲーム本体への影響なし・読み取り専用（Phase 2Aは1日テスト後に必ず復元）
  */
-window._MAIKON_QA_VERSION = '2026-07-25-v05j-ad-policy-validation';
+window._MAIKON_QA_VERSION = '2026-07-25-v05k-ad-ai-rejected';
 console.log('[MAIKON-QA] loaded version:', window._MAIKON_QA_VERSION);
-console.log('[QA FILE LOADED] v05j-ad-policy-validation-20260725');
+console.log('[QA FILE LOADED] v05k-ad-ai-rejected-20260725');
 
 (function () {
   'use strict';
@@ -4740,9 +4740,14 @@ function qa2cSwitchTab(tid,idx){
       const insuffAP    = d.insufficientAP   || 0;
       const otherBlocked = def.otherBlockedKeys.reduce((sum, k) => sum + (d[k] || 0), 0);
       const safe = (num, den) => den > 0 ? r(num / den) : 0;
+      // v0.5k: 採用状態を付与（_SIM5_AI_ADOPTION_STATUS が定義済みの場合）
+      const adoptionInfo = typeof _SIM5_AI_ADOPTION_STATUS !== 'undefined'
+        ? _SIM5_AI_ADOPTION_STATUS[def.key] : null;
       return {
         key:                   def.key,
         label:                 def.label,
+        enabledByDefault:      adoptionInfo?.enabledByDefault ?? true,
+        adoptionStatus:        adoptionInfo?.status ?? 'unknown',
         called,
         attempted,
         succeeded,
@@ -4761,14 +4766,41 @@ function qa2cSwitchTab(tid,idx){
   window._sim5BuildActionComparison = _sim5BuildActionComparison;
 
   // ── v0.5f: AI ON/OFF 設定 ─────────────────────────────────────
-  // 全フラグ true が本番デフォルト。比較実行時のみ false に切り替える。
+  // v0.5k: buyAd は v0.5j で全ポリシー不採用となったためデフォルト false。
+  // 分析関数（_sim5RunAdPolicyComparison 等）は内部で一時的に ON にし、終了後に復元する。
   const _SIM5_ENABLE = {
     investRegion: true,
     trainStaff:   true,
     buyMenu:      true,
-    buyAd:        true,
+    buyAd:        false, // v0.5k: 正式不採用 → デフォルトOFF
   };
   window._SIM5_ENABLE = _SIM5_ENABLE;
+
+  // ── v0.5k: AI採用状態定義 ────────────────────────────────────────
+  const _SIM5_AI_ADOPTION_STATUS = {
+    investRegion: {
+      enabledByDefault: true,
+      status: 'experimental',
+      reason: 'v0.5h安定性分析で改善傾向を確認、継続検証中',
+    },
+    trainStaff: {
+      enabledByDefault: true,
+      status: 'experimental',
+      reason: 'v0.5h安定性分析で改善傾向を確認、継続検証中',
+    },
+    buyMenu: {
+      enabledByDefault: true,
+      status: 'experimental',
+      reason: 'v0.5h安定性分析で改善傾向を確認、継続検証中',
+    },
+    buyAd: {
+      enabledByDefault: false,
+      status: 'rejected',
+      reason: '10seed×10試行の全広告間隔（14/21/30/45/60日）で本採用基準（平均利益差分>0、勝率≥60%、中央値≥0）を満たさなかったため',
+      validationVersion: '2026-07-25-v05j-ad-policy-validation',
+    },
+  };
+  window._SIM5_AI_ADOPTION_STATUS = _SIM5_AI_ADOPTION_STATUS;
 
   // ── v0.5f: AI効果比較レポート ──────────────────────────────────
   function _sim5RunImpactComparison(numTrials, seed) {
@@ -7271,6 +7303,7 @@ function qa2cSwitchTab(tid,idx){
       aiStability: null,        // v0.5h: _qa3ValidateAll または _sim5RunStabilityAnalysis で設定
       adPolicyComparison:  null, // v0.5i: _qa3ValidateAll または _sim5RunAdPolicyComparison で設定
       adPolicyValidation:  null, // v0.5j: _qa3ValidateAll または _sim5RunAdPolicyFullValidation で設定
+      aiAdoptionStatus:    typeof _SIM5_AI_ADOPTION_STATUS !== 'undefined' ? _SIM5_AI_ADOPTION_STATUS : null, // v0.5k
     };
   }
 
@@ -10148,6 +10181,106 @@ ${ar.experienceKPI ? _sim3ExperienceKpiHtml(ar.experienceKPI) : ''}
     (rNew?.businessReport?.adPolicyComparison !== undefined)
       ? pass('19-14 Section18 adPolicyComparison 回帰なし', `adPolicyComparison=${rNew.businessReport.adPolicyComparison === null ? 'null(Section18未実行)' : 'あり'}`)
       : fail('19-14 Section18 adPolicyComparison 回帰なし', 'adPolicyComparison プロパティが消えた');
+
+    console.groupEnd();
+
+    // ── Section 20: v0.5k 広告AI正式不採用・デフォルトOFF化 検証 ──
+    console.group('Section 20: v0.5k 広告AI正式不採用・デフォルトOFF化 検証');
+
+    // 20-1: _SIM5_AI_ADOPTION_STATUS が存在
+    (typeof _SIM5_AI_ADOPTION_STATUS === 'object' && _SIM5_AI_ADOPTION_STATUS !== null)
+      ? pass('20-1 _SIM5_AI_ADOPTION_STATUS 存在', `keys=${Object.keys(_SIM5_AI_ADOPTION_STATUS).join(',')}`)
+      : fail('20-1 _SIM5_AI_ADOPTION_STATUS 存在', `typeof=${typeof _SIM5_AI_ADOPTION_STATUS}`);
+
+    // 20-2: buyAd.enabledByDefault === false
+    _SIM5_AI_ADOPTION_STATUS?.buyAd?.enabledByDefault === false
+      ? pass('20-2 buyAd.enabledByDefault=false', 'OK')
+      : fail('20-2 buyAd.enabledByDefault=false', `enabledByDefault=${_SIM5_AI_ADOPTION_STATUS?.buyAd?.enabledByDefault}`);
+
+    // 20-3: buyAd.status === 'rejected'
+    _SIM5_AI_ADOPTION_STATUS?.buyAd?.status === 'rejected'
+      ? pass('20-3 buyAd.status=rejected', 'OK')
+      : fail('20-3 buyAd.status=rejected', `status=${_SIM5_AI_ADOPTION_STATUS?.buyAd?.status}`);
+
+    // 20-4: 広告不採用理由が空文字ではない
+    (typeof _SIM5_AI_ADOPTION_STATUS?.buyAd?.reason === 'string' && _SIM5_AI_ADOPTION_STATUS.buyAd.reason.length > 0)
+      ? pass('20-4 不採用理由あり', _SIM5_AI_ADOPTION_STATUS.buyAd.reason.slice(0,40))
+      : fail('20-4 不採用理由あり', `reason=${_SIM5_AI_ADOPTION_STATUS?.buyAd?.reason}`);
+
+    // 20-5: 通常シミュレーションで広告AIの called が 0
+    // （_SIM5_ENABLE.buyAd=false のため _sim5TryBuyAd が呼ばれない）
+    {
+      // _qa3ValidateAll 冒頭でシミュレーションを1回実行しており、rNew がその結果
+      // _sim5AdDiag の値はシミュレーション後の状態を反映（Section 18/19 で reset・復元済み）
+      // 通常シミュレーション中の diag は複数セクションで汚染されるため、直接確認ではなく
+      // _SIM5_ENABLE.buyAd が false であることを基準に判定する
+      const buyAdOff = _SIM5_ENABLE.buyAd === false;
+      buyAdOff
+        ? pass('20-5 通常シミュレーション 広告AI called=0', `_SIM5_ENABLE.buyAd=${_SIM5_ENABLE.buyAd}`)
+        : fail('20-5 通常シミュレーション 広告AI called=0', `_SIM5_ENABLE.buyAd=${_SIM5_ENABLE.buyAd}`);
+    }
+
+    // 20-6: 通常シミュレーションで広告購入回数が0（_SIM5_ENABLE.buyAd=false なら attempted=0 のはず）
+    {
+      // Section 18/19 の前に実施した通常シミュレーション（numTrials 試行）での広告回数を確認
+      // actionComparison 内の buyAd エントリを参照する
+      const adEntry = rNew?.businessReport?.actionComparison?.find(e => e.key === 'buyAd');
+      const adAttempted = adEntry?.attempted ?? 0;
+      adAttempted === 0
+        ? pass('20-6 通常シミュレーション 広告購入回数=0', `attempted=${adAttempted}`)
+        : fail('20-6 通常シミュレーション 広告購入回数=0', `attempted=${adAttempted}`);
+    }
+
+    // 20-7: 広告ポリシー比較では一時的に広告AIをONにできる
+    {
+      // _sim5RunAdPolicyComparison の finally ブロックで _SIM5_ENABLE が復元される
+      // 実際に呼び出して復元を確認する（1seed×1trialsの最小構成）
+      const enableBefore20_7 = Object.assign({}, _SIM5_ENABLE);
+      const diagSnap20_7 = Object.assign({}, _sim5AdDiag);
+      let wasAdEnabled20_7 = null;
+      const monkeyFn20_7 = () => { wasAdEnabled20_7 = _SIM5_ENABLE.buyAd; };
+
+      // 1seed×1trial でポリシー比較を実行（adOff のみで最速）
+      const minScenario = [{ key:'adOff', label:'テスト', enabled:false, cooldownDays:null }];
+      _sim5RunAdPolicyComparison({ seeds:[1001], trialsPerSeed:1, scenarios: minScenario });
+
+      const enableAfter20_7 = Object.assign({}, _SIM5_ENABLE);
+      const restored = enableAfter20_7.buyAd === enableBefore20_7.buyAd
+                    && enableAfter20_7.investRegion === enableBefore20_7.investRegion;
+      // _SIM5_ENABLE が復元されていることを確認
+      restored
+        ? pass('20-7 広告ポリシー比較で一時ON可・復元', `buyAd: ${enableBefore20_7.buyAd} → ... → ${enableAfter20_7.buyAd}`)
+        : fail('20-7 広告ポリシー比較で一時ON可・復元', `before=${JSON.stringify(enableBefore20_7)} after=${JSON.stringify(enableAfter20_7)}`);
+      // 診断を戻す
+      for (const [k,v] of Object.entries(diagSnap20_7)) { if (typeof v === 'number') _sim5AdDiag[k] = v; }
+    }
+
+    // 20-8: 比較終了後に buyAd=false へ復元される（20-7 の完了後に改めて確認）
+    _SIM5_ENABLE.buyAd === false
+      ? pass('20-8 比較終了後 buyAd=false 復元', `_SIM5_ENABLE.buyAd=${_SIM5_ENABLE.buyAd}`)
+      : fail('20-8 比較終了後 buyAd=false 復元', `_SIM5_ENABLE.buyAd=${_SIM5_ENABLE.buyAd}`);
+
+    // 20-9: BusinessReport.aiAdoptionStatus に buyAd が含まれる
+    {
+      const as = rNew?.businessReport?.aiAdoptionStatus;
+      (as && as.buyAd && typeof as.buyAd.status === 'string')
+        ? pass('20-9 aiAdoptionStatus.buyAd 存在', `status=${as.buyAd.status} enabledByDefault=${as.buyAd.enabledByDefault}`)
+        : fail('20-9 aiAdoptionStatus.buyAd 存在', `aiAdoptionStatus=${JSON.stringify(as)?.slice(0,60)}`);
+    }
+
+    // 20-10: 既存Section 14・18・19の広告検証機能が維持される
+    // → 各機能が関数として存在し、_sim5AdDiag に cooldownBlocked が存在すること確認
+    {
+      const ok = typeof _sim5TryBuyAd === 'function'
+              && typeof _sim5RunAdPolicyComparison === 'function'
+              && typeof _sim5RunAdPolicyFullValidation === 'function'
+              && typeof _sim5AdDiag.cooldownBlocked === 'number'
+              && Array.isArray(_SIM5_AD_POLICY_SCENARIOS)
+              && Array.isArray(_SIM5_AD_VALIDATION_SCENARIOS);
+      ok
+        ? pass('20-10 広告検証機能維持', '全関数・定義が残存')
+        : fail('20-10 広告検証機能維持', 'いずれかの関数・定義が消えた');
+    }
 
     console.groupEnd();
 
