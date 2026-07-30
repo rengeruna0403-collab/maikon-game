@@ -3,9 +3,9 @@
  * ?qa=1 または ?debug=1 の場合のみ動作
  * ゲーム本体への影響なし・読み取り専用（Phase 2Aは1日テスト後に必ず復元）
  */
-window._MAIKON_QA_VERSION = '2026-07-30-v06-adoption-engine';
+window._MAIKON_QA_VERSION = '2026-07-30-v06-adoption-engine-init-fix';
 console.log('[MAIKON-QA] loaded version:', window._MAIKON_QA_VERSION);
-console.log('[QA FILE LOADED] v06-adoption-engine-20260730');
+console.log('[QA FILE LOADED] v06-adoption-engine-init-fix-20260730');
 
 (function () {
   'use strict';
@@ -5208,6 +5208,16 @@ function qa2cSwitchTab(tid,idx){
   };
   window._SIM5_DEFAULT_CONFIG_VALIDATION_DEFAULTS = _SIM5_DEFAULT_CONFIG_VALIDATION_DEFAULTS;
 
+  // ── v0.6: 共通AI採用基準（すべての閾値定数より先に定義する）────────
+  const _SIM6_ADOPTION_THRESHOLDS = {
+    minMeanProfitDiff:     0,
+    minMedianProfitDiff:   0,
+    minWinRate:            0.60,
+    maxBankruptcyRateDiff: 0,
+    minMinCashDiff:        -100_000,
+  };
+  window._SIM6_ADOPTION_THRESHOLDS = _SIM6_ADOPTION_THRESHOLDS;
+
   // 後方互換: キー名は維持、値は共通定数から参照
   const _SIM5_DEFAULT_CONFIG_THRESHOLDS = {
     minProfitDiffFromAllOff:          _SIM6_ADOPTION_THRESHOLDS.minMeanProfitDiff,
@@ -5710,16 +5720,6 @@ function qa2cSwitchTab(tid,idx){
     trialsPerSeed: 10,
   };
   window._SIM5_AD_VALIDATION_DEFAULTS = _SIM5_AD_VALIDATION_DEFAULTS;
-
-  // ── v0.6: 共通AI採用基準 ─────────────────────────────────────────
-  const _SIM6_ADOPTION_THRESHOLDS = {
-    minMeanProfitDiff:    0,
-    minMedianProfitDiff:  0,
-    minWinRate:           0.60,
-    maxBankruptcyRateDiff: 0,
-    minMinCashDiff:       -100_000,
-  };
-  window._SIM6_ADOPTION_THRESHOLDS = _SIM6_ADOPTION_THRESHOLDS;
 
   // 後方互換: 共通定数を参照（個別差分がある場合のみ上書き）
   const _SIM5_AD_ADOPTION_THRESHOLDS = { ..._SIM6_ADOPTION_THRESHOLDS };
