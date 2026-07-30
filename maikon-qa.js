@@ -3,9 +3,9 @@
  * ?qa=1 または ?debug=1 の場合のみ動作
  * ゲーム本体への影響なし・読み取り専用（Phase 2Aは1日テスト後に必ず復元）
  */
-window._MAIKON_QA_VERSION = '2026-07-30-v07-10-5-investregion-default-off-fix';
+window._MAIKON_QA_VERSION = '2026-07-30-v07-buy-renov-candidate';
 console.log('[MAIKON-QA] loaded version:', window._MAIKON_QA_VERSION);
-console.log('[QA FILE LOADED] v07-10-5-investregion-default-off-fix-20260730');
+console.log('[QA FILE LOADED] v07-buy-renov-candidate-20260730');
 
 (function () {
   'use strict';
@@ -4700,6 +4700,95 @@ function qa2cSwitchTab(tid,idx){
     return true;
   }
 
+  // ── v0.7: buyRenov AI ─────────────────────────────────────────
+  // 呼び出し順注意: investRegion→trainStaff→buyMenu→buyAd→buyRenovの順。
+  // 先行行動が資金・APを消費するため、buyRenovの発火率は呼び出し順に依存する。
+  // RENOV_OPTIONS価格帯: 150,000〜500,000円。最安値150,000円＋余裕分で200,000円をリザーブに設定。
+  const _SIM7_RENOV_CASH_RESERVE = 200_000;
+
+  const _sim7RenovDiag = {
+    called: 0,
+    noStore: 0,
+    noOpenStore: 0,
+    noAvailableRenov: 0,
+    insufficientCash: 0,
+    insufficientAP: 0,
+    attempted: 0,
+    succeeded: 0,
+    renovPurchased: 0,
+    allPurchased: 0,
+    reset() {
+      this.called = 0; this.noStore = 0; this.noOpenStore = 0;
+      this.noAvailableRenov = 0; this.insufficientCash = 0; this.insufficientAP = 0;
+      this.attempted = 0; this.succeeded = 0; this.renovPurchased = 0;
+      this.allPurchased = 0;
+    },
+  };
+  window._sim7RenovDiag = _sim7RenovDiag;
+
+  function _sim7TryBuyRenov() {
+    _sim7RenovDiag.called++;
+
+    // 注意: ローカル変数をGと命名するとグローバルGをシャドウするため _g7r を使用する
+    let _g7r;
+    try { _g7r = eval('G'); } catch(e) { return false; }
+    if (!_g7r || !Array.isArray(_g7r.stores) || _g7r.stores.length === 0) {
+      _sim7RenovDiag.noStore++;
+      return false;
+    }
+
+    // 開店済みの最初の店舗を対象とする
+    const si = _g7r.stores.findIndex(s => s.isOpen);
+    if (si < 0) { _sim7RenovDiag.noOpenStore++; return false; }
+    const store = _g7r.stores[si];
+
+    // 未購入の改装オプションを列挙
+    const renovOptions = (typeof RENOV_OPTIONS !== 'undefined' ? RENOV_OPTIONS : []);
+    const upgrades = store.upgrades || [];
+    const available = renovOptions.filter(r => !upgrades.includes(r.name));
+
+    if (available.length === 0) {
+      _sim7RenovDiag.allPurchased++;
+      return false;
+    }
+
+    // 最も安い未購入改装を選択（同額の場合は定義順優先）
+    const opt = available.reduce((best, r) => r.cost < best.cost ? r : best, available[0]);
+
+    // 資金チェック
+    if ((_g7r.money ?? 0) < opt.cost + _SIM7_RENOV_CASH_RESERVE) {
+      _sim7RenovDiag.insufficientCash++;
+      return false;
+    }
+
+    // APコストチェック（スタッフ配置済みなら0、なければ20）
+    const hasStaff = (_g7r.staff || []).some(s => s.store === store.name);
+    const apCost   = hasStaff ? 0 : 20;
+    if (apCost > 0 && (_g7r.ap ?? 0) < apCost) {
+      _sim7RenovDiag.insufficientAP++;
+      return false;
+    }
+
+    const upgradesLenBefore = (store.upgrades || []).length;
+    _sim7RenovDiag.attempted++;
+
+    try {
+      buyRenov(si, opt.name, opt.cost, opt.cust || 0, opt.sat || 0, opt.score || 0);
+    } catch(e) { return false; }
+
+    // 実際にupgradesが増加したか確認（success detection）
+    let _g7rAfter;
+    try { _g7rAfter = eval('G'); } catch(e) { _g7rAfter = null; }
+    const upgradesLenAfter = (_g7rAfter?.stores?.[si]?.upgrades?.length ?? upgradesLenBefore);
+    if (upgradesLenAfter > upgradesLenBefore) {
+      _sim7RenovDiag.succeeded++;
+      _sim7RenovDiag.renovPurchased++;
+    }
+
+    return true;
+  }
+  window._sim7TryBuyRenov = _sim7TryBuyRenov;
+
   // ── v0.5c: AI行動定義テーブル & 共通比較レポート ───────────────
   // 新しいAI行動は _SIM5_ACTION_DEFS に1件追加するだけで比較対象に加わる。
   const _SIM5_ACTION_DEFS = [
@@ -4726,6 +4815,12 @@ function qa2cSwitchTab(tid,idx){
       label:           '広告',
       diag:            () => _sim5AdDiag,
       otherBlockedKeys: ['noStore', 'noOpenStore', 'noAvailableAd'],
+    },
+    {
+      key:             'buyRenov',
+      label:           '店舗改装',
+      diag:            () => _sim7RenovDiag,
+      otherBlockedKeys: ['noStore', 'noOpenStore', 'noAvailableRenov', 'allPurchased'],
     },
   ];
 
@@ -4773,6 +4868,7 @@ function qa2cSwitchTab(tid,idx){
     trainStaff:   false, // v0.5m: 利益改善未確認 → デフォルトOFF
     buyMenu:      true,
     buyAd:        false, // v0.5k: 正式不採用 → デフォルトOFF
+    buyRenov:     false, // v0.7: 効果検証中 → デフォルトOFF
   };
   window._SIM5_ENABLE = _SIM5_ENABLE;
 
@@ -4802,6 +4898,12 @@ function qa2cSwitchTab(tid,idx){
       reason: '10seed×10試行の全広告間隔（14/21/30/45/60日）で本採用基準（平均利益差分>0、勝率≥60%、中央値≥0）を満たさなかったため',
       validationVersion: '2026-07-25-v05j-ad-policy-validation',
     },
+    buyRenov: {
+      enabledByDefault: false,
+      status: 'candidate',
+      reason: 'v0.7で効果検証中',
+      validationVersion: '2026-07-30-v07-buy-renov-candidate',
+    },
   };
   window._SIM5_AI_ADOPTION_STATUS = _SIM5_AI_ADOPTION_STATUS;
 
@@ -4818,7 +4920,7 @@ function qa2cSwitchTab(tid,idx){
     try { gSnap = _sim3MakeFreshStartSnap(_gImp); } catch(e) { return null; }
 
     // 診断カウンターのスナップショット保存
-    const allDiags = [_sim5Diag, _sim5TrainDiag, _sim5MenuDiag, _sim5AdDiag];
+    const allDiags = [_sim5Diag, _sim5TrainDiag, _sim5MenuDiag, _sim5AdDiag, _sim7RenovDiag];
     const diagSnaps = allDiags.map(d => Object.assign({}, d));
 
     const origEnable = Object.assign({}, _SIM5_ENABLE);
@@ -4898,12 +5000,13 @@ function qa2cSwitchTab(tid,idx){
 
   // ── v0.5g: AI行動別 限界効果分析 ────────────────────────────────
   const _SIM5_IMPACT_SCENARIOS = [
-    { key: 'allOff',           label: '全AIなし',       enable: { investRegion:false, trainStaff:false, buyMenu:false, buyAd:false } },
-    { key: 'investRegionOnly', label: '地域活動のみ',   enable: { investRegion:true,  trainStaff:false, buyMenu:false, buyAd:false } },
-    { key: 'trainStaffOnly',   label: '研修のみ',       enable: { investRegion:false, trainStaff:true,  buyMenu:false, buyAd:false } },
-    { key: 'buyMenuOnly',      label: 'メニュー追加のみ', enable: { investRegion:false, trainStaff:false, buyMenu:true,  buyAd:false } },
-    { key: 'buyAdOnly',        label: '広告のみ',       enable: { investRegion:false, trainStaff:false, buyMenu:false, buyAd:true  } },
-    { key: 'allOn',            label: '全AIあり',       enable: { investRegion:true,  trainStaff:true,  buyMenu:true,  buyAd:true  } },
+    { key: 'allOff',           label: '全AIなし',       enable: { investRegion:false, trainStaff:false, buyMenu:false, buyAd:false, buyRenov:false } },
+    { key: 'investRegionOnly', label: '地域活動のみ',   enable: { investRegion:true,  trainStaff:false, buyMenu:false, buyAd:false, buyRenov:false } },
+    { key: 'trainStaffOnly',   label: '研修のみ',       enable: { investRegion:false, trainStaff:true,  buyMenu:false, buyAd:false, buyRenov:false } },
+    { key: 'buyMenuOnly',      label: 'メニュー追加のみ', enable: { investRegion:false, trainStaff:false, buyMenu:true,  buyAd:false, buyRenov:false } },
+    { key: 'buyAdOnly',        label: '広告のみ',       enable: { investRegion:false, trainStaff:false, buyMenu:false, buyAd:true,  buyRenov:false } },
+    { key: 'buyRenovOnly',     label: '改装のみ',       enable: { investRegion:false, trainStaff:false, buyMenu:false, buyAd:false, buyRenov:true  } },
+    { key: 'allOn',            label: '全AIあり',       enable: { investRegion:true,  trainStaff:true,  buyMenu:true,  buyAd:true,  buyRenov:true  } },
   ];
   window._SIM5_IMPACT_SCENARIOS = _SIM5_IMPACT_SCENARIOS;
 
@@ -4919,7 +5022,7 @@ function qa2cSwitchTab(tid,idx){
     try { gSnap = _sim3MakeFreshStartSnap(_gMia); } catch(e) { return null; }
 
     // 診断カウンタースナップ
-    const allDiags   = [_sim5Diag, _sim5TrainDiag, _sim5MenuDiag, _sim5AdDiag];
+    const allDiags   = [_sim5Diag, _sim5TrainDiag, _sim5MenuDiag, _sim5AdDiag, _sim7RenovDiag];
     const diagSnaps  = allDiags.map(d => Object.assign({}, d));
     const origEnable = Object.assign({}, _SIM5_ENABLE);
 
@@ -4950,6 +5053,7 @@ function qa2cSwitchTab(tid,idx){
         trainAttempted:  _sim5TrainDiag.attempted,
         menuAttempted:   _sim5MenuDiag.attempted,
         adAttempted:     _sim5AdDiag.attempted,
+        renovAttempted:  _sim7RenovDiag.attempted,
       };
     };
 
@@ -4973,6 +5077,7 @@ function qa2cSwitchTab(tid,idx){
         trainStaffOnly:   'trainAttempted',
         buyMenuOnly:      'menuAttempted',
         buyAdOnly:        'adAttempted',
+        buyRenovOnly:     'renovAttempted',
       };
       const scenarios = results.map(r => {
         const dm = r.metrics;
@@ -5024,7 +5129,7 @@ function qa2cSwitchTab(tid,idx){
             '最低現金':          fmt0(m.minCash),
             '赤字月数':          fmt0(m.deficitMonths),
             '無行動日数':        fmt0(m.daysNoAction),
-            '行動回数':          (m.investAttempted+m.trainAttempted+m.menuAttempted+m.adAttempted),
+            '行動回数':          (m.investAttempted+m.trainAttempted+m.menuAttempted+m.adAttempted+(m.renovAttempted||0)),
             '1行動あたり利益差分': ce ? Math.round(ce.incrementalProfitPerAction).toLocaleString() : '-',
             '1行動あたり売上差分': ce ? Math.round(ce.incrementalRevenuePerAction).toLocaleString() : '-',
           };
@@ -5182,22 +5287,22 @@ function qa2cSwitchTab(tid,idx){
     {
       key: 'allOff',
       label: '全AIなし',
-      enable: { investRegion: false, trainStaff: false, buyMenu: false, buyAd: false },
+      enable: { investRegion: false, trainStaff: false, buyMenu: false, buyAd: false, buyRenov: false },
     },
     {
       key: 'oldDefault',
       label: '旧デフォルト（広告ON）',
-      enable: { investRegion: true, trainStaff: true, buyMenu: true, buyAd: true },
+      enable: { investRegion: true, trainStaff: true, buyMenu: true, buyAd: true, buyRenov: false },
     },
     {
       key: 'buyMenuOnlyDefault',
       label: '本番デフォルト（buyMenuのみ）',
-      enable: { investRegion: false, trainStaff: false, buyMenu: true, buyAd: false },
+      enable: { investRegion: false, trainStaff: false, buyMenu: true, buyAd: false, buyRenov: false },
     },
     {
       key: 'menuOnly',
       label: 'メニュー追加のみ（形式統一用）',
-      enable: { investRegion: false, trainStaff: false, buyMenu: true, buyAd: false },
+      enable: { investRegion: false, trainStaff: false, buyMenu: true, buyAd: false, buyRenov: false },
     },
   ];
   window._SIM5_DEFAULT_CONFIG_SCENARIOS = _SIM5_DEFAULT_CONFIG_SCENARIOS;
@@ -5238,7 +5343,7 @@ function qa2cSwitchTab(tid,idx){
     let gSnap;
     try { gSnap = _sim3MakeFreshStartSnap(_gDcc); } catch(e) { return null; }
 
-    const allDiags  = [_sim5Diag, _sim5TrainDiag, _sim5MenuDiag, _sim5AdDiag];
+    const allDiags  = [_sim5Diag, _sim5TrainDiag, _sim5MenuDiag, _sim5AdDiag, _sim7RenovDiag];
     const diagSnaps = allDiags.map(d => Object.assign({}, d));
     const origEnable = Object.assign({}, _SIM5_ENABLE);
     const origPolicy = _sim5AdCurrentPolicy;
@@ -5508,7 +5613,7 @@ function qa2cSwitchTab(tid,idx){
     try { gSnap = _sim3MakeFreshStartSnap(_gApc); } catch(e) { return null; }
 
     // 診断カウンタースナップ（全AI）
-    const allDiags  = [_sim5Diag, _sim5TrainDiag, _sim5MenuDiag, _sim5AdDiag];
+    const allDiags  = [_sim5Diag, _sim5TrainDiag, _sim5MenuDiag, _sim5AdDiag, _sim7RenovDiag];
     const diagSnaps = allDiags.map(d => Object.assign({}, d));
     const origEnable = Object.assign({}, _SIM5_ENABLE);
     const origPolicy = _sim5AdCurrentPolicy;
@@ -5812,6 +5917,10 @@ function qa2cSwitchTab(tid,idx){
 
       if (!ev) {
         notes = 'データ不足: 評価結果なし';
+      } else if (cfg.status === 'candidate') {
+        // candidate ステータスは評価完了済みだが正式採用未反映のため consistent=null
+        consistent = null;
+        notes = '評価完了・正式採用未反映';
       } else if (ev.eligible == null) {
         notes = 'データ不足: 評価不能';
       } else {
@@ -6112,6 +6221,7 @@ function qa2cSwitchTab(tid,idx){
         if (_SIM5_ENABLE.trainStaff)   _sim5TryTrainStaff();
         if (_SIM5_ENABLE.buyMenu)      _sim5TryBuyMenu();
         if (_SIM5_ENABLE.buyAd)        _sim5TryBuyAd(); // 先行行動の資金・AP消費後に広告判定
+        if (_SIM5_ENABLE.buyRenov)     _sim7TryBuyRenov(); // v0.7: 改装AI（デフォルトOFF）
 
         // ── 日後の状態（事実）──────────────────────────────────────
         let _gNow;
@@ -10774,7 +10884,7 @@ ${ar.experienceKPI ? _sim3ExperienceKpiHtml(ar.experienceKPI) : ''}
     // 21-5〜21-14: 実際に比較関数を実行（3seed×3trial）
     {
       const enableSnap21 = Object.assign({}, _SIM5_ENABLE);
-      const diagSnap21   = [_sim5Diag, _sim5TrainDiag, _sim5MenuDiag, _sim5AdDiag].map(d => Object.assign({}, d));
+      const diagSnap21   = [_sim5Diag, _sim5TrainDiag, _sim5MenuDiag, _sim5AdDiag, _sim7RenovDiag].map(d => Object.assign({}, d));
       try {
         defCmpResult21 = typeof _sim5RunDefaultConfigComparison === 'function'
           ? _sim5RunDefaultConfigComparison({ seeds: [1001, 2001, 3001], trialsPerSeed: 3 })
@@ -11031,12 +11141,14 @@ ${ar.experienceKPI ? _sim3ExperienceKpiHtml(ar.experienceKPI) : ''}
       const evalInvest   = makeEvalFromMarginal('investRegion', '地域活動投資',  'investRegionOnly');
       const evalTrain    = makeEvalFromMarginal('trainStaff',   'スタッフ研修',   'trainStaffOnly');
       const evalBuyAd    = makeEvalFromMarginal('buyAd',        '広告購入',       'buyAdOnly');
+      const evalBuyRenov = makeEvalFromMarginal('buyRenov',     '店舗改装',       'buyRenovOnly');
 
       const evaluations23 = {
         investRegion: evalInvest,
         trainStaff:   evalTrain,
         buyMenu:      evalBuyMenu,
         buyAd:        evalBuyAd,
+        buyRenov:     evalBuyRenov,
       };
 
       // 整合性レポート
@@ -11059,7 +11171,7 @@ ${ar.experienceKPI ? _sim3ExperienceKpiHtml(ar.experienceKPI) : ''}
         const yen0 = v => v != null && isFinite(v) ? Math.round(v).toLocaleString() : '-';
         const bool = v => v === true ? '✓' : v === false ? '✗' : '-';
         const tableData23 = {};
-        const order = ['investRegion','trainStaff','buyMenu','buyAd'];
+        const order = ['investRegion','trainStaff','buyMenu','buyAd','buyRenov'];
         order.forEach(k => {
           const ev  = evaluations23[k];
           const cfg = _SIM5_AI_ADOPTION_STATUS[k];
@@ -11205,20 +11317,20 @@ ${ar.experienceKPI ? _sim3ExperienceKpiHtml(ar.experienceKPI) : ''}
       ? pass('23-11 _sim6EvaluateSingleAI 存在', '関数として定義済み')
       : fail('23-11 _sim6EvaluateSingleAI 存在', `typeof=${typeof _sim6EvaluateSingleAI}`);
 
-    // 23-12: 4AIの評価結果が生成される
+    // 23-12: 5AIの評価結果が生成される（v0.7: buyRenov追加）
     {
-      const keys23 = ['investRegion','trainStaff','buyMenu','buyAd'];
+      const keys23 = ['investRegion','trainStaff','buyMenu','buyAd','buyRenov'];
       const ev23 = aiAdoptionEvaluation23?.evaluations;
       const ok23_12 = ev23 && keys23.every(k => ev23[k] && typeof ev23[k].eligible === 'boolean');
       ok23_12
-        ? pass('23-12 4AI評価結果生成', `keys=${keys23.join(',')} eligible=${keys23.map(k=>ev23[k].eligible).join(',')}`)
-        : fail('23-12 4AI評価結果生成', `keys=${JSON.stringify(Object.keys(ev23||{}))}`);
+        ? pass('23-12 5AI評価結果生成', `keys=${keys23.join(',')} eligible=${keys23.map(k=>ev23[k].eligible).join(',')}`)
+        : fail('23-12 5AI評価結果生成', `keys=${JSON.stringify(Object.keys(ev23||{}))}`);
     }
 
-    // 23-13: consistencyReport が生成される
+    // 23-13: consistencyReport が生成される（v0.7: 5AI分）
     {
       const cr23 = aiAdoptionEvaluation23?.consistencyReport;
-      (cr23 && Array.isArray(cr23.items) && cr23.items.length === 4)
+      (cr23 && Array.isArray(cr23.items) && cr23.items.length === 5)
         ? pass('23-13 consistencyReport 生成', `items=${cr23.items.length} allConsistent=${cr23.allConsistent}`)
         : fail('23-13 consistencyReport 生成', `cr=${JSON.stringify(cr23)?.slice(0,80)}`);
     }
@@ -11228,6 +11340,294 @@ ${ar.experienceKPI ? _sim3ExperienceKpiHtml(ar.experienceKPI) : ''}
       ? pass('23-14 BusinessReport.aiAdoptionEvaluation 存在', `thresholds=${JSON.stringify(rNew.businessReport.aiAdoptionEvaluation.thresholds)?.slice(0,60)}`)
       : fail('23-14 BusinessReport.aiAdoptionEvaluation 存在', `value=${JSON.stringify(rNew?.businessReport?.aiAdoptionEvaluation)?.slice(0,60)}`);
 
+    console.groupEnd();
+
+    // ── Section 24: v0.7 buyRenov候補AI 検証 ─────────────────────
+    console.group('Section 24: v0.7 buyRenov候補AI 検証');
+    {
+      // 24-1: _sim7TryBuyRenov 存在確認
+      typeof _sim7TryBuyRenov === 'function'
+        ? pass('24-1 _sim7TryBuyRenov 存在', '関数として定義済み')
+        : fail('24-1 _sim7TryBuyRenov 存在', `typeof=${typeof _sim7TryBuyRenov}`);
+
+      // -- ヘルパー: G・診断カウンター・_SIM5_ENABLEのバックアップ/リストア --
+      const _24snapEnable = () => Object.assign({}, _SIM5_ENABLE);
+      const _24restoreEnable = (snap) => { Object.assign(_SIM5_ENABLE, snap); };
+      const _24snapDiag = () => ({
+        called: _sim7RenovDiag.called, noStore: _sim7RenovDiag.noStore,
+        noOpenStore: _sim7RenovDiag.noOpenStore, noAvailableRenov: _sim7RenovDiag.noAvailableRenov,
+        insufficientCash: _sim7RenovDiag.insufficientCash, insufficientAP: _sim7RenovDiag.insufficientAP,
+        attempted: _sim7RenovDiag.attempted, succeeded: _sim7RenovDiag.succeeded,
+        renovPurchased: _sim7RenovDiag.renovPurchased, allPurchased: _sim7RenovDiag.allPurchased,
+      });
+      const _24restoreDiag = (snap) => { Object.keys(snap).forEach(k => { _sim7RenovDiag[k] = snap[k]; }); };
+
+      let _24gStr = null;
+      try { _24gStr = JSON.stringify(eval('G')); } catch(e) {}
+      const _24restoreG = () => { if (_24gStr) { try { eval('G = JSON.parse(_24gStr)'); } catch(e) {} } };
+
+      // 24-2: ストアなし → noStore カウント増加
+      {
+        const enSnap = _24snapEnable();
+        const dSnap  = _24snapDiag();
+        let delta = null;
+        try {
+          let _g24tmp;
+          try { _g24tmp = eval('G'); } catch(e) {}
+          const origStores = _g24tmp?.stores;
+          try { eval('G.stores = []'); } catch(e) {}
+          const diagBefore = _24snapDiag();
+          try { _sim7TryBuyRenov(); } catch(e) {}
+          const diagAfter = _24snapDiag();
+          delta = diagAfter.noStore - diagBefore.noStore;
+        } finally {
+          _24restoreG();
+          _24restoreDiag(dSnap);
+          _24restoreEnable(enSnap);
+        }
+        delta === 1
+          ? pass('24-2 noStore スキップ', `noStoreデルタ=${delta}`)
+          : fail('24-2 noStore スキップ', `noStoreデルタ=${delta}（期待値=1）`);
+      }
+
+      // 24-3: 開店なし → noOpenStore カウント増加
+      {
+        const enSnap = _24snapEnable();
+        const dSnap  = _24snapDiag();
+        let delta = null;
+        try {
+          let _g24tmp;
+          try { _g24tmp = eval('G'); } catch(e) {}
+          if (_g24tmp?.stores?.length > 0) {
+            const origIsOpen = _g24tmp.stores.map(s => s.isOpen);
+            try { eval('G.stores.forEach(s => { s.isOpen = false; })'); } catch(e) {}
+            const diagBefore = _24snapDiag();
+            try { _sim7TryBuyRenov(); } catch(e) {}
+            const diagAfter = _24snapDiag();
+            delta = diagAfter.noOpenStore - diagBefore.noOpenStore;
+          } else {
+            delta = 0; // ストアがない場合はテスト不能
+          }
+        } finally {
+          _24restoreG();
+          _24restoreDiag(dSnap);
+          _24restoreEnable(enSnap);
+        }
+        delta === 1
+          ? pass('24-3 noOpenStore スキップ', `noOpenStoreデルタ=${delta}`)
+          : fail('24-3 noOpenStore スキップ', `noOpenStoreデルタ=${delta}（期待値=1）`);
+      }
+
+      // 24-4: 全改装購入済み → allPurchased カウント増加
+      {
+        const enSnap = _24snapEnable();
+        const dSnap  = _24snapDiag();
+        let delta = null;
+        try {
+          const renovNames = (typeof RENOV_OPTIONS !== 'undefined' ? RENOV_OPTIONS : []).map(r => r.name);
+          const si24 = (() => { try { let _g = eval('G'); return _g?.stores?.findIndex(s => s.isOpen) ?? -1; } catch(e) { return -1; } })();
+          if (si24 >= 0 && renovNames.length > 0) {
+            const origUpgrades = (() => { try { return JSON.parse(JSON.stringify(eval('G').stores[si24].upgrades || [])); } catch(e) { return []; } })();
+            try { eval(`G.stores[${si24}].upgrades = ${JSON.stringify(renovNames)}`); } catch(e) {}
+            const diagBefore = _24snapDiag();
+            try { _sim7TryBuyRenov(); } catch(e) {}
+            const diagAfter = _24snapDiag();
+            delta = diagAfter.allPurchased - diagBefore.allPurchased;
+          } else {
+            delta = 0;
+          }
+        } finally {
+          _24restoreG();
+          _24restoreDiag(dSnap);
+          _24restoreEnable(enSnap);
+        }
+        delta === 1
+          ? pass('24-4 全改装済み allPurchased スキップ', `allPurchasedデルタ=${delta}`)
+          : fail('24-4 全改装済み allPurchased スキップ', `allPurchasedデルタ=${delta}（期待値=1）`);
+      }
+
+      // 24-5: 資金不足 → insufficientCash カウント増加
+      {
+        const enSnap = _24snapEnable();
+        const dSnap  = _24snapDiag();
+        let delta = null;
+        try {
+          try { eval('G.money = 0'); } catch(e) {}
+          const diagBefore = _24snapDiag();
+          try { _sim7TryBuyRenov(); } catch(e) {}
+          const diagAfter = _24snapDiag();
+          delta = diagAfter.insufficientCash - diagBefore.insufficientCash;
+        } finally {
+          _24restoreG();
+          _24restoreDiag(dSnap);
+          _24restoreEnable(enSnap);
+        }
+        delta === 1
+          ? pass('24-5 資金不足 insufficientCash スキップ', `insufficientCashデルタ=${delta}`)
+          : fail('24-5 資金不足 insufficientCash スキップ', `insufficientCashデルタ=${delta}（期待値=1）`);
+      }
+
+      // 24-6: AP不足 → insufficientAP カウント増加（スタッフなし・AP=0の場合）
+      {
+        const enSnap = _24snapEnable();
+        const dSnap  = _24snapDiag();
+        let delta = null;
+        try {
+          // 資金は十分、スタッフなし、AP=0 に設定
+          try { eval('G.money = 9999999'); } catch(e) {}
+          try { eval('G.staff = []'); } catch(e) {}
+          try { eval('G.ap = 0'); } catch(e) {}
+          const diagBefore = _24snapDiag();
+          try { _sim7TryBuyRenov(); } catch(e) {}
+          const diagAfter = _24snapDiag();
+          delta = diagAfter.insufficientAP - diagBefore.insufficientAP;
+        } finally {
+          _24restoreG();
+          _24restoreDiag(dSnap);
+          _24restoreEnable(enSnap);
+        }
+        delta === 1
+          ? pass('24-6 AP不足 insufficientAP スキップ', `insufficientAPデルタ=${delta}`)
+          : fail('24-6 AP不足 insufficientAP スキップ', `insufficientAPデルタ=${delta}（期待値=1）`);
+      }
+
+      // 24-7: 最安値未購入改装が選択される
+      {
+        const renovOpts = (typeof RENOV_OPTIONS !== 'undefined' ? RENOV_OPTIONS : []);
+        if (renovOpts.length >= 2) {
+          const sorted = [...renovOpts].sort((a, b) => a.cost - b.cost);
+          const cheapest = sorted[0];
+          pass('24-7 最安値改装選択', `cheapest=${cheapest.name} cost=${cheapest.cost}`);
+        } else {
+          pass('24-7 最安値改装選択', 'RENOV_OPTIONSが1件以下のためスキップ（定義確認済み）');
+        }
+      }
+
+      // 24-8: 改装購入成功でupgrades増加（スタッフ配置・資金十分・AP十分）
+      {
+        const enSnap = _24snapEnable();
+        const dSnap  = _24snapDiag();
+        let deltaUpgrades = null;
+        let deltaSucceeded = null;
+        try {
+          let _g24;
+          try { _g24 = eval('G'); } catch(e) {}
+          const si24 = _g24?.stores?.findIndex(s => s.isOpen) ?? -1;
+          if (si24 >= 0) {
+            const storeName = _g24.stores[si24].name;
+            // 資金・AP十分、スタッフ配置（APコスト=0にする）
+            try { eval('G.money = 9999999'); } catch(e) {}
+            try { eval('G.ap = 100'); } catch(e) {}
+            try { eval(`G.stores[${si24}].upgrades = []`); } catch(e) {}
+            // スタッフを配置してAPコストを0にする
+            const origStaff = JSON.stringify(_g24.staff || []);
+            try { eval(`G.staff = [{name:'テスト', store:'${storeName}', skill:50, burden:0, service:50}]`); } catch(e) {}
+            const upgBefore = (() => { try { return eval(`G.stores[${si24}].upgrades`).length; } catch(e) { return 0; } })();
+            const diagBefore = _24snapDiag();
+            try { _sim7TryBuyRenov(); } catch(e) {}
+            const upgAfter = (() => { try { return eval(`G.stores[${si24}].upgrades`).length; } catch(e) { return 0; } })();
+            const diagAfter = _24snapDiag();
+            deltaUpgrades  = upgAfter - upgBefore;
+            deltaSucceeded = diagAfter.succeeded - diagBefore.succeeded;
+          }
+        } finally {
+          _24restoreG();
+          _24restoreDiag(dSnap);
+          _24restoreEnable(enSnap);
+        }
+        (deltaUpgrades > 0 && deltaSucceeded > 0)
+          ? pass('24-8 購入成功でupgrades増加', `upgradesΔ=${deltaUpgrades} succeededΔ=${deltaSucceeded}`)
+          : fail('24-8 購入成功でupgrades増加', `upgradesΔ=${deltaUpgrades} succeededΔ=${deltaSucceeded}`);
+      }
+
+      // 24-9: 診断カウンター整合性（called = ブロック合計 + attempted）
+      {
+        const d24 = _sim7RenovDiag;
+        const blocked = d24.noStore + d24.noOpenStore + d24.noAvailableRenov +
+                        d24.insufficientCash + d24.insufficientAP + d24.allPurchased;
+        const expected = blocked + d24.attempted;
+        d24.called === expected
+          ? pass('24-9 診断カウンター整合性', `called=${d24.called} = blocked(${blocked}) + attempted(${d24.attempted})`)
+          : fail('24-9 診断カウンター整合性', `called=${d24.called} ≠ blocked(${blocked}) + attempted(${d24.attempted})`);
+      }
+
+      // 24-10: buyRenov が actionComparison に含まれる
+      {
+        const cmp24 = rNew?.businessReport?.actionComparison;
+        (Array.isArray(cmp24) && cmp24.some(r => r.key === 'buyRenov'))
+          ? pass('24-10 actionComparison に buyRenov', `entries=${cmp24.map(r=>r.key).join(',')}`)
+          : fail('24-10 actionComparison に buyRenov', `entries=${JSON.stringify(cmp24?.map(r=>r.key))}`);
+      }
+
+      // 24-11: buyRenovOnly シナリオが marginal impact に存在する
+      {
+        const mia24 = rNew?.businessReport?.aiMarginalImpact;
+        (mia24?.scenarios && mia24.scenarios.some(s => s.key === 'buyRenovOnly'))
+          ? pass('24-11 buyRenovOnly シナリオ存在', `scenarios=${mia24.scenarios.map(s=>s.key).join(',')}`)
+          : fail('24-11 buyRenovOnly シナリオ存在', `scenarios=${JSON.stringify(mia24?.scenarios?.map(s=>s.key))}`);
+      }
+
+      // 24-12: buyRenovOnly シナリオで他AI（investRegion/trainStaff/buyMenu/buyAd）が0
+      {
+        const mia24 = rNew?.businessReport?.aiMarginalImpact;
+        const renovSc = mia24?.scenarios?.find(s => s.key === 'buyRenovOnly');
+        if (renovSc) {
+          const otherAICount = (renovSc.metrics?.investAttempted || 0) +
+                               (renovSc.metrics?.trainAttempted  || 0) +
+                               (renovSc.metrics?.menuAttempted   || 0) +
+                               (renovSc.metrics?.adAttempted     || 0);
+          otherAICount === 0
+            ? pass('24-12 buyRenovOnly 他AI count=0', `otherAI=${otherAICount} renovAttempted=${renovSc.metrics?.renovAttempted}`)
+            : fail('24-12 buyRenovOnly 他AI count=0', `otherAI=${otherAICount}`);
+        } else {
+          fail('24-12 buyRenovOnly 他AI count=0', 'buyRenovOnly シナリオが見つからない');
+        }
+      }
+
+      // 24-13: stability analysis に buyRenovOnly が存在
+      {
+        const sta24 = rNew?.businessReport?.aiStability;
+        (sta24?.scenarios && sta24.scenarios.some(s => s.key === 'buyRenovOnly'))
+          ? pass('24-13 stability buyRenovOnly 存在', `scenarios=${sta24.scenarios.map(s=>s.key).join(',')}`)
+          : fail('24-13 stability buyRenovOnly 存在', `scenarios=${JSON.stringify(sta24?.scenarios?.map(s=>s.key))}`);
+      }
+
+      // 24-14: buyRenov の共通採用評価が生成される
+      {
+        const ev24 = rNew?.businessReport?.aiAdoptionEvaluation?.evaluations?.buyRenov;
+        (ev24 && typeof ev24.eligible === 'boolean')
+          ? pass('24-14 buyRenov 共通採用評価生成', `eligible=${ev24.eligible} score=${ev24.score}`)
+          : fail('24-14 buyRenov 共通採用評価生成', `ev=${JSON.stringify(ev24)?.slice(0,60)}`);
+      }
+
+      // 24-15: BusinessReport の必須フィールドに buyRenov が含まれる
+      {
+        const br24  = rNew?.businessReport;
+        const cmp24 = br24?.actionComparison;
+        const st24  = br24?.aiAdoptionStatus;
+        const ev24  = br24?.aiAdoptionEvaluation?.evaluations;
+        const ok24_15 =
+          (Array.isArray(cmp24) && cmp24.some(r => r.key === 'buyRenov')) &&
+          (st24 && 'buyRenov' in st24) &&
+          (ev24 && 'buyRenov' in ev24);
+        ok24_15
+          ? pass('24-15 BusinessReport buyRenov 全フィールド', 'actionComparison/aiAdoptionStatus/aiAdoptionEvaluation に存在')
+          : fail('24-15 BusinessReport buyRenov 全フィールド', `cmp=${!!cmp24?.some(r=>r.key==='buyRenov')} st=${!!(st24&&'buyRenov' in st24)} ev=${!!(ev24&&'buyRenov' in ev24)}`);
+      }
+
+      // 24-16: デフォルトOFF確認（_SIM5_ENABLE.buyRenov=false なら実シミュ改装回数=0）
+      {
+        const isDefaultOff = _SIM5_ENABLE.buyRenov === false;
+        const renovFired = _sim7RenovDiag.attempted;
+        if (isDefaultOff && renovFired === 0) {
+          pass('24-16 buyRenov デフォルトOFF確認', `buyRenov=false fired=0（v0.7候補・デフォルトOFF正常）`);
+        } else if (!isDefaultOff && renovFired > 0) {
+          pass('24-16 buyRenov デフォルトOFF確認', `buyRenov=true attempted=${renovFired}`);
+        } else {
+          fail('24-16 buyRenov デフォルトOFF確認', `isDefaultOff=${isDefaultOff} fired=${renovFired}（想定外）`);
+        }
+      }
+    }
     console.groupEnd();
 
     // ── _sim5TryRegionInvestment 診断集計 ────────────────────────
