@@ -3,9 +3,9 @@
  * ?qa=1 または ?debug=1 の場合のみ動作
  * ゲーム本体への影響なし・読み取り専用（Phase 2Aは1日テスト後に必ず復元）
  */
-window._MAIKON_QA_VERSION = '2026-07-25-v05l-default-config-review';
+window._MAIKON_QA_VERSION = '2026-07-25-v05m-default-adoption';
 console.log('[MAIKON-QA] loaded version:', window._MAIKON_QA_VERSION);
-console.log('[QA FILE LOADED] v05l-default-config-review-20260725');
+console.log('[QA FILE LOADED] v05m-default-adoption-20260725');
 
 (function () {
   'use strict';
@@ -4769,8 +4769,8 @@ function qa2cSwitchTab(tid,idx){
   // v0.5k: buyAd は v0.5j で全ポリシー不採用となったためデフォルト false。
   // 分析関数（_sim5RunAdPolicyComparison 等）は内部で一時的に ON にし、終了後に復元する。
   const _SIM5_ENABLE = {
-    investRegion: true,
-    trainStaff:   true,
+    investRegion: false, // v0.5m: 利益改善未確認 → デフォルトOFF
+    trainStaff:   false, // v0.5m: 利益改善未確認 → デフォルトOFF
     buyMenu:      true,
     buyAd:        false, // v0.5k: 正式不採用 → デフォルトOFF
   };
@@ -4779,19 +4779,22 @@ function qa2cSwitchTab(tid,idx){
   // ── v0.5k: AI採用状態定義 ────────────────────────────────────────
   const _SIM5_AI_ADOPTION_STATUS = {
     investRegion: {
-      enabledByDefault: true,
-      status: 'experimental',
-      reason: 'v0.5h安定性分析で改善傾向を確認、継続検証中',
+      enabledByDefault: false,
+      status: 'rejected',
+      reason: '利益改善を確認できなかったため',
+      validationVersion: '2026-07-25-v05l-default-config-review',
     },
     trainStaff: {
-      enabledByDefault: true,
-      status: 'experimental',
-      reason: 'v0.5h安定性分析で改善傾向を確認、継続検証中',
+      enabledByDefault: false,
+      status: 'rejected',
+      reason: '利益改善を確認できなかったため',
+      validationVersion: '2026-07-25-v05l-default-config-review',
     },
     buyMenu: {
       enabledByDefault: true,
-      status: 'experimental',
-      reason: 'v0.5h安定性分析で改善傾向を確認、継続検証中',
+      status: 'adopted',
+      reason: 'v0.5l デフォルトAI構成比較で利益改善効果を確認、正式採用',
+      validationVersion: '2026-07-25-v05l-default-config-review',
     },
     buyAd: {
       enabledByDefault: false,
@@ -5187,13 +5190,13 @@ function qa2cSwitchTab(tid,idx){
       enable: { investRegion: true, trainStaff: true, buyMenu: true, buyAd: true },
     },
     {
-      key: 'newDefault',
-      label: '新デフォルト（広告OFF）',
-      enable: { investRegion: true, trainStaff: true, buyMenu: true, buyAd: false },
+      key: 'buyMenuOnlyDefault',
+      label: '本番デフォルト（buyMenuのみ）',
+      enable: { investRegion: false, trainStaff: false, buyMenu: true, buyAd: false },
     },
     {
       key: 'menuOnly',
-      label: 'メニュー追加のみ',
+      label: 'メニュー追加のみ（形式統一用）',
       enable: { investRegion: false, trainStaff: false, buyMenu: true, buyAd: false },
     },
   ];
@@ -5322,46 +5325,49 @@ function qa2cSwitchTab(tid,idx){
         };
       });
 
-      const newDef  = scenarios.find(s => s.key === 'newDefault');
-      const oldDef  = scenarios.find(s => s.key === 'oldDefault');
-      const menuOnl = scenarios.find(s => s.key === 'menuOnly');
+      const buyMenuDef = scenarios.find(s => s.key === 'buyMenuOnlyDefault');
+      const oldDef     = scenarios.find(s => s.key === 'oldDefault');
+      const menuOnl    = scenarios.find(s => s.key === 'menuOnly');
 
-      // improvementFromOldDefault
+      // improvementFromOldDefault（旧デフォルトからの改善：buyMenuOnly基準）
       const improvementFromOldDefault = {
-        profit:        newDef.metrics.profit        - oldDef.metrics.profit,
-        revenue:       newDef.metrics.revenue       - oldDef.metrics.revenue,
-        endCash:       newDef.metrics.endCash       - oldDef.metrics.endCash,
-        minCash:       newDef.metrics.minCash       - oldDef.metrics.minCash,
-        deficitMonths: newDef.metrics.deficitMonths - oldDef.metrics.deficitMonths,
-        bankruptcyRate:newDef.metrics.bankruptcyRate - oldDef.metrics.bankruptcyRate,
+        profit:        buyMenuDef.metrics.profit        - oldDef.metrics.profit,
+        revenue:       buyMenuDef.metrics.revenue       - oldDef.metrics.revenue,
+        endCash:       buyMenuDef.metrics.endCash       - oldDef.metrics.endCash,
+        minCash:       buyMenuDef.metrics.minCash       - oldDef.metrics.minCash,
+        deficitMonths: buyMenuDef.metrics.deficitMonths - oldDef.metrics.deficitMonths,
+        bankruptcyRate:buyMenuDef.metrics.bankruptcyRate - oldDef.metrics.bankruptcyRate,
       };
 
-      // newDefaultVsMenuOnly
+      // newDefaultVsMenuOnly（buyMenuOnlyDefault vs menuOnly: 構造統一、同値確認用）
       const newDefaultVsMenuOnly = {
-        profit:        newDef.metrics.profit        - menuOnl.metrics.profit,
-        revenue:       newDef.metrics.revenue       - menuOnl.metrics.revenue,
-        endCash:       newDef.metrics.endCash       - menuOnl.metrics.endCash,
-        minCash:       newDef.metrics.minCash       - menuOnl.metrics.minCash,
-        deficitMonths: newDef.metrics.deficitMonths - menuOnl.metrics.deficitMonths,
-        bankruptcyRate:newDef.metrics.bankruptcyRate - menuOnl.metrics.bankruptcyRate,
+        profit:        buyMenuDef.metrics.profit        - menuOnl.metrics.profit,
+        revenue:       buyMenuDef.metrics.revenue       - menuOnl.metrics.revenue,
+        endCash:       buyMenuDef.metrics.endCash       - menuOnl.metrics.endCash,
+        minCash:       buyMenuDef.metrics.minCash       - menuOnl.metrics.minCash,
+        deficitMonths: buyMenuDef.metrics.deficitMonths - menuOnl.metrics.deficitMonths,
+        bankruptcyRate:buyMenuDef.metrics.bankruptcyRate - menuOnl.metrics.bankruptcyRate,
       };
 
-      // 採用判定
+      // 採用判定（buyMenuOnlyDefault を対象）
       const th = _SIM5_DEFAULT_CONFIG_THRESHOLDS;
       const adoptionChecks = {
-        profitVsAllOff:     newDef.diffFromAllOff.profit          >  th.minProfitDiffFromAllOff,
-        winRateVsAllOff:    newDef.winRate                        >= th.minWinRateVsAllOff,
-        medianVsAllOff:     newDef.profitStats.median             >= th.minMedianProfitDiffFromAllOff,
-        profitVsOldDefault: improvementFromOldDefault.profit      >= th.minProfitImprovementVsOldDefault,
-        bankruptcyVsAllOff: newDef.diffFromAllOff.bankruptcyRate  <= th.maxBankruptcyRateDiffVsAllOff,
+        profitVsAllOff:     buyMenuDef.diffFromAllOff.profit          >  th.minProfitDiffFromAllOff,
+        winRateVsAllOff:    buyMenuDef.winRate                        >= th.minWinRateVsAllOff,
+        medianVsAllOff:     buyMenuDef.profitStats.median             >= th.minMedianProfitDiffFromAllOff,
+        profitVsOldDefault: improvementFromOldDefault.profit          >= th.minProfitImprovementVsOldDefault,
+        bankruptcyVsAllOff: buyMenuDef.diffFromAllOff.bankruptcyRate  <= th.maxBankruptcyRateDiffVsAllOff,
       };
       const adoptionEligible = Object.values(adoptionChecks).every(v => v);
       const rejectionReasons = [];
       if (!adoptionChecks.profitVsAllOff)     rejectionReasons.push('平均利益が全AIなし以下');
-      if (!adoptionChecks.winRateVsAllOff)    rejectionReasons.push(`勝率${(newDef.winRate*100).toFixed(0)}%<60%`);
+      if (!adoptionChecks.winRateVsAllOff)    rejectionReasons.push(`勝率${(buyMenuDef.winRate*100).toFixed(0)}%<60%`);
       if (!adoptionChecks.medianVsAllOff)     rejectionReasons.push('中央値が0以下');
       if (!adoptionChecks.profitVsOldDefault) rejectionReasons.push('旧デフォルト比改善なし');
       if (!adoptionChecks.bankruptcyVsAllOff) rejectionReasons.push('倒産率が全AIなしより悪化');
+
+      // v0.5m: 推奨デフォルト構成
+      const recommendedDefaultConfiguration = Object.assign({}, buyMenuDef.enable);
 
       // コンソール表示
       {
@@ -5374,6 +5380,7 @@ function qa2cSwitchTab(tid,idx){
           const m = s.metrics;
           const d = s.diffFromAllOff;
           tableData[s.label] = {
+            'AI名':           s.key,
             '利益':           fmt0(m.profit),
             '全AIなしとの差': sign(d.profit),
             '中央値差分':     sign(s.profitStats.median),
@@ -5394,7 +5401,7 @@ function qa2cSwitchTab(tid,idx){
 
         console.group('📈 旧デフォルトからの改善');
         console.table({
-          '新デフォルト vs 旧デフォルト': {
+          '本番デフォルト vs 旧デフォルト': {
             '利益差分':     sign(improvementFromOldDefault.profit),
             '売上差分':     sign(improvementFromOldDefault.revenue),
             '年末現金差分': sign(improvementFromOldDefault.endCash),
@@ -5405,9 +5412,9 @@ function qa2cSwitchTab(tid,idx){
         });
         console.groupEnd();
 
-        console.group('🔍 新デフォルト vs メニュー追加のみ');
+        console.group('🔍 本番デフォルト vs メニュー追加のみ');
         console.table({
-          '新デフォルト vs メニューのみ': {
+          '本番デフォルト vs メニューのみ': {
             '利益差分':     sign(newDefaultVsMenuOnly.profit),
             '売上差分':     sign(newDefaultVsMenuOnly.revenue),
             '年末現金差分': sign(newDefaultVsMenuOnly.endCash),
@@ -5418,7 +5425,8 @@ function qa2cSwitchTab(tid,idx){
         });
         console.groupEnd();
 
-        console.log(`✅ 新デフォルト採用${adoptionEligible ? '可' : '不可'}: ${adoptionEligible ? '全条件クリア' : rejectionReasons.join(' / ')}`);
+        console.log(`✅ 本番デフォルト採用${adoptionEligible ? '可' : '不可'}: ${adoptionEligible ? '全条件クリア' : rejectionReasons.join(' / ')}`);
+        console.log('📋 推奨デフォルト構成:', JSON.stringify(recommendedDefaultConfiguration));
         console.groupEnd();
       }
 
@@ -5427,6 +5435,7 @@ function qa2cSwitchTab(tid,idx){
         scenarios,
         improvementFromOldDefault,
         newDefaultVsMenuOnly,
+        recommendedDefaultConfiguration,
         adoptionDecision: { adoptionChecks, adoptionEligible, rejectionReasons },
       };
 
@@ -10582,26 +10591,26 @@ ${ar.experienceKPI ? _sim3ExperienceKpiHtml(ar.experienceKPI) : ''}
       ? pass('21-2 シナリオ4件定義', `keys=${_SIM5_DEFAULT_CONFIG_SCENARIOS.map(s=>s.key).join(',')}`)
       : fail('21-2 シナリオ4件定義', `length=${_SIM5_DEFAULT_CONFIG_SCENARIOS?.length}`);
 
-    // 21-3: newDefaultのenable設定が現在の_SIM5_ENABLEと一致
+    // 21-3: buyMenuOnlyDefaultのenable設定が現在の_SIM5_ENABLEと一致
     {
-      const nd21 = _SIM5_DEFAULT_CONFIG_SCENARIOS?.find(s => s.key === 'newDefault');
+      const nd21 = _SIM5_DEFAULT_CONFIG_SCENARIOS?.find(s => s.key === 'buyMenuOnlyDefault');
       const e = nd21?.enable;
       const match = e && e.investRegion === _SIM5_ENABLE.investRegion
                       && e.trainStaff   === _SIM5_ENABLE.trainStaff
                       && e.buyMenu      === _SIM5_ENABLE.buyMenu
                       && e.buyAd        === _SIM5_ENABLE.buyAd;
       match
-        ? pass('21-3 newDefault.enable ≡ _SIM5_ENABLE', JSON.stringify(e))
-        : fail('21-3 newDefault.enable ≡ _SIM5_ENABLE', `enable=${JSON.stringify(e)} SIM5_ENABLE=${JSON.stringify(_SIM5_ENABLE)}`);
+        ? pass('21-3 buyMenuOnlyDefault.enable ≡ _SIM5_ENABLE', JSON.stringify(e))
+        : fail('21-3 buyMenuOnlyDefault.enable ≡ _SIM5_ENABLE', `enable=${JSON.stringify(e)} SIM5_ENABLE=${JSON.stringify(_SIM5_ENABLE)}`);
     }
 
-    // 21-4: oldDefaultではbuyAd=true, newDefaultではbuyAd=false
+    // 21-4: oldDefaultではbuyAd=true, buyMenuOnlyDefaultではbuyAd=false
     {
       const od21 = _SIM5_DEFAULT_CONFIG_SCENARIOS?.find(s => s.key === 'oldDefault');
-      const nd21 = _SIM5_DEFAULT_CONFIG_SCENARIOS?.find(s => s.key === 'newDefault');
+      const nd21 = _SIM5_DEFAULT_CONFIG_SCENARIOS?.find(s => s.key === 'buyMenuOnlyDefault');
       (od21?.enable?.buyAd === true && nd21?.enable?.buyAd === false)
-        ? pass('21-4 oldDefault.buyAd=true / newDefault.buyAd=false', 'OK')
-        : fail('21-4 oldDefault.buyAd=true / newDefault.buyAd=false', `old=${od21?.enable?.buyAd} new=${nd21?.enable?.buyAd}`);
+        ? pass('21-4 oldDefault.buyAd=true / buyMenuOnlyDefault.buyAd=false', 'OK')
+        : fail('21-4 oldDefault.buyAd=true / buyMenuOnlyDefault.buyAd=false', `old=${od21?.enable?.buyAd} new=${nd21?.enable?.buyAd}`);
     }
 
     // 21-5〜21-14: 実際に比較関数を実行（3seed×3trial）
@@ -10621,10 +10630,10 @@ ${ar.experienceKPI ? _sim3ExperienceKpiHtml(ar.experienceKPI) : ''}
 
       if (rNew && rNew.businessReport) rNew.businessReport.defaultConfigComparison = defCmpResult21;
 
-      const allOff21    = defCmpResult21?.scenarios?.find(s => s.key === 'allOff');
-      const oldDef21    = defCmpResult21?.scenarios?.find(s => s.key === 'oldDefault');
-      const newDef21    = defCmpResult21?.scenarios?.find(s => s.key === 'newDefault');
-      const menuOnly21  = defCmpResult21?.scenarios?.find(s => s.key === 'menuOnly');
+      const allOff21      = defCmpResult21?.scenarios?.find(s => s.key === 'allOff');
+      const oldDef21      = defCmpResult21?.scenarios?.find(s => s.key === 'oldDefault');
+      const buyMenuDef21  = defCmpResult21?.scenarios?.find(s => s.key === 'buyMenuOnlyDefault');
+      const menuOnly21    = defCmpResult21?.scenarios?.find(s => s.key === 'menuOnly');
 
       // 21-5: allOffのAI行動回数がすべて0
       {
@@ -10643,12 +10652,12 @@ ${ar.experienceKPI ? _sim3ExperienceKpiHtml(ar.experienceKPI) : ''}
           : fail('21-6 oldDefault 広告回数≥1', `adCount=${adCount21_6}`);
       }
 
-      // 21-7: newDefaultの広告回数が0
+      // 21-7: buyMenuOnlyDefaultの広告回数が0
       {
-        const adCount21_7 = newDef21?.metrics?.adCount;
+        const adCount21_7 = buyMenuDef21?.metrics?.adCount;
         (adCount21_7 != null && adCount21_7 === 0)
-          ? pass('21-7 newDefault 広告回数=0', `adCount=${adCount21_7}`)
-          : fail('21-7 newDefault 広告回数=0', `adCount=${adCount21_7}`);
+          ? pass('21-7 buyMenuOnlyDefault 広告回数=0', `adCount=${adCount21_7}`)
+          : fail('21-7 buyMenuOnlyDefault 広告回数=0', `adCount=${adCount21_7}`);
       }
 
       // 21-8: 全シナリオの統計値がFinite
@@ -10663,9 +10672,9 @@ ${ar.experienceKPI ? _sim3ExperienceKpiHtml(ar.experienceKPI) : ''}
       // 21-9: allOffとの差分が再計算値と一致
       {
         const base9 = allOff21?.metrics?.profit;
-        const nd9   = newDef21?.metrics?.profit;
-        const diff9  = defCmpResult21?.scenarios?.find(s=>s.key==='newDefault')?.diffFromAllOff?.profit;
-        const recomputed9 = nd9 - base9;
+        const bmd9  = buyMenuDef21?.metrics?.profit;
+        const diff9 = defCmpResult21?.scenarios?.find(s=>s.key==='buyMenuOnlyDefault')?.diffFromAllOff?.profit;
+        const recomputed9 = bmd9 - base9;
         const match9 = diff9 != null && Math.abs(diff9 - recomputed9) < 1;
         match9
           ? pass('21-9 diffFromAllOff 再計算一致', `diff=${Math.round(diff9)} recomputed=${Math.round(recomputed9)}`)
@@ -10675,7 +10684,7 @@ ${ar.experienceKPI ? _sim3ExperienceKpiHtml(ar.experienceKPI) : ''}
       // 21-10: improvementFromOldDefault が再計算値と一致
       {
         const imp10 = defCmpResult21?.improvementFromOldDefault?.profit;
-        const recomputed10 = (newDef21?.metrics?.profit ?? 0) - (oldDef21?.metrics?.profit ?? 0);
+        const recomputed10 = (buyMenuDef21?.metrics?.profit ?? 0) - (oldDef21?.metrics?.profit ?? 0);
         const match10 = imp10 != null && Math.abs(imp10 - recomputed10) < 1;
         match10
           ? pass('21-10 improvementFromOldDefault 再計算一致', `imp=${Math.round(imp10)} recomp=${Math.round(recomputed10)}`)
@@ -10685,7 +10694,7 @@ ${ar.experienceKPI ? _sim3ExperienceKpiHtml(ar.experienceKPI) : ''}
       // 21-11: newDefaultVsMenuOnly が再計算値と一致
       {
         const vs11 = defCmpResult21?.newDefaultVsMenuOnly?.profit;
-        const recomputed11 = (newDef21?.metrics?.profit ?? 0) - (menuOnly21?.metrics?.profit ?? 0);
+        const recomputed11 = (buyMenuDef21?.metrics?.profit ?? 0) - (menuOnly21?.metrics?.profit ?? 0);
         const match11 = vs11 != null && Math.abs(vs11 - recomputed11) < 1;
         match11
           ? pass('21-11 newDefaultVsMenuOnly 再計算一致', `vs=${Math.round(vs11)} recomp=${Math.round(recomputed11)}`)
@@ -10707,17 +10716,17 @@ ${ar.experienceKPI ? _sim3ExperienceKpiHtml(ar.experienceKPI) : ''}
         ? pass('21-13 BusinessReport.defaultConfigComparison 存在', `scenarios=${rNew.businessReport.defaultConfigComparison.scenarios.length}`)
         : fail('21-13 BusinessReport.defaultConfigComparison 存在', `value=${JSON.stringify(rNew?.businessReport?.defaultConfigComparison)?.slice(0,60)}`);
 
-      // 21-14: 比較終了後に_SIM5_ENABLEが新デフォルトへ復元される
+      // 21-14: 比較終了後に_SIM5_ENABLEがbuyMenuOnlyDefaultへ復元される
       {
-        const ndEnable = _SIM5_DEFAULT_CONFIG_SCENARIOS?.find(s => s.key === 'newDefault')?.enable;
+        const ndEnable = _SIM5_DEFAULT_CONFIG_SCENARIOS?.find(s => s.key === 'buyMenuOnlyDefault')?.enable;
         const restored21 = ndEnable
           && enableAfter21.investRegion === ndEnable.investRegion
           && enableAfter21.trainStaff   === ndEnable.trainStaff
           && enableAfter21.buyMenu      === ndEnable.buyMenu
           && enableAfter21.buyAd        === ndEnable.buyAd;
         restored21
-          ? pass('21-14 比較後 _SIM5_ENABLE 新デフォルト復元', JSON.stringify(enableAfter21))
-          : fail('21-14 比較後 _SIM5_ENABLE 新デフォルト復元', `after=${JSON.stringify(enableAfter21)} expected=${JSON.stringify(ndEnable)}`);
+          ? pass('21-14 比較後 _SIM5_ENABLE buyMenuOnlyDefault復元', JSON.stringify(enableAfter21))
+          : fail('21-14 比較後 _SIM5_ENABLE buyMenuOnlyDefault復元', `after=${JSON.stringify(enableAfter21)} expected=${JSON.stringify(ndEnable)}`);
       }
 
       // 診断復元
@@ -10725,6 +10734,90 @@ ${ar.experienceKPI ? _sim3ExperienceKpiHtml(ar.experienceKPI) : ''}
       diagSnap21.forEach((snap, i) => {
         for (const [k, v] of Object.entries(snap)) { if (typeof v === 'number') allDiags21[i][k] = v; }
       });
+    }
+
+    console.groupEnd();
+
+    // ── Section 22: v0.5m 本番デフォルトAI構成 正式採用（buyMenuのみ）─
+    console.group('Section 22: v0.5m 本番デフォルトAI構成 正式採用（buyMenuのみ）');
+
+    // 22-1: buyMenu enabled=true
+    _SIM5_ENABLE.buyMenu === true
+      ? pass('22-1 buyMenu enabled=true', `_SIM5_ENABLE.buyMenu=${_SIM5_ENABLE.buyMenu}`)
+      : fail('22-1 buyMenu enabled=true', `_SIM5_ENABLE.buyMenu=${_SIM5_ENABLE.buyMenu}`);
+
+    // 22-2: investRegion enabled=false
+    _SIM5_ENABLE.investRegion === false
+      ? pass('22-2 investRegion enabled=false', `_SIM5_ENABLE.investRegion=${_SIM5_ENABLE.investRegion}`)
+      : fail('22-2 investRegion enabled=false', `_SIM5_ENABLE.investRegion=${_SIM5_ENABLE.investRegion}`);
+
+    // 22-3: trainStaff enabled=false
+    _SIM5_ENABLE.trainStaff === false
+      ? pass('22-3 trainStaff enabled=false', `_SIM5_ENABLE.trainStaff=${_SIM5_ENABLE.trainStaff}`)
+      : fail('22-3 trainStaff enabled=false', `_SIM5_ENABLE.trainStaff=${_SIM5_ENABLE.trainStaff}`);
+
+    // 22-4: buyAd enabled=false
+    _SIM5_ENABLE.buyAd === false
+      ? pass('22-4 buyAd enabled=false', `_SIM5_ENABLE.buyAd=${_SIM5_ENABLE.buyAd}`)
+      : fail('22-4 buyAd enabled=false', `_SIM5_ENABLE.buyAd=${_SIM5_ENABLE.buyAd}`);
+
+    // 22-5: buyMenu status=adopted
+    _SIM5_AI_ADOPTION_STATUS?.buyMenu?.status === 'adopted'
+      ? pass('22-5 buyMenu status=adopted', `enabledByDefault=${_SIM5_AI_ADOPTION_STATUS.buyMenu.enabledByDefault}`)
+      : fail('22-5 buyMenu status=adopted', `status=${_SIM5_AI_ADOPTION_STATUS?.buyMenu?.status}`);
+
+    // 22-6: investRegion rejected
+    (_SIM5_AI_ADOPTION_STATUS?.investRegion?.status === 'rejected' && _SIM5_AI_ADOPTION_STATUS?.investRegion?.enabledByDefault === false)
+      ? pass('22-6 investRegion rejected', `reason=${_SIM5_AI_ADOPTION_STATUS.investRegion.reason?.slice(0,30)}`)
+      : fail('22-6 investRegion rejected', `status=${_SIM5_AI_ADOPTION_STATUS?.investRegion?.status} enabled=${_SIM5_AI_ADOPTION_STATUS?.investRegion?.enabledByDefault}`);
+
+    // 22-7: trainStaff rejected
+    (_SIM5_AI_ADOPTION_STATUS?.trainStaff?.status === 'rejected' && _SIM5_AI_ADOPTION_STATUS?.trainStaff?.enabledByDefault === false)
+      ? pass('22-7 trainStaff rejected', `reason=${_SIM5_AI_ADOPTION_STATUS.trainStaff.reason?.slice(0,30)}`)
+      : fail('22-7 trainStaff rejected', `status=${_SIM5_AI_ADOPTION_STATUS?.trainStaff?.status} enabled=${_SIM5_AI_ADOPTION_STATUS?.trainStaff?.enabledByDefault}`);
+
+    // 22-8: buyAd rejected（v0.5k既存確認）
+    (_SIM5_AI_ADOPTION_STATUS?.buyAd?.status === 'rejected' && _SIM5_AI_ADOPTION_STATUS?.buyAd?.enabledByDefault === false)
+      ? pass('22-8 buyAd rejected', `reason=${_SIM5_AI_ADOPTION_STATUS.buyAd.reason?.slice(0,30)}`)
+      : fail('22-8 buyAd rejected', `status=${_SIM5_AI_ADOPTION_STATUS?.buyAd?.status} enabled=${_SIM5_AI_ADOPTION_STATUS?.buyAd?.enabledByDefault}`);
+
+    // 22-9: recommendedDefaultConfiguration 存在
+    {
+      const rdc = rNew?.businessReport?.defaultConfigComparison?.recommendedDefaultConfiguration;
+      (rdc && typeof rdc === 'object')
+        ? pass('22-9 recommendedDefaultConfiguration 存在', JSON.stringify(rdc))
+        : fail('22-9 recommendedDefaultConfiguration 存在', `value=${JSON.stringify(rdc)}`);
+    }
+
+    // 22-10: recommendedDefaultConfiguration が false/false/true/false と一致
+    {
+      const rdc = rNew?.businessReport?.defaultConfigComparison?.recommendedDefaultConfiguration;
+      const ok = rdc
+        && rdc.investRegion === false
+        && rdc.trainStaff   === false
+        && rdc.buyMenu      === true
+        && rdc.buyAd        === false;
+      ok
+        ? pass('22-10 recommendedDefaultConfiguration 値一致', `invest=${rdc.investRegion} train=${rdc.trainStaff} menu=${rdc.buyMenu} ad=${rdc.buyAd}`)
+        : fail('22-10 recommendedDefaultConfiguration 値一致', `rdc=${JSON.stringify(rdc)}`);
+    }
+
+    // 22-11: BusinessReport.aiAdoptionStatus 更新済み（4件すべて含む）
+    {
+      const as22 = rNew?.businessReport?.aiAdoptionStatus;
+      const keys22 = ['investRegion','trainStaff','buyMenu','buyAd'];
+      const ok22 = as22 && keys22.every(k => as22[k] && typeof as22[k].status === 'string');
+      ok22
+        ? pass('22-11 aiAdoptionStatus 4件更新済み', `status=${keys22.map(k=>as22[k].status).join(',')}`)
+        : fail('22-11 aiAdoptionStatus 4件更新済み', `as=${JSON.stringify(as22)?.slice(0,80)}`);
+    }
+
+    // 22-12: 既存Section1〜21に回帰なし（これまでのFAIL数を確認）
+    {
+      const failSoFar = results.filter(r => r.st === 'FAIL').length;
+      failSoFar === 0
+        ? pass('22-12 既存Section1〜21 回帰なし', `FAIL=${failSoFar}`)
+        : fail('22-12 既存Section1〜21 回帰なし', `FAIL=${failSoFar} 件`);
     }
 
     console.groupEnd();
