@@ -3,9 +3,9 @@
  * ?qa=1 または ?debug=1 の場合のみ動作
  * ゲーム本体への影響なし・読み取り専用（Phase 2Aは1日テスト後に必ず復元）
  */
-window._MAIKON_QA_VERSION = '2026-07-30-v06-adoption-engine-init-fix';
+window._MAIKON_QA_VERSION = '2026-07-30-v07-10-5-investregion-default-off-fix';
 console.log('[MAIKON-QA] loaded version:', window._MAIKON_QA_VERSION);
-console.log('[QA FILE LOADED] v06-adoption-engine-init-fix-20260730');
+console.log('[QA FILE LOADED] v07-10-5-investregion-default-off-fix-20260730');
 
 (function () {
   'use strict';
@@ -9396,16 +9396,29 @@ ${ar.experienceKPI ? _sim3ExperienceKpiHtml(ar.experienceKPI) : ''}
         : fail('10-4 communityActionTaken 検出ロジック', `増加=${d1} 変化なし=${d2} 減少=${d3}`);
     }
 
-    // 10-5: 実シミュレーションでcommunityActionTakenが少なくとも1回trueになるか
+    // 10-5: _SIM5_ENABLE.investRegion の値に応じて communityActionTaken の発火を検証
+    // v0.5m以降、investRegion はデフォルトOFF（正式本番デフォルト）。
+    // OFF時に発火0回は正常であり、WARNにはしない。OFFなのに発火した場合は
+    // 無効化されているはずのAIが実行された回帰なので FAIL にする。
+    // ON/OFF いずれの場合も _SIM5_ENABLE は一切変更せず、通常デフォルト状態
+    // をそのまま検証する（一時的なON切り替えはSection 12等の分析シナリオ側で維持）。
     {
       const df10 = rNew?.trials?.[0]?.dailyFlags;
+      const investEnabled = _SIM5_ENABLE.investRegion === true;
+      const stateLabel = investEnabled ? 'investRegion=true' : 'investRegion=false';
       if (!df10 || !df10.length) {
-        warn('10-5 communityActionTaken 実発火確認', 'dailyFlags が空（シミュレーション未実行）');
+        warn(`10-5 communityActionTaken 実発火確認（${stateLabel}）`, 'dailyFlags が空（シミュレーション未実行）');
       } else {
         const fired = df10.filter(d => d.dayActivity?.communityActionTaken === true).length;
-        fired > 0
-          ? pass('10-5 communityActionTaken 実発火確認', `${fired}日 発火`)
-          : warn('10-5 communityActionTaken 実発火確認', '1回も発火なし（資金・地域条件を確認）');
+        if (investEnabled) {
+          fired > 0
+            ? pass(`10-5 communityActionTaken 実発火確認（${stateLabel}）`, `${fired}日 発火`)
+            : warn(`10-5 communityActionTaken 実発火確認（${stateLabel}）`, 'investRegion有効だが1回も発火なし（資金・地域条件を確認）');
+        } else {
+          fired === 0
+            ? pass(`10-5 communityActionTaken デフォルトOFF確認（${stateLabel}）`, `発火0日（v0.5m正式本番デフォルト・正常）`)
+            : fail(`10-5 communityActionTaken デフォルトOFF確認（${stateLabel}）`, `investRegion=false なのに ${fired}日 発火（無効化されたはずのAIが実行された回帰の可能性）`);
+        }
       }
     }
 
