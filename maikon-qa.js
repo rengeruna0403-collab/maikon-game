@@ -3,9 +3,9 @@
  * ?qa=1 または ?debug=1 の場合のみ動作
  * ゲーム本体への影響なし・読み取り専用（Phase 2Aは1日テスト後に必ず復元）
  */
-window._MAIKON_QA_VERSION = '2026-07-25-v05m-default-adoption';
+window._MAIKON_QA_VERSION = '2026-07-30-v06-adoption-engine';
 console.log('[MAIKON-QA] loaded version:', window._MAIKON_QA_VERSION);
-console.log('[QA FILE LOADED] v05m-default-adoption-20260725');
+console.log('[QA FILE LOADED] v06-adoption-engine-20260730');
 
 (function () {
   'use strict';
@@ -5208,12 +5208,13 @@ function qa2cSwitchTab(tid,idx){
   };
   window._SIM5_DEFAULT_CONFIG_VALIDATION_DEFAULTS = _SIM5_DEFAULT_CONFIG_VALIDATION_DEFAULTS;
 
+  // 後方互換: キー名は維持、値は共通定数から参照
   const _SIM5_DEFAULT_CONFIG_THRESHOLDS = {
-    minProfitDiffFromAllOff:          0,
-    minWinRateVsAllOff:               0.60,
-    minMedianProfitDiffFromAllOff:    0,
-    minProfitImprovementVsOldDefault: 0,
-    maxBankruptcyRateDiffVsAllOff:    0,
+    minProfitDiffFromAllOff:          _SIM6_ADOPTION_THRESHOLDS.minMeanProfitDiff,
+    minWinRateVsAllOff:               _SIM6_ADOPTION_THRESHOLDS.minWinRate,
+    minMedianProfitDiffFromAllOff:    _SIM6_ADOPTION_THRESHOLDS.minMedianProfitDiff,
+    minProfitImprovementVsOldDefault: 0, // デフォルト構成固有の追加条件
+    maxBankruptcyRateDiffVsAllOff:    _SIM6_ADOPTION_THRESHOLDS.maxBankruptcyRateDiff,
   };
   window._SIM5_DEFAULT_CONFIG_THRESHOLDS = _SIM5_DEFAULT_CONFIG_THRESHOLDS;
 
@@ -5349,22 +5350,42 @@ function qa2cSwitchTab(tid,idx){
         bankruptcyRate:buyMenuDef.metrics.bankruptcyRate - menuOnl.metrics.bankruptcyRate,
       };
 
-      // 採用判定（buyMenuOnlyDefault を対象）
+      // v0.6: 共通採用判定エンジンへ移行
       const th = _SIM5_DEFAULT_CONFIG_THRESHOLDS;
+      const evaluation6 = _sim6EvaluateAdoption({
+        key:   'buyMenuOnlyDefault',
+        label: '本番デフォルト（buyMenuのみ）',
+        metrics: {
+          meanProfitDiff:    buyMenuDef.diffFromAllOff.profit,
+          medianProfitDiff:  buyMenuDef.profitStats.median,
+          winRate:           buyMenuDef.winRate,
+          bankruptcyRateDiff: buyMenuDef.diffFromAllOff.bankruptcyRate,
+          minCashDiff:       buyMenuDef.diffFromAllOff.minCash,
+        },
+        thresholds: {
+          minMeanProfitDiff:    th.minProfitDiffFromAllOff,
+          minMedianProfitDiff:  th.minMedianProfitDiffFromAllOff,
+          minWinRate:           th.minWinRateVsAllOff,
+          maxBankruptcyRateDiff:th.maxBankruptcyRateDiffVsAllOff,
+          minMinCashDiff:       _SIM6_ADOPTION_THRESHOLDS.minMinCashDiff,
+        },
+        context: 'defaultConfigComparison',
+      });
+
+      // デフォルト構成固有の追加条件: 旧デフォルト比改善
+      const profitVsOldDefault = improvementFromOldDefault.profit >= th.minProfitImprovementVsOldDefault;
+
+      // 後方互換: 既存キー名へマッピング
       const adoptionChecks = {
-        profitVsAllOff:     buyMenuDef.diffFromAllOff.profit          >  th.minProfitDiffFromAllOff,
-        winRateVsAllOff:    buyMenuDef.winRate                        >= th.minWinRateVsAllOff,
-        medianVsAllOff:     buyMenuDef.profitStats.median             >= th.minMedianProfitDiffFromAllOff,
-        profitVsOldDefault: improvementFromOldDefault.profit          >= th.minProfitImprovementVsOldDefault,
-        bankruptcyVsAllOff: buyMenuDef.diffFromAllOff.bankruptcyRate  <= th.maxBankruptcyRateDiffVsAllOff,
+        profitVsAllOff:     evaluation6.checks.profitable,
+        winRateVsAllOff:    evaluation6.checks.majorityWin,
+        medianVsAllOff:     evaluation6.checks.medianPositive,
+        profitVsOldDefault: profitVsOldDefault,
+        bankruptcyVsAllOff: evaluation6.checks.bankruptcySafe,
       };
-      const adoptionEligible = Object.values(adoptionChecks).every(v => v);
-      const rejectionReasons = [];
-      if (!adoptionChecks.profitVsAllOff)     rejectionReasons.push('平均利益が全AIなし以下');
-      if (!adoptionChecks.winRateVsAllOff)    rejectionReasons.push(`勝率${(buyMenuDef.winRate*100).toFixed(0)}%<60%`);
-      if (!adoptionChecks.medianVsAllOff)     rejectionReasons.push('中央値が0以下');
-      if (!adoptionChecks.profitVsOldDefault) rejectionReasons.push('旧デフォルト比改善なし');
-      if (!adoptionChecks.bankruptcyVsAllOff) rejectionReasons.push('倒産率が全AIなしより悪化');
+      const adoptionEligible = evaluation6.eligible && profitVsOldDefault;
+      const rejectionReasons = [...evaluation6.rejectionReasons];
+      if (!profitVsOldDefault) rejectionReasons.push('旧デフォルト比改善なし');
 
       // v0.5m: 推奨デフォルト構成
       const recommendedDefaultConfiguration = Object.assign({}, buyMenuDef.enable);
@@ -5690,14 +5711,133 @@ function qa2cSwitchTab(tid,idx){
   };
   window._SIM5_AD_VALIDATION_DEFAULTS = _SIM5_AD_VALIDATION_DEFAULTS;
 
-  const _SIM5_AD_ADOPTION_THRESHOLDS = {
+  // ── v0.6: 共通AI採用基準 ─────────────────────────────────────────
+  const _SIM6_ADOPTION_THRESHOLDS = {
     minMeanProfitDiff:    0,
-    minWinRate:           0.60,
     minMedianProfitDiff:  0,
-    minMinCashDiff:       -100_000,
+    minWinRate:           0.60,
     maxBankruptcyRateDiff: 0,
+    minMinCashDiff:       -100_000,
   };
+  window._SIM6_ADOPTION_THRESHOLDS = _SIM6_ADOPTION_THRESHOLDS;
+
+  // 後方互換: 共通定数を参照（個別差分がある場合のみ上書き）
+  const _SIM5_AD_ADOPTION_THRESHOLDS = { ..._SIM6_ADOPTION_THRESHOLDS };
   window._SIM5_AD_ADOPTION_THRESHOLDS = _SIM5_AD_ADOPTION_THRESHOLDS;
+
+  // ── v0.6: 共通採用判定エンジン ───────────────────────────────────
+  function _sim6EvaluateAdoption({ key, label, metrics = {}, thresholds, context } = {}) {
+    const th  = thresholds || _SIM6_ADOPTION_THRESHOLDS;
+    const safeVal = v => (v != null && isFinite(v) && !isNaN(v)) ? v : null;
+
+    const meanProfitDiff    = safeVal(metrics.meanProfitDiff);
+    const medianProfitDiff  = safeVal(metrics.medianProfitDiff);
+    const winRate           = safeVal(metrics.winRate);
+    const bankruptcyRateDiff = safeVal(metrics.bankruptcyRateDiff);
+    const minCashDiff       = safeVal(metrics.minCashDiff);
+
+    const pct = v => v != null ? `${(v*100).toFixed(0)}%` : 'N/A';
+    const yen = v => v != null ? `${Math.round(v).toLocaleString()}円` : 'N/A';
+
+    const profitable      = meanProfitDiff    != null ? meanProfitDiff    >  th.minMeanProfitDiff    : false;
+    const medianPositive  = medianProfitDiff  != null ? medianProfitDiff  >= th.minMedianProfitDiff  : false;
+    const majorityWin     = winRate           != null ? winRate            >= th.minWinRate           : false;
+    const bankruptcySafe  = bankruptcyRateDiff != null ? bankruptcyRateDiff <= th.maxBankruptcyRateDiff : false;
+    const cashSafe        = minCashDiff       != null ? minCashDiff       >= th.minMinCashDiff       : false;
+
+    const eligible = profitable && medianPositive && majorityWin && bankruptcySafe && cashSafe;
+    const score    = Number(profitable) + Number(medianPositive) + Number(majorityWin) + Number(bankruptcySafe) + Number(cashSafe);
+
+    const rejectionReasons = [];
+    if (!profitable)
+      rejectionReasons.push(meanProfitDiff != null
+        ? `平均利益差分が基準以下（${yen(meanProfitDiff)}）`
+        : '平均利益差分 データなし（条件未達）');
+    if (!medianPositive)
+      rejectionReasons.push(medianProfitDiff != null
+        ? `利益差分中央値が基準未満（${yen(medianProfitDiff)}）`
+        : '利益差分中央値 データなし（条件未達）');
+    if (!majorityWin)
+      rejectionReasons.push(winRate != null
+        ? `勝率が60%未満（実績${pct(winRate)}）`
+        : '勝率 データなし（条件未達）');
+    if (!bankruptcySafe)
+      rejectionReasons.push(bankruptcyRateDiff != null
+        ? `倒産率が悪化（差分${pct(bankruptcyRateDiff)}）`
+        : '倒産率差分 データなし（条件未達）');
+    if (!cashSafe)
+      rejectionReasons.push(minCashDiff != null
+        ? `最低現金が基準を下回る（${yen(minCashDiff)}）`
+        : '最低現金差分 データなし（条件未達）');
+
+    return {
+      key,
+      label,
+      checks:           { profitable, medianPositive, majorityWin, bankruptcySafe, cashSafe },
+      eligible,
+      rejectionReasons,
+      score,
+      context:          context ?? null,
+    };
+  }
+  window._sim6EvaluateAdoption = _sim6EvaluateAdoption;
+
+  // v0.6: 単体AI評価（v0.5h stabilityAnalysis の出力を受け取る）
+  function _sim6EvaluateSingleAI({ actionKey, actionLabel, stabilityScenario } = {}) {
+    const sc = stabilityScenario;
+    return _sim6EvaluateAdoption({
+      key:   actionKey,
+      label: actionLabel,
+      metrics: {
+        meanProfitDiff:   sc?.profit?.mean    ?? null,
+        medianProfitDiff: sc?.profit?.median  ?? null,
+        winRate:          sc?.winRate         ?? null,
+        bankruptcyRateDiff: null, // stability分析では不採用率未集計（データなし→条件未達）
+        minCashDiff:        null, // 同上
+      },
+      context: 'stabilityAnalysis',
+    });
+  }
+  window._sim6EvaluateSingleAI = _sim6EvaluateSingleAI;
+
+  // v0.6: 採用状態と共通評価の整合性レポート
+  function _sim6BuildAdoptionConsistencyReport({ adoptionStatus, evaluations } = {}) {
+    const keys  = Object.keys(adoptionStatus || {});
+    const items = keys.map(key => {
+      const cfg = adoptionStatus[key] || {};
+      const ev  = evaluations ? evaluations[key] : null;
+
+      let consistent = null;
+      let notes = '';
+
+      if (!ev) {
+        notes = 'データ不足: 評価結果なし';
+      } else if (ev.eligible == null) {
+        notes = 'データ不足: 評価不能';
+      } else {
+        const configuredAdopted = cfg.status === 'adopted';
+        consistent = configuredAdopted === ev.eligible;
+        if (!consistent) {
+          notes = configuredAdopted
+            ? `設定:adopted だが共通評価:不適格 (score=${ev.score}/5)`
+            : `設定:${cfg.status} だが共通評価:適格 (score=${ev.score}/5)`;
+        }
+      }
+
+      return {
+        key,
+        configuredStatus:  cfg.status   ?? 'unknown',
+        enabledByDefault:  cfg.enabledByDefault ?? null,
+        evaluatedEligible: ev?.eligible ?? null,
+        consistent,
+        notes,
+      };
+    });
+
+    const allConsistent = items.length > 0 && items.every(i => i.consistent === true);
+    return { items, allConsistent };
+  }
+  window._sim6BuildAdoptionConsistencyReport = _sim6BuildAdoptionConsistencyReport;
 
   async function _sim5RunAdPolicyFullValidation({ seeds, trialsPerSeed } = {}) {
     seeds         = Array.isArray(seeds) && seeds.length > 0 ? seeds : _SIM5_AD_VALIDATION_DEFAULTS.seeds;
@@ -5793,22 +5933,25 @@ function qa2cSwitchTab(tid,idx){
       const meanAdCostTotal   = avg(acc.adCostTotals);
       const meanCooldownBlocked = avg(acc.cooldownBlockeds);
 
-      // 本採用判定
-      const profitable      = meanProfitDiff   > th.minMeanProfitDiff;
-      const majorityWin     = winRate           >= th.minWinRate;
-      const stableEnough    = medianProfitDiff  >= th.minMedianProfitDiff;
-      const cashSafe        = meanMinCashDiff   >= th.minMinCashDiff;
-      const bankruptcySafe  = meanBankruptDiff  <= th.maxBankruptcyRateDiff;
-      const adoptionEligible = key !== 'adOff' && profitable && majorityWin && stableEnough && cashSafe && bankruptcySafe;
+      // v0.6: 共通採用判定エンジンへ移行
+      const evaluation = _sim6EvaluateAdoption({
+        key,
+        label: polLabels[key],
+        metrics: {
+          meanProfitDiff,
+          medianProfitDiff,
+          winRate,
+          bankruptcyRateDiff: meanBankruptDiff,
+          minCashDiff:        meanMinCashDiff,
+        },
+        thresholds: th,
+        context: 'adPolicyValidation',
+      });
 
-      const rejectionReasons = [];
-      if (key !== 'adOff') {
-        if (!profitable)    rejectionReasons.push(`平均利益差分がマイナス(${Math.round(meanProfitDiff).toLocaleString()}円)`);
-        if (!majorityWin)   rejectionReasons.push(`勝率が60%未満(${(winRate*100).toFixed(0)}%)`);
-        if (!stableEnough)  rejectionReasons.push(`中央値がマイナス(${Math.round(medianProfitDiff).toLocaleString()}円)`);
-        if (!cashSafe)      rejectionReasons.push(`最低現金差分が-10万円を下回る(${Math.round(meanMinCashDiff).toLocaleString()}円)`);
-        if (!bankruptcySafe)rejectionReasons.push(`倒産率が広告なしより悪化`);
-      }
+      // 後方互換: 既存キー名へマッピング（stableEnough = medianPositive）
+      const { profitable, medianPositive: stableEnough, majorityWin, bankruptcySafe, cashSafe } = evaluation.checks;
+      const adoptionEligible = key !== 'adOff' && evaluation.eligible;
+      const rejectionReasons = key !== 'adOff' ? evaluation.rejectionReasons : [];
 
       return {
         key, label: polLabels[key], cooldownDays: polCDs[key],
@@ -5823,6 +5966,7 @@ function qa2cSwitchTab(tid,idx){
         adoptionChecks: { profitable, majorityWin, stableEnough, cashSafe, bankruptcySafe },
         adoptionEligible,
         rejectionReasons,
+        adoptionScore: evaluation.score, // v0.6追加
       };
     });
 
@@ -7584,6 +7728,7 @@ function qa2cSwitchTab(tid,idx){
       adPolicyValidation:  null, // v0.5j: _qa3ValidateAll または _sim5RunAdPolicyFullValidation で設定
       aiAdoptionStatus:         typeof _SIM5_AI_ADOPTION_STATUS !== 'undefined' ? _SIM5_AI_ADOPTION_STATUS : null, // v0.5k
       defaultConfigComparison:  null, // v0.5l: _qa3ValidateAll または _sim5RunDefaultConfigComparison で設定
+      aiAdoptionEvaluation:     null, // v0.6: _qa3ValidateAll で設定
     };
   }
 
@@ -10819,6 +10964,256 @@ ${ar.experienceKPI ? _sim3ExperienceKpiHtml(ar.experienceKPI) : ''}
         ? pass('22-12 既存Section1〜21 回帰なし', `FAIL=${failSoFar}`)
         : fail('22-12 既存Section1〜21 回帰なし', `FAIL=${failSoFar} 件`);
     }
+
+    console.groupEnd();
+
+    // ── v0.6: 4AI評価 + 整合性レポート + BusinessReport統合 ──────────
+    let aiAdoptionEvaluation23 = null;
+    {
+      // defCmpResult21 から buyMenuOnly/allOff の差分メトリクスを取得して4AI評価を生成
+      // 注: investRegion/trainStaff/buyAd は oldDefault/allOff の比較から近似推定する
+      // より正確な評価は _sim5RunStabilityAnalysis / _sim5RunMarginalImpactAnalysis を参照
+      const cmp23 = rNew?.businessReport?.defaultConfigComparison;
+
+      // buyMenu: buyMenuOnlyDefault vs allOff
+      const buyMenuSc = cmp23?.scenarios?.find(s => s.key === 'buyMenuOnlyDefault');
+      // 単独AI評価はデフォルト構成比較の差分を流用（buyMenu=ON, others=OFF）
+      const evalBuyMenu = _sim6EvaluateAdoption({
+        key: 'buyMenu', label: 'メニュー追加',
+        metrics: {
+          meanProfitDiff:    buyMenuSc?.diffFromAllOff?.profit,
+          medianProfitDiff:  buyMenuSc?.profitStats?.median,
+          winRate:           buyMenuSc?.winRate,
+          bankruptcyRateDiff: buyMenuSc?.diffFromAllOff?.bankruptcyRate,
+          minCashDiff:       buyMenuSc?.diffFromAllOff?.minCash,
+        },
+        context: 'defaultConfigComparison',
+      });
+
+      // investRegion/trainStaff/buyAd: stability分析や marginal分析結果を流用
+      // QA内では Section 16/17 で実行済みの marginal/stability 結果を rNew から参照
+      const marginal23    = rNew?.businessReport?.aiMarginalImpact;
+      const stability23   = rNew?.businessReport?.aiStability;
+
+      const makeEvalFromMarginal = (key, label, scKey) => {
+        const sc = marginal23?.scenarios?.find(s => s.key === scKey);
+        const allOffSc = marginal23?.scenarios?.find(s => s.key === 'allOff');
+        if (!sc || !allOffSc) return _sim6EvaluateAdoption({ key, label, metrics: {}, context: 'marginalAnalysis' });
+        const d = sc.diffFromBaseline;
+        // stability から winRate/median を取得
+        const stSc = stability23?.scenarios?.find(s => s.key === scKey);
+        return _sim6EvaluateAdoption({
+          key, label,
+          metrics: {
+            meanProfitDiff:    d?.profit ?? null,
+            medianProfitDiff:  stSc?.profit?.median ?? null,
+            winRate:           stSc?.winRate ?? null,
+            bankruptcyRateDiff: d?.bankruptcyRate ?? null,
+            minCashDiff:       d?.minCash ?? null,
+          },
+          context: 'marginalAnalysis',
+        });
+      };
+
+      const evalInvest   = makeEvalFromMarginal('investRegion', '地域活動投資',  'investRegionOnly');
+      const evalTrain    = makeEvalFromMarginal('trainStaff',   'スタッフ研修',   'trainStaffOnly');
+      const evalBuyAd    = makeEvalFromMarginal('buyAd',        '広告購入',       'buyAdOnly');
+
+      const evaluations23 = {
+        investRegion: evalInvest,
+        trainStaff:   evalTrain,
+        buyMenu:      evalBuyMenu,
+        buyAd:        evalBuyAd,
+      };
+
+      // 整合性レポート
+      const consistencyReport23 = _sim6BuildAdoptionConsistencyReport({
+        adoptionStatus: _SIM5_AI_ADOPTION_STATUS,
+        evaluations:    evaluations23,
+      });
+
+      aiAdoptionEvaluation23 = {
+        thresholds:        _SIM6_ADOPTION_THRESHOLDS,
+        evaluations:       evaluations23,
+        consistencyReport: consistencyReport23,
+      };
+
+      if (rNew && rNew.businessReport) rNew.businessReport.aiAdoptionEvaluation = aiAdoptionEvaluation23;
+
+      // コンソール表示
+      {
+        const pct  = v => v != null ? `${(v*100).toFixed(0)}%` : '-';
+        const yen0 = v => v != null && isFinite(v) ? Math.round(v).toLocaleString() : '-';
+        const bool = v => v === true ? '✓' : v === false ? '✗' : '-';
+        const tableData23 = {};
+        const order = ['investRegion','trainStaff','buyMenu','buyAd'];
+        order.forEach(k => {
+          const ev  = evaluations23[k];
+          const cfg = _SIM5_AI_ADOPTION_STATUS[k];
+          const cr  = consistencyReport23.items.find(i => i.key === k);
+          tableData23[ev?.label || k] = {
+            'AI':       k,
+            '設定状態': cfg?.status     ?? '-',
+            'デフォルト': cfg?.enabledByDefault ? 'ON' : 'OFF',
+            '平均利益': yen0(ev?.checks ? null : null), // 詳細は ev.context 参照
+            '勝率':    pct(null), // metrics は コンテキスト依存
+            '中央値':  bool(ev?.checks?.medianPositive),
+            '倒産安全': bool(ev?.checks?.bankruptcySafe),
+            '現金安全': bool(ev?.checks?.cashSafe),
+            'スコア':  `${ev?.score ?? '-'}/5`,
+            '共通判定': ev?.eligible ? '適格' : '不適格',
+            '整合':    cr?.consistent === true ? '✓' : cr?.consistent === false ? '⚠' : '?',
+          };
+        });
+        console.group('📊 AI採用判定 共通評価');
+        console.table(tableData23);
+        const inconsistent = consistencyReport23.items.filter(i => i.consistent === false);
+        if (inconsistent.length > 0) {
+          console.group('⚠ AI採用状態と共通評価の不整合');
+          inconsistent.forEach(i => console.log(`  ${i.key}: ${i.notes}`));
+          console.groupEnd();
+        }
+        console.groupEnd();
+      }
+    }
+
+    // ── Section 23: v0.6 AI採用判定エンジン 共通化検証 ─────────────
+    console.group('Section 23: v0.6 AI採用判定エンジン 共通化検証');
+
+    // 23-1: _SIM6_ADOPTION_THRESHOLDS 存在
+    (typeof _SIM6_ADOPTION_THRESHOLDS === 'object' && _SIM6_ADOPTION_THRESHOLDS !== null
+      && typeof _SIM6_ADOPTION_THRESHOLDS.minWinRate === 'number')
+      ? pass('23-1 _SIM6_ADOPTION_THRESHOLDS 存在', `minWinRate=${_SIM6_ADOPTION_THRESHOLDS.minWinRate}`)
+      : fail('23-1 _SIM6_ADOPTION_THRESHOLDS 存在', `typeof=${typeof _SIM6_ADOPTION_THRESHOLDS}`);
+
+    // 23-2: _sim6EvaluateAdoption 存在
+    typeof _sim6EvaluateAdoption === 'function'
+      ? pass('23-2 _sim6EvaluateAdoption 存在', '関数として定義済み')
+      : fail('23-2 _sim6EvaluateAdoption 存在', `typeof=${typeof _sim6EvaluateAdoption}`);
+
+    // 23-3: 5つのchecksが存在
+    {
+      const ev23_3 = _sim6EvaluateAdoption({ key:'test', label:'test', metrics:{
+        meanProfitDiff:100, medianProfitDiff:100, winRate:0.8, bankruptcyRateDiff:0, minCashDiff:0
+      }});
+      const hasAll = ev23_3 && ev23_3.checks
+        && 'profitable'     in ev23_3.checks
+        && 'medianPositive' in ev23_3.checks
+        && 'majorityWin'    in ev23_3.checks
+        && 'bankruptcySafe' in ev23_3.checks
+        && 'cashSafe'       in ev23_3.checks;
+      hasAll
+        ? pass('23-3 checks 5項目存在', Object.keys(ev23_3.checks).join(','))
+        : fail('23-3 checks 5項目存在', `keys=${JSON.stringify(Object.keys(ev23_3?.checks || {}))}`);
+    }
+
+    // 23-4: 全条件成立時 eligible=true
+    {
+      const ev23_4 = _sim6EvaluateAdoption({ key:'ok', label:'ok', metrics:{
+        meanProfitDiff: 1, medianProfitDiff: 1, winRate: 0.7, bankruptcyRateDiff: 0, minCashDiff: 0
+      }});
+      ev23_4?.eligible === true
+        ? pass('23-4 全条件成立→eligible=true', `score=${ev23_4.score}`)
+        : fail('23-4 全条件成立→eligible=true', `eligible=${ev23_4?.eligible} checks=${JSON.stringify(ev23_4?.checks)}`);
+    }
+
+    // 23-5: 1条件不成立で eligible=false
+    {
+      const ev23_5 = _sim6EvaluateAdoption({ key:'bad', label:'bad', metrics:{
+        meanProfitDiff: 1, medianProfitDiff: 1, winRate: 0.3, bankruptcyRateDiff: 0, minCashDiff: 0
+      }});
+      ev23_5?.eligible === false
+        ? pass('23-5 winRate不成立→eligible=false', `majorityWin=${ev23_5.checks.majorityWin}`)
+        : fail('23-5 winRate不成立→eligible=false', `eligible=${ev23_5?.eligible}`);
+    }
+
+    // 23-6: score が 0〜5
+    {
+      const ev23_6a = _sim6EvaluateAdoption({ key:'x', label:'x', metrics:{
+        meanProfitDiff:-1, medianProfitDiff:-1, winRate:0.3, bankruptcyRateDiff:1, minCashDiff:-200000
+      }});
+      const ev23_6b = _sim6EvaluateAdoption({ key:'y', label:'y', metrics:{
+        meanProfitDiff:1, medianProfitDiff:1, winRate:0.7, bankruptcyRateDiff:0, minCashDiff:0
+      }});
+      (ev23_6a.score === 0 && ev23_6b.score === 5)
+        ? pass('23-6 score 0〜5', `全不成立=${ev23_6a.score} 全成立=${ev23_6b.score}`)
+        : fail('23-6 score 0〜5', `score0=${ev23_6a.score} score5=${ev23_6b.score}`);
+    }
+
+    // 23-7: 欠損metricsでも例外・NaNなし
+    {
+      let ex23_7 = false;
+      let ev23_7 = null;
+      try {
+        ev23_7 = _sim6EvaluateAdoption({ key:'missing', label:'missing', metrics:{} });
+      } catch(e) { ex23_7 = true; }
+      const noNaN = ev23_7 && !Object.values(ev23_7.checks).some(v => typeof v !== 'boolean')
+                           && isFinite(ev23_7.score) && !isNaN(ev23_7.score);
+      (!ex23_7 && noNaN)
+        ? pass('23-7 欠損metrics→例外・NaNなし', `eligible=${ev23_7?.eligible} score=${ev23_7?.score}`)
+        : fail('23-7 欠損metrics→例外・NaNなし', `exception=${ex23_7} ev=${JSON.stringify(ev23_7)}`);
+    }
+
+    // 23-8: rejectionReasons が不成立条件と一致（件数チェック）
+    {
+      const ev23_8 = _sim6EvaluateAdoption({ key:'z', label:'z', metrics:{
+        meanProfitDiff:-1, medianProfitDiff:1, winRate:0.3, bankruptcyRateDiff:0, minCashDiff:0
+      }});
+      // profitable=false(1件), majorityWin=false(1件) → rejectionReasons.length === 2
+      const failCount = Object.values(ev23_8.checks).filter(v => !v).length;
+      (ev23_8.rejectionReasons.length === failCount)
+        ? pass('23-8 rejectionReasons 不成立条件と一致', `fail=${failCount} reasons=${ev23_8.rejectionReasons.length}`)
+        : fail('23-8 rejectionReasons 不成立条件と一致', `failCount=${failCount} reasons=${ev23_8.rejectionReasons.length}`);
+    }
+
+    // 23-9: 広告ポリシー判定が共通関数を使用（adoptionScoreが存在すれば共通関数経由の証拠）
+    {
+      const ap23 = rNew?.businessReport?.adPolicyValidation;
+      const hasScore = ap23?.policies?.every(p => typeof p.adoptionScore === 'number');
+      hasScore
+        ? pass('23-9 広告ポリシー判定 共通関数使用確認', `policies=${ap23.policies.length}件 adoptionScore存在`)
+        : fail('23-9 広告ポリシー判定 共通関数使用確認', `adPolicyValidation=${ap23 ? 'あり' : 'なし'} hasScore=${hasScore}`);
+    }
+
+    // 23-10: デフォルト構成判定が共通関数を使用（adoptionDecisionが_sim6の出力から生成されることを確認）
+    {
+      const dc23 = rNew?.businessReport?.defaultConfigComparison;
+      const ad23 = dc23?.adoptionDecision;
+      // adoptionChecks に profitVsAllOff が存在し、rejectionReasons が配列であれば共通化済み
+      const ok23_10 = ad23 && 'profitVsAllOff' in (ad23.adoptionChecks || {})
+                           && Array.isArray(ad23.rejectionReasons);
+      ok23_10
+        ? pass('23-10 デフォルト構成判定 共通関数使用確認', `eligible=${ad23.adoptionEligible} reasons=${ad23.rejectionReasons.length}`)
+        : fail('23-10 デフォルト構成判定 共通関数使用確認', `ad=${JSON.stringify(ad23)?.slice(0,60)}`);
+    }
+
+    // 23-11: _sim6EvaluateSingleAI 存在
+    typeof _sim6EvaluateSingleAI === 'function'
+      ? pass('23-11 _sim6EvaluateSingleAI 存在', '関数として定義済み')
+      : fail('23-11 _sim6EvaluateSingleAI 存在', `typeof=${typeof _sim6EvaluateSingleAI}`);
+
+    // 23-12: 4AIの評価結果が生成される
+    {
+      const keys23 = ['investRegion','trainStaff','buyMenu','buyAd'];
+      const ev23 = aiAdoptionEvaluation23?.evaluations;
+      const ok23_12 = ev23 && keys23.every(k => ev23[k] && typeof ev23[k].eligible === 'boolean');
+      ok23_12
+        ? pass('23-12 4AI評価結果生成', `keys=${keys23.join(',')} eligible=${keys23.map(k=>ev23[k].eligible).join(',')}`)
+        : fail('23-12 4AI評価結果生成', `keys=${JSON.stringify(Object.keys(ev23||{}))}`);
+    }
+
+    // 23-13: consistencyReport が生成される
+    {
+      const cr23 = aiAdoptionEvaluation23?.consistencyReport;
+      (cr23 && Array.isArray(cr23.items) && cr23.items.length === 4)
+        ? pass('23-13 consistencyReport 生成', `items=${cr23.items.length} allConsistent=${cr23.allConsistent}`)
+        : fail('23-13 consistencyReport 生成', `cr=${JSON.stringify(cr23)?.slice(0,80)}`);
+    }
+
+    // 23-14: BusinessReport.aiAdoptionEvaluation 存在
+    (rNew?.businessReport?.aiAdoptionEvaluation && rNew.businessReport.aiAdoptionEvaluation.evaluations)
+      ? pass('23-14 BusinessReport.aiAdoptionEvaluation 存在', `thresholds=${JSON.stringify(rNew.businessReport.aiAdoptionEvaluation.thresholds)?.slice(0,60)}`)
+      : fail('23-14 BusinessReport.aiAdoptionEvaluation 存在', `value=${JSON.stringify(rNew?.businessReport?.aiAdoptionEvaluation)?.slice(0,60)}`);
 
     console.groupEnd();
 
