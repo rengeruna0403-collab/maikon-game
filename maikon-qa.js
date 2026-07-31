@@ -10997,9 +10997,10 @@ ${ar.experienceKPI ? _sim3ExperienceKpiHtml(ar.experienceKPI) : ''}
           : fail('21-14 比較後 _SIM5_ENABLE buyMenuOnlyDefault復元', `after=${JSON.stringify(enableAfter21)} expected=${JSON.stringify(ndEnable)}`);
       }
 
-      // 診断復元
-      const allDiags21 = [_sim5Diag, _sim5TrainDiag, _sim5MenuDiag, _sim5AdDiag];
+      // 診断復元（diagSnap21と要素数・順序を必ず一致させること）
+      const allDiags21 = [_sim5Diag, _sim5TrainDiag, _sim5MenuDiag, _sim5AdDiag, _sim7RenovDiag];
       diagSnap21.forEach((snap, i) => {
+        if (!allDiags21[i]) return; // 対応オブジェクトがない場合はスキップ（本来起きない）
         for (const [k, v] of Object.entries(snap)) { if (typeof v === 'number') allDiags21[i][k] = v; }
       });
     }
