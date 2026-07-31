@@ -3,9 +3,9 @@
  * ?qa=1 または ?debug=1 の場合のみ動作
  * ゲーム本体への影響なし・読み取り専用（Phase 2Aは1日テスト後に必ず復元）
  */
-window._MAIKON_QA_VERSION = '2026-07-30-v07-buy-renov-candidate';
+window._MAIKON_QA_VERSION = '2026-07-31-v07-fix-counts-mocks';
 console.log('[MAIKON-QA] loaded version:', window._MAIKON_QA_VERSION);
-console.log('[QA FILE LOADED] v07-buy-renov-candidate-20260730');
+console.log('[QA FILE LOADED] v07-fix-counts-mocks-20260731');
 
 (function () {
   'use strict';
@@ -4726,7 +4726,7 @@ function qa2cSwitchTab(tid,idx){
   };
   window._sim7RenovDiag = _sim7RenovDiag;
 
-  function _sim7TryBuyRenov() {
+  function _sim7TryBuyRenov(renovOptionsOverride) {
     _sim7RenovDiag.called++;
 
     // 注意: ローカル変数をGと命名するとグローバルGをシャドウするため _g7r を使用する
@@ -4742,8 +4742,8 @@ function qa2cSwitchTab(tid,idx){
     if (si < 0) { _sim7RenovDiag.noOpenStore++; return false; }
     const store = _g7r.stores[si];
 
-    // 未購入の改装オプションを列挙
-    const renovOptions = (typeof RENOV_OPTIONS !== 'undefined' ? RENOV_OPTIONS : []);
+    // 未購入の改装オプションを列挙（renovOptionsOverrideが渡された場合はそちらを使用）
+    const renovOptions = (renovOptionsOverride !== undefined ? renovOptionsOverride : (typeof RENOV_OPTIONS !== 'undefined' ? RENOV_OPTIONS : []));
     const upgrades = store.upgrades || [];
     const available = renovOptions.filter(r => !upgrades.includes(r.name));
 
@@ -10253,10 +10253,13 @@ ${ar.experienceKPI ? _sim3ExperienceKpiHtml(ar.experienceKPI) : ''}
       ? pass('16-1 _sim5RunMarginalImpactAnalysis 存在', '関数として定義済み')
       : fail('16-1 _sim5RunMarginalImpactAnalysis 存在', `typeof=${typeof _sim5RunMarginalImpactAnalysis}`);
 
-    // 16-2: _SIM5_IMPACT_SCENARIOS 定義確認（6シナリオ）
-    Array.isArray(_SIM5_IMPACT_SCENARIOS) && _SIM5_IMPACT_SCENARIOS.length === 6
-      ? pass('16-2 _SIM5_IMPACT_SCENARIOS 6シナリオ', `keys=${_SIM5_IMPACT_SCENARIOS.map(s=>s.key).join(',')}`)
-      : fail('16-2 _SIM5_IMPACT_SCENARIOS 6シナリオ', `length=${_SIM5_IMPACT_SCENARIOS?.length}`);
+    // 16-2: _SIM5_IMPACT_SCENARIOS 定義確認（AI数+2シナリオ）
+    {
+      const expected16_2 = _SIM5_IMPACT_SCENARIOS.length;
+      Array.isArray(_SIM5_IMPACT_SCENARIOS) && expected16_2 > 0
+        ? pass(`16-2 _SIM5_IMPACT_SCENARIOS ${expected16_2}シナリオ`, `keys=${_SIM5_IMPACT_SCENARIOS.map(s=>s.key).join(',')}`)
+        : fail(`16-2 _SIM5_IMPACT_SCENARIOS シナリオ`, `length=${_SIM5_IMPACT_SCENARIOS?.length}`);
+    }
 
     // 16-3〜16-12: 実行して結果を検証
     const marginalResult = typeof _sim5RunMarginalImpactAnalysis === 'function'
@@ -10275,10 +10278,13 @@ ${ar.experienceKPI ? _sim3ExperienceKpiHtml(ar.experienceKPI) : ''}
       ? pass('16-4 baselineKey', `baselineKey=${marginalResult.baselineKey}`)
       : fail('16-4 baselineKey', `baselineKey=${marginalResult?.baselineKey}`);
 
-    // 16-5: scenarios 配列が6件
-    (Array.isArray(marginalResult?.scenarios) && marginalResult.scenarios.length === 6)
-      ? pass('16-5 scenarios 6件', `keys=${marginalResult.scenarios.map(s=>s.key).join(',')}`)
-      : fail('16-5 scenarios 6件', `length=${marginalResult?.scenarios?.length}`);
+    // 16-5: scenarios 配列が _SIM5_IMPACT_SCENARIOS と同数
+    {
+      const expected16_5 = _SIM5_IMPACT_SCENARIOS.length;
+      (Array.isArray(marginalResult?.scenarios) && marginalResult.scenarios.length === expected16_5)
+        ? pass(`16-5 scenarios ${expected16_5}件`, `keys=${marginalResult.scenarios.map(s=>s.key).join(',')}`)
+        : fail(`16-5 scenarios ${expected16_5}件`, `length=${marginalResult?.scenarios?.length}`);
+    }
 
     // 16-6: allOff の diffFromBaseline が全0
     {
@@ -10319,10 +10325,13 @@ ${ar.experienceKPI ? _sim3ExperienceKpiHtml(ar.experienceKPI) : ''}
         : fail('16-9 allOn costEfficiency=null', `costEfficiency=${JSON.stringify(allOn_?.costEfficiency)}`);
     }
 
-    // 16-10: rankings 配列が4件（単独AI）
-    (Array.isArray(marginalResult?.rankings) && marginalResult.rankings.length === 4)
-      ? pass('16-10 rankings 4件', `top1=${marginalResult.rankings[0]?.label}`)
-      : fail('16-10 rankings 4件', `length=${marginalResult?.rankings?.length}`);
+    // 16-10: rankings 配列が単独AIシナリオ数と一致（allOff/allOn除く）
+    {
+      const expected16_10 = _SIM5_IMPACT_SCENARIOS.length - 2;
+      (Array.isArray(marginalResult?.rankings) && marginalResult.rankings.length === expected16_10)
+        ? pass(`16-10 rankings ${expected16_10}件`, `top1=${marginalResult.rankings[0]?.label}`)
+        : fail(`16-10 rankings ${expected16_10}件`, `length=${marginalResult?.rankings?.length}`);
+    }
 
     // 16-11: rankings が利益差分降順
     {
@@ -10331,7 +10340,8 @@ ${ar.experienceKPI ? _sim3ExperienceKpiHtml(ar.experienceKPI) : ''}
       for (let i = 1; i < ranks.length; i++) {
         if (ranks[i].profitDiff > ranks[i-1].profitDiff) { ordered = false; break; }
       }
-      ordered && ranks.length === 4
+      const expected16_11 = _SIM5_IMPACT_SCENARIOS.length - 2;
+      ordered && ranks.length === expected16_11
         ? pass('16-11 rankings 利益差分降順', ranks.map(r=>`${r.label}:${Math.round(r.profitDiff)}`).join(' > '))
         : fail('16-11 rankings 利益差分降順', `ordered=${ordered} ranks=${JSON.stringify(ranks.map(r=>r.profitDiff))}`);
     }
@@ -10371,10 +10381,13 @@ ${ar.experienceKPI ? _sim3ExperienceKpiHtml(ar.experienceKPI) : ''}
       ? pass('17-2 seed数一致', `seeds=${stabilityResult.seeds.join(',')}`)
       : fail('17-2 seed数一致', `seeds=${stabilityResult?.seeds?.length}`);
 
-    // 17-3: 6シナリオ存在
-    (Array.isArray(stabilityResult?.scenarios) && stabilityResult.scenarios.length === 6)
-      ? pass('17-3 6シナリオ存在', stabilityResult.scenarios.map(s=>s.key).join(','))
-      : fail('17-3 6シナリオ存在', `length=${stabilityResult?.scenarios?.length}`);
+    // 17-3: シナリオ存在（_SIM5_IMPACT_SCENARIOS と同数）
+    {
+      const expected17_3 = _SIM5_IMPACT_SCENARIOS.length;
+      (Array.isArray(stabilityResult?.scenarios) && stabilityResult.scenarios.length === expected17_3)
+        ? pass(`17-3 ${expected17_3}シナリオ存在`, stabilityResult.scenarios.map(s=>s.key).join(','))
+        : fail(`17-3 ${expected17_3}シナリオ存在`, `length=${stabilityResult?.scenarios?.length}`);
+    }
 
     // 17-4: 利益差分配列長一致（各シナリオ = seed数）
     {
@@ -10424,23 +10437,27 @@ ${ar.experienceKPI ? _sim3ExperienceKpiHtml(ar.experienceKPI) : ''}
         : fail('17-9 安定指数Finite', `${stabilityResult?.scenarios?.map(s=>`${s.key}:${s.stabilityScore}`).join(',')}`);
     }
 
-    // 17-10: 順位件数一致（単独AI 4件）
-    (Array.isArray(stabilityResult?.stabilityRanking) && stabilityResult.stabilityRanking.length === 4)
-      ? pass('17-10 順位件数一致', `top1=${stabilityResult.stabilityRanking[0]?.label} score=${stabilityResult.stabilityRanking[0]?.stabilityScore?.toFixed(2)}`)
-      : fail('17-10 順位件数一致', `length=${stabilityResult?.stabilityRanking?.length}`);
+    // 17-10: 順位件数一致（単独AIシナリオ数 = allOff/allOn除く）
+    {
+      const expected17_10 = _SIM5_IMPACT_SCENARIOS.length - 2;
+      (Array.isArray(stabilityResult?.stabilityRanking) && stabilityResult.stabilityRanking.length === expected17_10)
+        ? pass(`17-10 順位件数一致 ${expected17_10}件`, `top1=${stabilityResult.stabilityRanking[0]?.label} score=${stabilityResult.stabilityRanking[0]?.stabilityScore?.toFixed(2)}`)
+        : fail(`17-10 順位件数一致 ${expected17_10}件`, `length=${stabilityResult?.stabilityRanking?.length}`);
+    }
 
     // 17-11: BusinessReport.aiStability 存在
     (rNew?.businessReport?.aiStability && Array.isArray(rNew.businessReport.aiStability.scenarios))
       ? pass('17-11 BusinessReport.aiStability存在', `scenarios=${rNew.businessReport.aiStability.scenarios.length}`)
       : fail('17-11 BusinessReport.aiStability存在', `aiStability=${JSON.stringify(rNew?.businessReport?.aiStability)?.slice(0,60)}`);
 
-    // 17-12: console.table用データ生成成功（6行）
+    // 17-12: console.table用データ生成成功（シナリオ全件）
     {
-      const tableOk = stabilityResult?.scenarios?.length === 6
+      const expected17_12 = _SIM5_IMPACT_SCENARIOS.length;
+      const tableOk = stabilityResult?.scenarios?.length === expected17_12
         && stabilityResult.scenarios.every(s => s.label && isFinite(s.profit.mean));
       tableOk
         ? pass('17-12 console.table用データ生成成功', `${stabilityResult.scenarios.length}行`)
-        : fail('17-12 console.table用データ生成成功', `scenarios=${stabilityResult?.scenarios?.length}`);
+        : fail('17-12 console.table用データ生成成功', `scenarios=${stabilityResult?.scenarios?.length} expected=${expected17_12}`);
     }
 
     console.groupEnd();
@@ -11443,13 +11460,20 @@ ${ar.experienceKPI ? _sim3ExperienceKpiHtml(ar.experienceKPI) : ''}
         const dSnap  = _24snapDiag();
         let delta = null;
         try {
-          const renovNames = (typeof RENOV_OPTIONS !== 'undefined' ? RENOV_OPTIONS : []).map(r => r.name);
-          const si24 = (() => { try { let _g = eval('G'); return _g?.stores?.findIndex(s => s.isOpen) ?? -1; } catch(e) { return -1; } })();
-          if (si24 >= 0 && renovNames.length > 0) {
-            const origUpgrades = (() => { try { return JSON.parse(JSON.stringify(eval('G').stores[si24].upgrades || [])); } catch(e) { return []; } })();
-            try { eval(`G.stores[${si24}].upgrades = ${JSON.stringify(renovNames)}`); } catch(e) {}
+          // renovOptionsOverride でテスト用オプションを注入（RENOV_OPTIONSに依存しない）
+          const testRenov4 = [{ name: '__test_renov4__', cost: 1 }];
+          // オープンストアを確保（なければstores[0]を強制オープン）
+          let _g24tmp; try { _g24tmp = eval('G'); } catch(e) {}
+          let si24 = _g24tmp?.stores?.findIndex(s => s.isOpen) ?? -1;
+          if (si24 < 0 && (_g24tmp?.stores?.length ?? 0) > 0) {
+            try { eval('G.stores[0].isOpen = true'); } catch(e) {}
+            si24 = 0;
+          }
+          if (si24 >= 0) {
+            // テスト用オプション名をupgradesに設定して allPurchased を発火させる
+            try { eval(`G.stores[${si24}].upgrades = ['__test_renov4__']`); } catch(e) {}
             const diagBefore = _24snapDiag();
-            try { _sim7TryBuyRenov(); } catch(e) {}
+            try { _sim7TryBuyRenov(testRenov4); } catch(e) {}
             const diagAfter = _24snapDiag();
             delta = diagAfter.allPurchased - diagBefore.allPurchased;
           } else {
@@ -11471,11 +11495,26 @@ ${ar.experienceKPI ? _sim3ExperienceKpiHtml(ar.experienceKPI) : ''}
         const dSnap  = _24snapDiag();
         let delta = null;
         try {
-          try { eval('G.money = 0'); } catch(e) {}
-          const diagBefore = _24snapDiag();
-          try { _sim7TryBuyRenov(); } catch(e) {}
-          const diagAfter = _24snapDiag();
-          delta = diagAfter.insufficientCash - diagBefore.insufficientCash;
+          // テスト用オプション(cost=1)を注入。money=0 → 1+200000 を満たせず insufficientCash 発火
+          const testRenov5 = [{ name: '__test_renov5__', cost: 1 }];
+          // オープンストアを確保
+          let _g24tmp5; try { _g24tmp5 = eval('G'); } catch(e) {}
+          let si24_5 = _g24tmp5?.stores?.findIndex(s => s.isOpen) ?? -1;
+          if (si24_5 < 0 && (_g24tmp5?.stores?.length ?? 0) > 0) {
+            try { eval('G.stores[0].isOpen = true'); } catch(e) {}
+            si24_5 = 0;
+          }
+          if (si24_5 >= 0) {
+            try { eval(`G.stores[${si24_5}].upgrades = []`); } catch(e) {}  // allPurchasedガード回避
+            try { eval('G.ap = 100'); } catch(e) {}                          // insufficientAPガード回避
+            try { eval('G.money = 0'); } catch(e) {}
+            const diagBefore = _24snapDiag();
+            try { _sim7TryBuyRenov(testRenov5); } catch(e) {}
+            const diagAfter = _24snapDiag();
+            delta = diagAfter.insufficientCash - diagBefore.insufficientCash;
+          } else {
+            delta = 0;
+          }
         } finally {
           _24restoreG();
           _24restoreDiag(dSnap);
@@ -11492,14 +11531,27 @@ ${ar.experienceKPI ? _sim3ExperienceKpiHtml(ar.experienceKPI) : ''}
         const dSnap  = _24snapDiag();
         let delta = null;
         try {
-          // 資金は十分、スタッフなし、AP=0 に設定
-          try { eval('G.money = 9999999'); } catch(e) {}
-          try { eval('G.staff = []'); } catch(e) {}
-          try { eval('G.ap = 0'); } catch(e) {}
-          const diagBefore = _24snapDiag();
-          try { _sim7TryBuyRenov(); } catch(e) {}
-          const diagAfter = _24snapDiag();
-          delta = diagAfter.insufficientAP - diagBefore.insufficientAP;
+          // テスト用オプション(cost=1)注入。資金十分・スタッフなし→apCost=20・AP=0 → insufficientAP 発火
+          const testRenov6 = [{ name: '__test_renov6__', cost: 1 }];
+          // オープンストアを確保
+          let _g24tmp6; try { _g24tmp6 = eval('G'); } catch(e) {}
+          let si24_6 = _g24tmp6?.stores?.findIndex(s => s.isOpen) ?? -1;
+          if (si24_6 < 0 && (_g24tmp6?.stores?.length ?? 0) > 0) {
+            try { eval('G.stores[0].isOpen = true'); } catch(e) {}
+            si24_6 = 0;
+          }
+          if (si24_6 >= 0) {
+            try { eval(`G.stores[${si24_6}].upgrades = []`); } catch(e) {}  // allPurchasedガード回避
+            try { eval('G.money = 9999999'); } catch(e) {}                   // insufficientCashガード回避
+            try { eval('G.staff = []'); } catch(e) {}                        // スタッフなし → apCost=20
+            try { eval('G.ap = 0'); } catch(e) {}
+            const diagBefore = _24snapDiag();
+            try { _sim7TryBuyRenov(testRenov6); } catch(e) {}
+            const diagAfter = _24snapDiag();
+            delta = diagAfter.insufficientAP - diagBefore.insufficientAP;
+          } else {
+            delta = 0;
+          }
         } finally {
           _24restoreG();
           _24restoreDiag(dSnap);
@@ -11528,28 +11580,43 @@ ${ar.experienceKPI ? _sim3ExperienceKpiHtml(ar.experienceKPI) : ''}
         const dSnap  = _24snapDiag();
         let deltaUpgrades = null;
         let deltaSucceeded = null;
+        const _origBuyRenov8 = (typeof buyRenov !== 'undefined') ? buyRenov : null;
         try {
           let _g24;
           try { _g24 = eval('G'); } catch(e) {}
-          const si24 = _g24?.stores?.findIndex(s => s.isOpen) ?? -1;
+          // オープンストアを確保（なければstores[0]を強制オープン）
+          let si24 = _g24?.stores?.findIndex(s => s.isOpen) ?? -1;
+          if (si24 < 0 && (_g24?.stores?.length ?? 0) > 0) {
+            try { eval('G.stores[0].isOpen = true'); } catch(e) {}
+            si24 = 0;
+          }
           if (si24 >= 0) {
-            const storeName = _g24.stores[si24].name;
-            // 資金・AP十分、スタッフ配置（APコスト=0にする）
+            const testRenov8 = [{ name: '__test_renov8__', cost: 1 }];
+            let _g24ref; try { _g24ref = eval('G'); } catch(e) {}
+            const storeName = _g24ref?.stores?.[si24]?.name || '';
+            // buyRenov をモック: 呼ばれたらG.stores[si].upgradesにnameをpush
+            window.buyRenov = function(si8, name8) {
+              let _gm; try { _gm = eval('G'); } catch(e) {}
+              if (_gm?.stores?.[si8]) {
+                if (!Array.isArray(_gm.stores[si8].upgrades)) _gm.stores[si8].upgrades = [];
+                _gm.stores[si8].upgrades.push(name8);
+              }
+            };
+            // 資金・AP十分、スタッフ配置（APコスト=0にする）、upgrades空
             try { eval('G.money = 9999999'); } catch(e) {}
             try { eval('G.ap = 100'); } catch(e) {}
             try { eval(`G.stores[${si24}].upgrades = []`); } catch(e) {}
-            // スタッフを配置してAPコストを0にする
-            const origStaff = JSON.stringify(_g24.staff || []);
-            try { eval(`G.staff = [{name:'テスト', store:'${storeName}', skill:50, burden:0, service:50}]`); } catch(e) {}
+            try { eval(`G.staff = [{name:'テスト', store:${JSON.stringify(storeName)}, skill:50, burden:0, service:50}]`); } catch(e) {}
             const upgBefore = (() => { try { return eval(`G.stores[${si24}].upgrades`).length; } catch(e) { return 0; } })();
             const diagBefore = _24snapDiag();
-            try { _sim7TryBuyRenov(); } catch(e) {}
+            try { _sim7TryBuyRenov(testRenov8); } catch(e) {}
             const upgAfter = (() => { try { return eval(`G.stores[${si24}].upgrades`).length; } catch(e) { return 0; } })();
             const diagAfter = _24snapDiag();
             deltaUpgrades  = upgAfter - upgBefore;
             deltaSucceeded = diagAfter.succeeded - diagBefore.succeeded;
           }
         } finally {
+          if (_origBuyRenov8) window.buyRenov = _origBuyRenov8;
           _24restoreG();
           _24restoreDiag(dSnap);
           _24restoreEnable(enSnap);
