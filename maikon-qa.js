@@ -11317,22 +11317,40 @@ ${ar.experienceKPI ? _sim3ExperienceKpiHtml(ar.experienceKPI) : ''}
       ? pass('23-11 _sim6EvaluateSingleAI 存在', '関数として定義済み')
       : fail('23-11 _sim6EvaluateSingleAI 存在', `typeof=${typeof _sim6EvaluateSingleAI}`);
 
-    // 23-12: 5AIの評価結果が生成される（v0.7: buyRenov追加）
+    // 23-12: 採用状態に登録された全AIの評価結果生成
+    // 期待キーは _SIM5_AI_ADOPTION_STATUS の定義数に基づき動的に取得。
+    // 今後AI候補が増えても Section 23 を修正せず自動対応する。
     {
-      const keys23 = ['investRegion','trainStaff','buyMenu','buyAd','buyRenov'];
+      const expectedKeys23 = Object.keys(_SIM5_AI_ADOPTION_STATUS);
       const ev23 = aiAdoptionEvaluation23?.evaluations;
-      const ok23_12 = ev23 && keys23.every(k => ev23[k] && typeof ev23[k].eligible === 'boolean');
-      ok23_12
-        ? pass('23-12 5AI評価結果生成', `keys=${keys23.join(',')} eligible=${keys23.map(k=>ev23[k].eligible).join(',')}`)
-        : fail('23-12 5AI評価結果生成', `keys=${JSON.stringify(Object.keys(ev23||{}))}`);
+      const evKeys23 = ev23 ? Object.keys(ev23) : [];
+      // 全期待キーが存在し、eligible が boolean であること
+      const allPresent = ev23 && expectedKeys23.every(k => ev23[k] && typeof ev23[k].eligible === 'boolean');
+      // 余分なキーが存在しないこと
+      const noExtra = evKeys23.every(k => expectedKeys23.includes(k));
+      (allPresent && noExtra)
+        ? pass('23-12 採用状態に登録された全AIの評価結果生成',
+            `expected=${expectedKeys23.join(',')} eligible=${expectedKeys23.map(k=>ev23[k].eligible).join(',')}`)
+        : fail('23-12 採用状態に登録された全AIの評価結果生成',
+            `expected=${expectedKeys23.join(',')} actual=${evKeys23.join(',')} allPresent=${allPresent} noExtra=${noExtra}`);
     }
 
-    // 23-13: consistencyReport が生成される（v0.7: 5AI分）
+    // 23-13: consistencyReport が生成される（全登録AI分）
+    // 件数は _SIM5_AI_ADOPTION_STATUS のキー数と一致。
+    // candidate ステータスのAIは consistent=null・notesに正式採用未反映の説明があることを確認。
     {
+      const expectedKeys23 = Object.keys(_SIM5_AI_ADOPTION_STATUS);
       const cr23 = aiAdoptionEvaluation23?.consistencyReport;
-      (cr23 && Array.isArray(cr23.items) && cr23.items.length === 5)
-        ? pass('23-13 consistencyReport 生成', `items=${cr23.items.length} allConsistent=${cr23.allConsistent}`)
-        : fail('23-13 consistencyReport 生成', `cr=${JSON.stringify(cr23)?.slice(0,80)}`);
+      const itemCount = cr23?.items?.length ?? -1;
+      const countOk = itemCount === expectedKeys23.length;
+      // candidate AIの consistent=null・notes確認
+      const candidateItems = cr23?.items?.filter(i => _SIM5_AI_ADOPTION_STATUS[i.key]?.status === 'candidate') ?? [];
+      const candidateOk = candidateItems.every(i => i.consistent === null && typeof i.notes === 'string' && i.notes.length > 0);
+      (countOk && candidateOk)
+        ? pass('23-13 consistencyReport 生成',
+            `items=${itemCount}/${expectedKeys23.length} allConsistent=${cr23.allConsistent} candidates=${candidateItems.map(i=>i.key).join(',')||'なし'}`)
+        : fail('23-13 consistencyReport 生成',
+            `items=${itemCount}≠${expectedKeys23.length} countOk=${countOk} candidateOk=${candidateOk} cr=${JSON.stringify(cr23)?.slice(0,80)}`);
     }
 
     // 23-14: BusinessReport.aiAdoptionEvaluation 存在
