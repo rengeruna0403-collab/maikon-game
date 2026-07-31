@@ -3,9 +3,9 @@
  * ?qa=1 または ?debug=1 の場合のみ動作
  * ゲーム本体への影響なし・読み取り専用（Phase 2Aは1日テスト後に必ず復元）
  */
-window._MAIKON_QA_VERSION = '2026-07-31-v07-fix-counts-mocks';
+window._MAIKON_QA_VERSION = '2026-07-31-v07b-renov-full-evaluation';
 console.log('[MAIKON-QA] loaded version:', window._MAIKON_QA_VERSION);
-console.log('[QA FILE LOADED] v07-fix-counts-mocks-20260731');
+console.log('[QA FILE LOADED] v07b-renov-full-evaluation-20260731');
 
 (function () {
   'use strict';
@@ -4717,11 +4717,12 @@ function qa2cSwitchTab(tid,idx){
     succeeded: 0,
     renovPurchased: 0,
     allPurchased: 0,
+    renovCostTotal: 0,
     reset() {
       this.called = 0; this.noStore = 0; this.noOpenStore = 0;
       this.noAvailableRenov = 0; this.insufficientCash = 0; this.insufficientAP = 0;
       this.attempted = 0; this.succeeded = 0; this.renovPurchased = 0;
-      this.allPurchased = 0;
+      this.allPurchased = 0; this.renovCostTotal = 0;
     },
   };
   window._sim7RenovDiag = _sim7RenovDiag;
@@ -4783,11 +4784,265 @@ function qa2cSwitchTab(tid,idx){
     if (upgradesLenAfter > upgradesLenBefore) {
       _sim7RenovDiag.succeeded++;
       _sim7RenovDiag.renovPurchased++;
+      _sim7RenovDiag.renovCostTotal += opt.cost;
     }
 
     return true;
   }
   window._sim7TryBuyRenov = _sim7TryBuyRenov;
+
+  // ── v0.7b: buyRenov フル採用評価 ──────────────────────────────────
+  const _SIM7_RENOV_VALIDATION_DEFAULTS = {
+    seeds: [1001, 2001, 3001, 4001, 5001, 6001, 7001, 8001, 9001, 10001],
+    trialsPerSeed: 10,
+  };
+  window._SIM7_RENOV_VALIDATION_DEFAULTS = _SIM7_RENOV_VALIDATION_DEFAULTS;
+
+  async function _sim7RunBuyRenovFullEvaluation({ seeds, trialsPerSeed } = {}) {
+    seeds         = Array.isArray(seeds) && seeds.length > 0 ? seeds : _SIM7_RENOV_VALIDATION_DEFAULTS.seeds;
+    trialsPerSeed = trialsPerSeed || _SIM7_RENOV_VALIDATION_DEFAULTS.trialsPerSeed;
+
+    // G スナップショット取得（letGシャドウバグ回避のため _gEval を使用）
+    let _gEval;
+    try { _gEval = eval('G'); } catch(e) { return null; }
+    let gSnap;
+    try { gSnap = _sim3MakeFreshStartSnap(_gEval); } catch(e) { return null; }
+
+    // 診断カウンター・設定のスナップショット
+    const allDiags   = [_sim5Diag, _sim5TrainDiag, _sim5MenuDiag, _sim5AdDiag, _sim7RenovDiag];
+    const origEnable = Object.assign({}, _SIM5_ENABLE);
+    const origPolicy = _sim5AdCurrentPolicy;
+
+    const safe = (num, den) => (den > 0 && isFinite(num) && !isNaN(num)) ? num / den : 0;
+
+    const evalScenarios = [
+      { key: 'allOff',           label: '全AIなし',        enable: { investRegion:false, trainStaff:false, buyMenu:false, buyAd:false, buyRenov:false } },
+      { key: 'buyRenovOnly',     label: '店舗改装のみ',     enable: { investRegion:false, trainStaff:false, buyMenu:false, buyAd:false, buyRenov:true  } },
+      { key: 'buyMenuOnly',      label: 'メニュー追加のみ', enable: { investRegion:false, trainStaff:false, buyMenu:true,  buyAd:false, buyRenov:false } },
+      { key: 'buyMenuPlusRenov', label: 'メニュー+改装',   enable: { investRegion:false, trainStaff:false, buyMenu:true,  buyAd:false, buyRenov:true  } },
+    ];
+
+    // シナリオ別集計結果
+    const rawScenarios = {};
+
+    try {
+      for (const sc of evalScenarios) {
+        const profitDiffs    = [];
+        const revenueDiffs   = [];
+        const minCashDiffs   = [];
+        const endCashDiffs   = [];
+        const redMonthDiffs  = [];
+        const bankruptcies   = [];
+        let totalRenovAttempted = 0;
+        let totalRenovCostTotal = 0;
+        let totalMenuAttempted  = 0;
+        let seedCount = 0;
+
+        for (let si = 0; si < seeds.length; si++) {
+          const seed = seeds[si];
+          console.log(`[RENOV VALIDATION] ${sc.key} seed ${si+1}/${seeds.length}`);
+
+          // 設定切り替え
+          Object.assign(_SIM5_ENABLE, sc.enable);
+          _sim5AdCurrentPolicy = null;
+          _sim5AdPolicyState.lastPurchaseDayByStore = {};
+
+          // 診断カウンター差分のためにスナップ
+          allDiags.forEach(d => d.reset());
+
+          const trials = [];
+          for (let ti = 0; ti < trialsPerSeed; ti++) {
+            const t = _sim3AnalyzeRunTrial(seed + ti, gSnap);
+            if (t) trials.push(t);
+          }
+          if (!trials.length) continue;
+
+          const agg = _sim3AnalyzeAggregate(trials);
+          const g   = k => agg.stats[k]?.mean ?? 0;
+
+          profitDiffs.push(g('totalNetChange365'));
+          revenueDiffs.push(g('totalRevenue'));
+          minCashDiffs.push(g('minCash'));
+          endCashDiffs.push(g('endCash'));
+          redMonthDiffs.push(g('deficitMonths'));
+          bankruptcies.push(trials.filter(t => (t.minCash ?? 0) < 0).length / trials.length);
+          totalRenovAttempted += _sim7RenovDiag.attempted;
+          totalRenovCostTotal += _sim7RenovDiag.renovCostTotal;
+          totalMenuAttempted  += _sim5MenuDiag.attempted;
+          seedCount++;
+        }
+
+        rawScenarios[sc.key] = {
+          key:   sc.key,
+          label: sc.label,
+          profitDiffs,
+          revenueDiffs,
+          minCashDiffs,
+          endCashDiffs,
+          redMonthDiffs,
+          bankruptcies,
+          avgRenovAttempted: seedCount > 0 ? totalRenovAttempted / seedCount : 0,
+          avgRenovCostTotal: seedCount > 0 ? totalRenovCostTotal / seedCount : 0,
+          avgMenuAttempted:  seedCount > 0 ? totalMenuAttempted  / seedCount : 0,
+          seedCount,
+        };
+      }
+    } finally {
+      Object.assign(_SIM5_ENABLE, origEnable);
+      _sim5AdCurrentPolicy = origPolicy;
+      _sim5AdPolicyState.lastPurchaseDayByStore = {};
+      allDiags.forEach(d => d.reset());
+    }
+
+    console.log('[RENOV VALIDATION] complete');
+
+    // ベースライン(allOff)を取得
+    const baseline = rawScenarios['allOff'];
+    if (!baseline) return null;
+
+    // シナリオ結果を差分付きで加工
+    const scenarioResults = evalScenarios.map(sc => {
+      const raw = rawScenarios[sc.key];
+      if (!raw) return null;
+      const isBaseline = sc.key === 'allOff';
+      // allOff との差分
+      const profitDiffsVsBaseline = isBaseline
+        ? raw.profitDiffs.map(() => 0)
+        : raw.profitDiffs.map((v, i) => v - (baseline.profitDiffs[i] ?? 0));
+
+      const profitStats    = _sim5CalcStats(profitDiffsVsBaseline);
+      const winRate        = profitDiffsVsBaseline.length > 0
+        ? profitDiffsVsBaseline.filter(d => d > 0).length / profitDiffsVsBaseline.length
+        : 0;
+      const bankruptcyRateDiff = isBaseline ? 0
+        : (raw.bankruptcies.reduce((s,v)=>s+v,0) / Math.max(raw.bankruptcies.length,1))
+          - (baseline.bankruptcies.reduce((s,v)=>s+v,0) / Math.max(baseline.bankruptcies.length,1));
+
+      const avgAttempted   = raw.avgRenovAttempted;
+      const avgCostTotal   = raw.avgRenovCostTotal;
+      const profitPerRenovAction = safe(profitStats.mean, avgAttempted);
+      const profitPerRenovCost   = safe(profitStats.mean, avgCostTotal);
+
+      return {
+        key:    sc.key,
+        label:  sc.label,
+        profitDiffs: profitDiffsVsBaseline,
+        profitStats,
+        winRate,
+        bankruptcyRateDiff,
+        avgRenovAttempted: raw.avgRenovAttempted,
+        avgRenovCostTotal: raw.avgRenovCostTotal,
+        avgMenuAttempted:  raw.avgMenuAttempted,
+        profitPerRenovAction,
+        profitPerRenovCost,
+      };
+    }).filter(Boolean);
+
+    const renovStats = scenarioResults.find(s => s.key === 'buyRenovOnly');
+    const menuStats  = scenarioResults.find(s => s.key === 'buyMenuOnly');
+    const comboStats = scenarioResults.find(s => s.key === 'buyMenuPlusRenov');
+
+    // 共通採用判定
+    const adoptionResult = renovStats ? _sim6EvaluateSingleAI({
+      actionKey:   'buyRenov',
+      actionLabel: '店舗改装',
+      stabilityScenario: {
+        key:    'buyRenovOnly',
+        profit: {
+          mean:   renovStats.profitStats.mean,
+          median: renovStats.profitStats.median,
+          stddev: renovStats.profitStats.stddev,
+        },
+        winRate: renovStats.winRate,
+        profitDiffs: renovStats.profitDiffs,
+      },
+    }) : null;
+
+    const evaluatedEligible = adoptionResult?.eligible ?? false;
+    let recommendation;
+    if (!renovStats || !renovStats.profitDiffs.length) recommendation = 'hold';
+    else if (evaluatedEligible) recommendation = 'adopt';
+    else recommendation = 'reject';
+
+    // buyRenov vs buyMenu 比較
+    const buyRenovVsBuyMenu = renovStats && menuStats ? {
+      meanProfitDiff:     renovStats.profitStats.mean   - menuStats.profitStats.mean,
+      medianProfitDiff:   renovStats.profitStats.median - menuStats.profitStats.median,
+      winRateDiff:        renovStats.winRate            - menuStats.winRate,
+      revenueDiff:        0, // 簡易版（差分配列未集計）
+      minCashDiff:        0,
+      bankruptcyRateDiff: renovStats.bankruptcyRateDiff - menuStats.bankruptcyRateDiff,
+      renovAttempted:     renovStats.avgRenovAttempted,
+      menuAttempted:      menuStats.avgMenuAttempted,
+      renovCostPerProfit: renovStats.profitPerRenovCost,
+      menuCostPerProfit:  null,
+    } : null;
+
+    // 相乗効果
+    let interactionEffect = null;
+    if (comboStats && renovStats && menuStats) {
+      const interaction = comboStats.profitStats.mean - menuStats.profitStats.mean - renovStats.profitStats.mean;
+      interactionEffect = {
+        comboProfitDiff:    comboStats.profitStats.mean,
+        buyMenuProfitDiff:  menuStats.profitStats.mean,
+        buyRenovProfitDiff: renovStats.profitStats.mean,
+        interaction,
+        interpretation: interaction > 0 ? '相乗効果' : interaction < -10000 ? '資金競合' : '独立',
+      };
+    }
+
+    // コンソール出力
+    console.group('📊 buyRenov フル採用評価');
+    const tableData = {};
+    scenarioResults.forEach(s => {
+      tableData[s.label] = {
+        profitMean:    Math.round(s.profitStats.mean),
+        profitMedian:  Math.round(s.profitStats.median),
+        winRate:       `${(s.winRate*100).toFixed(1)}%`,
+        bankruptcyRateDiff: s.bankruptcyRateDiff.toFixed(3),
+        avgRenovAttempted: s.avgRenovAttempted.toFixed(1),
+        avgMenuAttempted:  s.avgMenuAttempted.toFixed(1),
+      };
+    });
+    console.table(tableData);
+    console.groupEnd();
+
+    if (buyRenovVsBuyMenu) {
+      console.group('🔍 buyRenov vs buyMenu');
+      console.table(buyRenovVsBuyMenu);
+      console.groupEnd();
+    }
+
+    if (interactionEffect) {
+      console.group('🔗 buyMenu + buyRenov 併用効果');
+      console.table(interactionEffect);
+      console.groupEnd();
+    }
+
+    console.group('🏁 buyRenov 推奨判定');
+    console.log(`recommendation: ${recommendation}`);
+    console.groupEnd();
+
+    const buyRenovEvaluation = {
+      actionKey:         'buyRenov',
+      configuredStatus:  'candidate',
+      evaluatedEligible,
+      evaluationScore:   adoptionResult?.score   ?? null,
+      adoptionChecks:    adoptionResult?.checks  ?? null,
+      rejectionReasons:  adoptionResult?.rejectionReasons ?? [],
+      recommendation,
+    };
+
+    return {
+      config: { seeds, trialsPerSeed, thresholds: adoptionResult?.thresholds ?? null },
+      scenarios: scenarioResults,
+      buyRenovEvaluation,
+      buyRenovVsBuyMenu,
+      interactionEffect,
+      recommendation,
+    };
+  }
+  window._sim7RunBuyRenovFullEvaluation = _sim7RunBuyRenovFullEvaluation;
 
   // ── v0.5c: AI行動定義テーブル & 共通比較レポート ───────────────
   // 新しいAI行動は _SIM5_ACTION_DEFS に1件追加するだけで比較対象に加わる。
@@ -11712,6 +11967,145 @@ ${ar.experienceKPI ? _sim3ExperienceKpiHtml(ar.experienceKPI) : ''}
         } else {
           fail('24-16 buyRenov デフォルトOFF確認', `isDefaultOff=${isDefaultOff} fired=${renovFired}（想定外）`);
         }
+      }
+    }
+    console.groupEnd();
+
+    // ── Section 25: v0.7b buyRenov フル採用評価 検証 ────────────────────
+    console.group('Section 25: v0.7b buyRenov フル採用評価（Full Evaluation）検証');
+    {
+      // 3seed×3試行で評価（QA用の軽量設定）
+      const result25 = await _sim7RunBuyRenovFullEvaluation({
+        seeds: [1001, 2001, 3001],
+        trialsPerSeed: 3,
+      });
+      // BusinessReport統合
+      if (rNew && rNew.businessReport) {
+        rNew.businessReport.buyRenovEvaluation = result25;
+      }
+
+      // 25-1: _sim7RunBuyRenovFullEvaluation 存在確認
+      typeof _sim7RunBuyRenovFullEvaluation === 'function'
+        ? pass('25-1 _sim7RunBuyRenovFullEvaluation 存在', '関数として定義済み')
+        : fail('25-1 _sim7RunBuyRenovFullEvaluation 存在', `typeof=${typeof _sim7RunBuyRenovFullEvaluation}`);
+
+      // 25-2: 標準設定が10seed×10trial
+      (_SIM7_RENOV_VALIDATION_DEFAULTS?.seeds?.length === 10 && _SIM7_RENOV_VALIDATION_DEFAULTS?.trialsPerSeed === 10)
+        ? pass('25-2 標準設定 10seed×10trial', `seeds=${_SIM7_RENOV_VALIDATION_DEFAULTS.seeds.length} trials=${_SIM7_RENOV_VALIDATION_DEFAULTS.trialsPerSeed}`)
+        : fail('25-2 標準設定 10seed×10trial', `seeds=${_SIM7_RENOV_VALIDATION_DEFAULTS?.seeds?.length} trials=${_SIM7_RENOV_VALIDATION_DEFAULTS?.trialsPerSeed}`);
+
+      // 25-3: allOffのAI行動回数が0（改装含む）
+      {
+        const allOffSc = result25?.scenarios?.find(s => s.key === 'allOff');
+        const allOffAttempts = (allOffSc?.avgRenovAttempted ?? 0) + (allOffSc?.avgMenuAttempted ?? 0);
+        allOffAttempts === 0
+          ? pass('25-3 allOff AI行動回数=0', `attempted=${allOffAttempts}`)
+          : fail('25-3 allOff AI行動回数=0', `attempted=${allOffAttempts}`);
+      }
+
+      // 25-4: buyRenovOnlyで改装以外のAI回数が0
+      {
+        const renovSc = result25?.scenarios?.find(s => s.key === 'buyRenovOnly');
+        const otherAttempts = renovSc?.avgMenuAttempted ?? 0;
+        otherAttempts === 0
+          ? pass('25-4 buyRenovOnly 改装以外=0', `menuAttempted=${otherAttempts}`)
+          : fail('25-4 buyRenovOnly 改装以外=0', `menuAttempted=${otherAttempts}`);
+      }
+
+      // 25-5: buyMenuOnlyでメニュー以外のAI回数が0
+      {
+        const menuSc = result25?.scenarios?.find(s => s.key === 'buyMenuOnly');
+        const otherAttempts = menuSc?.avgRenovAttempted ?? 0;
+        otherAttempts === 0
+          ? pass('25-5 buyMenuOnly 改装=0', `renovAttempted=${otherAttempts}`)
+          : fail('25-5 buyMenuOnly 改装=0', `renovAttempted=${otherAttempts}`);
+      }
+
+      // 25-6: 改装費総額がFiniteかつ0以上
+      {
+        const renovSc = result25?.scenarios?.find(s => s.key === 'buyRenovOnly');
+        const costTotal = renovSc?.avgRenovCostTotal ?? null;
+        (costTotal !== null && isFinite(costTotal) && costTotal >= 0)
+          ? pass('25-6 改装費総額 Finite≥0', `avgCostTotal=${Math.round(costTotal).toLocaleString()}`)
+          : fail('25-6 改装費総額 Finite≥0', `costTotal=${costTotal}`);
+      }
+
+      // 25-7: 全統計値がFinite
+      {
+        const renovSc = result25?.scenarios?.find(s => s.key === 'buyRenovOnly');
+        const stats = renovSc?.profitStats;
+        const allFinite = stats && ['mean','median','stddev','min','max'].every(k => isFinite(stats[k]));
+        allFinite
+          ? pass('25-7 全統計値Finite', `mean=${Math.round(stats.mean).toLocaleString()} stddev=${Math.round(stats.stddev).toLocaleString()}`)
+          : fail('25-7 全統計値Finite', `stats=${JSON.stringify(stats)?.slice(0,80)}`);
+      }
+
+      // 25-8: 勝率が0〜1
+      {
+        const renovSc = result25?.scenarios?.find(s => s.key === 'buyRenovOnly');
+        const wr = renovSc?.winRate;
+        (typeof wr === 'number' && wr >= 0 && wr <= 1)
+          ? pass('25-8 勝率0〜1', `winRate=${(wr*100).toFixed(1)}%`)
+          : fail('25-8 勝率0〜1', `winRate=${wr}`);
+      }
+
+      // 25-9: 1改装あたり指標が再計算値と一致
+      {
+        const renovSc = result25?.scenarios?.find(s => s.key === 'buyRenovOnly');
+        const totalAttempted = renovSc?.avgRenovAttempted ?? 0;
+        const totalCost = renovSc?.avgRenovCostTotal ?? 0;
+        const profitMean = renovSc?.profitStats?.mean ?? 0;
+        const expectedPerAction = totalAttempted > 0 ? profitMean / totalAttempted : 0;
+        const actualPerAction = renovSc?.profitPerRenovAction ?? 0;
+        const expectedCostROI = totalCost > 0 ? profitMean / totalCost : 0;
+        const actualCostROI = renovSc?.profitPerRenovCost ?? 0;
+        const perActionOk = Math.abs(expectedPerAction - actualPerAction) < 1;
+        const costROIOk = Math.abs(expectedCostROI - actualCostROI) < 0.0001;
+        (perActionOk && costROIOk)
+          ? pass('25-9 1改装あたり指標整合', `perAction=${Math.round(actualPerAction).toLocaleString()} costROI=${actualCostROI.toFixed(4)}`)
+          : fail('25-9 1改装あたり指標整合', `perActionExpected=${Math.round(expectedPerAction)} actual=${Math.round(actualPerAction)} costROIExpected=${expectedCostROI.toFixed(4)} actual=${actualCostROI.toFixed(4)}`);
+      }
+
+      // 25-10: 共通採用判定関数の結果と一致
+      {
+        const ev25 = result25?.buyRenovEvaluation;
+        (ev25 && typeof ev25.evaluatedEligible === 'boolean' && ev25.adoptionChecks)
+          ? pass('25-10 共通採用判定結果存在', `eligible=${ev25.evaluatedEligible} score=${ev25.evaluationScore}`)
+          : fail('25-10 共通採用判定結果存在', `ev=${JSON.stringify(ev25)?.slice(0,60)}`);
+      }
+
+      // 25-11: recommendationがadopt/reject/holdのいずれか
+      {
+        const rec = result25?.recommendation;
+        ['adopt','reject','hold'].includes(rec)
+          ? pass('25-11 recommendation値', `recommendation=${rec}`)
+          : fail('25-11 recommendation値', `recommendation=${rec}（adopt/reject/holdのいずれかであること）`);
+      }
+
+      // 25-12: buyRenovVsBuyMenuが存在し主要フィールドがFinite
+      {
+        const cmp = result25?.buyRenovVsBuyMenu;
+        const ok = cmp && isFinite(cmp.meanProfitDiff) && isFinite(cmp.winRateDiff);
+        ok
+          ? pass('25-12 buyRenovVsBuyMenu', `meanProfitDiff=${Math.round(cmp.meanProfitDiff).toLocaleString()} winRateDiff=${(cmp.winRateDiff*100).toFixed(1)}%`)
+          : fail('25-12 buyRenovVsBuyMenu', `cmp=${JSON.stringify(cmp)?.slice(0,60)}`);
+      }
+
+      // 25-13: BusinessReport.buyRenovEvaluationが存在
+      {
+        const br25 = rNew?.businessReport?.buyRenovEvaluation;
+        (br25 && br25.recommendation && br25.buyRenovEvaluation)
+          ? pass('25-13 BusinessReport.buyRenovEvaluation存在', `recommendation=${br25.recommendation}`)
+          : fail('25-13 BusinessReport.buyRenovEvaluation存在', `value=${JSON.stringify(br25)?.slice(0,60)}`);
+      }
+
+      // 25-14: 評価終了後もbuyRenovはcandidate・デフォルトOFF
+      {
+        const statusOk = _SIM5_AI_ADOPTION_STATUS?.buyRenov?.status === 'candidate';
+        const enableOk = _SIM5_ENABLE?.buyRenov === false;
+        (statusOk && enableOk)
+          ? pass('25-14 buyRenov candidate・デフォルトOFF維持', `status=${_SIM5_AI_ADOPTION_STATUS.buyRenov.status} enable=${_SIM5_ENABLE.buyRenov}`)
+          : fail('25-14 buyRenov candidate・デフォルトOFF維持', `status=${_SIM5_AI_ADOPTION_STATUS?.buyRenov?.status} enable=${_SIM5_ENABLE?.buyRenov}`);
       }
     }
     console.groupEnd();
