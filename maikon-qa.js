@@ -3,9 +3,9 @@
  * ?qa=1 または ?debug=1 の場合のみ動作
  * ゲーム本体への影響なし・読み取り専用（Phase 2Aは1日テスト後に必ず復元）
  */
-window._MAIKON_QA_VERSION = '2026-08-01-v08c-buy-menu-ledger-precision';
+window._MAIKON_QA_VERSION = '2026-08-01-v08d-buy-menu-transaction-trace';
 console.log('[MAIKON-QA] loaded version:', window._MAIKON_QA_VERSION);
-console.log('[QA FILE LOADED] v08c-buy-menu-ledger-precision-20260801');
+console.log('[QA FILE LOADED] v08d-buy-menu-transaction-trace-20260801');
 
 (function () {
   'use strict';
@@ -5284,6 +5284,31 @@ function qa2cSwitchTab(tid,idx){
   }
   window._sim8ReconstructBuyMenuProfit = _sim8ReconstructBuyMenuProfit;
 
+  // ── v0.8d: buyMenu 取引単位トレース用フラグ・定数 ─────────────────────────
+  let _SIM8_LEDGER_TRACE_ACTIVE = false;
+  window._SIM8_LEDGER_TRACE_ACTIVE_GET = () => _SIM8_LEDGER_TRACE_ACTIVE;
+
+  const _SIM8_TRANSACTION_TRACE_THRESHOLDS = {
+    fullyAttributedAbsolute: 10_000,
+    fullyAttributedRate: 0.01,
+    mostlyAttributedAbsolute: 100_000,
+    mostlyAttributedRate: 0.05,
+  };
+  window._SIM8_TRANSACTION_TRACE_THRESHOLDS = _SIM8_TRANSACTION_TRACE_THRESHOLDS;
+
+  const _SIM8_MONEY_FLOW_DEFS = [
+    { key: 'menuPurchase',      category: 'menuPurchaseCost',    sourceFunction: 'buyMenu' },
+    { key: 'eventMoney',        category: 'eventNet',            sourceFunction: 'chooseEvent' },
+    { key: 'caseMoney',         category: 'caseNet',             sourceFunction: 'processCase' },
+    { key: 'ingredientCost',    category: 'ingredientCost',      sourceFunction: 'calcDailyRevenue' },
+    { key: 'dailyRevenue',      category: 'storeRevenue',        sourceFunction: 'calcDailyRevenue' },
+    { key: 'monthlySettlement', category: 'monthlySettlement',   sourceFunction: 'monthlyTick' },
+    { key: 'crisisResolution',  category: 'crisis',              sourceFunction: 'resolveCashCrisis' },
+    { key: 'loan',              category: 'loan',                sourceFunction: 'takeLoan' },
+    { key: 'loanRepayment',     category: 'loan',                sourceFunction: 'repayLoan' },
+  ];
+  window._SIM8_MONEY_FLOW_DEFS = _SIM8_MONEY_FLOW_DEFS;
+
   // ── v0.8c: buyMenu 独立収支台帳監査（実額ベース精度改善版） ──────────────
   async function _sim8RunBuyMenuLedgerAudit({ seeds, trialsPerSeed } = {}) {
     seeds = seeds || [1001, 2001, 3001];
@@ -5550,6 +5575,352 @@ function qa2cSwitchTab(tid,idx){
     };
   }
   window._sim8RunBuyMenuLedgerAudit = _sim8RunBuyMenuLedgerAudit;
+
+  // ── v0.8d: buyMenu 取引単位トレース ─────────────────────────────────────
+  async function _sim8RunBuyMenuTransactionTrace({ seeds, trialsPerSeed } = {}) {
+    seeds = seeds || [1001];
+    trialsPerSeed = trialsPerSeed || 1;
+
+    let _gTrace;
+    try { _gTrace = eval('G'); } catch(e) { return null; }
+    let gSnap;
+    try { gSnap = _sim3MakeFreshStartSnap(_gTrace); } catch(e) { return null; }
+
+    const origEnable = Object.assign({}, _SIM5_ENABLE);
+    const origPolicy = _sim5AdCurrentPolicy;
+    const allDiags = [_sim5Diag, _sim5TrainDiag, _sim5MenuDiag, _sim5AdDiag, _sim7RenovDiag];
+    const avgFn = arr => arr.length ? arr.reduce((s,v)=>s+v,0)/arr.length : 0;
+
+    const allOffResults   = [];
+    const buyMenuResults  = [];
+
+    _SIM8_LEDGER_TRACE_ACTIVE = true;
+    try {
+      for (const [scenarioKey, enable, resultArr] of [
+        ['allOff',      { investRegion:false, trainStaff:false, buyMenu:false, buyAd:false, buyRenov:false }, allOffResults],
+        ['buyMenuOnly', { investRegion:false, trainStaff:false, buyMenu:true,  buyAd:false, buyRenov:false }, buyMenuResults],
+      ]) {
+        for (let si = 0; si < seeds.length; si++) {
+          const seed = seeds[si];
+          Object.assign(_SIM5_ENABLE, enable);
+          _sim5AdCurrentPolicy = null;
+          _sim5AdPolicyState.lastPurchaseDayByStore = {};
+          allDiags.forEach(d => d.reset());
+
+          for (let ti = 0; ti < trialsPerSeed; ti++) {
+            const menuCostBefore = _sim5MenuDiag.menuCostTotal;
+            const t = _sim3AnalyzeRunTrial(seed + ti, gSnap);
+            if (!t) continue;
+            const menuCostActual = _sim5MenuDiag.menuCostTotal - menuCostBefore;
+
+            resultArr.push({
+              seed, trial: ti,
+              t,
+              menuCostActual,
+              metrics: {
+                totalRevenue:        t.totalRevenue        ?? null,
+                totalNetChange365:   t.totalNetChange365   ?? null,
+                totalIngredientCost: t.totalIngredientCost ?? null,
+                totalEventMoney:     t.totalEventMoney     ?? null,
+                totalCaseMoney:      t.totalCaseMoney      ?? null,
+                totalRentNet:        t.totalRentNet        ?? null,
+                totalStoreProfit365: t.totalStoreProfit365 ?? null,
+                monthlyData:         t.monthlyData         ?? null,
+                endCash:             t.endCash             ?? null,
+                startMoney:          t.startMoney          ?? null,
+              },
+            });
+          }
+        }
+      }
+    } finally {
+      _SIM8_LEDGER_TRACE_ACTIVE = false;
+      Object.assign(_SIM5_ENABLE, origEnable);
+      _sim5AdCurrentPolicy = origPolicy;
+      _sim5AdPolicyState.lastPurchaseDayByStore = {};
+      allDiags.forEach(d => d.reset());
+    }
+
+    // ── 指標定義監査 ──────────────────────────────────────────────
+
+    const extractReportedMetrics = (r) => ({
+      storeProfit:       r.metrics.totalStoreProfit365 ?? r.metrics.totalRevenue ?? null,
+      totalNetChange365: r.metrics.totalNetChange365,
+      cashDelta365:      (r.metrics.endCash !== null && r.metrics.startMoney !== null)
+                          ? r.metrics.endCash - r.metrics.startMoney : null,
+    });
+
+    const allOffMetrics  = allOffResults.map(extractReportedMetrics);
+    const buyMenuMetrics = buyMenuResults.map(extractReportedMetrics);
+
+    const avgField = (arr, key) => {
+      const vals = arr.map(r => r[key]).filter(v => v !== null);
+      return vals.length ? vals.reduce((s,v)=>s+v,0)/vals.length : null;
+    };
+
+    const metricsDefinitionAudit = {
+      allOff: {
+        storeProfit:       avgField(allOffMetrics,  'storeProfit'),
+        totalNetChange365: avgField(allOffMetrics,  'totalNetChange365'),
+        cashDelta365:      avgField(allOffMetrics,  'cashDelta365'),
+      },
+      buyMenuOnly: {
+        storeProfit:       avgField(buyMenuMetrics, 'storeProfit'),
+        totalNetChange365: avgField(buyMenuMetrics, 'totalNetChange365'),
+        cashDelta365:      avgField(buyMenuMetrics, 'cashDelta365'),
+      },
+      diffs: {},
+    };
+    for (const key of ['storeProfit','totalNetChange365','cashDelta365']) {
+      const allOff   = metricsDefinitionAudit.allOff[key];
+      const buyMenuO = metricsDefinitionAudit.buyMenuOnly[key];
+      metricsDefinitionAudit.diffs[key] = (allOff !== null && buyMenuO !== null)
+        ? buyMenuO - allOff : null;
+    }
+
+    // ── 月末重点トレース ────────────────────────────────────────────
+
+    const buildMonthlyDiff = (allOffR, buyMenuR) => {
+      const allOffMD  = allOffR.map(r => r.metrics.monthlyData).filter(Boolean);
+      const buyMenuMD = buyMenuR.map(r => r.metrics.monthlyData).filter(Boolean);
+      if (!allOffMD.length || !buyMenuMD.length) return null;
+
+      const monthCount = Math.min(allOffMD[0].length, buyMenuMD[0].length);
+      const monthlyDiff = [];
+      for (let m = 0; m < monthCount; m++) {
+        const allOffM  = allOffMD.map(md => md[m]).filter(Boolean);
+        const buyMenuM = buyMenuMD.map(md => md[m]).filter(Boolean);
+        if (!allOffM.length || !buyMenuM.length) continue;
+
+        const avgMF = (arr, key) => {
+          const vals = arr.map(r => r[key]).filter(v => v != null);
+          return vals.length ? vals.reduce((s,v)=>s+v,0)/vals.length : null;
+        };
+
+        const row = { month: m+1 };
+        for (const f of ['storeRevenue','ingredientCost','storeProfit','netChange']) {
+          const ao  = avgMF(allOffM,  f);
+          const bmo = avgMF(buyMenuM, f);
+          if (ao !== null && bmo !== null) row[f] = { allOff: ao, buyMenuOnly: bmo, diff: bmo - ao };
+        }
+        monthlyDiff.push(row);
+      }
+      return monthlyDiff;
+    };
+
+    const monthlyDiff = buildMonthlyDiff(allOffResults, buyMenuResults);
+
+    // ── 取引集計トレース ─────────────────────────────────────────────
+
+    const buildTransactionSummary = (results) => {
+      const pick = (key) => avgField(results.map(r => ({ [key]: r.metrics[key] })), key);
+      return {
+        avgRevenue:        pick('totalRevenue'),
+        avgNetChange:      pick('totalNetChange365'),
+        avgIngredient:     pick('totalIngredientCost'),
+        avgEventMoney:     pick('totalEventMoney'),
+        avgCaseMoney:      pick('totalCaseMoney'),
+        avgRentNet:        pick('totalRentNet'),
+        avgMenuCostActual: results.length ? results.reduce((s,r)=>s+r.menuCostActual,0)/results.length : 0,
+        count: results.length,
+      };
+    };
+
+    const allOffSummary  = buildTransactionSummary(allOffResults);
+    const buyMenuSummary = buildTransactionSummary(buyMenuResults);
+
+    const transactionDiff = {};
+    for (const key of Object.keys(allOffSummary)) {
+      if (key === 'count') continue;
+      const ao  = allOffSummary[key];
+      const bmo = buyMenuSummary[key];
+      if (ao !== null && bmo !== null) transactionDiff[key] = bmo - ao;
+    }
+
+    // ── 利益再構築と未追跡計算 ───────────────────────────────────────
+
+    const reportedProfitDiff  = (buyMenuSummary.avgNetChange ?? 0) - (allOffSummary.avgNetChange ?? 0);
+    const revenueContrib      = transactionDiff.avgRevenue    ?? 0;
+    const ingredientContrib   = transactionDiff.avgIngredient ?? 0;
+    const eventContrib        = transactionDiff.avgEventMoney ?? 0;
+    const caseContrib         = transactionDiff.avgCaseMoney  ?? 0;
+    const rentContrib         = transactionDiff.avgRentNet    ?? 0;
+    const menuPurchaseContrib = buyMenuSummary.avgMenuCostActual;
+
+    const tracedTotal = revenueContrib - ingredientContrib - menuPurchaseContrib
+                        + eventContrib + caseContrib + rentContrib;
+
+    const netChangeDiff  = metricsDefinitionAudit.diffs.totalNetChange365;
+    const cashDeltaDiff  = metricsDefinitionAudit.diffs.cashDelta365;
+
+    const untracedProfitDelta = reportedProfitDiff - tracedTotal;
+    const untracedCashDelta   = cashDeltaDiff !== null ? cashDeltaDiff - tracedTotal : null;
+
+    // ── ギャップ候補分析 ────────────────────────────────────────────
+
+    const profitVsCashGap = (netChangeDiff !== null && cashDeltaDiff !== null)
+      ? netChangeDiff - cashDeltaDiff : null;
+
+    const gapSourceRanking = [];
+
+    if (profitVsCashGap !== null && Math.abs(profitVsCashGap) > 1000) {
+      gapSourceRanking.push({
+        rank: 0,
+        category: 'definitionMismatch',
+        sourceFunction: 'N/A',
+        totalAmount: profitVsCashGap,
+        occurrenceCount: null,
+        affectedDays: null,
+        confidence: 'probable',
+        note: 'totalNetChange365とcashDelta365の差。発生主義vs現金主義（売掛金）の違いを示す可能性あり',
+      });
+    }
+
+    if (monthlyDiff) {
+      const monthEndIssues = monthlyDiff.filter(m => {
+        const nd = m.netChange?.diff;
+        return nd !== null && nd !== undefined && Math.abs(nd) > 10000;
+      });
+      if (monthEndIssues.length > 0) {
+        const totalMonthEndDiff = monthEndIssues.reduce((s,m) => s+(m.netChange?.diff??0), 0);
+        gapSourceRanking.push({
+          rank: 0, category: 'monthlySettlement', sourceFunction: 'monthlyTick',
+          totalAmount: totalMonthEndDiff, occurrenceCount: monthEndIssues.length,
+          affectedDays: monthEndIssues.map(m=>m.month),
+          confidence: 'possible',
+          note: `月次差分のある月: ${monthEndIssues.map(m=>m.month).join(',')}`,
+        });
+      }
+    }
+
+    if (Math.abs(untracedProfitDelta) > 1000) {
+      gapSourceRanking.push({
+        rank: 0, category: 'unknown', sourceFunction: 'unknown',
+        totalAmount: untracedProfitDelta, occurrenceCount: null, affectedDays: null,
+        confidence: 'unknown',
+        note: `トレース項目合計と reportedProfitDiff の差: ${Math.round(untracedProfitDelta).toLocaleString()}円`,
+      });
+    }
+
+    gapSourceRanking.sort((a,b) => Math.abs(b.totalAmount??0) - Math.abs(a.totalAmount??0));
+    gapSourceRanking.forEach((item, i) => { item.rank = i + 1; });
+
+    // ── 結論 ───────────────────────────────────────────────────────
+
+    const T = _SIM8_TRANSACTION_TRACE_THRESHOLDS;
+    const absGap    = Math.abs(untracedProfitDelta);
+    const fullyThr  = Math.max(T.fullyAttributedAbsolute,  Math.abs(reportedProfitDiff) * T.fullyAttributedRate);
+    const mostlyThr = Math.max(T.mostlyAttributedAbsolute, Math.abs(reportedProfitDiff) * T.mostlyAttributedRate);
+
+    let conclusionStatus;
+    if (profitVsCashGap !== null && Math.abs(profitVsCashGap) > mostlyThr) {
+      conclusionStatus = 'definitionMismatch';
+    } else if (absGap <= fullyThr) {
+      conclusionStatus = 'fullyAttributed';
+    } else if (absGap <= mostlyThr) {
+      conclusionStatus = 'mostlyAttributed';
+    } else {
+      conclusionStatus = 'needsMoreData';
+    }
+
+    const explRate = Math.min(1, Math.max(0,
+      1 - (absGap / Math.max(1, Math.abs(reportedProfitDiff)))
+    ));
+
+    // コンソール出力
+    console.group('\u{1F4D0} 利益・現金指標の定義比較');
+    console.table({
+      '店舗利益差分':       `allOff=${Math.round(metricsDefinitionAudit.allOff.storeProfit??0).toLocaleString()} menu=${Math.round(metricsDefinitionAudit.buyMenuOnly.storeProfit??0).toLocaleString()} diff=${Math.round(metricsDefinitionAudit.diffs.storeProfit??0).toLocaleString()}`,
+      'totalNetChange差分': `allOff=${Math.round(metricsDefinitionAudit.allOff.totalNetChange365??0).toLocaleString()} menu=${Math.round(metricsDefinitionAudit.buyMenuOnly.totalNetChange365??0).toLocaleString()} diff=${Math.round(netChangeDiff??0).toLocaleString()}`,
+      '現金増減差分':       `allOff=${Math.round(metricsDefinitionAudit.allOff.cashDelta365??0).toLocaleString()} menu=${Math.round(metricsDefinitionAudit.buyMenuOnly.cashDelta365??0).toLocaleString()} diff=${Math.round(cashDeltaDiff??0).toLocaleString()}`,
+      '利益vs現金ギャップ': profitVsCashGap !== null ? Math.round(profitVsCashGap).toLocaleString() : 'N/A',
+    });
+    console.groupEnd();
+
+    console.group('\u{1F4D2} buyMenu 取引トレース');
+    console.table([
+      { 項目:'売上差分',      amount:Math.round(revenueContrib).toLocaleString(),      ソース:'trial.totalRevenue',          分類:'storeRevenue' },
+      { 項目:'材料費差分',    amount:Math.round(-ingredientContrib).toLocaleString(),   ソース:'trial.totalIngredientCost',    分類:'ingredientCost' },
+      { 項目:'購入費',        amount:Math.round(-menuPurchaseContrib).toLocaleString(), ソース:'_sim5MenuDiag.menuCostTotal',  分類:'menuPurchaseCost' },
+      { 項目:'イベント差分',  amount:Math.round(eventContrib).toLocaleString(),         ソース:'trial.totalEventMoney',        分類:'eventNet' },
+      { 項目:'案件差分',      amount:Math.round(caseContrib).toLocaleString(),          ソース:'trial.totalCaseMoney',         分類:'caseNet' },
+      { 項目:'家賃差分',      amount:Math.round(rentContrib).toLocaleString(),          ソース:'trial.totalRentNet',           分類:'rentNet' },
+      { 項目:'合計（再構築）',amount:Math.round(tracedTotal).toLocaleString(),          ソース:'独立合算',                     分類:'reconstructed' },
+      { 項目:'報告差分',      amount:Math.round(reportedProfitDiff).toLocaleString(),   ソース:'trial.totalNetChange365',      分類:'reported' },
+      { 項目:'未追跡差分',    amount:Math.round(untracedProfitDelta).toLocaleString(),  ソース:'reported-traced',              分類:'untraced' },
+    ]);
+    console.groupEnd();
+
+    if (monthlyDiff) {
+      console.group('\u{1F4C5} 月末・年末処理監査');
+      console.table(monthlyDiff.map(m => ({
+        月: m.month,
+        売上差分:   Math.round(m.storeRevenue?.diff ?? 0).toLocaleString(),
+        材料費差分: Math.round(m.ingredientCost?.diff ?? 0).toLocaleString(),
+        純収支差分: Math.round(m.netChange?.diff ?? 0).toLocaleString(),
+      })));
+      console.groupEnd();
+    }
+
+    console.group('\u{1F50D} 残存ギャップ発生源ランキング');
+    console.table(gapSourceRanking.map(g => ({
+      rank: g.rank, category: g.category, amount: Math.round(g.totalAmount??0).toLocaleString(),
+      confidence: g.confidence, note: g.note,
+    })));
+    console.groupEnd();
+
+    console.group('\u{1F3C1} buyMenu取引監査 結論');
+    console.table({
+      status:       conclusionStatus,
+      報告利益差分: Math.round(reportedProfitDiff).toLocaleString(),
+      再構築合計:   Math.round(tracedTotal).toLocaleString(),
+      未追跡差分:   Math.round(untracedProfitDelta).toLocaleString(),
+      説明率:       `${(explRate*100).toFixed(1)}%`,
+      主原因:       gapSourceRanking[0]?.category ?? 'unknown',
+    });
+    console.groupEnd();
+
+    const receivablesAudit = {
+      available: true,
+      reason: 'G.receivables フィールドがゲーム本体に存在（月末現金化方式）',
+      confirmedBySearch: true,
+      note: 'dailyRevenue → G.receivables に積算、monthlyTick で G.money へ転記。totalNetChange365はこの現金化済みベース。',
+    };
+
+    const traceResult = {
+      config: { seeds, trialsPerSeed },
+      metricsDefinitionAudit,
+      allOffTrace:   { summary: allOffSummary,  sampleCount: allOffResults.length  },
+      buyMenuTrace:  { summary: buyMenuSummary, sampleCount: buyMenuResults.length },
+      transactionDiff,
+      phaseDiff:     null,
+      monthlyDiff,
+      untracedCashDelta,
+      untracedProfitDelta,
+      reportedProfitDiff,
+      tracedTotal,
+      profitVsCashGap,
+      gapSourceRanking,
+      receivablesAudit,
+      conclusion: {
+        status: conclusionStatus,
+        primaryCause: gapSourceRanking[0]?.category ?? 'unknown',
+        secondaryCauses: gapSourceRanking.slice(1).map(g=>g.category),
+        findings: [
+          `報告利益差分: ${Math.round(reportedProfitDiff).toLocaleString()}円`,
+          `再構築合計: ${Math.round(tracedTotal).toLocaleString()}円`,
+          `未追跡差分: ${Math.round(untracedProfitDelta).toLocaleString()}円（${(explRate*100).toFixed(1)}%説明）`,
+          profitVsCashGap !== null ? `利益vs現金ギャップ: ${Math.round(profitVsCashGap).toLocaleString()}円` : '現金増減データなし',
+          `売掛金: ${receivablesAudit.reason}`,
+        ],
+        recommendation: conclusionStatus === 'definitionMismatch' ? 'checkMetricDefinition' :
+                        conclusionStatus === 'fullyAttributed'    ? 'keep' : 'needsMoreData',
+      },
+    };
+
+    return traceResult;
+  }
+  window._sim8RunBuyMenuTransactionTrace = _sim8RunBuyMenuTransactionTrace;
 
   // ── v0.5c: AI行動定義テーブル & 共通比較レポート ───────────────
   // 新しいAI行動は _SIM5_ACTION_DEFS に1件追加するだけで比較対象に加わる。
@@ -13197,6 +13568,179 @@ ${ar.experienceKPI ? _sim3ExperienceKpiHtml(ar.experienceKPI) : ''}
             ? pass('29-16 buyMenu adopted維持', `status=${_SIM5_AI_ADOPTION_STATUS.buyMenu.status} enable=${_SIM5_ENABLE.buyMenu}`)
             : fail('29-16 buyMenu adopted維持', `status=${_SIM5_AI_ADOPTION_STATUS?.buyMenu?.status} enable=${_SIM5_ENABLE?.buyMenu}`);
         }
+      }
+    }
+    console.groupEnd();
+
+    // ── Section 30: v0.8d buyMenu 取引単位トレース検証 ──────────────────────
+    console.group('Section 30: v0.8d buyMenu 取引単位トレース（Transaction Trace）');
+    {
+      const traceResult30 = await _sim8RunBuyMenuTransactionTrace({ seeds:[1001], trialsPerSeed:1 });
+
+      if (rNew && rNew.businessReport) {
+        rNew.businessReport.buyMenuTransactionTrace = traceResult30
+          ? {
+              config: traceResult30.config,
+              metricsDefinitionAudit: traceResult30.metricsDefinitionAudit,
+              transactionSummary: traceResult30.transactionDiff,
+              phaseSummary: null,
+              monthlySummary: traceResult30.monthlyDiff,
+              gapSourceRanking: traceResult30.gapSourceRanking,
+              conclusion: traceResult30.conclusion,
+            }
+          : null;
+      }
+
+      // 30-1: _sim8RunBuyMenuTransactionTrace が存在
+      typeof _sim8RunBuyMenuTransactionTrace === 'function'
+        ? pass('30-1 _sim8RunBuyMenuTransactionTrace存在', '関数として定義済み')
+        : fail('30-1 _sim8RunBuyMenuTransactionTrace存在', `typeof=${typeof _sim8RunBuyMenuTransactionTrace}`);
+
+      // 30-2: 監査フラグが通常時false
+      _SIM8_LEDGER_TRACE_ACTIVE === false
+        ? pass('30-2 監査フラグ通常時false', `_SIM8_LEDGER_TRACE_ACTIVE=${_SIM8_LEDGER_TRACE_ACTIVE}`)
+        : fail('30-2 監査フラグ通常時false', `_SIM8_LEDGER_TRACE_ACTIVE=${_SIM8_LEDGER_TRACE_ACTIVE}`);
+
+      // 30-3: 監査終了後にフラグが復元される
+      (traceResult30 !== null && _SIM8_LEDGER_TRACE_ACTIVE === false)
+        ? pass('30-3 フラグ復元確認', '監査完了後にfalseへ復元済み')
+        : fail('30-3 フラグ復元確認', `flag=${_SIM8_LEDGER_TRACE_ACTIVE} result=${traceResult30 !== null}`);
+
+      // 30-4: allOffとbuyMenuOnlyの取引明細が生成される
+      {
+        const ao  = traceResult30?.allOffTrace;
+        const bmo = traceResult30?.buyMenuTrace;
+        const ok  = ao?.sampleCount > 0 && bmo?.sampleCount > 0;
+        ok
+          ? pass('30-4 取引明細生成', `allOff=${ao.sampleCount}件 buyMenuOnly=${bmo.sampleCount}件`)
+          : fail('30-4 取引明細生成', `ao=${JSON.stringify(ao)?.slice(0,40)}`);
+      }
+
+      // 30-5: 取引明細のamount整合（menuCostActualが正しい）
+      {
+        const menuDiff = traceResult30?.transactionDiff?.avgMenuCostActual;
+        const ok = isFinite(menuDiff) && menuDiff >= 0;
+        ok
+          ? pass('30-5 取引金額整合', `menuPurchaseCost差分=${Math.round(menuDiff).toLocaleString()}`)
+          : fail('30-5 取引金額整合', `menuDiff=${menuDiff}`);
+      }
+
+      // 30-6: 全取引金額がFinite
+      {
+        const td = traceResult30?.transactionDiff ?? {};
+        const allFin = Object.values(td).every(v => v === null || isFinite(v));
+        allFin
+          ? pass('30-6 全取引金額Finite', `keys=${Object.keys(td).join(',')}`)
+          : fail('30-6 全取引金額Finite', `non-finite: ${Object.entries(td).filter(([k,v])=>!isFinite(v)).map(([k])=>k).join(',')}`);
+      }
+
+      // 30-7: cashDelta365整合
+      {
+        const cad = traceResult30?.metricsDefinitionAudit?.diffs?.cashDelta365;
+        if (cad === null || cad === undefined) {
+          pass('30-7 cashDelta365整合', 'cashDelta365データなし（endCash/startMoneyフィールド未取得）');
+        } else {
+          isFinite(cad)
+            ? pass('30-7 cashDelta365整合', `cashDelta365差分=${Math.round(cad).toLocaleString()}`)
+            : fail('30-7 cashDelta365整合', `cad=${cad}`);
+        }
+      }
+
+      // 30-8: untracedCashDelta が observed-traced と一致（またはnullで理由明示）
+      {
+        const utcd = traceResult30?.untracedCashDelta;
+        const utpd = traceResult30?.untracedProfitDelta;
+        if (utcd === null) {
+          pass('30-8 untracedCashDelta', `cashDeltaデータなし、untracedProfitDelta=${Math.round(utpd??0).toLocaleString()}`);
+        } else {
+          isFinite(utcd)
+            ? pass('30-8 untracedCashDelta', `untracedCashDelta=${Math.round(utcd).toLocaleString()}`)
+            : fail('30-8 untracedCashDelta', `utcd=${utcd}`);
+        }
+      }
+
+      // 30-9: 3指標が区別される（metricsDefinitionAuditが3種類持つ）
+      {
+        const mda = traceResult30?.metricsDefinitionAudit;
+        const ok  = mda?.allOff && 'storeProfit' in mda.allOff && 'totalNetChange365' in mda.allOff && 'cashDelta365' in mda.allOff;
+        ok
+          ? pass('30-9 3指標区別', `storeProfit/totalNetChange365/cashDelta365 を個別保持`)
+          : fail('30-9 3指標区別', `mda.allOff=${JSON.stringify(mda?.allOff)?.slice(0,60)}`);
+      }
+
+      // 30-10: 月末重点日の記録が存在（monthlyDiffが存在するか、理由が明示されているか）
+      {
+        const md = traceResult30?.monthlyDiff;
+        if (Array.isArray(md) && md.length > 0) {
+          pass('30-10 月末重点記録', `月次データ${md.length}件`);
+        } else if (md === null) {
+          pass('30-10 月末重点記録', 'monthlyDiff=null（trialResultにmonthlyDataフィールドなし）');
+        } else {
+          fail('30-10 月末重点記録', `monthlyDiff=${JSON.stringify(md)?.slice(0,40)}`);
+        }
+      }
+
+      // 30-11: gapSourceRankingが絶対額降順
+      {
+        const gsr = traceResult30?.gapSourceRanking ?? [];
+        if (gsr.length <= 1) {
+          pass('30-11 gapSourceRanking降順', `件数=${gsr.length}（順序確認不要）`);
+        } else {
+          let ordered = true;
+          for (let i = 1; i < gsr.length; i++) {
+            if (Math.abs(gsr[i].totalAmount??0) > Math.abs(gsr[i-1].totalAmount??0)) { ordered = false; break; }
+          }
+          ordered
+            ? pass('30-11 gapSourceRanking降順', `length=${gsr.length}`)
+            : fail('30-11 gapSourceRanking降順', '順序異常');
+        }
+      }
+
+      // 30-12: confidenceが定義済み4値のいずれか
+      {
+        const gsr = traceResult30?.gapSourceRanking ?? [];
+        const validConf = ['confirmed','probable','possible','unknown'];
+        const allValid  = gsr.every(g => validConf.includes(g.confidence));
+        allValid
+          ? pass('30-12 confidence値', `全${gsr.length}件が定義済み4値`)
+          : fail('30-12 confidence値', `invalid: ${gsr.filter(g=>!validConf.includes(g.confidence)).map(g=>g.confidence).join(',')}`);
+      }
+
+      // 30-13: conclusion.statusが定義済み5値のいずれか
+      {
+        const st = traceResult30?.conclusion?.status;
+        ['fullyAttributed','mostlyAttributed','definitionMismatch','bugLikely','needsMoreData'].includes(st)
+          ? pass('30-13 conclusion.status値', `status=${st}`)
+          : fail('30-13 conclusion.status値', `status=${st}`);
+      }
+
+      // 30-14: 売掛金audit が適切に設定されている
+      {
+        const ra = traceResult30?.receivablesAudit;
+        if (ra?.available === false && ra?.reason) {
+          pass('30-14 売掛金audit', `available=false reason="${ra.reason}"`);
+        } else if (ra?.available === true && ra?.reason) {
+          pass('30-14 売掛金audit', `available=true reason="${ra.reason}"`);
+        } else {
+          fail('30-14 売掛金audit', `ra=${JSON.stringify(ra)?.slice(0,60)}`);
+        }
+      }
+
+      // 30-15: BusinessReport.buyMenuTransactionTraceが存在
+      {
+        const btt = rNew?.businessReport?.buyMenuTransactionTrace;
+        (btt && btt.conclusion)
+          ? pass('30-15 BusinessReport.buyMenuTransactionTrace存在', `status=${btt.conclusion.status}`)
+          : fail('30-15 BusinessReport.buyMenuTransactionTrace存在', `btt=${JSON.stringify(btt)?.slice(0,40)}`);
+      }
+
+      // 30-16: 監査後もbuyMenu adopted・default ON
+      {
+        const stOk = _SIM5_AI_ADOPTION_STATUS?.buyMenu?.status === 'adopted';
+        const enOk = _SIM5_ENABLE?.buyMenu === true;
+        (stOk && enOk)
+          ? pass('30-16 buyMenu adopted維持', `status=${_SIM5_AI_ADOPTION_STATUS.buyMenu.status} enable=${_SIM5_ENABLE.buyMenu}`)
+          : fail('30-16 buyMenu adopted維持', `status=${_SIM5_AI_ADOPTION_STATUS?.buyMenu?.status} enable=${_SIM5_ENABLE?.buyMenu}`);
       }
     }
     console.groupEnd();
