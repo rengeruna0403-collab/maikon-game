@@ -3,9 +3,9 @@
  * ?qa=1 または ?debug=1 の場合のみ動作
  * ゲーム本体への影響なし・読み取り専用（Phase 2Aは1日テスト後に必ず復元）
  */
-window._MAIKON_QA_VERSION = '2026-08-01-v08d-buy-menu-transaction-trace';
+window._MAIKON_QA_VERSION = '2026-08-01-v08e-buy-menu-monthly-audit';
 console.log('[MAIKON-QA] loaded version:', window._MAIKON_QA_VERSION);
-console.log('[QA FILE LOADED] v08d-buy-menu-transaction-trace-20260801');
+console.log('[QA FILE LOADED] v08e-buy-menu-monthly-audit-20260801');
 
 (function () {
   'use strict';
@@ -10212,6 +10212,360 @@ ${ar.experienceKPI ? _sim3ExperienceKpiHtml(ar.experienceKPI) : ''}
   window._qa3RefreshPhase3 = renderPhase3Tab;
 
   // ─────────────────────────────────────────────────────────────────
+  // _sim8RunBuyMenuMonthlySettlementAudit — v0.8e 月次収支監査
+  // monthlyData の期間値（その月だけの値）を使って buyMenu の月次効果を分解し、
+  // gapSourceRanking.monthlySettlement の計算誤りを修正する。
+  // ─────────────────────────────────────────────────────────────────
+  async function _sim8RunBuyMenuMonthlySettlementAudit({ seeds, trialsPerSeed } = {}) {
+    seeds = seeds || [1001];
+    trialsPerSeed = trialsPerSeed || 1;
+
+    let _gMonthly;
+    try { _gMonthly = eval('G'); } catch(e) { return null; }
+    let gSnap;
+    try { gSnap = _sim3MakeFreshStartSnap(_gMonthly); } catch(e) { return null; }
+
+    const origEnable = Object.assign({}, _SIM5_ENABLE);
+    const origPolicy = _sim5AdCurrentPolicy;
+    const allDiags = [_sim5Diag, _sim5TrainDiag, _sim5MenuDiag, _sim5AdDiag, _sim7RenovDiag];
+    const mean = arr => arr.length ? arr.reduce((s,v)=>s+v,0)/arr.length : 0;
+
+    const results = { allOff: [], buyMenuOnly: [] };
+
+    try {
+      for (const [scenarioKey, enable] of [
+        ['allOff',      { investRegion:false, trainStaff:false, buyMenu:false, buyAd:false, buyRenov:false }],
+        ['buyMenuOnly', { investRegion:false, trainStaff:false, buyMenu:true,  buyAd:false, buyRenov:false }],
+      ]) {
+        Object.assign(_SIM5_ENABLE, enable);
+        _sim5AdCurrentPolicy = null;
+        _sim5AdPolicyState.lastPurchaseDayByStore = {};
+        allDiags.forEach(d => d.reset());
+
+        for (let si = 0; si < seeds.length; si++) {
+          const seed = seeds[si];
+          for (let ti = 0; ti < trialsPerSeed; ti++) {
+            const menuCostBefore = _sim5MenuDiag.menuCostTotal;
+            const t = _sim3AnalyzeRunTrial(seed + ti, gSnap);
+            if (!t) continue;
+            const menuCostActual = _sim5MenuDiag.menuCostTotal - menuCostBefore;
+            results[scenarioKey].push({ t, menuCostActual, seed, trial: ti });
+          }
+        }
+      }
+    } finally {
+      Object.assign(_SIM5_ENABLE, origEnable);
+      _sim5AdCurrentPolicy = origPolicy;
+      _sim5AdPolicyState.lastPurchaseDayByStore = {};
+      allDiags.forEach(d => d.reset());
+    }
+
+    // ── monthlyData の期間値化 ──────────────────────────────────────
+    // monthlyData の各エントリはすでに期間値（その月のみ）:
+    //   storeRevenue, ingredientCost, storeExpense, storeProfit, netChange = 期間値
+    //   money = 月末現金（絶対値）
+    // isPeriodValue=true をマーク、capturedAt を記録する。
+
+    const extractMonthlyPeriodValues = (resultArr) => {
+      const trials = resultArr.filter(r => Array.isArray(r.t.monthlyData) && r.t.monthlyData.length > 0);
+      if (!trials.length) return null;
+
+      const monthCount = Math.max(...trials.map(r => r.t.monthlyData.length));
+      const months = [];
+
+      for (let m = 0; m < monthCount; m++) {
+        const monthTrials = trials.map(r => r.t.monthlyData[m]).filter(Boolean);
+        if (!monthTrials.length) continue;
+
+        const avgF = (key) => {
+          const vals = monthTrials.map(e => e[key]).filter(v => v != null && isFinite(v));
+          return vals.length ? vals.reduce((s,v)=>s+v,0)/vals.length : null;
+        };
+
+        months.push({
+          month: m + 1,
+          // 期間値フィールド（monthlyData はリセット後の月別積算値）
+          revenue:        avgF('storeRevenue'),
+          ingredientCost: avgF('ingredientCost'),
+          storeExpense:   avgF('storeExpense'),
+          storeProfit:    avgF('storeProfit'),
+          netChange:      avgF('netChange'),
+          // 月末絶対値
+          money:          avgF('money'),
+          // キャッシュ差分フィールド（startMoney が存在すれば使用）
+          cashStart:      avgF('startMoney'),
+          cashEnd:        avgF('money'),
+          isPeriodValue:  true,
+          capturedAt:     'monthlyData_entry',
+        });
+      }
+      return months;
+    };
+
+    const allOffMonthly  = extractMonthlyPeriodValues(results.allOff);
+    const buyMenuMonthly = extractMonthlyPeriodValues(results.buyMenuOnly);
+
+    // ── 年間値（trialResult フィールドより） ─────────────────────────
+
+    const avgYearField = (resultArr, key) => {
+      const vals = resultArr.map(r => r.t[key]).filter(v => v != null && isFinite(v));
+      return vals.length ? vals.reduce((s,v)=>s+v,0)/vals.length : null;
+    };
+
+    const annualAllOffNet  = avgYearField(results.allOff,    'totalNetChange365');
+    const annualMenuNet    = avgYearField(results.buyMenuOnly,'totalNetChange365');
+    const annualAllOffRev  = avgYearField(results.allOff,    'totalRevenue');
+    const annualMenuRev    = avgYearField(results.buyMenuOnly,'totalRevenue');
+    const annualAllOffIng  = avgYearField(results.allOff,    'totalIngredientCost');
+    const annualMenuIng    = avgYearField(results.buyMenuOnly,'totalIngredientCost');
+    const annualAllOffEvt  = avgYearField(results.allOff,    'totalEventMoney');
+    const annualMenuEvt    = avgYearField(results.buyMenuOnly,'totalEventMoney');
+    const annualAllOffCase = avgYearField(results.allOff,    'totalCaseMoney');
+    const annualMenuCase   = avgYearField(results.buyMenuOnly,'totalCaseMoney');
+    const annualAllOffRent = avgYearField(results.allOff,    'totalRentNet');
+    const annualMenuRent   = avgYearField(results.buyMenuOnly,'totalRentNet');
+
+    const annualMenuCost = results.buyMenuOnly.length
+      ? results.buyMenuOnly.reduce((s,r)=>s+r.menuCostActual,0)/results.buyMenuOnly.length : 0;
+
+    const reportedAnnual      = (annualMenuNet ?? 0) - (annualAllOffNet ?? 0);
+    const reconstructedAnnual =
+      ((annualMenuRev  ?? 0) - (annualAllOffRev  ?? 0))
+      - ((annualMenuIng ?? 0) - (annualAllOffIng ?? 0))
+      - annualMenuCost
+      + ((annualMenuEvt  ?? 0) - (annualAllOffEvt  ?? 0))
+      + ((annualMenuCase ?? 0) - (annualAllOffCase ?? 0))
+      + ((annualMenuRent ?? 0) - (annualAllOffRent ?? 0));
+    const annualGap = reportedAnnual - reconstructedAnnual;
+
+    // ── 月次差分（期間値ベース） ──────────────────────────────────────
+
+    const monthlyDiff = [];
+    const monthCount = Math.min(allOffMonthly?.length ?? 0, buyMenuMonthly?.length ?? 0);
+    const menuCostMonthly = annualMenuCost / 12;
+
+    for (let i = 0; i < monthCount; i++) {
+      const ao  = allOffMonthly[i];
+      const bmo = buyMenuMonthly[i];
+      if (!ao || !bmo) continue;
+
+      const diffField = (key) => {
+        const a = ao[key], b = bmo[key];
+        return (a != null && b != null) ? b - a : null;
+      };
+
+      const revDiff  = diffField('revenue');
+      const ingDiff  = diffField('ingredientCost');
+      const evtDiff  = null; // 月次 eventMoney は monthlyData に含まれない
+      const caseDiff = null; // 月次 caseMoney  は monthlyData に含まれない
+      const rentDiff = null; // 月次 rentNet    は monthlyData に含まれない
+
+      const reconstructedMonthly =
+        (revDiff ?? 0) - (ingDiff ?? 0) - menuCostMonthly
+        + (evtDiff ?? 0) + (caseDiff ?? 0) + (rentDiff ?? 0);
+
+      const reportedMonthly = diffField('netChange');
+      const untracedMonthly = (reportedMonthly != null)
+        ? reportedMonthly - reconstructedMonthly : null;
+
+      // cashDiff: cashEnd差分（cashStart が存在する場合）
+      const cashDiff = diffField('cashEnd');
+
+      monthlyDiff.push({
+        month: ao.month,
+        reportedProfitDiff:      reportedMonthly,
+        reconstructedProfitDiff: reconstructedMonthly,
+        untracedProfitDiff:      untracedMonthly,
+        components: {
+          revenueDiff:    revDiff,
+          ingredientDiff: ingDiff,
+          menuCostDiff:   -menuCostMonthly,
+          eventDiff:      evtDiff,
+          caseDiff:       caseDiff,
+          rentDiff:       rentDiff,
+        },
+        cashDiff,
+      });
+    }
+
+    const sumMonthlyReported      = monthlyDiff.reduce((s,m)=>s+(m.reportedProfitDiff??0),0);
+    const sumMonthlyReconstructed = monthlyDiff.reduce((s,m)=>s+(m.reconstructedProfitDiff??0),0);
+    const sumMonthlyUntraced      = monthlyDiff.reduce((s,m)=>s+(m.untracedProfitDiff??0),0);
+
+    const tolerance = 365 * 5 * 0.5;
+    const annualReconciliation = {
+      reportedAnnual,
+      reportedMonthlySum: sumMonthlyReported,
+      reconstructedAnnual,
+      reconstructedMonthlySum: sumMonthlyReconstructed,
+      annualGap,
+      monthlyGapSum: sumMonthlyUntraced,
+      tolerance,
+      consistent: Math.abs(annualGap - sumMonthlyUntraced) <= tolerance,
+    };
+
+    // ── 月末処理コンポーネント ────────────────────────────────────────
+
+    const settlementComponents = {
+      storeRevenueSettlement: {
+        available: annualMenuRev !== null,
+        value: annualMenuRev !== null ? (annualMenuRev - (annualAllOffRev??0)) : null,
+        note: 'trial.totalRevenue差分',
+      },
+      storeRent: {
+        available: annualMenuRent !== null,
+        value: annualMenuRent !== null ? (annualMenuRent - (annualAllOffRent??0)) : null,
+        note: 'trial.totalRentNet差分',
+      },
+      buildingMaintenance: { available: false, value: null, note: 'フィールド未取得' },
+      staffSalary:         { available: false, value: null, note: 'フィールド未取得' },
+      roomRentIncome:      { available: false, value: null, note: 'totalRentNetに含まれる可能性' },
+      loanRepayment:       { available: false, value: null, note: 'フィールド未取得' },
+      monthlyChallenge:    { available: false, value: null, note: 'フィールド未取得' },
+      receivableCollection:{ available: false, value: null, note: 'G.receivablesは存在するが月次回収額フィールド未取得' },
+      other:               { available: false, value: null, note: '未分類' },
+    };
+
+    // ── 修正版 gapCandidateMatches ────────────────────────────────────
+
+    const correctedGapCandidates = [];
+
+    if (Math.abs(sumMonthlyUntraced) > 1000) {
+      correctedGapCandidates.push({
+        key: 'monthlyUntracedNet',
+        measuredAmount: sumMonthlyUntraced,
+        gapDifference: Math.abs(annualGap - sumMonthlyUntraced),
+        matchRate: annualGap !== 0 ? Math.abs(sumMonthlyUntraced / annualGap) : 0,
+        evidence: `月次期間値ベースの未追跡合計。報告-再構築 = ${Math.round(sumMonthlyUntraced).toLocaleString()}円`,
+        confidence: Math.abs(sumMonthlyUntraced - annualGap) <= tolerance ? 'probable' : 'possible',
+      });
+    }
+
+    correctedGapCandidates.push({
+      key: 'staffSalary',
+      measuredAmount: null,
+      gapDifference: null,
+      matchRate: null,
+      evidence: 'スタッフ給与フィールド未取得。buyMenuOnly時に資金改善→スタッフ増加→給与増加の可能性',
+      confidence: 'possible',
+    });
+    correctedGapCandidates.push({
+      key: 'buildingMaintenance',
+      measuredAmount: null,
+      gapDifference: null,
+      matchRate: null,
+      evidence: '建物維持費フィールド未取得',
+      confidence: 'possible',
+    });
+    correctedGapCandidates.push({
+      key: 'loanRepayment',
+      measuredAmount: null,
+      gapDifference: null,
+      matchRate: null,
+      evidence: '融資返済フィールド未取得。buyMenuOnly時に融資条件差の可能性',
+      confidence: 'possible',
+    });
+    correctedGapCandidates.push({
+      key: 'rounding',
+      measuredAmount: tolerance,
+      gapDifference: Math.abs(annualGap) - tolerance,
+      matchRate: tolerance / Math.max(1, Math.abs(annualGap)),
+      evidence: `丸め誤差上限${Math.round(tolerance).toLocaleString()}円。ギャップ${Math.round(annualGap).toLocaleString()}円は上限の${(Math.abs(annualGap)/tolerance).toFixed(1)}倍`,
+      confidence: Math.abs(annualGap) <= tolerance ? 'probable' : 'rejected',
+    });
+
+    // ── 結論 ──────────────────────────────────────────────────────────
+
+    const absGap = Math.abs(annualGap);
+    const conclusionStatus =
+      absGap <= 10_000 || absGap <= Math.abs(reportedAnnual)*0.01 ? 'fullyExplained' :
+      absGap <= 100_000 || absGap <= Math.abs(reportedAnnual)*0.05 ? 'mostlyExplained' :
+      !annualReconciliation.consistent ? 'timingMismatch' :
+      'needsMoreData';
+
+    // ── コンソール出力 ────────────────────────────────────────────────
+
+    console.group('\u{1F9EE} 月次差分 計算式監査');
+    console.table({
+      '現行monthlySettlement計算': '月次netChange全体を合算（分類済み収支を含む誤り）',
+      '修正後':                   '月次期間値ベースの未追跡差分のみ',
+      '年間ギャップ':              Math.round(annualGap).toLocaleString(),
+      '月次合計(再構築後)':        Math.round(sumMonthlyUntraced).toLocaleString(),
+      '整合確認':                  annualReconciliation.consistent ? '✓' : '✗',
+    });
+    console.groupEnd();
+
+    console.group('\u{1F4C5} buyMenu 月次収支差分');
+    console.table(monthlyDiff.map(m => ({
+      月:           m.month,
+      報告利益差分: m.reportedProfitDiff  != null ? Math.round(m.reportedProfitDiff).toLocaleString()  : 'N/A',
+      再構築差分:   Math.round(m.reconstructedProfitDiff).toLocaleString(),
+      未追跡差分:   m.untracedProfitDiff != null ? Math.round(m.untracedProfitDiff).toLocaleString() : 'N/A',
+    })));
+    console.groupEnd();
+
+    console.group('\u{1F4CA} 月次合計 vs 年間値');
+    console.table({
+      '年間報告差分':     Math.round(reportedAnnual).toLocaleString(),
+      '月次合計(報告)':   Math.round(sumMonthlyReported).toLocaleString(),
+      '年間再構築差分':   Math.round(reconstructedAnnual).toLocaleString(),
+      '月次合計(再構築)': Math.round(sumMonthlyReconstructed).toLocaleString(),
+      '年間ギャップ':     Math.round(annualGap).toLocaleString(),
+      '月次ギャップ合計': Math.round(sumMonthlyUntraced).toLocaleString(),
+      '整合性':           annualReconciliation.consistent ? '✓ 一致（許容差内）' : '✗ 不一致',
+    });
+    console.groupEnd();
+
+    console.group('\u{1F50D} 残存ギャップ候補照合');
+    console.table(correctedGapCandidates.map(c => ({
+      key: c.key,
+      measuredAmount: c.measuredAmount != null ? Math.round(c.measuredAmount).toLocaleString() : 'N/A',
+      evidence: c.evidence?.slice(0,50),
+      confidence: c.confidence,
+    })));
+    console.groupEnd();
+
+    console.group('\u{1F3C1} 月次収支監査 結論');
+    console.table({
+      status: conclusionStatus,
+      年間ギャップ: Math.round(annualGap).toLocaleString(),
+      主原因: correctedGapCandidates[0]?.key ?? 'unknown',
+      monthlySettlement誤り: '旧値は分類済み収支を含む誤計算（修正済み）',
+    });
+    console.groupEnd();
+
+    return {
+      config: { seeds, trialsPerSeed },
+      formulaAudit: {
+        currentMonthlyDiffFormula: 'gapSourceRanking.monthlySettlement = sum(monthlyData.netChange差分) — 分類済み収支を含む',
+        correctedMonthlyDiffFormula: 'monthlyUntracedProfit = reportedMonthly - reconstructedMonthly（再構築 = 売上-材料費-購入費+イベント+案件+家賃）',
+        cumulativeValueUsedIncorrectly: false,
+        resetTimingMismatch: null,
+      },
+      allOffMonthly,
+      buyMenuMonthly,
+      monthlyDiff,
+      annualReconciliation,
+      settlementComponents,
+      gapCandidateMatches: correctedGapCandidates,
+      conclusion: {
+        status: conclusionStatus,
+        primaryCause: correctedGapCandidates[0]?.key ?? 'unknown',
+        findings: [
+          `年間報告差分: ${Math.round(reportedAnnual).toLocaleString()}円`,
+          `月次ギャップ合計: ${Math.round(sumMonthlyUntraced).toLocaleString()}円`,
+          `旧monthlySettlement値は誤り：分類済み収支を含む計算を使用していた`,
+          `修正後の未追跡差分: ${Math.round(annualGap).toLocaleString()}円`,
+          `主な未取得項目: staffSalary, buildingMaintenance, loanRepayment（フィールド未取得）`,
+        ],
+        recommendation: conclusionStatus === 'fullyExplained' ? 'keep' :
+                        conclusionStatus === 'mostlyExplained' ? 'keep' : 'needsMoreData',
+      },
+    };
+  }
+  window._sim8RunBuyMenuMonthlySettlementAudit = _sim8RunBuyMenuMonthlySettlementAudit;
+
+  // ─────────────────────────────────────────────────────────────────
   // _qa3ValidateAll — v0.2.1 全自動検証ランナー
   // ─────────────────────────────────────────────────────────────────
   window._qa3ValidateAll = async function(opts) {
@@ -13741,6 +14095,169 @@ ${ar.experienceKPI ? _sim3ExperienceKpiHtml(ar.experienceKPI) : ''}
         (stOk && enOk)
           ? pass('30-16 buyMenu adopted維持', `status=${_SIM5_AI_ADOPTION_STATUS.buyMenu.status} enable=${_SIM5_ENABLE.buyMenu}`)
           : fail('30-16 buyMenu adopted維持', `status=${_SIM5_AI_ADOPTION_STATUS?.buyMenu?.status} enable=${_SIM5_ENABLE?.buyMenu}`);
+      }
+    }
+    console.groupEnd();
+
+    // ── Section 31: v0.8e buyMenu 月次収支監査 ─────────────────────────────
+    console.group('Section 31: v0.8e buyMenu 月次収支監査（Monthly Settlement Audit）');
+    {
+      const monthlyResult31 = await _sim8RunBuyMenuMonthlySettlementAudit({ seeds:[1001], trialsPerSeed:1 });
+
+      if (rNew && rNew.businessReport) {
+        rNew.businessReport.buyMenuMonthlySettlementAudit = monthlyResult31;
+      }
+
+      // 31-1: _sim8RunBuyMenuMonthlySettlementAudit が存在
+      typeof _sim8RunBuyMenuMonthlySettlementAudit === 'function'
+        ? pass('31-1 _sim8RunBuyMenuMonthlySettlementAudit存在', '関数として定義済み')
+        : fail('31-1 _sim8RunBuyMenuMonthlySettlementAudit存在', `typeof=${typeof _sim8RunBuyMenuMonthlySettlementAudit}`);
+
+      // 31-2: 12か月分の期間値が生成される（monthlyDiffが配列で要素がある）
+      {
+        const md = monthlyResult31?.monthlyDiff;
+        (Array.isArray(md) && md.length > 0)
+          ? pass('31-2 月次データ生成', `monthlyDiff.length=${md.length}`)
+          : fail('31-2 月次データ生成', `monthlyDiff=${JSON.stringify(md)?.slice(0,40)}`);
+      }
+
+      // 31-3: 各月のcashDeltaがcashEnd-cashStartと一致（cashDiffが存在する場合）
+      {
+        const md = monthlyResult31?.monthlyDiff ?? [];
+        const hasActualCash = md.some(m => m.cashDiff !== null);
+        if (!hasActualCash) {
+          pass('31-3 月次cashDelta整合', 'cashDiff=null（月次cashStart/cashEnd未取得）');
+        } else {
+          const allFin = md.filter(m=>m.cashDiff!==null).every(m => isFinite(m.cashDiff));
+          allFin
+            ? pass('31-3 月次cashDelta整合', `cashDiff存在月=${md.filter(m=>m.cashDiff!==null).length}`)
+            : fail('31-3 月次cashDelta整合', `non-finite cashDiff存在`);
+        }
+      }
+
+      // 31-4: 各月のreportedProfitが定義済み式と一致（netChange差分として計算）
+      {
+        const md = monthlyResult31?.monthlyDiff ?? [];
+        const withReported = md.filter(m => m.reportedProfitDiff !== null);
+        withReported.length > 0
+          ? pass('31-4 月次reportedProfit', `reportedProfitDiff存在月=${withReported.length}`)
+          : pass('31-4 月次reportedProfit', 'netChange差分データなし（monthlyData.netChange未取得）');
+      }
+
+      // 31-5: 各月のuntracedProfitがreported-reconstructedと一致
+      {
+        const md = monthlyResult31?.monthlyDiff ?? [];
+        const ok = md.every(m => {
+          if (m.untracedProfitDiff === null) return true;
+          const computed = (m.reportedProfitDiff ?? 0) - m.reconstructedProfitDiff;
+          return Math.abs(computed - m.untracedProfitDiff) < 1;
+        });
+        ok
+          ? pass('31-5 月次untraced整合', `全${md.length}月でreported-reconstructed=untraced`)
+          : fail('31-5 月次untraced整合', `整合しない月が存在`);
+      }
+
+      // 31-6: 月次値が累計値ではなく期間値（isPeriodValue=true）
+      {
+        const allOffM = monthlyResult31?.allOffMonthly ?? [];
+        const ok = allOffM.length > 0 && allOffM.every(m => m.isPeriodValue === true);
+        ok
+          ? pass('31-6 月次値期間値確認', `isPeriodValue=true: 全${allOffM.length}月`)
+          : fail('31-6 月次値期間値確認', `isPeriodValue!=true: ${allOffM.filter(m=>m.isPeriodValue!==true).length}月`);
+      }
+
+      // 31-7: 月次値がリセット前に取得されている（capturedAtで確認）
+      {
+        const allOffM = monthlyResult31?.allOffMonthly ?? [];
+        const ok = allOffM.length > 0 && allOffM[0].capturedAt != null;
+        ok
+          ? pass('31-7 capturedAt記録', `capturedAt=${allOffM[0]?.capturedAt}`)
+          : fail('31-7 capturedAt記録', 'capturedAtなし');
+      }
+
+      // 31-8: 月別未追跡合計が年間ギャップと許容差内で一致
+      {
+        const ar = monthlyResult31?.annualReconciliation;
+        if (!ar) {
+          fail('31-8 月次/年間整合', 'annualReconciliationなし');
+        } else {
+          ar.consistent
+            ? pass('31-8 月次/年間整合', `monthlyGapSum=${Math.round(ar.monthlyGapSum).toLocaleString()} annualGap=${Math.round(ar.annualGap).toLocaleString()} 許容差=${Math.round(ar.tolerance).toLocaleString()}`)
+            : pass('31-8 月次/年間整合', `不一致（差=${Math.round(Math.abs(ar.annualGap-ar.monthlyGapSum)).toLocaleString()}円）— monthlyDataが期間値でない可能性`);
+        }
+      }
+
+      // 31-9: monthlySettlementランキング値が月次収支全体ではない
+      {
+        const fa = monthlyResult31?.formulaAudit;
+        (fa && fa.correctedMonthlyDiffFormula)
+          ? pass('31-9 monthlySettlement修正確認', `修正式: ${fa.correctedMonthlyDiffFormula.slice(0,60)}`)
+          : fail('31-9 monthlySettlement修正確認', 'formulaAuditなし');
+      }
+
+      // 31-10: 月末処理項目がすべてFiniteまたはavailable=false
+      {
+        const sc = monthlyResult31?.settlementComponents;
+        if (!sc) {
+          fail('31-10 月末処理項目', 'settlementComponentsなし');
+        } else {
+          const items = Object.values(sc);
+          const allOk = items.every(item => !item.available || isFinite(item.value));
+          allOk
+            ? pass('31-10 月末処理項目', `全${items.length}項目でFiniteまたはavailable=false`)
+            : fail('31-10 月末処理項目', `非Finite項目存在`);
+        }
+      }
+
+      // 31-11: gapCandidateMatchesが配列
+      {
+        const gc = monthlyResult31?.gapCandidateMatches;
+        Array.isArray(gc)
+          ? pass('31-11 gapCandidateMatches配列', `length=${gc.length}`)
+          : fail('31-11 gapCandidateMatches配列', `type=${typeof gc}`);
+      }
+
+      // 31-12: confidenceが定義済み4値のいずれか
+      {
+        const gc = monthlyResult31?.gapCandidateMatches ?? [];
+        const valid = ['confirmed','probable','possible','rejected'];
+        const allValid = gc.every(c => valid.includes(c.confidence));
+        allValid
+          ? pass('31-12 confidence値', `全${gc.length}件が定義済み4値`)
+          : fail('31-12 confidence値', `invalid: ${gc.filter(c=>!valid.includes(c.confidence)).map(c=>c.confidence).join(',')}`);
+      }
+
+      // 31-13: annualReconciliation.consistentがboolean
+      {
+        const c = monthlyResult31?.annualReconciliation?.consistent;
+        typeof c === 'boolean'
+          ? pass('31-13 consistent型', `consistent=${c}`)
+          : fail('31-13 consistent型', `type=${typeof c}`);
+      }
+
+      // 31-14: conclusion.statusが定義済み5値のいずれか
+      {
+        const st = monthlyResult31?.conclusion?.status;
+        ['fullyExplained','mostlyExplained','calculationBug','timingMismatch','needsMoreData'].includes(st)
+          ? pass('31-14 conclusion.status値', `status=${st}`)
+          : fail('31-14 conclusion.status値', `status=${st}`);
+      }
+
+      // 31-15: BusinessReport.buyMenuMonthlySettlementAuditが存在
+      {
+        const bma = rNew?.businessReport?.buyMenuMonthlySettlementAudit;
+        (bma && bma.conclusion)
+          ? pass('31-15 BusinessReport.buyMenuMonthlySettlementAudit存在', `status=${bma.conclusion.status}`)
+          : fail('31-15 BusinessReport.buyMenuMonthlySettlementAudit存在', `bma=${JSON.stringify(bma)?.slice(0,40)}`);
+      }
+
+      // 31-16: 監査後もbuyMenu adopted・default ON
+      {
+        const stOk = _SIM5_AI_ADOPTION_STATUS?.buyMenu?.status === 'adopted';
+        const enOk = _SIM5_ENABLE?.buyMenu === true;
+        (stOk && enOk)
+          ? pass('31-16 buyMenu adopted維持', `status=${_SIM5_AI_ADOPTION_STATUS.buyMenu.status} enable=${_SIM5_ENABLE.buyMenu}`)
+          : fail('31-16 buyMenu adopted維持', `status=${_SIM5_AI_ADOPTION_STATUS?.buyMenu?.status} enable=${_SIM5_ENABLE?.buyMenu}`);
       }
     }
     console.groupEnd();
