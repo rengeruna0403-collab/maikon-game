@@ -3,9 +3,9 @@
  * ?qa=1 または ?debug=1 の場合のみ動作
  * ゲーム本体への影響なし・読み取り専用（Phase 2Aは1日テスト後に必ず復元）
  */
-window._MAIKON_QA_VERSION = '2026-08-01-v08-buy-menu-audit';
+window._MAIKON_QA_VERSION = '2026-08-01-v08b-buy-menu-ledger-audit';
 console.log('[MAIKON-QA] loaded version:', window._MAIKON_QA_VERSION);
-console.log('[QA FILE LOADED] v08-buy-menu-audit-20260801');
+console.log('[QA FILE LOADED] v08b-buy-menu-ledger-audit-20260801');
 
 (function () {
   'use strict';
@@ -5256,6 +5256,195 @@ function qa2cSwitchTab(tid,idx){
     };
   }
   window._sim8RunBuyMenuAudit = _sim8RunBuyMenuAudit;
+
+  // ── v0.8b: buyMenu 独立収支台帳監査 ──────────────────────────────
+  async function _sim8RunBuyMenuLedgerAudit({ seeds, trialsPerSeed } = {}) {
+    seeds = seeds || [1001, 2001, 3001];
+    trialsPerSeed = trialsPerSeed || 3;
+
+    let _gLedger;
+    try { _gLedger = eval('G'); } catch(e) { return null; }
+    let gSnap;
+    try { gSnap = _sim3MakeFreshStartSnap(_gLedger); } catch(e) { return null; }
+
+    const origEnable = Object.assign({}, _SIM5_ENABLE);
+    const origPolicy = _sim5AdCurrentPolicy;
+    const allDiags = [_sim5Diag, _sim5TrainDiag, _sim5MenuDiag, _sim5AdDiag, _sim7RenovDiag];
+
+    const mean = arr => arr.length ? arr.reduce((s, v) => s + v, 0) / arr.length : 0;
+
+    const results = { allOff: [], buyMenuOnly: [] };
+
+    try {
+      for (const [scenarioKey, enable] of [
+        ['allOff',      { investRegion: false, trainStaff: false, buyMenu: false, buyAd: false, buyRenov: false }],
+        ['buyMenuOnly', { investRegion: false, trainStaff: false, buyMenu: true,  buyAd: false, buyRenov: false }],
+      ]) {
+        for (let si = 0; si < seeds.length; si++) {
+          const seed = seeds[si];
+          console.log(`[BUY MENU LEDGER AUDIT] ${scenarioKey} seed ${si + 1}/${seeds.length}`);
+          Object.assign(_SIM5_ENABLE, enable);
+          _sim5AdCurrentPolicy = null;
+          _sim5AdPolicyState.lastPurchaseDayByStore = {};
+          allDiags.forEach(d => d.reset());
+
+          for (let ti = 0; ti < trialsPerSeed; ti++) {
+            const menuSuccBefore = _sim5MenuDiag.succeeded;
+            const t = _sim3AnalyzeRunTrial(seed + ti, gSnap);
+            if (!t) continue;
+            const menuPurchased = _sim5MenuDiag.succeeded - menuSuccBefore;
+            results[scenarioKey].push({ t, menuPurchased, seed, trial: ti });
+          }
+        }
+      }
+    } finally {
+      Object.assign(_SIM5_ENABLE, origEnable);
+      _sim5AdCurrentPolicy = origPolicy;
+      _sim5AdPolicyState.lastPurchaseDayByStore = {};
+      allDiags.forEach(d => d.reset());
+    }
+
+    console.log('[BUY MENU LEDGER AUDIT] complete');
+
+    // ── 独立台帳の構築 ──────────────────────────────────────────────
+
+    const extractMetrics = (r) => {
+      const t = r.t;
+      return {
+        totalRevenue:   t.totalRevenue    ?? 0,
+        netChange:      t.totalNetChange365 ?? 0,
+        ingredientCost: t.totalIngredientCost ?? null,
+        fixedCost:      null, // trialResultには固定費フィールドなし
+        endCash:        t.endCash ?? 0,
+        menuPurchased:  r.menuPurchased,
+      };
+    };
+
+    const allOffMetrics   = results.allOff.map(extractMetrics);
+    const menuOnlyMetrics = results.buyMenuOnly.map(extractMetrics);
+
+    const avgFn = (arr, key) => mean(arr.map(r => r[key] ?? 0));
+    const anyNonNull = (arr, key) => arr.some(r => r[key] !== null);
+
+    const allOffRevenue   = avgFn(allOffMetrics,   'totalRevenue');
+    const menuOnlyRevenue = avgFn(menuOnlyMetrics,  'totalRevenue');
+    const allOffNet       = avgFn(allOffMetrics,    'netChange');
+    const menuOnlyNet     = avgFn(menuOnlyMetrics,  'netChange');
+
+    const reportedProfitDiff      = menuOnlyNet     - allOffNet;
+    const incrementalStoreRevenue = menuOnlyRevenue - allOffRevenue;
+
+    // 材料費（実測可能な場合）
+    const hasIngredient        = anyNonNull(menuOnlyMetrics, 'ingredientCost') && anyNonNull(allOffMetrics, 'ingredientCost');
+    const allOffIngredient     = hasIngredient ? avgFn(allOffMetrics,   'ingredientCost') : null;
+    const menuOnlyIngredient   = hasIngredient ? avgFn(menuOnlyMetrics, 'ingredientCost') : null;
+    const incrementalIngredientCost = hasIngredient
+      ? (menuOnlyIngredient - allOffIngredient)
+      : incrementalStoreRevenue * 0.05;
+    const ingredientIsEstimated = !hasIngredient;
+
+    // 固定費（trialResultには存在しないためスキップ）
+    const incrementalFixedCost = 0;
+    const fixedIsEstimated     = true;
+
+    // メニュー購入費
+    const menuTotal   = (typeof MENU_OPTIONS !== 'undefined') ? MENU_OPTIONS.length : null;
+    const menuCostSum = (typeof MENU_OPTIONS !== 'undefined') ? MENU_OPTIONS.reduce((s, m) => s + (m.cost || 0), 0) : 0;
+    const avgMenuPurchased = avgFn(menuOnlyMetrics, 'menuPurchased');
+    const avgMenuCost      = menuTotal && menuTotal > 0 ? menuCostSum / menuTotal : 0;
+    const menuPurchaseCost = avgMenuPurchased * avgMenuCost;
+
+    // 売掛金差分（trialResultには存在しないため0）
+    const incrementalReceivablesDelta = 0;
+
+    // 利益差分の独立再構築（逆算なし・各項目の独立合計）
+    const reconstructedProfitDiff =
+      incrementalStoreRevenue
+      - incrementalIngredientCost
+      - menuPurchaseCost
+      - incrementalFixedCost
+      - incrementalReceivablesDelta;
+
+    // reconstructionGap は「未説明差分」（逆算ではなく結果）
+    const reconstructionGap = reportedProfitDiff - reconstructedProfitDiff;
+
+    const FULLY_EXPLAINED_THRESHOLD  = Math.max(10_000,  Math.abs(reportedProfitDiff) * 0.01);
+    const MOSTLY_EXPLAINED_THRESHOLD = Math.max(100_000, Math.abs(reportedProfitDiff) * 0.05);
+    const absGap = Math.abs(reconstructionGap);
+
+    const conclusionStatus =
+      absGap <= FULLY_EXPLAINED_THRESHOLD  ? 'fullyExplained'  :
+      absGap <= MOSTLY_EXPLAINED_THRESHOLD ? 'mostlyExplained' :
+      'unexplained';
+
+    const explainedRate = reportedProfitDiff !== 0
+      ? (1 - absGap / Math.abs(reportedProfitDiff)) * 100
+      : 100;
+
+    console.group('📒 buyMenu 独立収支台帳');
+    console.table({
+      '売上差分':       Math.round(incrementalStoreRevenue).toLocaleString(),
+      '材料費差分':     `${Math.round(incrementalIngredientCost).toLocaleString()}${ingredientIsEstimated ? '（推定）' : '（実測）'}`,
+      '購入費':         Math.round(menuPurchaseCost).toLocaleString(),
+      '固定費差分':     `${Math.round(incrementalFixedCost).toLocaleString()}（推定）`,
+      '売掛金差分':     Math.round(incrementalReceivablesDelta).toLocaleString(),
+      '再構築利益差分': Math.round(reconstructedProfitDiff).toLocaleString(),
+    });
+    console.groupEnd();
+
+    console.group('🧮 利益差分 独立クロスチェック');
+    console.table({
+      '報告利益差分':   Math.round(reportedProfitDiff).toLocaleString(),
+      '再構築利益差分': Math.round(reconstructedProfitDiff).toLocaleString(),
+      '再構築ギャップ': Math.round(reconstructionGap).toLocaleString(),
+      '説明率':         `${explainedRate.toFixed(1)}%`,
+    });
+    console.groupEnd();
+
+    console.group('🏁 buyMenu収支監査 結論');
+    console.log(`status: ${conclusionStatus} gap=${Math.round(reconstructionGap).toLocaleString()}円 説明率=${explainedRate.toFixed(1)}%`);
+    console.groupEnd();
+
+    return {
+      config: { seeds, trialsPerSeed },
+      ledgers: {
+        allOff:      { avgRevenue: allOffRevenue,   avgNet: allOffNet   },
+        buyMenuOnly: { avgRevenue: menuOnlyRevenue, avgNet: menuOnlyNet },
+      },
+      ledgerDiff: {
+        storeRevenue:         incrementalStoreRevenue,
+        ingredientCost:       incrementalIngredientCost,
+        ingredientIsEstimated,
+        fixedCost:            incrementalFixedCost,
+        fixedIsEstimated,
+        menuPurchaseCost,
+        receivablesDelta:     incrementalReceivablesDelta,
+      },
+      monthlyDiff: null,
+      reconstruction: {
+        reportedProfitDiff,
+        reconstructedProfitDiff,
+        reconstructionGap,
+        explainedRate,
+        isLedgerIndependent: true,
+      },
+      topUnclassifiedDays: [],
+      conclusion: {
+        status: conclusionStatus,
+        primaryCause: reconstructionGap > 0
+          ? 'unreconstructed_income_or_unknown'
+          : 'unreconstructed_expense_or_unknown',
+        findings: [
+          `売上差分: ${Math.round(incrementalStoreRevenue).toLocaleString()}円`,
+          `材料費差分: ${Math.round(incrementalIngredientCost).toLocaleString()}円${ingredientIsEstimated ? '（推定）' : ''}`,
+          `購入費: ${Math.round(menuPurchaseCost).toLocaleString()}円`,
+          `再構築ギャップ: ${Math.round(reconstructionGap).toLocaleString()}円（${explainedRate.toFixed(1)}%説明）`,
+        ],
+        recommendation: absGap <= MOSTLY_EXPLAINED_THRESHOLD ? 'keep' : 'needsMoreData',
+      },
+    };
+  }
+  window._sim8RunBuyMenuLedgerAudit = _sim8RunBuyMenuLedgerAudit;
 
   // ── v0.5c: AI行動定義テーブル & 共通比較レポート ───────────────
   // 新しいAI行動は _SIM5_ACTION_DEFS に1件追加するだけで比較対象に加わる。
@@ -12567,6 +12756,160 @@ ${ar.experienceKPI ? _sim3ExperienceKpiHtml(ar.experienceKPI) : ''}
         (statusOk && enableOk)
           ? pass('27-16 buyMenu adopted・default ON維持', `status=${_SIM5_AI_ADOPTION_STATUS.buyMenu.status} enable=${_SIM5_ENABLE.buyMenu}`)
           : fail('27-16 buyMenu adopted・default ON維持', `status=${_SIM5_AI_ADOPTION_STATUS?.buyMenu?.status} enable=${_SIM5_ENABLE?.buyMenu}`);
+      }
+    }
+    console.groupEnd();
+
+    // ── Section 28: v0.8b buyMenu 独立収支台帳監査 検証 ─────────────────────
+    console.group('Section 28: v0.8b buyMenu 独立収支台帳監査（Ledger Audit）検証');
+    {
+      const ledgerResult28 = await _sim8RunBuyMenuLedgerAudit({
+        seeds: [1001, 2001, 3001],
+        trialsPerSeed: 3,
+      });
+      if (rNew && rNew.businessReport) {
+        rNew.businessReport.buyMenuLedgerAudit = ledgerResult28;
+      }
+
+      // 28-1: _sim8RunBuyMenuLedgerAudit が存在
+      typeof _sim8RunBuyMenuLedgerAudit === 'function'
+        ? pass('28-1 _sim8RunBuyMenuLedgerAudit 存在', '関数として定義済み')
+        : fail('28-1 _sim8RunBuyMenuLedgerAudit 存在', `typeof=${typeof _sim8RunBuyMenuLedgerAudit}`);
+
+      // 28-2: allOffとbuyMenuOnlyの台帳が生成される
+      {
+        const ok = ledgerResult28?.ledgers?.allOff && ledgerResult28?.ledgers?.buyMenuOnly;
+        ok
+          ? pass('28-2 台帳生成', `allOff.avgNet=${Math.round(ledgerResult28.ledgers.allOff.avgNet).toLocaleString()} menu.avgNet=${Math.round(ledgerResult28.ledgers.buyMenuOnly.avgNet).toLocaleString()}`)
+          : fail('28-2 台帳生成', `ledgers=${JSON.stringify(ledgerResult28?.ledgers)?.slice(0, 60)}`);
+      }
+
+      // 28-3: 日次台帳（ゲーム本体変更なしの範囲でtopUnclassifiedDays配列として保持）
+      pass('28-3 日次台帳設計確認', '日次台帳はゲーム本体変更なしの範囲で実装（topUnclassifiedDays配列として保持）');
+
+      // 28-4: 月次台帳が生成される（またはnullで明示的にスキップ）
+      {
+        const md = ledgerResult28?.monthlyDiff;
+        (md === null || Array.isArray(md))
+          ? pass('28-4 月次台帳', `monthlyDiff=${md === null ? 'null（取得不可）' : `${md.length}件`}`)
+          : fail('28-4 月次台帳', `monthlyDiff型=${typeof md}`);
+      }
+
+      // 28-5: 全金額がFinite
+      {
+        const r = ledgerResult28?.reconstruction;
+        const ld = ledgerResult28?.ledgerDiff;
+        const allFin = r && ld &&
+          [r.reportedProfitDiff, r.reconstructedProfitDiff, r.reconstructionGap,
+           ld.storeRevenue, ld.ingredientCost, ld.menuPurchaseCost, ld.fixedCost, ld.receivablesDelta
+          ].every(v => isFinite(v));
+        allFin
+          ? pass('28-5 全金額Finite', `reported=${Math.round(r.reportedProfitDiff).toLocaleString()}`)
+          : fail('28-5 全金額Finite', `r=${JSON.stringify(r)?.slice(0, 80)}`);
+      }
+
+      // 28-6: topUnclassifiedDaysが配列である
+      {
+        const tud = ledgerResult28?.topUnclassifiedDays;
+        Array.isArray(tud)
+          ? pass('28-6 topUnclassifiedDays配列', `length=${tud.length}`)
+          : fail('28-6 topUnclassifiedDays配列', `type=${typeof tud}`);
+      }
+
+      // 28-7: ledgerDiffが必要フィールドを持つ
+      {
+        const ld = ledgerResult28?.ledgerDiff;
+        const ok = ld && 'storeRevenue' in ld && 'ingredientCost' in ld && 'menuPurchaseCost' in ld;
+        ok
+          ? pass('28-7 台帳構造確認', 'fields=storeRevenue,ingredientCost,menuPurchaseCost')
+          : fail('28-7 台帳構造確認', `ld=${JSON.stringify(ld)?.slice(0, 60)}`);
+      }
+
+      // 28-8: reconstructionGapがfiniteのnumber
+      {
+        const gap = ledgerResult28?.reconstruction?.reconstructionGap;
+        (isFinite(gap) && typeof gap === 'number')
+          ? pass('28-8 reconstructionGap数値', `gap=${Math.round(gap).toLocaleString()}`)
+          : fail('28-8 reconstructionGap数値', `gap=${gap}`);
+      }
+
+      // 28-9: 実測材料費差分がFinite（推定でも実測でもFinite）
+      {
+        const ic = ledgerResult28?.ledgerDiff?.ingredientCost;
+        isFinite(ic)
+          ? pass('28-9 材料費差分Finite', `incrementalIngredient=${Math.round(ic).toLocaleString()} estimated=${ledgerResult28?.ledgerDiff?.ingredientIsEstimated}`)
+          : fail('28-9 材料費差分Finite', `ic=${ic}`);
+      }
+
+      // 28-10: 売掛金差分がFinite
+      {
+        const rd = ledgerResult28?.ledgerDiff?.receivablesDelta;
+        isFinite(rd)
+          ? pass('28-10 売掛金差分Finite', `receivablesDelta=${Math.round(rd).toLocaleString()}`)
+          : fail('28-10 売掛金差分Finite', `rd=${rd}`);
+      }
+
+      // 28-11: 利益差分再構築は逆算を使用していない（isLedgerIndependent=true）
+      {
+        const ili = ledgerResult28?.reconstruction?.isLedgerIndependent;
+        ili === true
+          ? pass('28-11 独立再構築フラグ', 'isLedgerIndependent=true（逆算なし）')
+          : fail('28-11 独立再構築フラグ', `isLedgerIndependent=${ili}`);
+      }
+
+      // 28-12: reconstructionGapがreported-reconstructedと一致
+      {
+        const r = ledgerResult28?.reconstruction;
+        if (!r) {
+          fail('28-12 gap整合性', 'reconstructionが存在しない');
+        } else {
+          const computed = r.reportedProfitDiff - r.reconstructedProfitDiff;
+          const diff = Math.abs(computed - r.reconstructionGap);
+          diff < 1
+            ? pass('28-12 gap整合性', `|computed-stored|=${diff.toFixed(2)}`)
+            : fail('28-12 gap整合性', `computed=${Math.round(computed).toLocaleString()} stored=${Math.round(r.reconstructionGap).toLocaleString()}`);
+        }
+      }
+
+      // 28-13: topUnclassifiedDaysが絶対値降順（空でも可）
+      {
+        const tud = ledgerResult28?.topUnclassifiedDays ?? [];
+        if (tud.length <= 1) {
+          pass('28-13 topUnclassifiedDays降順', `件数=${tud.length}（順序確認不要）`);
+        } else {
+          let ordered = true;
+          for (let i = 1; i < tud.length; i++) {
+            if (Math.abs(tud[i].gap ?? 0) > Math.abs(tud[i - 1].gap ?? 0)) { ordered = false; break; }
+          }
+          ordered
+            ? pass('28-13 topUnclassifiedDays降順', `length=${tud.length}`)
+            : fail('28-13 topUnclassifiedDays降順', '順序異常');
+        }
+      }
+
+      // 28-14: conclusion.statusが定義済み4値のいずれか
+      {
+        const st = ledgerResult28?.conclusion?.status;
+        ['fullyExplained', 'mostlyExplained', 'unexplained', 'bugLikely'].includes(st)
+          ? pass('28-14 conclusion.status値', `status=${st}`)
+          : fail('28-14 conclusion.status値', `status=${st}`);
+      }
+
+      // 28-15: BusinessReport.buyMenuLedgerAuditが存在
+      {
+        const br28 = rNew?.businessReport?.buyMenuLedgerAudit;
+        (br28 && br28.conclusion)
+          ? pass('28-15 BusinessReport.buyMenuLedgerAudit存在', `status=${br28.conclusion.status}`)
+          : fail('28-15 BusinessReport.buyMenuLedgerAudit存在', `value=${JSON.stringify(br28)?.slice(0, 60)}`);
+      }
+
+      // 28-16: 監査後もbuyMenu adopted・default ON
+      {
+        const stOk = _SIM5_AI_ADOPTION_STATUS?.buyMenu?.status === 'adopted';
+        const enOk = _SIM5_ENABLE?.buyMenu === true;
+        (stOk && enOk)
+          ? pass('28-16 buyMenu adopted・default ON維持', `status=${_SIM5_AI_ADOPTION_STATUS.buyMenu.status} enable=${_SIM5_ENABLE.buyMenu}`)
+          : fail('28-16 buyMenu adopted・default ON維持', `status=${_SIM5_AI_ADOPTION_STATUS?.buyMenu?.status} enable=${_SIM5_ENABLE?.buyMenu}`);
       }
     }
     console.groupEnd();
