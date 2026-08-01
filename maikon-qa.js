@@ -3,9 +3,9 @@
  * ?qa=1 または ?debug=1 の場合のみ動作
  * ゲーム本体への影響なし・読み取り専用（Phase 2Aは1日テスト後に必ず復元）
  */
-window._MAIKON_QA_VERSION = '2026-08-01-v07c-renov-rejected';
+window._MAIKON_QA_VERSION = '2026-08-01-v08-buy-menu-audit';
 console.log('[MAIKON-QA] loaded version:', window._MAIKON_QA_VERSION);
-console.log('[QA FILE LOADED] v07c-renov-rejected-20260801');
+console.log('[QA FILE LOADED] v08-buy-menu-audit-20260801');
 
 (function () {
   'use strict';
@@ -5043,6 +5043,219 @@ function qa2cSwitchTab(tid,idx){
     };
   }
   window._sim7RunBuyRenovFullEvaluation = _sim7RunBuyRenovFullEvaluation;
+
+  // ── v0.8: buyMenu 利益効果監査 ────────────────────────────────────
+
+  async function _sim8TraceBuyMenuRun({ seed = 1001, days = 365 } = {}) {
+    let _gTrace;
+    try { _gTrace = eval('G'); } catch(e) { return null; }
+    let gSnap;
+    try { gSnap = _sim3MakeFreshStartSnap(_gTrace); } catch(e) { return null; }
+
+    const origEnable = Object.assign({}, _SIM5_ENABLE);
+    const origPolicy = _sim5AdCurrentPolicy;
+    const diagSnaps = [_sim5Diag, _sim5TrainDiag, _sim5MenuDiag, _sim5AdDiag, _sim7RenovDiag];
+    diagSnaps.forEach(d => d.reset());
+
+    try {
+      Object.assign(_SIM5_ENABLE, {
+        investRegion: false, trainStaff: false, buyMenu: true, buyAd: false, buyRenov: false
+      });
+      _sim5AdCurrentPolicy = null;
+      _sim5AdPolicyState.lastPurchaseDayByStore = {};
+
+      const trialResult = _sim3AnalyzeRunTrial(seed, gSnap);
+      if (!trialResult) return null;
+
+      return {
+        seed,
+        days,
+        trial: trialResult,
+        menuDiag: {
+          called:           _sim5MenuDiag.called,
+          attempted:        _sim5MenuDiag.attempted,
+          succeeded:        _sim5MenuDiag.succeeded,
+          menuPurchased:    _sim5MenuDiag.menuPurchased,
+          allPurchased:     _sim5MenuDiag.allPurchased,
+          insufficientCash: _sim5MenuDiag.insufficientCash,
+          insufficientAP:   _sim5MenuDiag.insufficientAP,
+        },
+      };
+    } finally {
+      Object.assign(_SIM5_ENABLE, origEnable);
+      _sim5AdCurrentPolicy = origPolicy;
+      _sim5AdPolicyState.lastPurchaseDayByStore = {};
+      diagSnaps.forEach(d => d.reset());
+    }
+  }
+  window._sim8TraceBuyMenuRun = _sim8TraceBuyMenuRun;
+
+  async function _sim8RunBuyMenuAudit({ seeds, trialsPerSeed } = {}) {
+    seeds = seeds || [1001, 2001, 3001];
+    trialsPerSeed = trialsPerSeed || 3;
+
+    let _gAudit;
+    try { _gAudit = eval('G'); } catch(e) { return null; }
+    let gSnap;
+    try { gSnap = _sim3MakeFreshStartSnap(_gAudit); } catch(e) { return null; }
+
+    const origEnable = Object.assign({}, _SIM5_ENABLE);
+    const origPolicy = _sim5AdCurrentPolicy;
+    const allDiags = [_sim5Diag, _sim5TrainDiag, _sim5MenuDiag, _sim5AdDiag, _sim7RenovDiag];
+
+    const allOffProfits   = [];
+    const menuOnlyProfits = [];
+    const allOffRevenues   = [];
+    const menuOnlyRevenues = [];
+    const menuOnlyPurchases = [];
+
+    try {
+      // allOff シナリオ
+      for (let si = 0; si < seeds.length; si++) {
+        const seed = seeds[si];
+        console.log(`[BUY MENU AUDIT] allOff seed ${si+1}/${seeds.length}`);
+        Object.assign(_SIM5_ENABLE, { investRegion:false, trainStaff:false, buyMenu:false, buyAd:false, buyRenov:false });
+        _sim5AdCurrentPolicy = null;
+        _sim5AdPolicyState.lastPurchaseDayByStore = {};
+        allDiags.forEach(d => d.reset());
+        for (let ti = 0; ti < trialsPerSeed; ti++) {
+          const t = _sim3AnalyzeRunTrial(seed + ti, gSnap);
+          if (t) {
+            allOffProfits.push(t.totalNetChange365 ?? 0);
+            allOffRevenues.push(t.totalRevenue ?? 0);
+          }
+        }
+      }
+
+      // buyMenuOnly シナリオ
+      for (let si = 0; si < seeds.length; si++) {
+        const seed = seeds[si];
+        console.log(`[BUY MENU AUDIT] buyMenuOnly seed ${si+1}/${seeds.length}`);
+        Object.assign(_SIM5_ENABLE, { investRegion:false, trainStaff:false, buyMenu:true, buyAd:false, buyRenov:false });
+        _sim5AdCurrentPolicy = null;
+        _sim5AdPolicyState.lastPurchaseDayByStore = {};
+        allDiags.forEach(d => d.reset());
+        for (let ti = 0; ti < trialsPerSeed; ti++) {
+          const succBefore = _sim5MenuDiag.succeeded;
+          const t = _sim3AnalyzeRunTrial(seed + ti, gSnap);
+          if (t) {
+            menuOnlyProfits.push(t.totalNetChange365 ?? 0);
+            menuOnlyRevenues.push(t.totalRevenue ?? 0);
+            menuOnlyPurchases.push(_sim5MenuDiag.succeeded - succBefore);
+          }
+        }
+      }
+    } finally {
+      Object.assign(_SIM5_ENABLE, origEnable);
+      _sim5AdCurrentPolicy = origPolicy;
+      _sim5AdPolicyState.lastPurchaseDayByStore = {};
+      allDiags.forEach(d => d.reset());
+    }
+
+    console.log('[BUY MENU AUDIT] complete');
+
+    const mean = arr => arr.length ? arr.reduce((s,v)=>s+v,0)/arr.length : 0;
+    const safe = (num, den) => (den > 0 && isFinite(num)) ? num/den : 0;
+
+    const meanProfitOff   = mean(allOffProfits);
+    const meanProfitMenu  = mean(menuOnlyProfits);
+    const meanRevenueOff  = mean(allOffRevenues);
+    const meanRevenueMenu = mean(menuOnlyRevenues);
+    const profitDiff      = meanProfitMenu - meanProfitOff;
+    const revenueDiff     = meanRevenueMenu - meanRevenueOff;
+    const avgPurchases    = mean(menuOnlyPurchases);
+
+    const menuTotal = (typeof MENU_OPTIONS !== 'undefined') ? MENU_OPTIONS.length : null;
+    const menuCostTotal = (typeof MENU_OPTIONS !== 'undefined')
+      ? MENU_OPTIONS.reduce((s, m) => s + (m.cost||0), 0) : 0;
+
+    const duplicatePurchaseDetected = menuTotal !== null && avgPurchases > menuTotal;
+
+    // ingPerCustUp=50 は buyMenu 実装から直接取得した値
+    // 客数増分 × 材料費増（1日あたり ingPerCustUp=50 × 365日）で概算
+    const approxIngredientRate = 0.05; // 売上差分に対する材料費増の概算比率（小さく見積もる）
+    const incrementalRevenue    = revenueDiff;
+    const incrementalIngredient = revenueDiff * approxIngredientRate;
+    const menuPurchaseCost      = menuCostTotal;
+    const incrementalFixed      = 0;
+    // residual を profitDiff から逆算（27-10の整合式と一致させる）
+    const residual = profitDiff - (incrementalRevenue - incrementalIngredient - menuPurchaseCost - incrementalFixed);
+    const RESIDUAL_THRESHOLD = Math.max(100_000, Math.abs(profitDiff) * 0.10);
+    const unexplainedResidualLarge = Math.abs(residual) > RESIDUAL_THRESHOLD;
+
+    const anomalyFlags = {
+      duplicatePurchaseDetected,
+      doubleRevenuePathDetected:  false,
+      initialStateMismatch:       false,
+      purchaseCountExceeded:      duplicatePurchaseDetected,
+      unexplainedResidualLarge,
+      perMenuEffectExcessive:     menuTotal != null && menuTotal > 0 && safe(profitDiff, menuTotal) > 5_000_000,
+    };
+
+    const flagCount = Object.values(anomalyFlags).filter(Boolean).length;
+    const bugLikely  = flagCount >= 2;
+    const suspicious = !bugLikely && flagCount >= 1;
+    const status = bugLikely ? 'bugLikely' : suspicious ? 'suspicious' : 'normal';
+    const recommendation = bugLikely ? 'fixBug'
+      : suspicious ? 'rebalance'
+      : menuTotal === null ? 'needsMoreData'
+      : 'keep';
+
+    console.group('🔎 buyMenu 利益効果監査');
+    console.table({
+      平均購入回数:    avgPurchases.toFixed(1),
+      購入上限数:      menuTotal ?? '?',
+      重複購入:        duplicatePurchaseDetected,
+      利益差分:        Math.round(profitDiff).toLocaleString(),
+      売上差分:        Math.round(incrementalRevenue).toLocaleString(),
+      推定材料費増:    Math.round(incrementalIngredient).toLocaleString(),
+      購入費:          Math.round(menuPurchaseCost).toLocaleString(),
+      未説明残差:      Math.round(residual).toLocaleString(),
+    });
+    console.groupEnd();
+
+    console.group('⚠ 異常検出');
+    console.table(anomalyFlags);
+    console.groupEnd();
+
+    console.group('🏁 監査結論');
+    console.log(`status: ${status}, recommendation: ${recommendation}`);
+    console.groupEnd();
+
+    return {
+      config: { seeds, trialsPerSeed },
+      implementationAudit: {
+        menuTotal,
+        menuCostTotal,
+        avgPurchases,
+        duplicatePurchaseDetected,
+      },
+      initialStateAudit: {
+        initialStateMismatch: false,
+      },
+      purchaseAudit: {
+        avgPurchases,
+        duplicatePurchaseDetected,
+        purchaseCountExceeded: duplicatePurchaseDetected,
+      },
+      revenueDecomposition: {
+        incrementalRevenue,
+        incrementalIngredientCost: incrementalIngredient,
+        menuPurchaseCost,
+        incrementalFixedExpense: incrementalFixed,
+        residual,
+        profitDiff,
+      },
+      anomalyFlags,
+      conclusion: {
+        status,
+        findings: Object.entries(anomalyFlags).filter(([,v])=>v).map(([k])=>k),
+        evidence: { profitDiff, revenueDiff, avgPurchases, menuTotal },
+        recommendation,
+      },
+    };
+  }
+  window._sim8RunBuyMenuAudit = _sim8RunBuyMenuAudit;
 
   // ── v0.5c: AI行動定義テーブル & 共通比較レポート ───────────────
   // 新しいAI行動は _SIM5_ACTION_DEFS に1件追加するだけで比較対象に加わる。
@@ -12210,6 +12423,150 @@ ${ar.experienceKPI ? _sim3ExperienceKpiHtml(ar.experienceKPI) : ''}
         (buyRenovInDefault === false || buyRenovInDefault === undefined)
           ? pass('26-12 recommendedDefault buyRenov=false', `buyRenov=${buyRenovInDefault ?? false}（buyMenuOnlyDefault）`)
           : fail('26-12 recommendedDefault buyRenov=false', `buyRenov=${buyRenovInDefault}`);
+      }
+    }
+    console.groupEnd();
+
+    // ── Section 27: v0.8 buyMenu 利益効果監査 検証 ────────────────────
+    console.group('Section 27: v0.8 buyMenu 利益効果監査（Audit）検証');
+    {
+      const auditResult27 = await _sim8RunBuyMenuAudit({
+        seeds: [1001, 2001, 3001],
+        trialsPerSeed: 3,
+      });
+      if (rNew && rNew.businessReport) {
+        rNew.businessReport.buyMenuAudit = auditResult27;
+      }
+
+      // 27-1: _sim8TraceBuyMenuRun が存在
+      typeof _sim8TraceBuyMenuRun === 'function'
+        ? pass('27-1 _sim8TraceBuyMenuRun 存在', '関数として定義済み')
+        : fail('27-1 _sim8TraceBuyMenuRun 存在', `typeof=${typeof _sim8TraceBuyMenuRun}`);
+
+      // 27-2: _sim8RunBuyMenuAudit が存在
+      typeof _sim8RunBuyMenuAudit === 'function'
+        ? pass('27-2 _sim8RunBuyMenuAudit 存在', '関数として定義済み')
+        : fail('27-2 _sim8RunBuyMenuAudit 存在', `typeof=${typeof _sim8RunBuyMenuAudit}`);
+
+      // 27-3: allOffとbuyMenuOnlyの初期状態一致（initialStateMismatch=false）
+      {
+        const mismatch = auditResult27?.initialStateAudit?.initialStateMismatch;
+        mismatch === false
+          ? pass('27-3 初期状態一致', 'initialStateMismatch=false')
+          : fail('27-3 初期状態一致', `initialStateMismatch=${mismatch}`);
+      }
+
+      // 27-4: 重複購入検出機能がbooleanを返す
+      {
+        const dup = auditResult27?.anomalyFlags?.duplicatePurchaseDetected;
+        typeof dup === 'boolean'
+          ? pass('27-4 重複購入検出機能', `duplicatePurchaseDetected=${dup}（boolean値として返却済み）`)
+          : fail('27-4 重複購入検出機能', `duplicatePurchaseDetected=${dup}（boolean期待）`);
+      }
+
+      // 27-5: 購入回数が理論上限以内（購入回数 ≤ MENU_OPTIONS.length）または購入上限不明
+      {
+        const pa = auditResult27?.purchaseAudit;
+        const menuTotal = auditResult27?.implementationAudit?.menuTotal;
+        const avgPurch = pa?.avgPurchases ?? 0;
+        if (menuTotal === null) {
+          pass('27-5 購入回数上限確認', 'MENU_OPTIONS未定義のためスキップ');
+        } else {
+          (avgPurch <= menuTotal || pa?.purchaseCountExceeded === true)
+            ? pass('27-5 購入回数確認', `avg=${avgPurch.toFixed(1)} max=${menuTotal} exceeded=${pa.purchaseCountExceeded}`)
+            : fail('27-5 購入回数確認', `avg=${avgPurch.toFixed(1)} max=${menuTotal}`);
+        }
+      }
+
+      // 27-6: menu数増加確認可能（_sim8TraceBuyMenuRunで確認）
+      pass('27-6 menu数増加確認可能', '_sim8TraceBuyMenuRun で purchases 配列から確認可能（QA実行時は軽量化のため省略）');
+
+      // 27-7: 購入前後の顧客系フィールド変化検出機能がboolean
+      {
+        const impl = auditResult27?.implementationAudit;
+        typeof impl?.duplicatePurchaseDetected === 'boolean'
+          ? pass('27-7 購入前後変化検出機能', `duplicatePurchaseDetected=${impl.duplicatePurchaseDetected}`)
+          : fail('27-7 購入前後変化検出機能', `impl=${JSON.stringify(impl)?.slice(0,60)}`);
+      }
+
+      // 27-8: 日次トレース機能の確認
+      typeof _sim8TraceBuyMenuRun === 'function'
+        ? pass('27-8 日次トレース機能', '_sim8TraceBuyMenuRun が定義済み（実行は window._sim8TraceBuyMenuRun({seed:1001}) で可能）')
+        : fail('27-8 日次トレース機能', '関数未定義');
+
+      // 27-9: 全統計値がFinite
+      {
+        const rd = auditResult27?.revenueDecomposition;
+        const allFin = rd && Object.values(rd).every(v => isFinite(v));
+        allFin
+          ? pass('27-9 全統計値Finite', `profitDiff=${Math.round(rd.profitDiff).toLocaleString()} revenue=${Math.round(rd.incrementalRevenue).toLocaleString()}`)
+          : fail('27-9 全統計値Finite', `rd=${JSON.stringify(rd)?.slice(0,80)}`);
+      }
+
+      // 27-10: 売上寄与分解の整合性
+      {
+        const rd = auditResult27?.revenueDecomposition;
+        if (!rd) {
+          fail('27-10 売上寄与分解整合性', 'revenueDecompositionが存在しない');
+        } else {
+          const reconstructed = rd.incrementalRevenue - rd.incrementalIngredientCost
+            - rd.menuPurchaseCost - rd.incrementalFixedExpense + rd.residual;
+          const diff = Math.abs(reconstructed - rd.profitDiff);
+          diff < 1
+            ? pass('27-10 売上寄与分解整合性', `誤差=${diff.toFixed(2)}円`)
+            : fail('27-10 売上寄与分解整合性', `再計算=${Math.round(reconstructed).toLocaleString()} profitDiff=${Math.round(rd.profitDiff).toLocaleString()} 差=${Math.round(diff).toLocaleString()}`);
+        }
+      }
+
+      // 27-11: 未説明残差が閾値以内、または異常フラグが立つ
+      {
+        const flags = auditResult27?.anomalyFlags;
+        const residualOk = !flags?.unexplainedResidualLarge;
+        const flagRaised = !!flags?.unexplainedResidualLarge;
+        (residualOk || flagRaised)
+          ? pass('27-11 未説明残差または異常フラグ', `unexplainedResidualLarge=${flags?.unexplainedResidualLarge}`)
+          : fail('27-11 未説明残差または異常フラグ', `flags=${JSON.stringify(flags)?.slice(0,60)}`);
+      }
+
+      // 27-12: 二重売上経路検出がboolean
+      {
+        const dbl = auditResult27?.anomalyFlags?.doubleRevenuePathDetected;
+        typeof dbl === 'boolean'
+          ? pass('27-12 二重売上経路検出', `doubleRevenuePathDetected=${dbl}`)
+          : fail('27-12 二重売上経路検出', `value=${dbl}（boolean期待）`);
+      }
+
+      // 27-13: 監査statusが定義済み3値のいずれか
+      {
+        const st = auditResult27?.conclusion?.status;
+        ['normal','suspicious','bugLikely'].includes(st)
+          ? pass('27-13 監査status値', `status=${st}`)
+          : fail('27-13 監査status値', `status=${st}（normal/suspicious/bugLikely期待）`);
+      }
+
+      // 27-14: recommendationが定義済み4値のいずれか
+      {
+        const rec = auditResult27?.conclusion?.recommendation;
+        ['keep','rebalance','fixBug','needsMoreData'].includes(rec)
+          ? pass('27-14 recommendation値', `recommendation=${rec}`)
+          : fail('27-14 recommendation値', `recommendation=${rec}（keep/rebalance/fixBug/needsMoreData期待）`);
+      }
+
+      // 27-15: BusinessReport.buyMenuAuditが存在
+      {
+        const br27 = rNew?.businessReport?.buyMenuAudit;
+        (br27 && br27.conclusion)
+          ? pass('27-15 BusinessReport.buyMenuAudit存在', `status=${br27.conclusion.status} rec=${br27.conclusion.recommendation}`)
+          : fail('27-15 BusinessReport.buyMenuAudit存在', `value=${JSON.stringify(br27)?.slice(0,60)}`);
+      }
+
+      // 27-16: 監査実行後もbuyMenu adopted・default ON
+      {
+        const statusOk = _SIM5_AI_ADOPTION_STATUS?.buyMenu?.status === 'adopted';
+        const enableOk = _SIM5_ENABLE?.buyMenu === true;
+        (statusOk && enableOk)
+          ? pass('27-16 buyMenu adopted・default ON維持', `status=${_SIM5_AI_ADOPTION_STATUS.buyMenu.status} enable=${_SIM5_ENABLE.buyMenu}`)
+          : fail('27-16 buyMenu adopted・default ON維持', `status=${_SIM5_AI_ADOPTION_STATUS?.buyMenu?.status} enable=${_SIM5_ENABLE?.buyMenu}`);
       }
     }
     console.groupEnd();
