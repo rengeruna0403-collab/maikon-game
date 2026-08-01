@@ -3,9 +3,9 @@
  * ?qa=1 または ?debug=1 の場合のみ動作
  * ゲーム本体への影響なし・読み取り専用（Phase 2Aは1日テスト後に必ず復元）
  */
-window._MAIKON_QA_VERSION = '2026-07-31-v07b-renov-full-evaluation';
+window._MAIKON_QA_VERSION = '2026-08-01-v07c-renov-rejected';
 console.log('[MAIKON-QA] loaded version:', window._MAIKON_QA_VERSION);
-console.log('[QA FILE LOADED] v07b-renov-full-evaluation-20260731');
+console.log('[QA FILE LOADED] v07c-renov-rejected-20260801');
 
 (function () {
   'use strict';
@@ -5155,9 +5155,9 @@ function qa2cSwitchTab(tid,idx){
     },
     buyRenov: {
       enabledByDefault: false,
-      status: 'candidate',
-      reason: 'v0.7で効果検証中',
-      validationVersion: '2026-07-30-v07-buy-renov-candidate',
+      status: 'rejected',
+      reason: '10seed×10試行のフル評価で平均利益差分・中央値がマイナス、勝率0%となり、共通採用基準を満たさなかったため',
+      validationVersion: '2026-07-31-v07b-renov-full-evaluation',
     },
   };
   window._SIM5_AI_ADOPTION_STATUS = _SIM5_AI_ADOPTION_STATUS;
@@ -12099,13 +12099,117 @@ ${ar.experienceKPI ? _sim3ExperienceKpiHtml(ar.experienceKPI) : ''}
           : fail('25-13 BusinessReport.buyRenovEvaluation存在', `value=${JSON.stringify(br25)?.slice(0,60)}`);
       }
 
-      // 25-14: 評価終了後もbuyRenovはcandidate・デフォルトOFF
+      // 25-14: 評価終了後もbuyRenovはrejected・デフォルトOFF
       {
-        const statusOk = _SIM5_AI_ADOPTION_STATUS?.buyRenov?.status === 'candidate';
+        const statusOk = _SIM5_AI_ADOPTION_STATUS?.buyRenov?.status === 'rejected';
         const enableOk = _SIM5_ENABLE?.buyRenov === false;
         (statusOk && enableOk)
-          ? pass('25-14 buyRenov candidate・デフォルトOFF維持', `status=${_SIM5_AI_ADOPTION_STATUS.buyRenov.status} enable=${_SIM5_ENABLE.buyRenov}`)
-          : fail('25-14 buyRenov candidate・デフォルトOFF維持', `status=${_SIM5_AI_ADOPTION_STATUS?.buyRenov?.status} enable=${_SIM5_ENABLE?.buyRenov}`);
+          ? pass('25-14 buyRenov rejected・デフォルトOFF確認', `status=${_SIM5_AI_ADOPTION_STATUS.buyRenov.status} enable=${_SIM5_ENABLE.buyRenov}`)
+          : fail('25-14 buyRenov rejected・デフォルトOFF確認', `status=${_SIM5_AI_ADOPTION_STATUS?.buyRenov?.status} enable=${_SIM5_ENABLE?.buyRenov}`);
+      }
+    }
+    console.groupEnd();
+
+    // ── Section 26: v0.7c buyRenov 正式不採用確認 ────────────────────
+    console.group('Section 26: v0.7c buyRenov 正式不採用確認');
+    {
+      // 26-1: buyRenov.status === 'rejected'
+      _SIM5_AI_ADOPTION_STATUS?.buyRenov?.status === 'rejected'
+        ? pass('26-1 buyRenov status=rejected', `status=${_SIM5_AI_ADOPTION_STATUS.buyRenov.status}`)
+        : fail('26-1 buyRenov status=rejected', `status=${_SIM5_AI_ADOPTION_STATUS?.buyRenov?.status}`);
+
+      // 26-2: buyRenov.enabledByDefault === false
+      _SIM5_AI_ADOPTION_STATUS?.buyRenov?.enabledByDefault === false
+        ? pass('26-2 buyRenov enabledByDefault=false', 'OK')
+        : fail('26-2 buyRenov enabledByDefault=false', `enabledByDefault=${_SIM5_AI_ADOPTION_STATUS?.buyRenov?.enabledByDefault}`);
+
+      // 26-3: buyRenov不採用理由が空でない
+      {
+        const reason26 = _SIM5_AI_ADOPTION_STATUS?.buyRenov?.reason;
+        (typeof reason26 === 'string' && reason26.length > 0)
+          ? pass('26-3 buyRenov reason非空', `reason=${reason26.slice(0,40)}...`)
+          : fail('26-3 buyRenov reason非空', `reason=${JSON.stringify(reason26)}`);
+      }
+
+      // 26-4: validationVersionがv0.7bフル評価を指している
+      {
+        const ver26 = _SIM5_AI_ADOPTION_STATUS?.buyRenov?.validationVersion;
+        (typeof ver26 === 'string' && ver26.includes('v07b'))
+          ? pass('26-4 validationVersion v07b', `version=${ver26}`)
+          : fail('26-4 validationVersion v07b', `version=${ver26}`);
+      }
+
+      // 26-5: 通常シミュレーションでbuyRenov called=0（デフォルトOFFのため）
+      {
+        const d26 = _sim7RenovDiag;
+        d26.called === 0
+          ? pass('26-5 通常シミュ buyRenov called=0', `called=${d26.called}（buyRenov=false）`)
+          : fail('26-5 通常シミュ buyRenov called=0', `called=${d26.called}（buyRenov=${_SIM5_ENABLE.buyRenov}）`);
+      }
+
+      // 26-6: 通常シミュレーションでrenovPurchased=0
+      {
+        const d26 = _sim7RenovDiag;
+        d26.renovPurchased === 0
+          ? pass('26-6 通常シミュ renovPurchased=0', `renovPurchased=${d26.renovPurchased}`)
+          : fail('26-6 通常シミュ renovPurchased=0', `renovPurchased=${d26.renovPurchased}`);
+      }
+
+      // 26-7: buyRenovOnly分析では一時的にONにできる
+      {
+        const enSnap26 = Object.assign({}, _SIM5_ENABLE);
+        let canEnable = false;
+        try {
+          _SIM5_ENABLE.buyRenov = true;
+          canEnable = _SIM5_ENABLE.buyRenov === true;
+        } finally {
+          Object.assign(_SIM5_ENABLE, enSnap26);
+        }
+        canEnable
+          ? pass('26-7 分析時一時ON可能', 'buyRenov=true に設定可能（分析シナリオ用）')
+          : fail('26-7 分析時一時ON可能', 'buyRenov=trueへの切り替えが失敗');
+      }
+
+      // 26-8: 分析終了後にbuyRenov=falseへ復元される（26-7で確認済み）
+      _SIM5_ENABLE.buyRenov === false
+        ? pass('26-8 分析後 buyRenov=false 復元', `buyRenov=${_SIM5_ENABLE.buyRenov}`)
+        : fail('26-8 分析後 buyRenov=false 復元', `buyRenov=${_SIM5_ENABLE.buyRenov}`);
+
+      // 26-9: 共通評価でevaluatedEligible=false
+      {
+        const ev26 = rNew?.businessReport?.buyRenovEvaluation?.buyRenovEvaluation;
+        (ev26 && ev26.evaluatedEligible === false)
+          ? pass('26-9 共通評価 evaluatedEligible=false', `eligible=${ev26.evaluatedEligible} score=${ev26.evaluationScore}`)
+          : fail('26-9 共通評価 evaluatedEligible=false', `ev=${JSON.stringify(ev26)?.slice(0,60)}`);
+      }
+
+      // 26-10: 整合性レポートでconsistent=true
+      {
+        const cr26 = rNew?.businessReport?.aiAdoptionEvaluation?.consistencyReport;
+        const item26 = cr26?.items?.find(i => i.key === 'buyRenov');
+        item26?.consistent === true
+          ? pass('26-10 整合性レポート buyRenov consistent=true', `consistent=${item26.consistent}`)
+          : fail('26-10 整合性レポート buyRenov consistent=true', `item=${JSON.stringify(item26)?.slice(0,60)}`);
+      }
+
+      // 26-11: BusinessReportに採用状態・評価結果・フル評価結果が残っている
+      {
+        const br26 = rNew?.businessReport;
+        const st26Ok = br26?.aiAdoptionStatus?.buyRenov?.status === 'rejected';
+        const ev26Ok = br26?.aiAdoptionEvaluation?.evaluations?.buyRenov !== undefined;
+        const full26Ok = br26?.buyRenovEvaluation !== undefined;
+        (st26Ok && ev26Ok && full26Ok)
+          ? pass('26-11 BusinessReport 評価履歴保持', `status=rejected eval=${ev26Ok} fullEval=${full26Ok}`)
+          : fail('26-11 BusinessReport 評価履歴保持', `statusOk=${st26Ok} evalOk=${ev26Ok} fullOk=${full26Ok}`);
+      }
+
+      // 26-12: recommendedDefaultConfigurationでbuyRenov=false
+      {
+        const nd26 = _SIM5_DEFAULT_CONFIG_SCENARIOS?.find(s => s.key === 'buyMenuOnlyDefault');
+        const buyRenovInDefault = nd26?.enable?.buyRenov;
+        (buyRenovInDefault === false || buyRenovInDefault === undefined)
+          ? pass('26-12 recommendedDefault buyRenov=false', `buyRenov=${buyRenovInDefault ?? false}（buyMenuOnlyDefault）`)
+          : fail('26-12 recommendedDefault buyRenov=false', `buyRenov=${buyRenovInDefault}`);
       }
     }
     console.groupEnd();
