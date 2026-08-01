@@ -12904,9 +12904,11 @@ ${ar.experienceKPI ? _sim3ExperienceKpiHtml(ar.experienceKPI) : ''}
       {
         const r = ledgerResult28?.reconstruction;
         const ld = ledgerResult28?.ledgerDiff;
+        // v0.8c以降、ledgerDiff各フィールドはオブジェクト{value,...}形式のためvalueを参照する
         const allFin = r && ld &&
           [r.reportedProfitDiff, r.reconstructedProfitDiff, r.reconstructionGap,
-           ld.storeRevenue, ld.ingredientCost, ld.menuPurchaseCost, ld.fixedCost, ld.receivablesDelta
+           ld.storeRevenue?.value, ld.ingredientCost?.value, ld.menuPurchaseCost?.value,
+           ld.fixedExpenseDiff?.total?.value ?? 0, ld.receivablesDelta?.value ?? 0
           ].every(v => isFinite(v));
         allFin
           ? pass('28-5 全金額Finite', `reported=${Math.round(r.reportedProfitDiff).toLocaleString()}`)
@@ -12940,15 +12942,19 @@ ${ar.experienceKPI ? _sim3ExperienceKpiHtml(ar.experienceKPI) : ''}
 
       // 28-9: 実測材料費差分がFinite（推定でも実測でもFinite）
       {
-        const ic = ledgerResult28?.ledgerDiff?.ingredientCost;
+        // v0.8c以降、ingredientCostはオブジェクト{value,...}形式のためvalueを参照する
+        const icObj = ledgerResult28?.ledgerDiff?.ingredientCost;
+        const ic = (icObj && typeof icObj === 'object') ? icObj.value : icObj;
         isFinite(ic)
-          ? pass('28-9 材料費差分Finite', `incrementalIngredient=${Math.round(ic).toLocaleString()} estimated=${ledgerResult28?.ledgerDiff?.ingredientIsEstimated}`)
+          ? pass('28-9 材料費差分Finite', `incrementalIngredient=${Math.round(ic).toLocaleString()} available=${icObj?.available}`)
           : fail('28-9 材料費差分Finite', `ic=${ic}`);
       }
 
       // 28-10: 売掛金差分がFinite
       {
-        const rd = ledgerResult28?.ledgerDiff?.receivablesDelta;
+        // v0.8c以降、receivablesDeltaはオブジェクト{value,...}形式のためvalueを参照する
+        const rdObj = ledgerResult28?.ledgerDiff?.receivablesDelta;
+        const rd = (rdObj && typeof rdObj === 'object') ? (rdObj.value ?? 0) : rdObj;
         isFinite(rd)
           ? pass('28-10 売掛金差分Finite', `receivablesDelta=${Math.round(rd).toLocaleString()}`)
           : fail('28-10 売掛金差分Finite', `rd=${rd}`);
