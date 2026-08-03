@@ -9645,7 +9645,7 @@ function renderCasesBox(){
       <div class="card-ttl" style="margin:0">📥 業務案件</div>
       <div style="display:flex;align-items:center;gap:6px">
         <button onclick="showSodanNote()" style="font-size:10px;padding:2px 8px;border-radius:99px;border:1px solid var(--gr);background:transparent;color:var(--gr3);cursor:pointer;font-weight:600">🍚 相談</button>
-        <span style="background:var(--orange);color:#fff;font-size:11px;font-weight:700;border-radius:99px;padding:2px 8px">${bizCases.length}件</span>
+        <span style="background:var(--blue);color:#fff;font-size:11px;font-weight:700;border-radius:99px;padding:2px 8px">対応できる相談：${bizCases.length}件</span>
       </div>
     </div>
     <div style="font-size:10px;color:${apColor};margin-bottom:8px;font-weight:600">
@@ -11247,6 +11247,7 @@ function chooseEvent(idx, useFatigue){
   const caseIdx = G.cases.findIndex(c => c === G.activeEvent);
   if(caseIdx >= 0){
     G.cases[caseIdx].resolved = true;
+    _checkCasesAllDoneHint();
     if(ev.repeatable){
       const d = (G.year-1)*360 + (G.month-1)*30 + G.day;
       G.caseCooldowns = G.caseCooldowns || {};
@@ -11833,6 +11834,135 @@ function renderPostMenuGrowthCard(si){
       メニューは十分にそろいました。ここからは、お店やスタッフを育てて次の段階を目指しましょう。
     </div>
     ${items}
+  </div>`;
+}
+
+// ─────────── 受動/能動 ホームセクション (v0.9g) ───────────
+function getOptionalManagementCards(){
+  if(!G.started || G.tut.phase !== 'done') return [];
+  const ap = G.ap || 0;
+  const store = G.stores[0];
+  const cards = [];
+
+  // メニュー追加（未購入あり）
+  if(store && store.isOpen){
+    const _unlockedP = G.unlockedProducts || [];
+    const availMenu = MENU_OPTIONS.filter(m => !store.menu.includes(m.name) && (!m.requireProduct || _unlockedP.includes(m.requireProduct)));
+    if(availMenu.length > 0){
+      const cheap = availMenu.reduce((a,b)=>a.cost<b.cost?a:b);
+      cards.push({ icon:'🍱', label:'メニューを追加する', desc:`残り${availMenu.length}品 — 売上アップにつながります`,
+        btn:'追加する', onclick:`openMenuModal(0)`,
+        canDo: G.money >= cheap.cost && ap >= 15, priority:1 });
+    }
+  }
+
+  // スタッフ研修（スタッフあり）
+  if(G.staff.length > 0){
+    cards.push({ icon:'👤', label:'スタッフを育てる', desc:'研修でスキルを上げ、昇格を目指しましょう',
+      btn:'人材タブへ', onclick:`setTab('staff')`,
+      canDo: G.money >= 50000 && ap >= 15, priority:2 });
+  }
+
+  // 店舗改装（改装余地あり）
+  if(store){
+    const availRenov = RENOV_OPTIONS.filter(r => !(store.upgrades||[]).includes(r.name));
+    if(availRenov.length > 0){
+      const cheap = availRenov.reduce((a,b)=>a.cost<b.cost?a:b);
+      cards.push({ icon:'🏪', label:'お店を改装する', desc:`${availRenov.length}種類の改装が可能です`,
+        btn:'店舗タブへ', onclick:`setTab('store')`,
+        canDo: G.money >= cheap.cost && ap >= 20, priority:3 });
+    }
+  }
+
+  // 地域活動（地域あり）
+  if((G.regions||[]).length > 0){
+    cards.push({ icon:'🤝', label:'地域活動をする', desc:'地域評価を高め、長期的なつながりを育てます',
+      btn:'地域タブへ', onclick:`setTab('region')`,
+      canDo: G.money >= 80000 && ap >= 20, priority:4 });
+  }
+
+  // 空室募集（未募集の空室あり）
+  const unseekingVacant = (G.buildings||[]).some(b=>b.rooms.some(r=>!r.tenant&&!r.seeking));
+  if(unseekingVacant){
+    cards.push({ icon:'🏠', label:'空室の入居募集を始める', desc:'募集中にすると入居申込みが届きます',
+      btn:'物件タブへ', onclick:`setTab('apt')`,
+      canDo: true, priority:0 });
+  }
+
+  // 広告出稿（店舗営業中）
+  if(store && store.isOpen){
+    cards.push({ icon:'📣', label:'広告を出して集客する', desc:'新しいお客様が来店しやすくなります',
+      btn:'店舗タブへ', onclick:`setTab('store')`,
+      canDo: G.money >= 15000 && ap >= 10, priority:5 });
+  }
+
+  cards.sort((a,b) => {
+    if(a.canDo !== b.canDo) return a.canDo ? -1 : 1;
+    return a.priority - b.priority;
+  });
+  return cards.slice(0, 3);
+}
+
+function _checkCasesAllDoneHint(){
+  if(G.tut.phase !== 'done') return;
+  const remaining = G.cases.filter(c=>!c.resolved).length;
+  if(remaining > 0) return;
+  setTimeout(()=>{
+    notify('✅ 今日届いた対応が終わりました。得た資金やAPを使って、お店を育てることもできます。', 'gold');
+  }, 600);
+}
+
+function renderIncomingSection(){
+  const casesHtml = renderCasesBox();
+  const hasCases = G.cases.filter(c=>!c.resolved).length > 0;
+  const emptyHtml = !hasCases ? `<div class="card" style="border-color:var(--blue);border-width:1.5px">
+    <div class="card-ttl" style="color:var(--blue)">📥 届いていること</div>
+    <div style="font-size:12px;color:var(--muted);line-height:1.7">今、急いで対応する相談はありません。</div>
+  </div>` : `<div style="margin-bottom:2px">
+    <div style="font-size:11px;color:var(--blue);font-weight:700;margin-bottom:6px;letter-spacing:.04em">📥 届いていること — お客様や地域から届いた相談です</div>
+    ${casesHtml}
+  </div>`;
+  return hasCases ? emptyHtml : emptyHtml;
+}
+
+function renderOptionalManagementSection(){
+  if(!G.started || G.tut.phase !== 'done') return '';
+  const cards = getOptionalManagementCards();
+  const ap = G.ap || 0;
+  const apNote = ap < 20
+    ? `<div style="background:#FFF9C4;border-radius:8px;padding:7px 10px;margin-bottom:8px;font-size:11px;color:#7a6010;line-height:1.7">💡 APを残して日を進めるのも経営判断です（週次で+30回復します）</div>`
+    : '';
+
+  if(cards.length === 0){
+    return `<div class="card" style="border-color:var(--gr);border-width:1.5px">
+      <div class="card-ttl" style="color:var(--gr3)">🧭 自分で決める経営</div>
+      <div style="font-size:12px;color:var(--muted);line-height:1.7">今は資金やAPをためる時期です。<br>日を進めながら、次の機会を待ちましょう。</div>
+    </div>`;
+  }
+
+  const allCards = cards.map(c => `
+    <div style="background:${c.canDo?'var(--bg2)':'rgba(255,255,255,.5)'};border-radius:10px;padding:10px 12px;margin-bottom:6px;border:${c.canDo?'1.5px solid var(--gr)':'1px solid var(--border)'}">
+      <div style="display:flex;align-items:center;gap:10px">
+        <span style="font-size:20px;flex-shrink:0">${c.icon}</span>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px;font-weight:700;color:var(--text)">${c.label}</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:2px;line-height:1.5">${c.desc}</div>
+        </div>
+        <button onclick="${c.onclick}" class="btn ${c.canDo?'btn-gr':'btn-bg'}" style="padding:5px 11px;font-size:11px;min-height:30px;flex-shrink:0">${c.btn}</button>
+      </div>
+    </div>`).join('');
+
+  const moreBtn = getOptionalManagementCards().length >= 3
+    ? `<button onclick="setTab('store')" style="width:100%;padding:7px;background:none;border:1px solid var(--border);border-radius:8px;font-size:11px;color:var(--muted);cursor:pointer;font-family:inherit;margin-top:2px;touch-action:manipulation">ほかの経営メニューを見る →</button>`
+    : '';
+
+  return `<div class="card" style="border-color:var(--gr);border-width:1.5px;background:linear-gradient(135deg,#EEF6EE,#FAFFF8)">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+      <div class="card-ttl" style="color:var(--gr3);margin:0">🧭 自分で決める経営</div>
+      <span style="font-size:10px;color:var(--muted);font-style:italic">今日は見送ることもできます</span>
+    </div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:8px;line-height:1.6">資金やAPをどこに使うかは、あなたの判断です。すべてを今日行う必要はありません。</div>
+    ${apNote}${allCards}${moreBtn}
   </div>`;
 }
 
@@ -13151,10 +13281,11 @@ function renderHome(){
       ${renderEarlyWarningCard()}
       ${renderCashWarningBanner()}
       ${renderTodayAction()}
-      ${renderWaitingStatusCard()}
-      <div id="home-cases-anchor">${renderCasesBox()}</div>
       ${renderPostMenuGrowthCard(0)}
+      <div id="home-cases-anchor">${renderIncomingSection()}</div>
+      ${renderOptionalManagementSection()}
       ${renderUpcomingCard()}
+      ${renderWaitingStatusCard()}
       ${renderTodayMood()}
       ${renderTutMissionCard()}
       <div class="hq-vis">
@@ -15810,7 +15941,7 @@ window.addEventListener('visibilitychange', ()=>{
 <script>
 if(/[?&](qa|debug)=1/.test(location.search)){
   var _qaScript=document.createElement('script');
-  _qaScript.src='maikon-qa.js?v=20260803-v09f-post-menu-growth';
+  _qaScript.src='maikon-qa.js?v=20260803-v09g-management-focus-ux';
   document.head.appendChild(_qaScript);
 }
 </script>
