@@ -1953,6 +1953,79 @@ function renderTutMissionCard(){
 }
 
 // ─── 現金警告バナー（チュートリアル外でも常時表示）───
+// ① 経営状態バッジ（v0.9e）
+function getFinancialHealthLevel(){
+  if(!G.started) return null;
+  const {profit} = calcDailyRevenue();
+  const dailyProfit = profit;
+  const daysToMonthEnd = 30 - G.day;
+  const projectedCash = G.money + (G.receivables||0);
+  // 🔴 危険：現金マイナス または 月末入金込みでもマイナス
+  if(G.money < 0 || projectedCash < 0) return 'danger';
+  // 🔴 危険：現金が月次固定費の半分未満
+  const monthlyExp = calcDailyRevenue().exp * 30;
+  if(G.money < monthlyExp * 0.3) return 'danger';
+  // 🟡 注意：運転資金が2ヶ月分未満
+  if(G.money < monthlyExp * 1.5) return 'caution';
+  // 🟡 注意：日次利益が3日連続マイナス傾向（簡易判定：利益がマイナス）
+  if(dailyProfit < 0) return 'caution';
+  return 'stable';
+}
+
+function renderFinancialHealthBadge(){
+  if(!G.started) return '';
+  const level = getFinancialHealthLevel();
+  if(!level) return '';
+  const map = { stable:['🟢','安定','var(--gr)'], caution:['🟡','注意','#B8860B'], danger:['🔴','危険','#C62828'] };
+  const [icon, label, color] = map[level];
+  return `<div style="display:inline-flex;align-items:center;gap:4px;background:var(--bg2);border-radius:8px;padding:3px 8px;font-size:11px;font-weight:700;color:${color}">
+    ${icon} 経営状態：${label}
+  </div>`;
+}
+
+// ① 事前警告カード（v0.9e）— 黄→橙の段階的警告
+function renderEarlyWarningCard(){
+  if(!G.started) return '';
+  if(G.tab !== 'home') return '';
+  const level = getFinancialHealthLevel();
+  if(level === 'stable' || !level) return '';
+  if(level === 'danger' && G.money < 0) return ''; // renderCashWarningBanner が担当
+  const {exp} = calcDailyRevenue();
+  const monthlyExp = exp * 30;
+  const daysToMonthEnd = 30 - G.day;
+  const projectedCash = G.money + (G.receivables||0);
+  if(level === 'danger'){
+    return `<div style="background:#FFF3E0;border:2px solid #E65100;border-radius:12px;padding:12px 14px;margin-bottom:10px;font-size:12px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+        <span style="font-size:18px">🟠</span>
+        <div style="font-weight:700;font-size:13px;color:#E65100">資金繰りに注意が必要です</div>
+      </div>
+      <div style="color:#5D4037;line-height:1.8">
+        このままでは<strong>数日以内に資金不足になる可能性があります。</strong><br>
+        今のうちに経営を見直しましょう。
+      </div>
+      <div style="margin-top:6px;font-size:11px;color:#8D6E63">
+        現金: ${fmt(G.money)} ／ 月末入金予定: +${fmt(G.receivables||0)} ／ 月次支出目安: ${fmt(monthlyExp)}
+      </div>
+      <div style="margin-top:8px;font-size:11px;color:#5D4037;line-height:1.7">
+        💡 回避の目安：<strong>固定費（人件費・家賃）</strong>を月収の50%以下に抑えると安定しやすくなります
+      </div>
+    </div>`;
+  }
+  // caution
+  return `<div style="background:#FFFDE7;border:1.5px solid #F9A825;border-radius:12px;padding:11px 14px;margin-bottom:10px;font-size:12px">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+      <span style="font-size:16px">🟡</span>
+      <div style="font-weight:700;font-size:12px;color:#B8860B">経営が少し苦しくなっています</div>
+    </div>
+    <div style="color:#5D4037;line-height:1.7">
+      現金が月次支出の目安より少なくなっています。<br>
+      売上を増やすか、不要な投資を抑えることで安定できます。
+    </div>
+    <div style="margin-top:5px;font-size:11px;color:#8D6E63">現金: ${fmt(G.money)} ／ 月末入金予定: +${fmt(G.receivables||0)}</div>
+  </div>`;
+}
+
 function renderCashWarningBanner(){
   if(!G.started) return '';
   if(G.tab !== 'home') return '';
@@ -1962,14 +2035,14 @@ function renderCashWarningBanner(){
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
       <span style="font-size:18px">${isNeg?'🚨':'⚠️'}</span>
       <div>
-        <div style="font-weight:700;font-size:13px">${isNeg?'資金ショート':'運転資金警告'}</div>
+        <div style="font-weight:700;font-size:13px">${isNeg?'🔴 現金が尽きています':'運転資金が少なくなっています'}</div>
         <div style="opacity:.8;font-size:10px">銀行員・成田より</div>
       </div>
     </div>
     <div style="line-height:1.7;opacity:.95">
       ${isNeg
-        ? '現金残高がマイナスです。<strong>「翌日へ進む」を押すと資金繰りの選択が発生します。</strong>'
-        : '運転資金が20万円を切っています。このままでは<strong>給与支払いが困難になります。</strong>'}
+        ? '現金残高がマイナスです。<strong>「翌日へ進む」を押すと資金繰りの対応が必要になります。</strong>'
+        : '運転資金が20万円を切っています。このままでは<strong>給与・家賃の支払いが困難になります。</strong>'}
     </div>
     ${!isNeg?`<div style="margin-top:6px;opacity:.8;font-size:11px">現在の現金: ${fmt(G.money)} / 売掛金（月末入金）: ${fmt(G.receivables)}</div>`:''}
   </div>`;
@@ -9712,17 +9785,30 @@ function showCashCrisisModal(){
     ? `3回使い切りました`
     : `現金+${(injectAmt/10000).toFixed(0)}万【緊急時のみ使用推奨】`;
   const injectDisabled = uses >= 3 ? 'disabled style="opacity:.4;cursor:not-allowed"' : '';
+  const _crisisReasons = analyzeCashCrisisReasons();
+  const _crisisReasonsHtml = _crisisReasons.slice(0,2).map(r=>`<div style="padding:3px 0;border-bottom:1px solid rgba(0,0,0,.06);line-height:1.6">・${r}</div>`).join('');
   const body = document.getElementById('event-modal-body');
   body.innerHTML = `
     <div style="padding:4px">
       <div style="text-align:center;font-size:32px;margin-bottom:8px">🏦💸</div>
-      <div style="font-size:16px;font-weight:700;text-align:center;margin-bottom:6px;font-family:'Noto Serif JP',serif">資金ショート</div>
-      <div style="background:var(--warm);border-radius:10px;padding:10px 12px;margin-bottom:12px;font-size:12px;line-height:1.8">
+      <div style="font-size:16px;font-weight:700;text-align:center;margin-bottom:6px;font-family:'Noto Serif JP',serif">現金が足りなくなっています</div>
+      <div style="background:var(--warm);border-radius:10px;padding:10px 12px;margin-bottom:10px;font-size:12px;line-height:1.8">
         <div style="font-weight:700;color:var(--muted);margin-bottom:4px">💼 銀行員・成田</div>
         現金残高がマイナスになっています。<br>
         給与・家賃の支払いが困難な状況です。<br>
         <strong>いずれかの対応を選んでください。</strong>
       </div>
+      <div style="background:#FFF3E0;border-radius:10px;padding:10px 12px;margin-bottom:10px;font-size:11px">
+        <div style="font-weight:700;color:#E65100;margin-bottom:5px">📋 今回苦しくなった理由</div>
+        ${_crisisReasonsHtml}
+      </div>
+      <div style="background:#E8F5E9;border-radius:10px;padding:9px 12px;margin-bottom:10px;font-size:11px;line-height:1.8">
+        <div style="font-weight:700;color:var(--gr3);margin-bottom:4px">💡 回避方法のヒント</div>
+        ・固定費（人件費・家賃）を月収の50%以下に抑える<br>
+        ・売上を増やしてから投資する順番を意識する<br>
+        ・月末の売掛金入金を確認してから判断する
+      </div>
+      <div style="font-size:11px;color:var(--muted);font-weight:700;margin-bottom:6px">▼ 対応を選んでください</div>
       <div style="display:flex;flex-direction:column;gap:8px">
         <button class="choice-btn" onclick="resolveCashCrisis('loan')">
           <div class="choice-lbl">🏦 緊急融資を受ける（+¥500,000）</div>
@@ -9773,6 +9859,12 @@ function resolveCashCrisis(choice){
     addStory('給与の支払いを延期した。スタッフの表情が曇った。','normal');
     notify('支払い延期（スタッフ満足-20・評判-10）','warn');
   }
+
+  // ⑤ 危機脱出フィードバック (v0.9e)
+  setTimeout(()=>{
+    notify('経営を立て直しました！ 固定費と売上のバランスを意識して続けましょう。', 'gold');
+  }, 400);
+
   updateHeader(); renderTab();
   _advanceDayCore();
 }
@@ -9830,32 +9922,38 @@ function showBankruptcyCrisisModal(){
   body.innerHTML = `
     <div style="padding:4px">
       <div style="text-align:center;font-size:32px;margin-bottom:8px">🚨</div>
-      <div style="font-size:16px;font-weight:700;text-align:center;margin-bottom:8px;font-family:'Noto Serif JP',serif;color:#C62828">倒産危機</div>
+      <div style="font-size:16px;font-weight:700;text-align:center;margin-bottom:8px;font-family:'Noto Serif JP',serif;color:#C62828">営業継続が困難になっています</div>
       <div style="background:#FFF3E0;border:1.5px solid #FFCC80;border-radius:10px;padding:12px 14px;margin-bottom:10px;font-size:12px;line-height:2">
         <div style="font-weight:700;color:var(--muted);margin-bottom:6px">💼 銀行員・成田</div>
         「7日間、現金がマイナスのままです。<br>
-        <strong>ここから先は経営ではなく、延命です。</strong><br><br>
-        原因は一つではありません。<br>
+        このまま続けるには、<strong>何かを変える必要があります。</strong><br>
         今すぐ決断してください」
       </div>
-      <div style="background:#FFEBEE;border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:11px;line-height:1.8">
+      <div style="background:#FFEBEE;border-radius:10px;padding:10px 14px;margin-bottom:10px;font-size:11px;line-height:1.8">
         <div style="font-weight:700;color:#C62828;margin-bottom:6px">📋 今回苦しくなった理由</div>
         <ul style="margin:0;padding-left:4px;list-style:none">${_reasonsHtml}</ul>
       </div>
+      <div style="background:#E8F5E9;border-radius:10px;padding:9px 12px;margin-bottom:10px;font-size:11px;line-height:1.8">
+        <div style="font-weight:700;color:var(--gr3);margin-bottom:4px">💡 回避方法</div>
+        ・固定費を減らす（解雇・売却）<br>
+        ・収入を増やす（家賃値上げ・新客）<br>
+        ・投資を一時停止して立て直す
+      </div>
+      <div style="font-size:11px;color:var(--muted);font-weight:700;margin-bottom:6px">▼ 対応を選んでください</div>
       <div style="display:flex;flex-direction:column;gap:8px">
         <button class="choice-btn" onclick="resolveBankruptcy('fire')">
           <div class="choice-lbl">👤 スタッフを1名解雇して固定費を下げる</div>
-          <div class="choice-eff">人件費-月13万 / スタッフ満足-30 / 地域評価-15</div>
+          <div class="choice-eff">毎月の人件費が約13万円減少 / スタッフ満足-30 / 地域評価-15</div>
         </button>
         <button class="choice-btn" onclick="resolveBankruptcy('rent_up')">
-          <div class="choice-lbl">🏠 家賃を値上げして収入を上げる（全室+¥5,000）</div>
-          <div class="choice-eff">収入増 / 退去リスク上昇</div>
+          <div class="choice-lbl">🏠 家賃を値上げして収入を増やす（全室+¥5,000）</div>
+          <div class="choice-eff">月収アップ / 退去リスクが上がります（空室増の可能性）</div>
         </button>
         ${sellStoreBtn}
         ${sellBuildingBtn}
         <button class="choice-btn" onclick="resolveBankruptcy('close')" style="border-color:#C62828">
-          <div class="choice-lbl" style="color:#C62828">🏳️ 廃業する</div>
-          <div class="choice-eff">すべての事業を閉じる。ゲームオーバー。</div>
+          <div class="choice-lbl" style="color:#C62828">🏳️ 廃業する（最後の選択）</div>
+          <div class="choice-eff">すべての事業を閉じます。ここまでの軌跡を振り返れます。</div>
         </button>
       </div>
     </div>`;
@@ -9917,6 +10015,10 @@ function resolveBankruptcy(choice){
     showClosureEnding();
     return;
   }
+  // ⑤ 危機対応後フィードバック (v0.9e)
+  setTimeout(()=>{
+    notify('対応しました。今回の経験を次に活かしましょう。固定費・売上・投資のバランスを意識すると安定しやすくなります。', 'gold');
+  }, 400);
   updateHeader(); renderTab();
 }
 
@@ -12937,15 +13039,19 @@ function renderHome(){
         <div style="font-size:10px;font-weight:400;opacity:0.65;margin-top:2px">売上・案件・入居募集などが進行します</div>
       </button>
       ${_day1Hint}
+      ${renderEarlyWarningCard()}
+      ${renderCashWarningBanner()}
       ${renderTodayAction()}
       ${renderWaitingStatusCard()}
       <div id="home-cases-anchor">${renderCasesBox()}</div>
       ${renderUpcomingCard()}
-      ${renderCashWarningBanner()}
       ${renderTodayMood()}
       ${renderTutMissionCard()}
       <div class="hq-vis">
-        <div class="hq-year">第${G.year}年 ${G.month}月</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+          <div class="hq-year" style="margin-bottom:0">第${G.year}年 ${G.month}月</div>
+          ${renderFinancialHealthBadge()}
+        </div>
         <div class="hq-title">舞昆アパート経営</div>
         <div style="font-size:11px;opacity:.7;margin-top:3px">${ownerTitle.desc}</div>
         <div class="hq-buildings-row" style="margin-top:14px">${bldEmojis} ${stEmojis}</div>
@@ -13057,14 +13163,19 @@ function renderHome(){
 
     ${renderCasesBox()}
 
-    ${renderWaitingStatusCard()}
+    ${renderEarlyWarningCard()}
 
     ${renderCashWarningBanner()}
+
+    ${renderWaitingStatusCard()}
 
     ${tutMissionHtml}
 
     <div class="hq-vis">
-      <div class="hq-year">第${G.year}年 ${G.month}月</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+        <div class="hq-year" style="margin-bottom:0">第${G.year}年 ${G.month}月</div>
+        ${renderFinancialHealthBadge()}
+      </div>
       <div class="hq-title">舞昆アパート経営</div>
       <div style="font-size:11px;opacity:.7;margin-top:3px">${ownerTitle.desc}</div>
       <div class="hq-buildings-row" style="margin-top:14px">
@@ -15589,7 +15700,7 @@ window.addEventListener('visibilitychange', ()=>{
 <script>
 if(/[?&](qa|debug)=1/.test(location.search)){
   var _qaScript=document.createElement('script');
-  _qaScript.src='maikon-qa.js?v=20260803-v09d-waiting-ux';
+  _qaScript.src='maikon-qa.js?v=20260803-v09e-bankruptcy-ux';
   document.head.appendChild(_qaScript);
 }
 </script>
