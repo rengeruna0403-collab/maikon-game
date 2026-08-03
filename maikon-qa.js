@@ -7923,7 +7923,10 @@ function qa2cSwitchTab(tid,idx){
     s0.isOpen = true; s0.policy = 'owner';
     s0.newCustomers = 6; s0.customers = 7; s0.regulars = 1;
     s0.satisfaction = 50; s0.unitPrice = 700; s0.level = 1; s0.monthlyBonus = 0;
-    s0.menu = []; s0.menuAddedMonth = {}; s0.servedToday = false;
+    // menu は G から引き継ぐ（空にするとイベントが一切発火しなくなるため）
+    // menuAddedMonth はリセット（メニュー追加月のトラッキングを初期化）
+    if (!s0.menu) s0.menu = [];
+    s0.menuAddedMonth = {}; s0.servedToday = false;
     delete s0.ingredientCost;
     s0.dailyPrepCost = s0.dailyPrepCost != null ? s0.dailyPrepCost : 1000;
     s0.ingredientCostPerCustomer = s0.ingredientCostPerCustomer != null ? s0.ingredientCostPerCustomer : 250;
@@ -7938,7 +7941,7 @@ function qa2cSwitchTab(tid,idx){
 
   function _sim3ApplyJsonSnap(jsonStr) {
     const parsed = JSON.parse(jsonStr.trim());
-    if (!parsed || !parsed.started) throw new Error('有効なゲームセーブではありません（started フィールドがありません）');
+    if (!parsed || !parsed.stores || !Array.isArray(parsed.stores) || !parsed.stores.length) throw new Error('有効なゲームセーブではありません（stores 配列がありません）');
     const snap = JSON.parse(JSON.stringify(parsed));
     snap.monthIngredientCost = snap.monthIngredientCost || 0;
     (snap.stores || []).forEach(s => {
@@ -8088,11 +8091,11 @@ function qa2cSwitchTab(tid,idx){
 
     let g; try { g = eval('G'); } catch(e) { console.error('[QA-Ana] G取得失敗:', e); return null; }
 
-    // 'current' モードのみ現在Gのtut.phase確認。new/jsonは独自にスナップを構築する
+    // 'current' モードは activeEvent 中・日送り中・月末処理中のみスキップ
+    // tut.phase は snap 内で強制するため、ここでは不要（未開始ゲームでも実行可能にする）
     if (runMode === 'current') {
-      const tutPhase = (g.tut||{}).phase;
-      if (tutPhase !== 'done' || g.activeEvent != null || g.isAdvancingDay || g.processingMonthly) {
-        console.error('[QA-Ana] 通常プレイ可能なセーブをロードしてから実行してください');
+      if (g.activeEvent != null || g.isAdvancingDay || g.processingMonthly) {
+        console.error('[QA-Ana] イベント処理中・日送り中のため current モードをスキップします');
         return null;
       }
     }
@@ -8126,8 +8129,14 @@ function qa2cSwitchTab(tid,idx){
         gSnap = _sim3ApplyJsonSnap(jsonStr);
         console.log('[QA-Ana] 開始状態: JSON貼り付け');
       } else {
-        gSnap = JSON.stringify(g); // current モードではgSnap=realGStrBackupと同じ
-        console.log('[QA-Ana] 開始状態: 現在のセーブ');
+        // current モード: JSON モードと同様に tut.phase / activeEvent 等を正規化してから snap 化する
+        // これにより未開始ゲームや activeEvent=null 状態でも安全にシミュレーションが開始できる
+        const gCopy = JSON.parse(JSON.stringify(g));
+        gCopy.tut = Object.assign({}, gCopy.tut || {}, { phase: 'done' });
+        gCopy.activeEvent = null; gCopy.processingMonthly = false;
+        gCopy.isAdvancingDay = false; gCopy.autoTesting = false;
+        gSnap = JSON.stringify(gCopy);
+        console.log('[QA-Ana] 開始状態: 現在のセーブ（tut.phase 正規化済み）');
       }
     } catch(e) {
       console.error('[QA-Ana] 開始状態の構築に失敗:', e.message);
@@ -11495,7 +11504,7 @@ ${ar.experienceKPI ? _sim3ExperienceKpiHtml(ar.experienceKPI) : ''}
         : fail('11-6 staffActionTaken連動確認', 'service増加でも検出されない');
     }
 
-    // 11-7: 実シミュレーションで発火確認
+    // 11-7: 実シミュレーションで発火確認（trainStaff ON/OFF で期待値を分岐・check 10-5 と同パターン）
     {
       const df11 = rNew?.trials?.[0]?.dailyFlags;
       if (!df11 || !df11.length) {
@@ -11503,9 +11512,16 @@ ${ar.experienceKPI ? _sim3ExperienceKpiHtml(ar.experienceKPI) : ''}
       } else {
         const fired = df11.filter(d => d.dayActivity?.staffActionTaken === true).length;
         const diagAtt = _sim5TrainDiag.attempted;
-        fired > 0
-          ? pass('11-7 trainStaff 実発火確認', `staffActionTaken: ${fired}日 / AI試行: ${diagAtt}回`)
-          : warn('11-7 trainStaff 実発火確認', `staffActionTaken=true なし (AI試行=${diagAtt}, スタッフ=${_sim5TrainDiag.noStaff > 0 ? 'なし' : 'あり'})`);
+        const trainEnabled = _SIM5_ENABLE.trainStaff === true;
+        if (trainEnabled) {
+          fired > 0
+            ? pass('11-7 trainStaff 実発火確認', `staffActionTaken: ${fired}日 / AI試行: ${diagAtt}回`)
+            : warn('11-7 trainStaff 実発火確認', `staffActionTaken=true なし (AI試行=${diagAtt}, スタッフ=${_sim5TrainDiag.noStaff > 0 ? 'なし' : 'あり'})`);
+        } else {
+          fired === 0
+            ? pass('11-7 trainStaff デフォルトOFF確認', `発火0日（trainStaff=false 正式デフォルト・正常）`)
+            : fail('11-7 trainStaff デフォルトOFF確認', `trainStaff=false なのに ${fired}日 発火（無効化されたAIが動作した回帰の可能性）`);
+        }
       }
     }
 
