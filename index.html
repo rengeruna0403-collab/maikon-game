@@ -224,6 +224,14 @@ body{font-family:'Noto Sans JP',sans-serif;background:var(--bg);color:var(--text
   min-height:44px;touch-action:manipulation}
 .act-btn:hover{border-color:var(--gr);background:#fff}
 .act-btn:active{transform:scale(.96);filter:brightness(.92)}
+/* ACTION INFO CARD (v0.9c) */
+.act-info-card{background:var(--bg2);border-radius:10px;padding:10px 12px;margin-bottom:10px;font-size:12px}
+.act-info-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-top:8px}
+.act-info-col{background:var(--card);border-radius:7px;padding:6px 8px;text-align:center}
+.act-info-col-lbl{font-size:9px;color:var(--muted);margin-bottom:2px}
+.act-info-col-val{font-size:12px;font-weight:700;color:var(--text)}
+.act-info-effects{margin-top:8px;display:flex;flex-wrap:wrap;gap:5px}
+.act-info-tag{background:var(--gr);color:#fff;border-radius:12px;padding:2px 8px;font-size:10px;font-weight:700}
 /* LOADING OVERLAY */
 .loading-overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:600;
   display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px}
@@ -11653,7 +11661,19 @@ function openMenuModal(si){
         ${fmt(m.cost)}</button>
     </div>
   `).join('')||'<div class="empty">全メニュー追加済み</div>';
-  showActionModal(`<div class="modal-title" style="margin-bottom:14px">🍱 メニュー追加</div>${tutNote}${rows}
+  const menuInfoCard = `<div class="act-info-card">
+    <div class="act-info-effects">
+      <span class="act-info-tag">✓ 売上アップ</span>
+      <span class="act-info-tag">✓ 常連客が増えやすくなる</span>
+      <span class="act-info-tag">✓ 序盤の資金作りにおすすめ</span>
+    </div>
+    <div class="act-info-row">
+      <div class="act-info-col"><div class="act-info-col-lbl">必要AP</div><div class="act-info-col-val">15</div></div>
+      <div class="act-info-col"><div class="act-info-col-lbl">反映</div><div class="act-info-col-val" style="color:var(--gr)">すぐ</div></div>
+      <div class="act-info-col"><div class="act-info-col-lbl">おすすめ</div><div class="act-info-col-val" style="font-size:10px;font-weight:600">売上を増やしたいとき</div></div>
+    </div>
+  </div>`;
+  showActionModal(`<div class="modal-title" style="margin-bottom:14px">🍱 メニュー追加</div>${menuInfoCard}${tutNote}${rows}
     <button class="btn btn-bg" style="width:100%;margin-top:10px" onclick="closeActionModal()">閉じる</button>`);
 }
 function buyMenu(si,name,cost,sat,cust){
@@ -11779,7 +11799,18 @@ function openAdModal(si){
         ${fmt(a.cost)}</button>
     </div>
   `).join('');
-  showActionModal(`<div class="modal-title" style="margin-bottom:14px">📣 広告</div>${rows}
+  const adInfoCard = `<div class="act-info-card">
+    <div class="act-info-effects">
+      <span class="act-info-tag">✓ 新規のお客様が来店しやすくなる</span>
+      <span class="act-info-tag">✓ 短期間の集客向け</span>
+    </div>
+    <div class="act-info-row">
+      <div class="act-info-col"><div class="act-info-col-lbl">必要AP</div><div class="act-info-col-val">10</div></div>
+      <div class="act-info-col"><div class="act-info-col-lbl">反映</div><div class="act-info-col-val" style="color:var(--gr)">すぐ</div></div>
+      <div class="act-info-col"><div class="act-info-col-lbl">おすすめ</div><div class="act-info-col-val" style="font-size:10px;font-weight:600">来客が落ちてきたとき</div></div>
+    </div>
+  </div>`;
+  showActionModal(`<div class="modal-title" style="margin-bottom:14px">📣 広告</div>${adInfoCard}${rows}
     <button class="btn btn-bg" style="width:100%;margin-top:10px" onclick="closeActionModal()">閉じる</button>`);
 }
 function buyAd(si,name,cost,cust){
@@ -11800,7 +11831,18 @@ function openRenovModal(si){
         ${fmt(r.cost)}</button>
     </div>
   `).join('')||'<div class="empty">全改装済み</div>';
-  showActionModal(`<div class="modal-title" style="margin-bottom:14px">🔨 店舗改装</div>${rows}
+  const renovInfoCard = `<div class="act-info-card">
+    <div class="act-info-effects">
+      <span class="act-info-tag">✓ お店の魅力アップ</span>
+      <span class="act-info-tag">✓ 将来の店舗価値向上</span>
+    </div>
+    <div class="act-info-row">
+      <div class="act-info-col"><div class="act-info-col-lbl">必要AP</div><div class="act-info-col-val">20</div></div>
+      <div class="act-info-col"><div class="act-info-col-lbl">反映</div><div class="act-info-col-val" style="color:var(--blue)">長期</div></div>
+      <div class="act-info-col"><div class="act-info-col-lbl">おすすめ</div><div class="act-info-col-val" style="font-size:10px;font-weight:600">資金に余裕があるとき</div></div>
+    </div>
+  </div>`;
+  showActionModal(`<div class="modal-title" style="margin-bottom:14px">🔨 店舗改装</div>${renovInfoCard}${rows}
     <button class="btn btn-bg" style="width:100%;margin-top:10px" onclick="closeActionModal()">閉じる</button>`);
 }
 function buyRenov(si,name,cost,cust,sat,score){
@@ -13503,6 +13545,18 @@ function renderRegion(){
               <div class="reg-stat"><div class="reg-stat-v">${reg.vacancyRate}%</div><div class="reg-stat-l">空き家率</div></div>
             </div>
             <div style="font-size:11px;color:var(--muted);margin-top:10px;margin-bottom:6px">🌿 地域貢献投資（継続すると毎月+2絆）</div>
+            <div class="act-info-card" style="margin-bottom:8px">
+              <div class="act-info-effects">
+                <span class="act-info-tag">✓ 地域とのつながりが深まる</span>
+                <span class="act-info-tag">✓ 将来の地域評価アップ</span>
+                <span class="act-info-tag">✓ 長期投資</span>
+              </div>
+              <div class="act-info-row">
+                <div class="act-info-col"><div class="act-info-col-lbl">必要AP</div><div class="act-info-col-val">20</div></div>
+                <div class="act-info-col"><div class="act-info-col-lbl">反映</div><div class="act-info-col-val" style="color:var(--blue)">長期</div></div>
+                <div class="act-info-col"><div class="act-info-col-lbl">おすすめ</div><div class="act-info-col-val" style="font-size:10px;font-weight:600">資金に余裕があるとき</div></div>
+              </div>
+            </div>
             <div class="act-grid">
               <button class="act-btn" onclick="investRegion(${ri},100000,'子ども食堂',15,10)" style="${inv['子ども食堂']?'border-color:var(--gr)':''}">
                 <span class="act-icon">🍜</span><span class="act-lbl">子ども食堂${inv['子ども食堂']?'✓':''}</span><span class="act-cost">¥100,000</span>
@@ -13614,7 +13668,19 @@ function renderStaff(){
                 ${skillChecks.join('')}
               </div>`;
           })()}</div>
-          <div class="act-grid" style="margin-top:8px">
+          <div class="act-info-card" style="margin-top:8px;margin-bottom:4px">
+            <div class="act-info-effects">
+              <span class="act-info-tag">✓ スタッフが成長</span>
+              <span class="act-info-tag">✓ 昇格に近づく</span>
+              <span class="act-info-tag">✓ 長期経営向け</span>
+            </div>
+            <div class="act-info-row">
+              <div class="act-info-col"><div class="act-info-col-lbl">必要AP</div><div class="act-info-col-val">15</div></div>
+              <div class="act-info-col"><div class="act-info-col-lbl">反映</div><div class="act-info-col-val" style="color:var(--blue)">少しずつ</div></div>
+              <div class="act-info-col"><div class="act-info-col-lbl">おすすめ</div><div class="act-info-col-val" style="font-size:10px;font-weight:600">スタッフを育てたいとき</div></div>
+            </div>
+          </div>
+          <div class="act-grid" style="margin-top:4px">
             <button class="act-btn" onclick="trainStaff(${s.id},'service')"><span class="act-icon">🤝</span><span class="act-lbl">接客研修</span><span class="act-cost">¥50,000</span></button>
             <button class="act-btn" onclick="trainStaff(${s.id},'cooking')"><span class="act-icon">🍳</span><span class="act-lbl">調理研修</span><span class="act-cost">¥50,000</span></button>
             <button class="act-btn" onclick="trainStaff(${s.id},'management')"><span class="act-icon">📋</span><span class="act-lbl">管理研修</span><span class="act-cost">¥50,000</span></button>
@@ -15429,7 +15495,7 @@ window.addEventListener('visibilitychange', ()=>{
 <script>
 if(/[?&](qa|debug)=1/.test(location.search)){
   var _qaScript=document.createElement('script');
-  _qaScript.src='maikon-qa.js?v=20260803-v09a-firstplay-ux';
+  _qaScript.src='maikon-qa.js?v=20260803-v09c-action-info-ui';
   document.head.appendChild(_qaScript);
 }
 </script>
