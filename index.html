@@ -522,6 +522,36 @@ body.large-text #app{zoom:1.2;transform-origin:top center}
   <div class="modal" id="action-modal-body"></div>
 </div>
 
+<!-- チュートリアル完了カード: 開店 -->
+<div class="overlay" id="tutOpenStoreComplete" style="display:none">
+  <div class="modal" style="text-align:center;padding:24px 20px">
+    <div style="font-size:32px;margin-bottom:10px">🏪</div>
+    <div style="font-size:16px;font-weight:700;font-family:'Noto Serif JP',serif;margin-bottom:12px">お店を開店しました！</div>
+    <div style="font-size:13px;color:var(--gr3);line-height:2;margin-bottom:18px">次はホームへ戻って、<br>1日の流れを確認しましょう。</div>
+    <button class="btn btn-gr" style="width:100%;padding:12px;font-size:14px" onclick="document.getElementById('tutOpenStoreComplete').style.display='none';setTab('home');">ホームへ戻る</button>
+  </div>
+</div>
+
+<!-- チュートリアル完了カード: 募集開始 -->
+<div class="overlay" id="tutRecruitComplete" style="display:none">
+  <div class="modal" style="text-align:center;padding:24px 20px">
+    <div style="font-size:32px;margin-bottom:10px">🏠</div>
+    <div style="font-size:16px;font-weight:700;font-family:'Noto Serif JP',serif;margin-bottom:12px">入居者募集を開始しました！</div>
+    <div style="font-size:13px;color:var(--gr3);line-height:2;margin-bottom:18px">申込みは数日後に届きます。<br>ホームへ戻って<br>日を進めてみましょう。</div>
+    <button class="btn btn-gr" style="width:100%;padding:12px;font-size:14px" onclick="document.getElementById('tutRecruitComplete').style.display='none';setTab('home');">ホームへ戻る</button>
+  </div>
+</div>
+
+<!-- AP低下警告モーダル -->
+<div class="overlay" id="apLowWarningModal" style="display:none">
+  <div class="modal" style="text-align:center;padding:24px 20px;max-width:300px">
+    <div style="font-size:28px;margin-bottom:10px">⚠</div>
+    <div style="font-size:15px;font-weight:700;margin-bottom:12px">APが少なくなっています</div>
+    <div style="font-size:13px;color:var(--gr3);line-height:2;margin-bottom:18px">急な案件に備えて<br>APを残しておくことも<br>大切な経営判断です。</div>
+    <button class="btn btn-gr" style="width:100%;padding:12px;font-size:14px" onclick="document.getElementById('apLowWarningModal').style.display='none';_lastApLowWarningWeek=Math.floor(((G.month-1)*30+G.day)/7);">OK</button>
+  </div>
+</div>
+
 <!-- ご縁ノート Modal -->
 <div class="overlay" id="goen-modal" style="display:none" onclick="if(event.target===this)this.style.display='none'">
   <div class="modal" id="goen-modal-body" style="max-width:540px;max-height:80vh;overflow-y:auto;font-size:18px"></div>
@@ -942,7 +972,7 @@ function getApCost(baseCost, storeIdx){
 function useAP(cost, label, _unused){
   if(cost <= 0){ return true; }
   if(G.ap < cost){
-    notify(`🍚 「今週の注意力が足りないよ。\n来週に回すか、別の案件を先に片付けてみよう」（AP残 ${G.ap}）`, 'warn');
+    notify(`🍚 APが足りないため\n今週はこの案件に対応できません。\n\nAPは来週回復します。（AP残 ${G.ap}）`, 'warn');
     return false;
   }
   G.ap = Math.max(0, G.ap - cost);
@@ -2477,6 +2507,7 @@ function advanceDay(){
   renderTab();
   saveGame();
   setTimeout(_checkOchawanProposal, 1500);
+  try { _checkApLowWarning(); } catch(e){ console.error('[advanceDay] apLowWarning:', e); }
   } finally {
     // 月末処理中でない場合のみここで解除
     // （月末の場合は closeMonthlyChallengeModal で解除）
@@ -10581,21 +10612,22 @@ function _showApHintModal(){
     <div style="text-align:center;font-size:28px;margin-bottom:6px">🥣</div>
     <div style="text-align:center;font-size:16px;font-weight:700;margin-bottom:4px;font-family:'Noto Serif JP',serif">APの使い方について</div>
     <div style="text-align:center;font-size:11px;color:var(--muted);margin-bottom:16px">お茶碗マンより</div>
-    <div style="background:var(--warm);border:1px solid #DDD0B0;border-radius:12px;padding:16px 18px;font-size:14px;line-height:2.1;white-space:pre-wrap;color:var(--gr3)">APは毎日回復するものではありません。
+    <div style="background:var(--warm);border:1px solid #DDD0B0;border-radius:12px;padding:16px 18px;font-size:14px;line-height:2.1;white-space:pre-wrap;color:var(--gr3)">APは
+今週使える行動力です。
 
-1週間ごとに少し回復し、
-月が変わると100まで回復します。
+全部使い切ると
+急な案件に対応できません。
 
-そのため、全部を交流に使ってしまうと、
-大切な案件や地域活動に
-対応できなくなることもあります。
+最初は20APほど残しておくのがおすすめです。</div>
+    <div style="background:var(--bg2);border-radius:8px;padding:10px 12px;margin-top:10px;font-size:12px;color:var(--muted);white-space:pre-wrap">▼ 詳しくは
+APは毎日回復するものではありません。
+1週間ごとに少し回復し、月が変わると100まで回復します。
 
 「今日は常連さんと話す」
 「今日は地域活動を優先する」
 「今日は案件対応に集中する」
 
-どこにAPを使うかも、
-経営者の大切な判断ですよ。</div>
+どこにAPを使うかも、経営者の大切な判断ですよ。</div>
     <button class="btn btn-gr" style="width:100%;margin-top:16px;padding:12px"
       onclick="document.getElementById('event-modal').style.display='none';G.activeEvent=null;showRegularChatModal();">わかりました 🌿</button>
   `;
@@ -11290,6 +11322,7 @@ function openStore(si){
   notify('舞昆茶屋を再開しました！','gold');
   tutCompleteStep('open_store');
   updateHeader(); renderTab();
+  setTimeout(()=>{ document.getElementById('tutOpenStoreComplete').style.display='flex'; }, 400);
   setTimeout(()=>{
     const el = document.getElementById('menu-add-prompt');
     if(el) el.scrollIntoView({ behavior:'smooth', block:'center' });
@@ -12129,7 +12162,7 @@ function startRecruiting(bi,ri){
   addNews(`📋 ${G.buildings[bi].name} ${r.num}号室 入居者募集開始（賃料 ${fmt(r.rent)}/月）`);
   notify(`🏠 ${r.num}号室の入居募集を開始しました！`, 'gold');
   addStory(`🏠 ${G.buildings[bi].name} ${r.num}号室の入居募集を開始しました！\n\n地域の不動産会社や募集サイトへ掲載しました。\n\n条件が合えば、数日〜数週間で入居希望者から連絡が入ります。\n\n信用度・地域評価・家賃設定によって、反応の早さや入居希望者の質が変化します。`, 'highlight');
-  if(r.num==='103'){ tutCheckMission('vacancy'); tutCompleteStep('vacancy'); }
+  if(r.num==='103'){ tutCheckMission('vacancy'); tutCompleteStep('vacancy'); setTimeout(()=>{ document.getElementById('tutRecruitComplete').style.display='flex'; }, 400); }
   updateHeader(); renderTab();
 }
 
@@ -12673,6 +12706,15 @@ function renderAnnualSchedule(){
   </div>`;
 }
 
+// ─────────── AP低下警告チェック ───────────
+var _lastApLowWarningWeek = -1;
+function _checkApLowWarning(){
+  const _weekIdx = Math.floor(((G.month-1)*30 + G.day) / 7);
+  if(G.ap <= 25 && _weekIdx !== _lastApLowWarningWeek){
+    document.getElementById('apLowWarningModal').style.display = 'flex';
+  }
+}
+
 // ─────────── 今すぐやること ───────────
 function renderTodayAction(){
   const actions = [];
@@ -12732,9 +12774,11 @@ function renderTodayAction(){
       <button onclick="${a.onclick}" class="btn btn-gr" style="padding:6px 14px;min-height:36px;font-size:12px;white-space:nowrap;flex-shrink:0">→</button>
     </div>`).join('');
 
+  const _apHint = ap <= 25 ? `<div style="background:#fff3cd;border:1px solid #e6c96a;border-radius:8px;padding:8px 12px;margin-bottom:6px;font-size:12px;color:#7a6010;line-height:1.8">💡 今週はAPを使い切らず<br>残しておくのもおすすめです。</div>` : '';
+
   return `<div class="card" style="background:var(--warm);border-color:#c8d8a0;padding:12px 14px;margin-bottom:8px">
     <div style="font-size:12px;font-weight:700;color:var(--gr3);margin-bottom:8px;letter-spacing:.04em">✅ 今すぐやること</div>
-    ${items}
+    ${_apHint}${items}
   </div>`;
 }
 
@@ -15385,7 +15429,7 @@ window.addEventListener('visibilitychange', ()=>{
 <script>
 if(/[?&](qa|debug)=1/.test(location.search)){
   var _qaScript=document.createElement('script');
-  _qaScript.src='maikon-qa.js?v=20260801-v08f-buy-menu-monthly-boundary';
+  _qaScript.src='maikon-qa.js?v=20260803-v09a-firstplay-ux';
   document.head.appendChild(_qaScript);
 }
 </script>

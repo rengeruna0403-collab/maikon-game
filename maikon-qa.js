@@ -3,9 +3,9 @@
  * ?qa=1 または ?debug=1 の場合のみ動作
  * ゲーム本体への影響なし・読み取り専用（Phase 2Aは1日テスト後に必ず復元）
  */
-window._MAIKON_QA_VERSION = '2026-08-01-v08f-buy-menu-monthly-boundary';
+window._MAIKON_QA_VERSION = '2026-08-03-v09a-firstplay-ux';
 console.log('[MAIKON-QA] loaded version:', window._MAIKON_QA_VERSION);
-console.log('[QA FILE LOADED] v08f-buy-menu-monthly-boundary-20260801');
+console.log('[QA FILE LOADED] v09a-firstplay-ux-20260803');
 
 (function () {
   'use strict';
@@ -7923,9 +7923,14 @@ function qa2cSwitchTab(tid,idx){
     s0.isOpen = true; s0.policy = 'owner';
     s0.newCustomers = 6; s0.customers = 7; s0.regulars = 1;
     s0.satisfaction = 50; s0.unitPrice = 700; s0.level = 1; s0.monthlyBonus = 0;
-    // menu は G から引き継ぐ（空にするとイベントが一切発火しなくなるため）
-    // menuAddedMonth はリセット（メニュー追加月のトラッキングを初期化）
-    if (!s0.menu) s0.menu = [];
+    // 正式な初期メニューを設定（現在のG.menuは引き継がない）
+    // startGame() と同じ状態を再現: G.stores[0].menu = []
+    // 確認テスト:
+    // A. 現在のG.menuを全購入済みにしてもスナップには反映されない
+    // B. スナップ内のmenuは正式な初期状態（空配列）
+    // C. 元のGは変更されない
+    // D. 再現性: 同一seedで同一結果
+    s0.menu = [];
     s0.menuAddedMonth = {}; s0.servedToday = false;
     delete s0.ingredientCost;
     s0.dailyPrepCost = s0.dailyPrepCost != null ? s0.dailyPrepCost : 1000;
