@@ -11744,6 +11744,98 @@ const RENOV_OPTIONS=[
   {name:'バリアフリー対応',cost:250000,sat:15,score:15},
 ];
 
+// ─────────── POST-MENU GROWTH (v0.9f) ───────────
+function _isAllMenusPurchased(si){
+  const s = G.stores[si];
+  if(!s || !s.menu || s.menu.length === 0) return false;
+  const _unlockedP = G.unlockedProducts || [];
+  const remaining = MENU_OPTIONS.filter(m => !s.menu.includes(m.name) && (!m.requireProduct || _unlockedP.includes(m.requireProduct)));
+  return remaining.length === 0;
+}
+
+function getPostMenuGrowthSuggestions(si){
+  const s = G.stores[si];
+  if(!s) return [];
+  const ap = G.ap || 0;
+  const list = [];
+
+  // スタッフ育成
+  if(G.staff.length > 0){
+    list.push({ icon:'👤', label:'スタッフを育てる',
+      desc:'研修や昇格を進めると、将来お店を任せやすくなります。',
+      btn:'人材タブへ', onclick:"setTab('staff')",
+      canDo: ap >= 15 && G.money >= 50000, type:'staff' });
+  }
+
+  // 店舗改装
+  const availRenov = RENOV_OPTIONS.filter(r => !(s.upgrades||[]).includes(r.name));
+  if(availRenov.length > 0){
+    const cheapR = availRenov.reduce((a,b) => a.cost<b.cost?a:b);
+    list.push({ icon:'🏪', label:'お店を改装する',
+      desc:'お店の魅力を高めて、次の成長へ備えましょう。',
+      btn:'店舗タブへ', onclick:"setTab('store')",
+      canDo: G.money >= cheapR.cost && ap >= 20,
+      progress: G.money < cheapR.cost ? `費用：${fmt(G.money)} / ${fmt(cheapR.cost)}` : null,
+      type:'renov' });
+  }
+
+  // 2号店
+  if(G.stores.length < 2){
+    const managerCnt = G.staff.filter(st => (st.level||1) >= 2).length;
+    list.push({ icon:'🏬', label:'2号店を目指す',
+      desc:'資金と店長候補を準備すると、新しい店舗へ挑戦できます。',
+      btn:'条件を確認', onclick:"setTab('store')",
+      canDo: G.money >= 2000000 && managerCnt >= 1,
+      progress: `資金：${fmt(Math.min(G.money,2000000))} / ${fmt(2000000)}　店長候補：${managerCnt} / 1人`,
+      type:'store2' });
+  }
+
+  // 地域活動
+  if((G.regions||[]).length > 0){
+    list.push({ icon:'🤝', label:'地域とのつながりを深める',
+      desc:'地域評価を高めると、将来の展開につながります。',
+      btn:'地域タブへ', onclick:"setTab('region')",
+      canDo: ap >= 20 && G.money >= 80000, type:'region' });
+  }
+
+  // 物件拡大
+  if((G.buildings||[]).length > 0){
+    const hasVacant = G.buildings.some(b => b.rooms.some(r => !r.tenant));
+    list.push({ icon:'🏠', label:'大家業を広げる',
+      desc:'物件や入居率を整えて、安定収入を増やしましょう。',
+      btn:'物件タブへ', onclick:"setTab('apt')",
+      canDo: hasVacant, type:'apt' });
+  }
+
+  const picked = list.slice(0, 3);
+  const rec = picked.find(x => x.canDo) || picked[0];
+  if(rec) rec.isRecommended = true;
+  return picked;
+}
+
+function renderPostMenuGrowthCard(si){
+  if(!G.started || G.tut.phase !== 'done') return '';
+  if(!_isAllMenusPurchased(si)) return '';
+  const suggs = getPostMenuGrowthSuggestions(si);
+  if(!suggs.length) return '';
+  const items = suggs.map(sg => `
+    <div style="background:${sg.isRecommended?'var(--bg2)':'rgba(255,255,255,.5)'};border-radius:10px;padding:10px 12px;margin-bottom:6px;border:${sg.isRecommended?'1.5px solid var(--gr)':'1px solid var(--border)'}">
+      <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:3px">
+        ${sg.icon} ${sg.label}${sg.isRecommended?'<span style="background:var(--gr);color:#fff;border-radius:8px;padding:1px 6px;font-size:10px;margin-left:6px;vertical-align:middle">おすすめ</span>':''}
+      </div>
+      <div style="font-size:11px;color:var(--muted);line-height:1.6;margin-bottom:5px">${sg.desc}</div>
+      ${sg.progress&&!sg.canDo?`<div style="font-size:10px;color:var(--orange);margin-bottom:5px">${sg.progress}</div>`:''}
+      <button onclick="${sg.onclick}" class="btn btn-gr" style="padding:5px 12px;font-size:11px;min-height:30px">${sg.btn} →</button>
+    </div>`).join('');
+  return `<div class="card" id="post-menu-growth-card" style="border-color:var(--gr);border-width:1.5px;background:linear-gradient(135deg,#EEF6EE,#FAFFF8)">
+    <div class="card-ttl" style="color:var(--gr3)">🌿 次の成長</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.7">
+      メニューは十分にそろいました。ここからは、お店やスタッフを育てて次の段階を目指しましょう。
+    </div>
+    ${items}
+  </div>`;
+}
+
 function openMenuModal(si){
   const s=G.stores[si];
   const isTut = G.tut.phase==='playing' && !(G.tut.done && G.tut.done.menu);
@@ -11752,6 +11844,15 @@ function openMenuModal(si){
   const tutNote = isTut
     ? `<div style="background:var(--bg2);border-radius:8px;padding:8px 12px;margin-bottom:12px;font-size:12px;color:var(--gr3)">📌 ミッション：メニューを1品追加してください</div>`
     : '';
+  const allDone = opts.length === 0;
+  const allDoneHtml = allDone ? `<div style="background:var(--bg2);border-radius:10px;padding:14px;text-align:center;margin-bottom:8px">
+    <div style="font-size:22px;margin-bottom:6px">✅</div>
+    <div style="font-weight:700;font-size:13px;color:var(--gr3);margin-bottom:6px">メニューはすべてそろっています</div>
+    <div style="font-size:12px;color:var(--muted);line-height:1.7;margin-bottom:10px">
+      次は、スタッフ育成や店舗改装など、<br>お店全体の成長を考えてみましょう。
+    </div>
+    <button class="btn btn-gr" style="width:100%;padding:9px;font-size:12px" onclick="closeActionModal();setTab('home');setTimeout(()=>document.getElementById('post-menu-growth-card')?.scrollIntoView({behavior:'smooth',block:'center'}),150)">次の成長を見る →</button>
+  </div>` : '';
   const rows=opts.map(m=>`
     <div class="fin-row">
       <div>
@@ -11762,7 +11863,7 @@ function openMenuModal(si){
       <button class="btn btn-gr btn-sm" onclick="buyMenu(${si},'${m.name}',${m.cost},${m.sat},${m.cust});closeActionModal()">
         ${fmt(m.cost)}</button>
     </div>
-  `).join('')||'<div class="empty">全メニュー追加済み</div>';
+  `).join('');
   const menuInfoCard = `<div class="act-info-card">
     <div class="act-info-effects">
       <span class="act-info-tag">✓ 売上アップ</span>
@@ -11775,7 +11876,10 @@ function openMenuModal(si){
       <div class="act-info-col"><div class="act-info-col-lbl">おすすめ</div><div class="act-info-col-val" style="font-size:10px;font-weight:600">売上を増やしたいとき</div></div>
     </div>
   </div>`;
-  showActionModal(`<div class="modal-title" style="margin-bottom:14px">🍱 メニュー追加</div>${menuInfoCard}${tutNote}${rows}
+  const _menuBody = allDone
+    ? `<div class="modal-title" style="margin-bottom:14px">🍱 メニュー追加</div>${allDoneHtml}`
+    : `<div class="modal-title" style="margin-bottom:14px">🍱 メニュー追加</div>${menuInfoCard}${tutNote}${rows}`;
+  showActionModal(`${_menuBody}
     <button class="btn btn-bg" style="width:100%;margin-top:10px" onclick="closeActionModal()">閉じる</button>`);
 }
 function buyMenu(si,name,cost,sat,cust){
@@ -11806,6 +11910,11 @@ function buyMenu(si,name,cost,sat,cust){
   notify(`「${name}」追加！ 客数+${cust} / 食材原価+¥${ingPerCustUp}/人`);
   tutCompleteStep('set_menu');
   if(name.includes('たもぎ茸')) tutCheckMission('menu');
+  // 全メニュー購入済み → 初回のみ完了通知 (v0.9f)
+  if(G.tut.phase === 'done' && _isAllMenusPurchased(si) && !G.stores[si]._menuAllPurchasedNotified){
+    G.stores[si]._menuAllPurchasedNotified = true;
+    setTimeout(()=> notify('🎉 メニューが充実しました！ 次の成長候補をホームで確認しましょう。', 'gold'), 500);
+  }
   updateHeader();
 }
 function doTastingEvent(si){
@@ -13044,6 +13153,7 @@ function renderHome(){
       ${renderTodayAction()}
       ${renderWaitingStatusCard()}
       <div id="home-cases-anchor">${renderCasesBox()}</div>
+      ${renderPostMenuGrowthCard(0)}
       ${renderUpcomingCard()}
       ${renderTodayMood()}
       ${renderTutMissionCard()}
@@ -15700,7 +15810,7 @@ window.addEventListener('visibilitychange', ()=>{
 <script>
 if(/[?&](qa|debug)=1/.test(location.search)){
   var _qaScript=document.createElement('script');
-  _qaScript.src='maikon-qa.js?v=20260803-v09e-bankruptcy-ux';
+  _qaScript.src='maikon-qa.js?v=20260803-v09f-post-menu-growth';
   document.head.appendChild(_qaScript);
 }
 </script>
