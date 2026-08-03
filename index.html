@@ -224,6 +224,18 @@ body{font-family:'Noto Sans JP',sans-serif;background:var(--bg);color:var(--text
   min-height:44px;touch-action:manipulation}
 .act-btn:hover{border-color:var(--gr);background:#fff}
 .act-btn:active{transform:scale(.96);filter:brightness(.92)}
+/* MAIN STORY (v1.0a) */
+.ms-card{background:var(--warm);border:1.5px solid #DDD0B0;border-radius:12px;padding:14px 16px;margin-bottom:10px}
+.ms-card-ttl{font-size:11px;color:var(--muted);margin-bottom:4px;font-weight:600}
+.ms-card-ch{font-size:13px;font-weight:700;color:var(--gr3);font-family:'Noto Serif JP',serif;margin-bottom:4px}
+.ms-card-sub{font-size:12px;color:var(--text);line-height:1.7;margin-bottom:10px}
+.ms-modal{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:800;display:flex;align-items:flex-end;justify-content:center}
+.ms-modal-box{background:var(--card);border-radius:18px 18px 0 0;width:100%;max-width:480px;padding:24px 20px 32px;max-height:80vh;overflow-y:auto}
+.ms-scene-speaker{font-size:11px;color:var(--muted);font-weight:700;margin-bottom:4px}
+.ms-scene-text{font-size:14px;line-height:2.1;font-family:'Noto Serif JP',serif;color:var(--text);margin-bottom:16px}
+.ms-scene-progress{display:flex;gap:5px;justify-content:center;margin-bottom:16px}
+.ms-dot{width:6px;height:6px;border-radius:50%;background:var(--border)}
+.ms-dot.active{background:var(--gr)}
 /* ACTION INFO CARD (v0.9c) */
 .act-info-card{background:var(--bg2);border-radius:10px;padding:10px 12px;margin-bottom:10px;font-size:12px}
 .act-info-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-top:8px}
@@ -11837,6 +11849,163 @@ function renderPostMenuGrowthCard(si){
   </div>`;
 }
 
+// ─────────── メインストーリー基盤 (v1.0a) ───────────
+
+const MAIN_STORY_CHAPTERS = [
+  {
+    id: 'chapter_1', chapter: 1, title: '舞昆って何？',
+    subtitle: '知らないところから始まる物語',
+    status: 'implemented',
+    unlock: { all: [
+      { type: 'tutDone' },
+      { type: 'menuSet' }
+    ]},
+    scenes: [
+      { speaker: '主人公', text: 'ようやく店が動き始めた。\nお客様が来て、舞昆がお客様の手に渡っていく。\nそれだけで、少し胸が温かくなった。' },
+      { speaker: '主人公', text: 'ところで——\n舞昆って、どんなものなんだろう。\n「昆布の佃煮」とは聞いたけれど、それだけじゃない気がしてきた。' },
+      { speaker: '成田（銀行員）', text: 'いい質問ですね。\n商品を売るより先に、まずお客様の反応を見てみてください。\nそこに答えがありますよ。' },
+      { speaker: 'ナレーション', text: 'その日の午後、一人のお客様が舞昆をお買い上げになった。\n「これ、ごはんと一緒に食べるのが好きでね。\n毎日の食卓に欠かせないんですよ」' },
+      { speaker: '主人公', text: '商品を売るだけじゃなくて、\n誰かの食卓へ届ける仕事なんだ。\n——そう気がついた気がした。' },
+      { speaker: '主人公', text: '次は、舞昆がどうやって作られているのか知りたい。\nこの店を続ければ、もっと見えてくるものがあるかもしれない。',
+        isLast: true,
+        nextGoal: 'お客様とのご縁を増やし、\nお店の売上を伸ばしてみましょう。'
+      }
+    ],
+    learningTheme: '舞昆への最初の興味', reward: null
+  },
+  { id:'chapter_2', chapter:2, title:'一杯のごはんから', subtitle:'', status:'planned', unlock:{}, scenes:[], learningTheme:'ごはんと食卓', reward:null },
+  { id:'chapter_3', chapter:3, title:'味をつくる人たち', subtitle:'', status:'planned', unlock:{}, scenes:[], learningTheme:'素材と製造', reward:null },
+  { id:'chapter_4', chapter:4, title:'贈る気持ち', subtitle:'', status:'planned', unlock:{}, scenes:[], learningTheme:'贈り物とご縁', reward:null },
+  { id:'chapter_5', chapter:5, title:'人に任せるということ', subtitle:'', status:'planned', unlock:{}, scenes:[], learningTheme:'育てる・任せる', reward:null },
+  { id:'chapter_6', chapter:6, title:'町とのご縁', subtitle:'', status:'planned', unlock:{}, scenes:[], learningTheme:'地域との関係', reward:null },
+  { id:'chapter_7', chapter:7, title:'次の店へ', subtitle:'', status:'planned', unlock:{}, scenes:[], learningTheme:'広げる責任', reward:null },
+  { id:'chapter_8', chapter:8, title:'今度はあなたが届ける番', subtitle:'', status:'planned', unlock:{}, scenes:[], learningTheme:'舞昆を届ける人', reward:null }
+];
+
+function ensureMainStoryState(){
+  if(!G.mainStory){
+    G.mainStory = { unlockedChapters:[], completedChapters:[], pendingChapterId:null };
+  }
+  if(!G.mainStory.unlockedChapters) G.mainStory.unlockedChapters=[];
+  if(!G.mainStory.completedChapters) G.mainStory.completedChapters=[];
+  if(!('pendingChapterId' in G.mainStory)) G.mainStory.pendingChapterId=null;
+}
+
+function _evalMainStoryUnlock(){
+  ensureMainStoryState();
+  MAIN_STORY_CHAPTERS.forEach(ch => {
+    if(ch.status !== 'implemented') return;
+    if(G.mainStory.unlockedChapters.includes(ch.id)) return;
+    const cond = ch.unlock || {};
+    let ok = true;
+    if(cond.all){
+      ok = cond.all.every(c => {
+        if(c.type === 'tutDone') return G.tut && G.tut.phase === 'done';
+        if(c.type === 'menuSet') return G.stores && G.stores.length > 0 && G.stores[0].menu && G.stores[0].menu.length > 0;
+        return false;
+      });
+    }
+    if(ok){
+      G.mainStory.unlockedChapters.push(ch.id);
+      if(!G.mainStory.completedChapters.includes(ch.id)){
+        G.mainStory.pendingChapterId = ch.id;
+      }
+    }
+  });
+}
+
+function renderMainStoryCard(){
+  ensureMainStoryState();
+  _evalMainStoryUnlock();
+  const pending = G.mainStory.pendingChapterId;
+  const ch1 = MAIN_STORY_CHAPTERS[0];
+  const completed = G.mainStory.completedChapters.includes('chapter_1');
+  const unlocked = G.mainStory.unlockedChapters.includes('chapter_1');
+
+  if(!unlocked) return '';
+
+  if(completed){
+    return `<div class="ms-card">
+      <div class="ms-card-ttl">📖 メインストーリー</div>
+      <div class="ms-card-ch">${ch1.chapter}章　${ch1.title}</div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:8px">✅ 完了</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button onclick="showMainStoryChapter('chapter_1',true)" style="padding:6px 12px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;font-size:11px;cursor:pointer;color:var(--text)">これまでの物語を読む</button>
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin-top:8px">次の物語を準備中</div>
+    </div>`;
+  }
+
+  return `<div class="ms-card">
+    <div class="ms-card-ttl">📖 メインストーリー</div>
+    <div class="ms-card-ch">${ch1.chapter}章　${ch1.title}</div>
+    <div class="ms-card-sub">${ch1.subtitle}</div>
+    <button onclick="showMainStoryChapter('chapter_1')" style="width:100%;padding:10px;background:var(--gr3);color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">物語を進める</button>
+  </div>`;
+}
+
+function showMainStoryChapter(chId, replayMode){
+  if(!replayMode){
+    if(G.activeEvent || G.processingMonthly || G.isAdvancingDay || G.tut.phase !== 'done') return;
+  }
+  const ch = MAIN_STORY_CHAPTERS.find(c => c.id === chId);
+  if(!ch || !ch.scenes || ch.scenes.length === 0) return;
+
+  let sceneIdx = 0;
+  const total = ch.scenes.length;
+
+  function buildModal(){
+    const sc = ch.scenes[sceneIdx];
+    const isLast = sc.isLast || sceneIdx === total - 1;
+    const dots = ch.scenes.map((_,i) => `<div class="ms-dot ${i===sceneIdx?'active':''}"></div>`).join('');
+    const nextGoalHtml = (isLast && sc.nextGoal && !replayMode) ? `
+      <div style="background:var(--bg2);border-radius:10px;padding:12px 14px;margin-bottom:14px">
+        <div style="font-size:11px;color:var(--muted);font-weight:700;margin-bottom:4px">次の物語へ</div>
+        <div style="font-size:12px;line-height:1.9;white-space:pre-line">${sc.nextGoal}</div>
+      </div>` : '';
+    const btnLabel = replayMode ? (isLast ? '閉じる' : '次へ') : (isLast ? '物語を閉じる' : '次へ');
+    let el = document.getElementById('_ms-modal');
+    el.innerHTML = `<div class="ms-modal-box">
+      <div style="font-size:12px;color:var(--muted);font-weight:600;margin-bottom:10px">第${ch.chapter}章　${ch.title}</div>
+      <div class="ms-scene-progress">${dots}</div>
+      <div class="ms-scene-speaker">${sc.speaker}</div>
+      <div class="ms-scene-text" style="white-space:pre-line">${sc.text}</div>
+      ${nextGoalHtml}
+      <button onclick="_msNext()" style="width:100%;padding:12px;background:${isLast?'var(--gr3)':'var(--bg2)'};color:${isLast?'#fff':'var(--text)'};border:${isLast?'none':'1px solid var(--border)'};border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">${btnLabel}</button>
+    </div>`;
+  }
+
+  window._msNext = function(){
+    sceneIdx++;
+    if(sceneIdx >= total){
+      document.getElementById('_ms-modal').style.display = 'none';
+      if(!replayMode){
+        ensureMainStoryState();
+        if(!G.mainStory.completedChapters.includes(chId)){
+          G.mainStory.completedChapters.push(chId);
+          addHistory('📖', `第${ch.chapter}章「${ch.title}」を読んだ`);
+        }
+        G.mainStory.pendingChapterId = null;
+        saveGame();
+        renderTab();
+      }
+    } else {
+      buildModal();
+    }
+  };
+
+  let el = document.getElementById('_ms-modal');
+  if(!el){
+    el = document.createElement('div');
+    el.id = '_ms-modal';
+    el.className = 'ms-modal';
+    el.onclick = e => { if(e.target === el) el.style.display='none'; };
+    document.body.appendChild(el);
+  }
+  el.style.display = 'flex';
+  buildModal();
+}
+
 // ─────────── 受動/能動 ホームセクション (v0.9g) ───────────
 function getOptionalManagementCards(){
   if(!G.started || G.tut.phase !== 'done') return [];
@@ -13288,6 +13457,7 @@ function renderHome(){
       ${renderWaitingStatusCard()}
       ${renderTodayMood()}
       ${renderTutMissionCard()}
+      ${renderMainStoryCard()}
       <div class="hq-vis">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
           <div class="hq-year" style="margin-bottom:0">第${G.year}年 ${G.month}月</div>
@@ -15941,7 +16111,7 @@ window.addEventListener('visibilitychange', ()=>{
 <script>
 if(/[?&](qa|debug)=1/.test(location.search)){
   var _qaScript=document.createElement('script');
-  _qaScript.src='maikon-qa.js?v=20260803-v09g-management-focus-ux';
+  _qaScript.src='maikon-qa.js?v=20260803-v10a-main-story-foundation';
   document.head.appendChild(_qaScript);
 }
 </script>
