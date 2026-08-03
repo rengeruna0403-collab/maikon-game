@@ -12598,8 +12598,27 @@ function buildUpcomingEvents(){
     }
   }
 
+  // ⑦ AP週次回復（7日ごと）
+  const _apCycle = 7 - (nowDay % 7);
+  const _apDays = _apCycle === 7 ? 7 : _apCycle; // 今日が回復日なら次は7日後
+  if(G.ap < G.apMax){
+    const _apGain = Math.min(30, G.apMax - G.ap);
+    items.push({ icon:'🧠', label:`APが+${_apGain}回復します`, sub:`あと${_apDays}日`, daysLeft:_apDays, type:'ap' });
+  }
+
+  // ⑧ 月末決算・売掛金入金
+  const _daysToMonthEnd = 30 - G.day;
+  if(_daysToMonthEnd <= 15){
+    if((G.receivables||0) > 0){
+      const { fmt: _fmt } = window._qaFmt || {};
+      items.push({ icon:'💰', label:`売掛金+${typeof fmt==='function'?fmt(G.receivables):'¥'+Math.round(G.receivables).toLocaleString()}が入金されます`, sub:`月末まであと${_daysToMonthEnd}日`, daysLeft:_daysToMonthEnd, type:'receivables' });
+    } else {
+      items.push({ icon:'📊', label:'月次決算があります', sub:`月末まであと${_daysToMonthEnd}日`, daysLeft:_daysToMonthEnd, type:'monthly' });
+    }
+  }
+
   items.sort((a,b) => a.daysLeft - b.daysLeft);
-  return items.slice(0, 2);
+  return items.slice(0, 3);
 }
 
 function _ochawanHint(){
@@ -12757,6 +12776,76 @@ function _checkApLowWarning(){
   }
 }
 
+// ─────────── 待機UXカード (v0.9d) ───────────
+function renderWaitingStatusCard(){
+  if(!G.started) return '';
+  const nowDay = (G.year-1)*360 + (G.month-1)*30 + G.day;
+  const ap = G.ap || 0;
+
+  // --- 進行中の状態リスト ---
+  const activeItems = [];
+
+  // 店舗営業中
+  const openStores = G.stores.filter(s => s.isOpen);
+  if(openStores.length > 0)
+    activeItems.push(`🍚 今日も${openStores.map(s=>s.name).join('・')}が営業しています`);
+
+  // 空室募集中
+  const seekingCount = (G.buildings||[]).reduce((n,b) => n + b.rooms.filter(r=>r.seeking&&!r.tenant).length, 0);
+  if(seekingCount > 0)
+    activeItems.push(`🏠 ${seekingCount}室で入居者を募集しています`);
+
+  // 売掛金積立中
+  if((G.receivables||0) > 0){
+    const _daysLeft = 30 - G.day;
+    activeItems.push(`💰 売掛金が積み上がっています（月末あと${_daysLeft}日で入金）`);
+  }
+
+  // 案件待ち（未解決案件なし かつ 週次案件生成サイクル中）
+  const _pendingCases = (G.cases||[]).filter(c=>!c.resolved).length;
+  if(_pendingCases === 0 && G.buildings && G.buildings.length > 0)
+    activeItems.push(`📨 新しい案件・入居申込を待っています`);
+
+  // --- AP回復カウント ---
+  let apHtml = '';
+  if(ap < 40){
+    const _apCycle = 7 - (nowDay % 7);
+    const _apDays = _apCycle === 7 ? 7 : _apCycle;
+    const _apGain = Math.min(30, (G.apMax||100) - ap);
+    apHtml = `<div style="display:flex;align-items:center;justify-content:space-between;background:var(--bg2);border-radius:8px;padding:8px 10px;margin-bottom:8px">
+      <div>
+        <div style="font-size:10px;color:var(--muted);margin-bottom:1px">現在AP</div>
+        <div style="font-size:14px;font-weight:700;color:${ap<=15?'var(--orange)':'var(--text)'}">${ap} <span style="font-size:11px;color:var(--muted);font-weight:400">/ ${G.apMax||100}</span></div>
+      </div>
+      <div style="text-align:right">
+        <div style="font-size:10px;color:var(--muted);margin-bottom:1px">次の回復</div>
+        <div style="font-size:12px;font-weight:700;color:var(--gr)">あと${_apDays}日で+${_apGain}</div>
+      </div>
+    </div>`;
+  }
+
+  // --- 「今日は待つ日」判定 ---
+  const _hasUrgent = !G.stores[0]?.isOpen
+    || (G.stores[0]?.isOpen && (!G.stores[0]?.menu || G.stores[0]?.menu.length===0))
+    || (G.buildings||[]).some(b=>b.rooms.some(r=>!r.tenant&&!r.seeking))
+    || _pendingCases > 0
+    || ap >= 20;
+  const waitingMsgHtml = !_hasUrgent ? `<div style="background:rgba(255,255,255,.6);border-radius:8px;padding:9px 11px;margin-bottom:6px;font-size:12px;color:var(--muted);line-height:1.8">
+    今日は大きな判断はありません。<br>日を進めることで、経営が少しずつ動いていきます。
+  </div>` : '';
+
+  if(activeItems.length === 0 && !apHtml && !waitingMsgHtml) return '';
+
+  const activeHtml = activeItems.map(t=>`
+    <div style="font-size:12px;color:var(--text);padding:4px 0;border-bottom:1px solid rgba(0,0,0,.05);line-height:1.6">${t}</div>
+  `).join('');
+
+  return `<div class="card" style="padding:12px 14px;margin-bottom:8px">
+    <div style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:8px;letter-spacing:.04em">⏳ 待っているもの</div>
+    ${waitingMsgHtml}${apHtml}${activeHtml}
+  </div>`;
+}
+
 // ─────────── 今すぐやること ───────────
 function renderTodayAction(){
   const actions = [];
@@ -12845,9 +12934,11 @@ function renderHome(){
     return `
       <button class="adv-btn" onclick="advanceDay()">
         🌿 明日へ進む<br><span style="font-size:11px;font-weight:400;opacity:0.8">${getNextDayLabel()}へ</span>
+        <div style="font-size:10px;font-weight:400;opacity:0.65;margin-top:2px">売上・案件・入居募集などが進行します</div>
       </button>
       ${_day1Hint}
       ${renderTodayAction()}
+      ${renderWaitingStatusCard()}
       <div id="home-cases-anchor">${renderCasesBox()}</div>
       ${renderUpcomingCard()}
       ${renderCashWarningBanner()}
@@ -12961,9 +13052,12 @@ function renderHome(){
   return `
     <button class="adv-btn" onclick="advanceDay()">
       🌿 翌日へ進む ——${getNextDayLabel()}
+      <div style="font-size:10px;font-weight:400;opacity:0.65;margin-top:2px">売上・案件・入居募集などが進行します</div>
     </button>
 
     ${renderCasesBox()}
+
+    ${renderWaitingStatusCard()}
 
     ${renderCashWarningBanner()}
 
@@ -15495,7 +15589,7 @@ window.addEventListener('visibilitychange', ()=>{
 <script>
 if(/[?&](qa|debug)=1/.test(location.search)){
   var _qaScript=document.createElement('script');
-  _qaScript.src='maikon-qa.js?v=20260803-v09c-action-info-ui';
+  _qaScript.src='maikon-qa.js?v=20260803-v09d-waiting-ux';
   document.head.appendChild(_qaScript);
 }
 </script>
