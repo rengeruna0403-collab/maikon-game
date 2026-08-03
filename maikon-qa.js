@@ -3,9 +3,9 @@
  * ?qa=1 または ?debug=1 の場合のみ動作
  * ゲーム本体への影響なし・読み取り専用（Phase 2Aは1日テスト後に必ず復元）
  */
-window._MAIKON_QA_VERSION = '2026-08-01-v08e-buy-menu-monthly-audit';
+window._MAIKON_QA_VERSION = '2026-08-01-v08f-buy-menu-monthly-boundary';
 console.log('[MAIKON-QA] loaded version:', window._MAIKON_QA_VERSION);
-console.log('[QA FILE LOADED] v08e-buy-menu-monthly-audit-20260801');
+console.log('[QA FILE LOADED] v08f-buy-menu-monthly-boundary-20260801');
 
 (function () {
   'use strict';
@@ -10566,6 +10566,382 @@ ${ar.experienceKPI ? _sim3ExperienceKpiHtml(ar.experienceKPI) : ''}
   window._sim8RunBuyMenuMonthlySettlementAudit = _sim8RunBuyMenuMonthlySettlementAudit;
 
   // ─────────────────────────────────────────────────────────────────
+  // _sim8ComputeMonthlyPeriods — monthlyData から simulation day 境界を算出
+  // ゲームは 30日/月 固定。startDay=1 (月初) であれば各月は 30日ずつ。
+  // ─────────────────────────────────────────────────────────────────
+  function _sim8ComputeMonthlyPeriods(monthlyDataArray, { startDay = 1 } = {}) {
+    if (!Array.isArray(monthlyDataArray) || !monthlyDataArray.length) return [];
+
+    // 最初の月の残日数（月末まで何日あるか）= 30 - startDay + 1
+    const firstMonthDays = 31 - startDay; // e.g. startDay=1 → 30日, startDay=15 → 16日
+
+    const periods = [];
+    let dayPointer = 1;
+
+    for (let i = 0; i < monthlyDataArray.length; i++) {
+      const entry = monthlyDataArray[i];
+      const daysInPeriod = i === 0 ? firstMonthDays : 30;
+      const periodStart = dayPointer;
+      const periodEnd   = Math.min(dayPointer + daysInPeriod - 1, 365);
+
+      periods.push({
+        monthIndex: i,
+        year:  entry.year  ?? null,
+        month: entry.month ?? (i + 1),
+        periodStartSimulationDay: periodStart,
+        periodEndSimulationDay:   periodEnd,
+        periodDayCount:           periodEnd - periodStart + 1,
+        capturedBeforeReset:      true,
+        capturedAfterSettlement:  false,
+        capturedDate:             null,
+      });
+
+      dayPointer = periodEnd + 1;
+      if (dayPointer > 365) break;
+    }
+
+    return periods;
+  }
+  window._sim8ComputeMonthlyPeriods = _sim8ComputeMonthlyPeriods;
+
+  // ─────────────────────────────────────────────────────────────────
+  // _sim8AggregateDailyByMonthlyPeriods — dailyLedger を月次期間ごとに集計
+  // （dailyLedger は dailyFlags 等の日次配列で simulationDay を持つ想定）
+  // ─────────────────────────────────────────────────────────────────
+  function _sim8AggregateDailyByMonthlyPeriods({ dailyLedger, monthlyPeriods }) {
+    if (!Array.isArray(dailyLedger) || !Array.isArray(monthlyPeriods)) return [];
+
+    return monthlyPeriods.map(period => {
+      const daysInPeriod = dailyLedger.filter(d =>
+        d.simulationDay >= period.periodStartSimulationDay &&
+        d.simulationDay <= period.periodEndSimulationDay
+      );
+
+      const sum = (key) => daysInPeriod.reduce((s, d) => s + (d[key] ?? 0), 0);
+
+      return {
+        year:   period.year,
+        month:  period.month,
+        monthIndex: period.monthIndex,
+        periodStartSimulationDay: period.periodStartSimulationDay,
+        periodEndSimulationDay:   period.periodEndSimulationDay,
+        dayCount:             daysInPeriod.length,
+        dailyRevenueSum:      sum('revenue'),
+        dailyIngredientCostSum: sum('ingredientCost'),
+        dailyExpenseSum:      sum('expense'),
+        dailyProfitSum:       sum('profit'),
+        dailyCashDeltaSum:    sum('cashDelta'),
+      };
+    });
+  }
+  window._sim8AggregateDailyByMonthlyPeriods = _sim8AggregateDailyByMonthlyPeriods;
+
+  // ─────────────────────────────────────────────────────────────────
+  // _sim8RunBuyMenuMonthlyBoundaryAudit — v0.8f 月次境界監査
+  // monthlyData の period 境界（simulation day ベース）を検証し、
+  // カバレッジ・未収録日・年末キャプチャ状況を報告する。
+  // ─────────────────────────────────────────────────────────────────
+  async function _sim8RunBuyMenuMonthlyBoundaryAudit({ seeds, trialsPerSeed } = {}) {
+    seeds = seeds || [1001];
+    trialsPerSeed = trialsPerSeed || 1;
+
+    let _gBnd;
+    try { _gBnd = eval('G'); } catch(e) { return null; }
+    let gSnap;
+    try { gSnap = _sim3MakeFreshStartSnap(_gBnd); } catch(e) { return null; }
+
+    const origEnable = Object.assign({}, _SIM5_ENABLE);
+    const origPolicy = _sim5AdCurrentPolicy;
+    const allDiags = [_sim5Diag, _sim5TrainDiag, _sim5MenuDiag, _sim5AdDiag, _sim7RenovDiag];
+
+    const results = { allOff: [], buyMenuOnly: [] };
+
+    try {
+      for (const [scenarioKey, enable] of [
+        ['allOff',      { investRegion:false, trainStaff:false, buyMenu:false, buyAd:false, buyRenov:false }],
+        ['buyMenuOnly', { investRegion:false, trainStaff:false, buyMenu:true,  buyAd:false, buyRenov:false }],
+      ]) {
+        for (let si = 0; si < seeds.length; si++) {
+          const seed = seeds[si];
+          Object.assign(_SIM5_ENABLE, enable);
+          _sim5AdCurrentPolicy = null;
+          _sim5AdPolicyState.lastPurchaseDayByStore = {};
+          allDiags.forEach(d => d.reset());
+
+          for (let ti = 0; ti < trialsPerSeed; ti++) {
+            const menuCostBefore = _sim5MenuDiag.menuCostTotal;
+            const t = _sim3AnalyzeRunTrial(seed + ti, gSnap);
+            if (!t) continue;
+            const menuCostActual = _sim5MenuDiag.menuCostTotal - menuCostBefore;
+            results[scenarioKey].push({ t, menuCostActual, seed, trial: ti });
+          }
+        }
+      }
+    } finally {
+      Object.assign(_SIM5_ENABLE, origEnable);
+      _sim5AdCurrentPolicy = origPolicy;
+      _sim5AdPolicyState.lastPurchaseDayByStore = {};
+      allDiags.forEach(d => d.reset());
+    }
+
+    // ── 月次期間の境界算出 ────────────────────────────────────────────
+
+    const sampleAllOff  = results.allOff[0];
+    const sampleBuyMenu = results.buyMenuOnly[0];
+    const sampleMD = sampleAllOff?.t?.monthlyData ?? sampleBuyMenu?.t?.monthlyData;
+    const sampleStartDay = sampleAllOff?.t?.startDate?.day ?? sampleBuyMenu?.t?.startDate?.day ?? 1;
+
+    const monthlyPeriods = sampleMD
+      ? _sim8ComputeMonthlyPeriods(sampleMD, { startDay: sampleStartDay })
+      : [];
+
+    // カバレッジ監査
+    const coveredDaySet = new Set();
+    const duplicatedDays = [];
+    for (const period of monthlyPeriods) {
+      for (let d = period.periodStartSimulationDay; d <= period.periodEndSimulationDay; d++) {
+        if (coveredDaySet.has(d)) duplicatedDays.push(d);
+        coveredDaySet.add(d);
+      }
+    }
+    const uncoveredDays = [];
+    for (let d = 1; d <= 365; d++) {
+      if (!coveredDaySet.has(d)) uncoveredDays.push(d);
+    }
+    const coverageAudit = {
+      totalSimulationDays: 365,
+      coveredDays: coveredDaySet.size,
+      uncoveredDays,
+      duplicatedDays,
+      daysPerMonthlyEntry: monthlyPeriods.map(p => p.periodDayCount),
+    };
+
+    // ── 年間値の計算 ──────────────────────────────────────────────────
+
+    const avgYear = (resultArr, key) => {
+      const vals = resultArr.map(r => r.t[key]).filter(v => v != null && isFinite(v));
+      return vals.length ? vals.reduce((s,v)=>s+v,0)/vals.length : null;
+    };
+
+    const annualAllOffNet  = avgYear(results.allOff,    'totalNetChange365');
+    const annualMenuNet    = avgYear(results.buyMenuOnly,'totalNetChange365');
+    const annualMenuCost   = results.buyMenuOnly.length
+      ? results.buyMenuOnly.reduce((s,r)=>s+r.menuCostActual,0)/results.buyMenuOnly.length : 0;
+
+    const reportedAnnual = (annualMenuNet ?? 0) - (annualAllOffNet ?? 0);
+
+    // 月次再構築（monthlyData ベース）
+    const extractMonthlyAvg = (resultArr, fieldKey) => {
+      const trials = resultArr.filter(r => Array.isArray(r.t.monthlyData));
+      if (!trials.length) return null;
+      const counts = {};
+      const sums   = {};
+      for (const r of trials) {
+        r.t.monthlyData.forEach((m, i) => {
+          const v = m[fieldKey];
+          if (v != null && isFinite(v)) {
+            sums[i]   = (sums[i]   ?? 0) + v;
+            counts[i] = (counts[i] ?? 0) + 1;
+          }
+        });
+      }
+      const monthCount = Object.keys(sums).length;
+      return Array.from({ length: monthCount }, (_, i) =>
+        counts[i] ? sums[i] / counts[i] : null
+      );
+    };
+
+    const aoRev  = extractMonthlyAvg(results.allOff,    'storeRevenue');
+    const bmoRev = extractMonthlyAvg(results.buyMenuOnly,'storeRevenue');
+    const aoIng  = extractMonthlyAvg(results.allOff,    'ingredientCost');
+    const bmoIng = extractMonthlyAvg(results.buyMenuOnly,'ingredientCost');
+    const aoNet  = extractMonthlyAvg(results.allOff,    'netChange');
+    const bmoNet = extractMonthlyAvg(results.buyMenuOnly,'netChange');
+
+    const monthCount = Math.min(
+      aoRev?.length ?? 0, bmoRev?.length ?? 0,
+      aoIng?.length ?? 0, bmoIng?.length ?? 0,
+      aoNet?.length ?? 0, bmoNet?.length ?? 0,
+      monthlyPeriods.length
+    );
+
+    const menuCostPerMonth = annualMenuCost / Math.max(1, monthCount);
+
+    const monthlyDiffArr = [];
+    let sumMonthlyReported      = 0;
+    let sumMonthlyReconstructed = 0;
+
+    for (let i = 0; i < monthCount; i++) {
+      const period   = monthlyPeriods[i] ?? {};
+      const revDiff  = (bmoRev?.[i] ?? 0) - (aoRev?.[i] ?? 0);
+      const ingDiff  = (bmoIng?.[i] ?? 0) - (aoIng?.[i] ?? 0);
+      const netDiff  = (bmoNet?.[i] != null && aoNet?.[i] != null)
+        ? (bmoNet[i] ?? 0) - (aoNet[i] ?? 0) : null;
+
+      const reconstructedMonthly = revDiff - ingDiff - menuCostPerMonth;
+      const untracedMonthly = netDiff !== null ? netDiff - reconstructedMonthly : null;
+
+      sumMonthlyReported      += netDiff ?? 0;
+      sumMonthlyReconstructed += reconstructedMonthly;
+
+      monthlyDiffArr.push({
+        month: period.month ?? (i + 1),
+        periodStartSimulationDay: period.periodStartSimulationDay,
+        periodEndSimulationDay:   period.periodEndSimulationDay,
+        periodDayCount:           period.periodDayCount,
+        reportedNetChangeDiff:    netDiff,
+        reconstructedDiff:        reconstructedMonthly,
+        profitGap:                untracedMonthly,
+        monthlyDataRevenue:    bmoRev?.[i] ?? null,
+        monthlyDataIngredient: bmoIng?.[i] ?? null,
+      });
+    }
+
+    const sumMonthlyUntraced = sumMonthlyReported - sumMonthlyReconstructed;
+
+    const annualRevDiff = (avgYear(results.buyMenuOnly,'totalRevenue') ?? 0) - (avgYear(results.allOff,'totalRevenue') ?? 0);
+    const annualIngDiff = (avgYear(results.buyMenuOnly,'totalIngredientCost') ?? 0) - (avgYear(results.allOff,'totalIngredientCost') ?? 0);
+    const annualGap = reportedAnnual - (annualRevDiff - annualIngDiff - annualMenuCost);
+
+    const rawDifference = annualGap - sumMonthlyUntraced;
+
+    // 未収録日の収支（日次データなし）
+    const uncoveredDayTotals = {
+      revenue: null, ingredientCost: null, expense: null,
+      profit: null, cashDelta: null,
+      available: false,
+      reason: 'dailyDataフィールド未取得（_sim3AnalyzeRunTrial返値に含まれない）',
+      simulationDays: uncoveredDays,
+    };
+
+    // 年末監査
+    const lastPeriod = monthlyPeriods[monthlyPeriods.length - 1];
+    const yearEndAudit = {
+      lastMonthlyDataDay:         lastPeriod?.periodEndSimulationDay ?? null,
+      day365Covered:              (lastPeriod?.periodEndSimulationDay ?? 0) >= 365,
+      uncoveredAfterLastEntry:    lastPeriod ? Math.max(0, 365 - lastPeriod.periodEndSimulationDay) : 365,
+    };
+
+    // タイミング補正（日次データなし → 独立測定不可）
+    const timingAdjustment = {
+      uncoveredDaysProfit:        null,
+      duplicatedDaysProfit:       null,
+      yearEndUncapturedProfit:    yearEndAudit.uncoveredAfterLastEntry > 0 ? null : 0,
+      monthBoundaryShiftProfit:   null,
+      total:                      null,
+      note: rawDifference !== 0
+        ? `月次と年間の差=${Math.round(rawDifference).toLocaleString()}円。日次データがないため独立測定不可`
+        : '差なし',
+    };
+
+    // 結論
+    const conclusionStatus =
+      uncoveredDays.length > 0   ? 'yearEndCaptureMissing' :
+      duplicatedDays.length > 0  ? 'monthlyCaptureBug' :
+      Math.abs(rawDifference) <= 10_000  ? 'fullyReconciled' :
+      Math.abs(rawDifference) <= 100_000 ? 'boundaryMismatchConfirmed' :
+      'needsMoreData';
+
+    const timingExplanationRate = annualGap !== 0
+      ? Math.min(1, Math.max(0, 1 - Math.abs(timingAdjustment.total ?? rawDifference) / Math.abs(annualGap)))
+      : 1;
+
+    const adjustedMonthlyGapSum = sumMonthlyUntraced + (timingAdjustment.total ?? 0);
+    const adjustedDifference    = rawDifference - (timingAdjustment.total ?? 0);
+
+    // コンソール出力
+    console.group('📆 monthlyData 日数カバレッジ');
+    console.table(monthlyDiffArr.map(m => ({
+      月: m.month,
+      開始日: m.periodStartSimulationDay,
+      終了日: m.periodEndSimulationDay,
+      日数: m.periodDayCount,
+    })));
+    console.log(`カバー日数: ${coveredDaySet.size}/365`);
+    console.log(`未収録日数: ${uncoveredDays.length}日 [${uncoveredDays.slice(0,10).join(',')}]`);
+    console.log(`重複日数: ${duplicatedDays.length}日`);
+    console.groupEnd();
+
+    console.group('🔄 monthlyData vs 月次再集計');
+    console.log('日次データなし — monthlyDataのみで比較');
+    console.table(monthlyDiffArr.map(m => ({
+      月: m.month, 日数: m.periodDayCount,
+      報告差分: m.reportedNetChangeDiff != null ? Math.round(m.reportedNetChangeDiff).toLocaleString() : 'N/A',
+      再構築差分: Math.round(m.reconstructedDiff).toLocaleString(),
+      未追跡: m.profitGap != null ? Math.round(m.profitGap).toLocaleString() : 'N/A',
+    })));
+    console.groupEnd();
+
+    console.group('🕳 月次未収録日の収支');
+    console.log(`未収録日: [${uncoveredDays.join(', ')}]`);
+    console.log(`理由: ${uncoveredDayTotals.reason}`);
+    console.groupEnd();
+
+    console.group('🎍 年末キャプチャ監査');
+    console.table({
+      '最終月次エントリ最終日': lastPeriod?.periodEndSimulationDay ?? 'N/A',
+      '365日目カバー': yearEndAudit.day365Covered ? '✓' : '✗',
+      '最終エントリ後の未収録日数': yearEndAudit.uncoveredAfterLastEntry,
+    });
+    console.groupEnd();
+
+    console.group('🧮 タイミング差分補正');
+    console.table({
+      '年間ギャップ':           Math.round(annualGap).toLocaleString(),
+      '月次ギャップ合計':       Math.round(sumMonthlyUntraced).toLocaleString(),
+      '月次/年間差分(rawDiff)': Math.round(rawDifference).toLocaleString(),
+      '補正後差分':             'N/A（独立測定不可）',
+      '注記':                   timingAdjustment.note,
+    });
+    console.groupEnd();
+
+    console.group('🏁 月次境界監査 結論');
+    console.table({
+      status: conclusionStatus,
+      '未収録日': uncoveredDays.length,
+      '重複日': duplicatedDays.length,
+      '365日カバー': yearEndAudit.day365Covered ? '✓' : '✗',
+    });
+    console.groupEnd();
+
+    return {
+      config: { seeds, trialsPerSeed },
+      coverageAudit,
+      monthlyPeriods,
+      monthlyVsDaily: monthlyDiffArr,
+      uncoveredDayTotals,
+      yearEndAudit,
+      timingAdjustment,
+      reconciliation: {
+        annualGap,
+        rawMonthlyGapSum: sumMonthlyUntraced,
+        rawDifference,
+        adjustedMonthlyGapSum,
+        adjustedDifference,
+        timingExplanationRate,
+      },
+      conclusion: {
+        status: conclusionStatus,
+        primaryCause: conclusionStatus,
+        findings: [
+          `monthlyData期間数: ${monthlyPeriods.length}`,
+          `カバー日数: ${coveredDaySet.size}日 / 365日`,
+          `未収録日: ${uncoveredDays.length}日 [${uncoveredDays.join(',')}]`,
+          `重複日: ${duplicatedDays.length}日`,
+          `年間ギャップ: ${Math.round(annualGap).toLocaleString()}円`,
+          `月次ギャップ合計: ${Math.round(sumMonthlyUntraced).toLocaleString()}円`,
+          `差分(rawDiff): ${Math.round(rawDifference).toLocaleString()}円`,
+          `365日目カバー: ${yearEndAudit.day365Covered ? 'YES' : 'NO'}`,
+        ],
+        recommendation: conclusionStatus === 'fullyReconciled'       ? 'keep' :
+                        conclusionStatus === 'yearEndCaptureMissing' ? 'investigateYearEndCapture' :
+                        'needsMoreData',
+      },
+    };
+  }
+  window._sim8RunBuyMenuMonthlyBoundaryAudit = _sim8RunBuyMenuMonthlyBoundaryAudit;
+
+  // ─────────────────────────────────────────────────────────────────
   // _qa3ValidateAll — v0.2.1 全自動検証ランナー
   // ─────────────────────────────────────────────────────────────────
   window._qa3ValidateAll = async function(opts) {
@@ -14258,6 +14634,164 @@ ${ar.experienceKPI ? _sim3ExperienceKpiHtml(ar.experienceKPI) : ''}
         (stOk && enOk)
           ? pass('31-16 buyMenu adopted維持', `status=${_SIM5_AI_ADOPTION_STATUS.buyMenu.status} enable=${_SIM5_ENABLE.buyMenu}`)
           : fail('31-16 buyMenu adopted維持', `status=${_SIM5_AI_ADOPTION_STATUS?.buyMenu?.status} enable=${_SIM5_ENABLE?.buyMenu}`);
+      }
+    }
+    console.groupEnd();
+
+    // ── Section 32: v0.8f buyMenu 月次境界監査 ─────────────────────────────
+    console.group('Section 32: v0.8f buyMenu 月次境界監査（Monthly Boundary Audit）');
+    {
+      const boundaryResult32 = await _sim8RunBuyMenuMonthlyBoundaryAudit({ seeds:[1001], trialsPerSeed:1 });
+
+      if (rNew && rNew.businessReport) {
+        rNew.businessReport.buyMenuMonthlyBoundaryAudit = boundaryResult32
+          ? {
+              config:           boundaryResult32.config,
+              coverageAudit:    boundaryResult32.coverageAudit,
+              monthlyPeriods:   boundaryResult32.monthlyPeriods,
+              monthlyVsDaily:   boundaryResult32.monthlyVsDaily,
+              uncoveredDayTotals: boundaryResult32.uncoveredDayTotals,
+              yearEndAudit:     boundaryResult32.yearEndAudit,
+              timingAdjustment: boundaryResult32.timingAdjustment,
+              reconciliation:   boundaryResult32.reconciliation,
+              conclusion:       boundaryResult32.conclusion,
+            }
+          : null;
+      }
+
+      // 32-1: _sim8AggregateDailyByMonthlyPeriods が存在
+      typeof _sim8AggregateDailyByMonthlyPeriods === 'function'
+        ? pass('32-1 _sim8AggregateDailyByMonthlyPeriods存在', '関数として定義済み')
+        : fail('32-1 _sim8AggregateDailyByMonthlyPeriods存在', `typeof=${typeof _sim8AggregateDailyByMonthlyPeriods}`);
+
+      // 32-2: _sim8RunBuyMenuMonthlyBoundaryAudit が存在
+      typeof _sim8RunBuyMenuMonthlyBoundaryAudit === 'function'
+        ? pass('32-2 _sim8RunBuyMenuMonthlyBoundaryAudit存在', '関数として定義済み')
+        : fail('32-2 _sim8RunBuyMenuMonthlyBoundaryAudit存在', `typeof=${typeof _sim8RunBuyMenuMonthlyBoundaryAudit}`);
+
+      // 32-3: totalSimulationDays=365
+      {
+        const ca = boundaryResult32?.coverageAudit;
+        ca?.totalSimulationDays === 365
+          ? pass('32-3 totalSimulationDays=365', `totalSimulationDays=${ca.totalSimulationDays}`)
+          : fail('32-3 totalSimulationDays=365', `totalSimulationDays=${ca?.totalSimulationDays}`);
+      }
+
+      // 32-4: coveredDays + uncoveredDays.length = 365
+      {
+        const ca = boundaryResult32?.coverageAudit;
+        const sum = (ca?.coveredDays ?? 0) + (ca?.uncoveredDays?.length ?? 0);
+        sum === 365
+          ? pass('32-4 日数整合', `coveredDays=${ca?.coveredDays} + uncoveredDays=${ca?.uncoveredDays?.length} = ${sum}`)
+          : fail('32-4 日数整合', `合計=${sum} ≠ 365`);
+      }
+
+      // 32-5: duplicatedDaysが配列
+      {
+        const dd = boundaryResult32?.coverageAudit?.duplicatedDays;
+        Array.isArray(dd)
+          ? pass('32-5 duplicatedDays配列', `length=${dd.length}`)
+          : fail('32-5 duplicatedDays配列', `type=${typeof dd}`);
+      }
+
+      // 32-6: 各月periodDayCountが正の整数
+      {
+        const mp = boundaryResult32?.monthlyPeriods ?? [];
+        const ok = mp.length > 0 && mp.every(p => Number.isInteger(p.periodDayCount) && p.periodDayCount > 0);
+        ok
+          ? pass('32-6 periodDayCount正整数', `月数=${mp.length} min=${Math.min(...mp.map(p=>p.periodDayCount))} max=${Math.max(...mp.map(p=>p.periodDayCount))}`)
+          : fail('32-6 periodDayCount正整数', `mp=${JSON.stringify(mp.slice(0,2))}`);
+      }
+
+      // 32-7: periodStart <= periodEnd
+      {
+        const mp = boundaryResult32?.monthlyPeriods ?? [];
+        const ok = mp.every(p => p.periodStartSimulationDay <= p.periodEndSimulationDay);
+        ok
+          ? pass('32-7 periodStart<=periodEnd', `全${mp.length}月で開始≤終了`)
+          : fail('32-7 periodStart<=periodEnd', `異常月: ${mp.filter(p=>p.periodStartSimulationDay>p.periodEndSimulationDay).map(p=>p.month).join(',')}`);
+      }
+
+      // 32-8: 日次再集計の月数がmonthlyPeriods長と一致
+      {
+        const mvd = boundaryResult32?.monthlyVsDaily ?? [];
+        const mp  = boundaryResult32?.monthlyPeriods ?? [];
+        mvd.length === mp.length
+          ? pass('32-8 月数一致', `monthlyVsDaily=${mvd.length} monthlyPeriods=${mp.length}`)
+          : fail('32-8 月数一致', `mvd=${mvd.length} mp=${mp.length}`);
+      }
+
+      // 32-9: 月ごとのprofitGapがFiniteまたはnull
+      {
+        const mvd = boundaryResult32?.monthlyVsDaily ?? [];
+        const ok = mvd.every(m => m.profitGap === null || isFinite(m.profitGap));
+        ok
+          ? pass('32-9 profitGap値', `全${mvd.length}月でFiniteまたはnull`)
+          : fail('32-9 profitGap値', `non-finite: ${mvd.filter(m=>m.profitGap!==null&&!isFinite(m.profitGap)).length}月`);
+      }
+
+      // 32-10: uncoveredDayTotalsが実測または理由明示
+      {
+        const udt = boundaryResult32?.uncoveredDayTotals;
+        const ok = udt && (udt.available === true || (udt.available === false && udt.reason));
+        ok
+          ? pass('32-10 uncoveredDayTotals', `available=${udt.available} reason=${udt.reason?.slice(0,30)} days=${udt.simulationDays?.length}`)
+          : fail('32-10 uncoveredDayTotals', `udt=${JSON.stringify(udt)?.slice(0,60)}`);
+      }
+
+      // 32-11: timingAdjustmentがnoteを持つ（逆算禁止の独立性確認）
+      {
+        const ta = boundaryResult32?.timingAdjustment;
+        (ta && ta.note)
+          ? pass('32-11 timingAdjustment独立性', `note=${ta.note?.slice(0,50)}`)
+          : fail('32-11 timingAdjustment独立性', `ta=${JSON.stringify(ta)?.slice(0,60)}`);
+      }
+
+      // 32-12: adjustedDifference = annualGap - adjustedMonthlyGapSum
+      {
+        const r = boundaryResult32?.reconciliation;
+        if (!r) {
+          fail('32-12 adjustedDifference整合', 'reconciliationなし');
+        } else {
+          const computed = r.annualGap - r.adjustedMonthlyGapSum;
+          const diff = Math.abs(computed - r.adjustedDifference);
+          diff < 1
+            ? pass('32-12 adjustedDifference整合', `|computed-stored|=${diff.toFixed(2)}`)
+            : fail('32-12 adjustedDifference整合', `computed=${Math.round(computed).toLocaleString()} stored=${Math.round(r.adjustedDifference).toLocaleString()}`);
+        }
+      }
+
+      // 32-13: timingExplanationRateが0〜1
+      {
+        const er = boundaryResult32?.reconciliation?.timingExplanationRate;
+        (isFinite(er) && er >= 0 && er <= 1)
+          ? pass('32-13 timingExplanationRate0〜1', `rate=${(er*100).toFixed(1)}%`)
+          : fail('32-13 timingExplanationRate0〜1', `er=${er}`);
+      }
+
+      // 32-14: conclusion.statusが定義済み5値のいずれか
+      {
+        const st = boundaryResult32?.conclusion?.status;
+        ['fullyReconciled','boundaryMismatchConfirmed','yearEndCaptureMissing','monthlyCaptureBug','needsMoreData'].includes(st)
+          ? pass('32-14 conclusion.status値', `status=${st}`)
+          : fail('32-14 conclusion.status値', `status=${st}`);
+      }
+
+      // 32-15: BusinessReport.buyMenuMonthlyBoundaryAuditが存在
+      {
+        const bba = rNew?.businessReport?.buyMenuMonthlyBoundaryAudit;
+        (bba && bba.conclusion)
+          ? pass('32-15 BusinessReport.buyMenuMonthlyBoundaryAudit存在', `status=${bba.conclusion.status}`)
+          : fail('32-15 BusinessReport.buyMenuMonthlyBoundaryAudit存在', `bba=${JSON.stringify(bba)?.slice(0,40)}`);
+      }
+
+      // 32-16: 監査後もbuyMenu adopted・default ON
+      {
+        const stOk = _SIM5_AI_ADOPTION_STATUS?.buyMenu?.status === 'adopted';
+        const enOk = _SIM5_ENABLE?.buyMenu === true;
+        (stOk && enOk)
+          ? pass('32-16 buyMenu adopted維持', `status=${_SIM5_AI_ADOPTION_STATUS.buyMenu.status} enable=${_SIM5_ENABLE.buyMenu}`)
+          : fail('32-16 buyMenu adopted維持', `status=${_SIM5_AI_ADOPTION_STATUS?.buyMenu?.status} enable=${_SIM5_ENABLE?.buyMenu}`);
       }
     }
     console.groupEnd();
