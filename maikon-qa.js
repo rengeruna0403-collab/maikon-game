@@ -3,9 +3,12 @@
  * ?qa=1 または ?debug=1 の場合のみ動作
  * ゲーム本体への影響なし・読み取り専用（Phase 2Aは1日テスト後に必ず復元）
  */
-window._MAIKON_QA_VERSION = '2026-08-04-v10d-finance-visibility';
+window._MAIKON_QA_VERSION = '2026-08-04-v10e-calendar-unification';
 console.log('[MAIKON-QA] loaded version:', window._MAIKON_QA_VERSION);
-console.log('[QA FILE LOADED] v10d-finance-visibility-20260804');
+console.log('[QA FILE LOADED] v10e-calendar-unification-20260804');
+
+// ゲーム内1年は360日（30日×12月）
+const GAME_DAYS_PER_YEAR = 360;
 
 (function () {
   'use strict';
@@ -5175,7 +5178,7 @@ function qa2cSwitchTab(tid,idx){
     const duplicatePurchaseDetected = menuTotal !== null && avgPurchases > menuTotal;
 
     // ingPerCustUp=50 は buyMenu 実装から直接取得した値
-    // 客数増分 × 材料費増（1日あたり ingPerCustUp=50 × 365日）で概算
+    // 客数増分 × 材料費増（1日あたり ingPerCustUp=50 × 360日）で概算
     const approxIngredientRate = 0.05; // 売上差分に対する材料費増の概算比率（小さく見積もる）
     const incrementalRevenue    = revenueDiff;
     const incrementalIngredient = revenueDiff * approxIngredientRate;
@@ -7327,7 +7330,7 @@ function qa2cSwitchTab(tid,idx){
       // v0.4: 日次フラグ（事実のみ。閾値判定・集計は後段で行う）
       const dailyFlags = [];
 
-      for (let d = 0; d < 365; d++) {
+      for (let d = 0; d < GAME_DAYS_PER_YEAR; d++) {
         if (_sim3AnalyzeStopReq) break;
 
         // ── 日前スナップショット（参照ではなく値をコピー）────────────
@@ -8726,7 +8729,7 @@ function qa2cSwitchTab(tid,idx){
     chk('RNG呼出回数一致',         t0.rng.calls,      t1.rng.calls);
     chk('RNG最終状態一致',         t0.rng.finalState, t1.rng.finalState);
     chk('overall一致',             t0.overall,        t1.overall);
-    chk('365日完走',               t0.daysCompleted,  365);
+    chk('360日完走',               t0.daysCompleted,  GAME_DAYS_PER_YEAR);
     chk('Safety PASS',             t0.safetyOverall,  'PASS');
     chk('年間売上一致',
       t0.annualStats?.totalRevenue,  t1.annualStats?.totalRevenue);
@@ -8847,7 +8850,7 @@ function qa2cSwitchTab(tid,idx){
         value: avgProducts,
         status: avgProducts != null && avgProducts <= INIT_PRODUCTS ? 'BLOCKED' : 'OK',
         note: avgProducts != null && avgProducts <= INIT_PRODUCTS
-          ? `365日で追加解放0件（初期${INIT_PRODUCTS}個のまま）。解放条件が未達成の可能性。`
+          ? `1年間（360日）で追加解放0件（初期${INIT_PRODUCTS}個のまま）。解放条件が未達成の可能性。`
           : `平均${fmt0(avgProducts)}個`,
       },
       cash: {
@@ -8928,7 +8931,7 @@ function qa2cSwitchTab(tid,idx){
         action:'ゲーム側でG.monthlyBreakdown（修繕費・広告費・人件費・家賃）を記録する。' });
     if (avgProducts != null && avgProducts <= INIT_PRODUCTS)
       suggestions.push({ item:'商品解放条件の見直し', effect:starsStr(5),
-        reason:'365日で追加商品解放が0件。中盤以降の成長実感が不足。',
+        reason:'1年間（360日）で追加商品解放が0件。中盤以降の成長実感が不足。',
         action:'解放条件（評判値・資金・案件数の閾値）を確認し、到達可能な値に調整する。' });
     if (avgDeficit != null && avgDeficit > 6)
       suggestions.push({ item:'収支バランスの見直し', effect:starsStr(4),
