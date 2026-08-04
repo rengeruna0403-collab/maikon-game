@@ -11884,11 +11884,12 @@ const MAIN_STORY_CHAPTERS = [
 
 function ensureMainStoryState(){
   if(!G.mainStory){
-    G.mainStory = { unlockedChapters:[], completedChapters:[], pendingChapterId:null };
+    G.mainStory = { unlockedChapters:[], completedChapters:[], pendingChapterId:null, milestonesShown:[] };
   }
   if(!G.mainStory.unlockedChapters) G.mainStory.unlockedChapters=[];
   if(!G.mainStory.completedChapters) G.mainStory.completedChapters=[];
   if(!('pendingChapterId' in G.mainStory)) G.mainStory.pendingChapterId=null;
+  if(!G.mainStory.milestonesShown) G.mainStory.milestonesShown=[];
 }
 
 function _evalMainStoryUnlock(){
@@ -11914,10 +11915,89 @@ function _evalMainStoryUnlock(){
   });
 }
 
+const MAIN_STORY_GROWTH_STAGES = [
+  { id:'beforeChapter1', icon:'🌱', title:'駆け出し経営者',
+    description:'お店を始めたばかりです。\nまずは舞昆とお客様のことを知っていきましょう。' },
+  { id:'afterChapter1', icon:'🌿', title:'舞昆を知り始めた経営者',
+    description:'舞昆を売るだけでなく、\nお客様の食卓へ届ける仕事だと気づきました。' }
+];
+
+function getMainStoryGrowthStage(){
+  ensureMainStoryState();
+  return G.mainStory.completedChapters.includes('chapter_1')
+    ? MAIN_STORY_GROWTH_STAGES[1] : MAIN_STORY_GROWTH_STAGES[0];
+}
+
+function getMainStoryProgressMetrics(){
+  const resolvedCases = (G.cases||[]).filter(c=>c.resolved).length;
+  const totalRev = G.totalRevenue || 0;
+  return [
+    { label:'お客様とのご縁', value:resolvedCases, target:10, unit:'件', isMoney:false,
+      note:'相談に向き合うことで、\n舞昆がどんな場面で喜ばれるか分かってきます。' },
+    { label:'お店の成長', value:totalRev, target:300000, unit:'円', isMoney:true,
+      note:'お店が安定すると、\n次の舞昆の物語が見えてきます。' }
+  ];
+}
+
+function _checkMainStoryMilestones(){
+  if(G.tut.phase !== 'done') return;
+  ensureMainStoryState();
+  const resolvedCases = (G.cases||[]).filter(c=>c.resolved).length;
+  if(resolvedCases >= 5 && !G.mainStory.milestonesShown.includes('cases_5')){
+    G.mainStory.milestonesShown.push('cases_5');
+    setTimeout(()=> notify('✨ 主人公が一歩成長しました\nお客様とのご縁が増え、舞昆への理解が深まっています。', 'gold'), 300);
+  }
+}
+
+function _renderMsGrowthStageBlock(){
+  const stage = getMainStoryGrowthStage();
+  return `<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">
+    <div style="font-size:10px;color:var(--muted);font-weight:700;margin-bottom:4px">主人公の現在地</div>
+    <div style="font-size:13px;font-weight:700;color:var(--gr3)">${stage.icon} ${stage.title}</div>
+    <div style="font-size:11px;color:var(--text);line-height:1.8;margin-top:3px;white-space:pre-line">${stage.description}</div>
+  </div>`;
+}
+
+function _renderMsAchievementsBlock(){
+  const items = [
+    '✓ お店を開店した',
+    (G.stores && G.stores[0] && G.stores[0].menu && G.stores[0].menu.length > 0) ? '✓ 最初のメニューを用意した' : null,
+    '✓ 舞昆をお客様へ届け始めた'
+  ].filter(Boolean);
+  return `<div style="margin-top:8px">
+    <div style="font-size:10px;color:var(--muted);font-weight:700;margin-bottom:4px">ここまでできたこと</div>
+    ${items.map(t=>`<div style="font-size:11px;color:var(--gr3);line-height:1.9">${t}</div>`).join('')}
+  </div>`;
+}
+
+function _renderMsProgressBlock(){
+  _checkMainStoryMilestones();
+  const metrics = getMainStoryProgressMetrics();
+  const rows = metrics.map(m => {
+    const pct = Math.min(100, Math.round((m.value / m.target) * 100));
+    const valStr = m.isMoney ? fmt(m.value) : m.value;
+    const tgtStr = m.isMoney ? fmt(m.target) : m.target;
+    return `<div style="margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px">
+        <span style="font-weight:700">${m.label}</span>
+        <span style="color:var(--muted)">${valStr} / ${tgtStr}${m.isMoney?'':'件'}</span>
+      </div>
+      <div style="background:var(--border);border-radius:4px;height:5px;overflow:hidden">
+        <div style="background:var(--gr);height:5px;width:${pct}%;border-radius:4px"></div>
+      </div>
+      <div style="font-size:10px;color:var(--muted);margin-top:3px;line-height:1.7;white-space:pre-line">${m.note}</div>
+    </div>`;
+  }).join('');
+  return `<div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border)">
+    <div style="font-size:10px;color:var(--muted);font-weight:700;margin-bottom:6px">次の物語へ向けた目安</div>
+    <div style="font-size:11px;color:var(--text);line-height:1.7;margin-bottom:8px">お客様とのご縁を増やし、\nお店を少しずつ成長させましょう。</div>
+    ${rows}
+  </div>`;
+}
+
 function renderMainStoryCard(){
   ensureMainStoryState();
   _evalMainStoryUnlock();
-  const pending = G.mainStory.pendingChapterId;
   const ch1 = MAIN_STORY_CHAPTERS[0];
   const completed = G.mainStory.completedChapters.includes('chapter_1');
   const unlocked = G.mainStory.unlockedChapters.includes('chapter_1');
@@ -11927,12 +12007,15 @@ function renderMainStoryCard(){
   if(completed){
     return `<div class="ms-card">
       <div class="ms-card-ttl">📖 メインストーリー</div>
-      <div class="ms-card-ch">${ch1.chapter}章　${ch1.title}</div>
-      <div style="font-size:11px;color:var(--muted);margin-bottom:8px">✅ 完了</div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <div class="ms-card-ch">${ch1.chapter}章　${ch1.title} <span style="font-size:10px;color:var(--muted)">✅ 完了</span></div>
+      ${_renderMsGrowthStageBlock()}
+      ${_renderMsAchievementsBlock()}
+      ${_renderMsProgressBlock()}
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
         <button onclick="showMainStoryChapter('chapter_1',true)" style="padding:6px 12px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;font-size:11px;cursor:pointer;color:var(--text)">これまでの物語を読む</button>
+        <button onclick="document.getElementById('home-cases-anchor')?.scrollIntoView({behavior:'smooth'})" style="padding:6px 12px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;font-size:11px;cursor:pointer;color:var(--text)">今できることを見る</button>
       </div>
-      <div style="font-size:11px;color:var(--muted);margin-top:8px">次の物語を準備中</div>
+      <div style="font-size:10px;color:var(--muted);margin-top:8px">次の物語を準備中</div>
     </div>`;
   }
 
@@ -11940,7 +12023,8 @@ function renderMainStoryCard(){
     <div class="ms-card-ttl">📖 メインストーリー</div>
     <div class="ms-card-ch">${ch1.chapter}章　${ch1.title}</div>
     <div class="ms-card-sub">${ch1.subtitle}</div>
-    <button onclick="showMainStoryChapter('chapter_1')" style="width:100%;padding:10px;background:var(--gr3);color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">物語を進める</button>
+    ${_renderMsGrowthStageBlock()}
+    <button onclick="showMainStoryChapter('chapter_1')" style="width:100%;padding:10px;background:var(--gr3);color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;margin-top:10px">物語を進める</button>
   </div>`;
 }
 
@@ -11959,8 +12043,12 @@ function showMainStoryChapter(chId, replayMode){
     const isLast = sc.isLast || sceneIdx === total - 1;
     const dots = ch.scenes.map((_,i) => `<div class="ms-dot ${i===sceneIdx?'active':''}"></div>`).join('');
     const nextGoalHtml = (isLast && sc.nextGoal && !replayMode) ? `
+      <div style="background:var(--warm);border:1px solid #DDD0B0;border-radius:10px;padding:12px 14px;margin-bottom:10px">
+        <div style="font-size:11px;color:var(--muted);font-weight:700;margin-bottom:4px">🌿 主人公の成長</div>
+        <div style="font-size:12px;line-height:1.9;font-family:'Noto Serif JP',serif">あなたは、<br>舞昆を「売るもの」ではなく<br>「食卓へ届けるもの」と考え始めました。</div>
+      </div>
       <div style="background:var(--bg2);border-radius:10px;padding:12px 14px;margin-bottom:14px">
-        <div style="font-size:11px;color:var(--muted);font-weight:700;margin-bottom:4px">次の物語へ</div>
+        <div style="font-size:11px;color:var(--muted);font-weight:700;margin-bottom:4px">次の物語へ向けて</div>
         <div style="font-size:12px;line-height:1.9;white-space:pre-line">${sc.nextGoal}</div>
       </div>` : '';
     const btnLabel = replayMode ? (isLast ? '閉じる' : '次へ') : (isLast ? '物語を閉じる' : '次へ');
@@ -16111,7 +16199,7 @@ window.addEventListener('visibilitychange', ()=>{
 <script>
 if(/[?&](qa|debug)=1/.test(location.search)){
   var _qaScript=document.createElement('script');
-  _qaScript.src='maikon-qa.js?v=20260803-v10a-main-story-foundation';
+  _qaScript.src='maikon-qa.js?v=20260803-v10b-growth-visibility';
   document.head.appendChild(_qaScript);
 }
 </script>
