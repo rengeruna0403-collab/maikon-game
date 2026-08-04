@@ -47,6 +47,10 @@ body{font-family:'Noto Sans JP',sans-serif;background:var(--bg);color:var(--text
   box-shadow:0 3px 10px rgba(58,107,69,.3);min-height:52px;touch-action:manipulation}
 .adv-btn:hover{background:var(--gr2)}
 .adv-btn:active{transform:scale(.97);filter:brightness(.9)}
+/* FIXED ADV BTN (v1.1b) */
+.adv-fixed{position:fixed;bottom:calc(76px + env(safe-area-inset-bottom) + 8px);left:50%;transform:translateX(-50%);width:calc(100% - 32px);max-width:398px;z-index:600;pointer-events:none}
+.adv-fixed button{pointer-events:auto;width:100%;padding:14px;background:var(--gr);color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;box-shadow:0 3px 14px rgba(58,107,69,.35);touch-action:manipulation;display:block;line-height:1.4}
+.adv-fixed button:active{transform:scale(.97);filter:brightness(.9)}
 /* CARDS */
 .card{background:var(--card);border-radius:14px;padding:18px;margin-bottom:12px;
   box-shadow:0 1px 6px rgba(0,0,0,.07);border:1px solid var(--border)}
@@ -2069,7 +2073,7 @@ function renderFinanceSummary(){
         <div style="font-size:9px;color:var(--muted)">📈 今月の売上 <button onclick="showFinanceTermHelp('revenue')" style="border:none;background:none;font-size:9px;color:var(--muted);cursor:pointer;padding:0">ⓘ</button></div>
       </div>
       <div style="background:var(--bg2);border-radius:8px;padding:8px">
-        <div style="font-size:12px;font-weight:700;color:${profitColor}">${mProfit>=0?'+':''}${fmt(mProfit)}</div>
+        <div style="font-size:12px;font-weight:700;color:${mRev===0?'var(--muted)':profitColor}">${mRev===0?'—':((mProfit>=0?'+':'')+fmt(mProfit))}</div>
         <div style="font-size:9px;color:var(--muted)">📊 今月の利益 <button onclick="showFinanceTermHelp('profit')" style="border:none;background:none;font-size:9px;color:var(--muted);cursor:pointer;padding:0">ⓘ</button></div>
       </div>
     </div>
@@ -11595,7 +11599,7 @@ function openStore(si){
   updateHeader(); renderTab();
   setTimeout(()=>{ document.getElementById('tutOpenStoreComplete').style.display='flex'; }, 400);
   setTimeout(()=>{
-    const el = document.getElementById('menu-add-prompt');
+    const el = document.getElementById('store-menu-anchor');
     if(el) el.scrollIntoView({ behavior:'smooth', block:'center' });
   }, 150);
 }
@@ -12042,12 +12046,12 @@ const MAIN_STORY_CHAPTERS = [
       { type: 'menuSet' }
     ]},
     scenes: [
-      { speaker: '主人公', text: 'ようやく店が動き始めた。\nお客様が来て、舞昆がお客様の手に渡っていく。\nそれだけで、少し胸が温かくなった。' },
-      { speaker: '主人公', text: 'ところで——\n舞昆って、どんなものなんだろう。\n「昆布の佃煮」とは聞いたけれど、それだけじゃない気がしてきた。' },
+      { speaker: 'あなた', text: 'ようやく店が動き始めた。\nお客様が来て、舞昆がお客様の手に渡っていく。\nそれだけで、少し胸が温かくなった。' },
+      { speaker: 'あなた', text: 'ところで——\n舞昆って、どんなものなんだろう。\n「昆布の佃煮」とは聞いたけれど、それだけじゃない気がしてきた。' },
       { speaker: '成田（銀行員）', text: 'いい質問ですね。\n商品を売るより先に、まずお客様の反応を見てみてください。\nそこに答えがありますよ。' },
       { speaker: 'ナレーション', text: 'その日の午後、一人のお客様が舞昆をお買い上げになった。\n「これ、ごはんと一緒に食べるのが好きでね。\n毎日の食卓に欠かせないんですよ」' },
-      { speaker: '主人公', text: '商品を売るだけじゃなくて、\n誰かの食卓へ届ける仕事なんだ。\n——そう気がついた気がした。' },
-      { speaker: '主人公', text: '次は、舞昆がどうやって作られているのか知りたい。\nこの店を続ければ、もっと見えてくるものがあるかもしれない。',
+      { speaker: 'あなた', text: '商品を売るだけじゃなくて、\n誰かの食卓へ届ける仕事なんだ。\n——そう気がついた気がした。' },
+      { speaker: 'あなた', text: '次は、舞昆がどうやって作られているのか知りたい。\nこの店を続ければ、もっと見えてくるものがあるかもしれない。',
         isLast: true,
         nextGoal: 'お客様とのご縁を増やし、\nお店の売上を伸ばしてみましょう。'
       }
@@ -12133,7 +12137,7 @@ function _checkMainStoryMilestones(){
 function _renderMsGrowthStageBlock(){
   const stage = getMainStoryGrowthStage();
   return `<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">
-    <div style="font-size:10px;color:var(--muted);font-weight:700;margin-bottom:4px">主人公の現在地</div>
+    <div style="font-size:10px;color:var(--muted);font-weight:700;margin-bottom:4px">今のあなた</div>
     <div style="font-size:13px;font-weight:700;color:var(--gr3)">${stage.icon} ${stage.title}</div>
     <div style="font-size:11px;color:var(--text);line-height:1.8;margin-top:3px;white-space:pre-line">${stage.description}</div>
   </div>`;
@@ -12186,8 +12190,24 @@ function renderMainStoryCard(){
   if(!unlocked) return '';
 
   if(completed){
+    const _msOpen = !!G._msDetailOpen;
+    if(!_msOpen){
+      const _stage = getMainStoryGrowthStage();
+      return `<div class="ms-card">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div>
+            <div style="font-size:10px;color:var(--muted);font-weight:700;margin-bottom:2px">📖 ${ch1.chapter}章　${ch1.title} <span style="opacity:.7">✅ 完了</span></div>
+            <div style="font-size:13px;font-weight:700;color:var(--gr3)">${_stage.icon} ${_stage.title}</div>
+          </div>
+          <button onclick="G._msDetailOpen=true;renderTab()" style="flex-shrink:0;font-size:11px;color:var(--gr);background:none;border:1px solid var(--gr);border-radius:8px;padding:3px 8px;cursor:pointer;margin-left:8px">詳細 ▼</button>
+        </div>
+      </div>`;
+    }
     return `<div class="ms-card">
-      <div class="ms-card-ttl">📖 メインストーリー</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+        <div class="ms-card-ttl" style="margin-bottom:0">📖 メインストーリー</div>
+        <button onclick="G._msDetailOpen=false;renderTab()" style="flex-shrink:0;font-size:11px;color:var(--muted);background:none;border:1px solid var(--border);border-radius:8px;padding:3px 8px;cursor:pointer">▲ 閉じる</button>
+      </div>
       <div class="ms-card-ch">${ch1.chapter}章　${ch1.title} <span style="font-size:10px;color:var(--muted)">✅ 完了</span></div>
       ${_renderMsGrowthStageBlock()}
       ${_renderMsAchievementsBlock()}
@@ -12225,7 +12245,7 @@ function showMainStoryChapter(chId, replayMode){
     const dots = ch.scenes.map((_,i) => `<div class="ms-dot ${i===sceneIdx?'active':''}"></div>`).join('');
     const nextGoalHtml = (isLast && sc.nextGoal && !replayMode) ? `
       <div style="background:var(--warm);border:1px solid #DDD0B0;border-radius:10px;padding:12px 14px;margin-bottom:10px">
-        <div style="font-size:11px;color:var(--muted);font-weight:700;margin-bottom:4px">🌿 主人公の成長</div>
+        <div style="font-size:11px;color:var(--muted);font-weight:700;margin-bottom:4px">🌿 今回の学び</div>
         <div style="font-size:12px;line-height:1.9;font-family:'Noto Serif JP',serif">あなたは、<br>舞昆を「売るもの」ではなく<br>「食卓へ届けるもの」と考え始めました。</div>
       </div>
       <div style="background:var(--bg2);border-radius:10px;padding:12px 14px;margin-bottom:14px">
@@ -12237,7 +12257,7 @@ function showMainStoryChapter(chId, replayMode){
     el.innerHTML = `<div class="ms-modal-box">
       <div style="font-size:12px;color:var(--muted);font-weight:600;margin-bottom:10px">第${ch.chapter}章　${ch.title}</div>
       <div class="ms-scene-progress">${dots}</div>
-      <div class="ms-scene-speaker">${sc.speaker}</div>
+      ${sc.speaker !== 'ナレーション' ? `<div class="ms-scene-speaker">${sc.speaker}</div>` : ''}
       <div class="ms-scene-text" style="white-space:pre-line">${sc.text}</div>
       ${nextGoalHtml}
       <button onclick="_msNext()" style="width:100%;padding:12px;background:${isLast?'var(--gr3)':'var(--bg2)'};color:${isLast?'#fff':'var(--text)'};border:${isLast?'none':'1px solid var(--border)'};border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">${btnLabel}</button>
@@ -13328,6 +13348,14 @@ function renderTab(){
     _html += `<div style="padding:10px 0 20px"><button onclick="setTab('home')" style="width:100%;padding:12px;background:var(--warm);border:1.5px solid #DDD0B0;border-radius:12px;font-size:13px;font-weight:700;cursor:pointer;color:var(--gr3)">← ホームへ戻る</button></div>`;
   }
   m.innerHTML=_html;
+  // 固定「明日へ進む」ボタン
+  let _advFixed = document.getElementById('_adv-fixed');
+  if(G.tab === 'home'){
+    if(!_advFixed){ _advFixed = document.createElement('div'); _advFixed.id='_adv-fixed'; _advFixed.className='adv-fixed'; document.body.appendChild(_advFixed); }
+    _advFixed.innerHTML = `<button onclick="advanceDay()">🌿 明日へ進む　<span style="font-size:11px;font-weight:400;opacity:.8">${getNextDayLabel()}へ</span></button>`;
+  } else {
+    if(_advFixed) _advFixed.innerHTML = '';
+  }
 }
 
 // ─────────── 未来予告システム ───────────────────────────────────
@@ -13583,75 +13611,73 @@ function _checkApLowWarning(){
   }
 }
 
-// ─────────── 待機UXカード (v0.9d) ───────────
-function renderWaitingStatusCard(){
+// ─────────── 進行中・これからカード (v1.1b) ───────────
+function renderProgressCard(){
   if(!G.started) return '';
   const nowDay = (G.year-1)*360 + (G.month-1)*30 + G.day;
   const ap = G.ap || 0;
 
-  // --- 進行中の状態リスト ---
+  // --- 進行中アイテム ---
   const activeItems = [];
-
-  // 店舗営業中
   const openStores = G.stores.filter(s => s.isOpen);
   if(openStores.length > 0)
     activeItems.push(`🍚 今日も${openStores.map(s=>s.name).join('・')}が営業しています`);
-
-  // 空室募集中
   const seekingCount = (G.buildings||[]).reduce((n,b) => n + b.rooms.filter(r=>r.seeking&&!r.tenant).length, 0);
   if(seekingCount > 0)
     activeItems.push(`🏠 ${seekingCount}室で入居者を募集しています`);
-
-  // 売掛金積立中
   if((G.receivables||0) > 0){
-    const _daysLeft = 30 - G.day;
-    activeItems.push(`💰 売掛金が積み上がっています（月末あと${_daysLeft}日で入金）`);
+    activeItems.push(`💰 売掛金が積み上がっています（月末あと${30-G.day}日で入金）`);
   }
-
-  // 案件待ち（未解決案件なし かつ 週次案件生成サイクル中）
   const _pendingCases = (G.cases||[]).filter(c=>!c.resolved).length;
   if(_pendingCases === 0 && G.buildings && G.buildings.length > 0)
     activeItems.push(`📨 新しい案件・入居申込を待っています`);
 
-  // --- AP回復カウント ---
-  let apHtml = '';
+  // --- 次の予定アイテム ---
+  const schedItems = [];
   if(ap < 40){
     const _apCycle = 7 - (nowDay % 7);
     const _apDays = _apCycle === 7 ? 7 : _apCycle;
     const _apGain = Math.min(30, (G.apMax||100) - ap);
-    apHtml = `<div style="display:flex;align-items:center;justify-content:space-between;background:var(--bg2);border-radius:8px;padding:8px 10px;margin-bottom:8px">
-      <div>
-        <div style="font-size:10px;color:var(--muted);margin-bottom:1px">現在AP</div>
-        <div style="font-size:14px;font-weight:700;color:${ap<=15?'var(--orange)':'var(--text)'}">${ap} <span style="font-size:11px;color:var(--muted);font-weight:400">/ ${G.apMax||100}</span></div>
-      </div>
-      <div style="text-align:right">
-        <div style="font-size:10px;color:var(--muted);margin-bottom:1px">次の回復</div>
-        <div style="font-size:12px;font-weight:700;color:var(--gr)">あと${_apDays}日で+${_apGain}</div>
-      </div>
-    </div>`;
+    schedItems.push({ icon:'⚡', label:`APが${_apGain}回復します`, sub:`あと${_apDays}日`, daysLeft:_apDays });
   }
+  buildUpcomingEvents().slice(0, 3).forEach(ev => schedItems.push(ev));
+  const topSched = schedItems.slice(0, 3);
 
-  // --- 「今日は待つ日」判定 ---
+  // --- 「今日は待つ日」メッセージ ---
   const _hasUrgent = !G.stores[0]?.isOpen
     || (G.stores[0]?.isOpen && (!G.stores[0]?.menu || G.stores[0]?.menu.length===0))
     || (G.buildings||[]).some(b=>b.rooms.some(r=>!r.tenant&&!r.seeking))
     || _pendingCases > 0
     || ap >= 20;
-  const waitingMsgHtml = !_hasUrgent ? `<div style="background:rgba(255,255,255,.6);border-radius:8px;padding:9px 11px;margin-bottom:6px;font-size:12px;color:var(--muted);line-height:1.8">
-    今日は大きな判断はありません。<br>日を進めることで、経営が少しずつ動いていきます。
-  </div>` : '';
+  const waitingMsg = !_hasUrgent ? `<div style="font-size:12px;color:var(--muted);line-height:1.8;padding:4px 0">今日は大きな判断はありません。日を進めることで、経営が少しずつ動いていきます。</div>` : '';
 
-  if(activeItems.length === 0 && !apHtml && !waitingMsgHtml) return '';
+  if(activeItems.length === 0 && topSched.length === 0 && !waitingMsg) return '';
 
-  const activeHtml = activeItems.map(t=>`
-    <div style="font-size:12px;color:var(--text);padding:4px 0;border-bottom:1px solid rgba(0,0,0,.05);line-height:1.6">${t}</div>
-  `).join('');
+  const activeHtml = activeItems.slice(0, 3).map(t=>`
+    <div style="font-size:12px;color:var(--text);padding:4px 0;border-bottom:1px solid rgba(0,0,0,.05);line-height:1.6">${t}</div>`).join('');
+
+  const schedHtml = topSched.length > 0 ? `
+    <div style="font-size:11px;font-weight:700;color:var(--muted);margin:${activeItems.length>0?'10':'4'}px 0 4px;letter-spacing:.03em">次の予定</div>
+    ${topSched.map(ev=>`<div style="display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid rgba(0,0,0,.05)">
+      <span style="font-size:14px;flex-shrink:0">${ev.icon}</span>
+      <div style="flex:1">
+        <div style="font-size:12px;color:var(--text);line-height:1.4">${ev.label}</div>
+        <div style="font-size:10px;color:var(--gr);font-weight:700">${ev.sub}</div>
+      </div>
+    </div>`).join('')}` : '';
+
+  const hint = _ochawanHint();
+  const hintHtml = `<div style="display:flex;align-items:flex-start;gap:6px;margin-top:8px;padding-top:6px;border-top:1px solid rgba(0,0,0,.05)">
+    <span style="font-size:13px;flex-shrink:0">🍚</span>
+    <span style="font-size:11px;color:var(--muted);line-height:1.6;font-style:italic">「${hint}」</span>
+  </div>`;
 
   return `<div class="card" style="padding:12px 14px;margin-bottom:8px">
-    <div style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:8px;letter-spacing:.04em">⏳ 待っているもの</div>
-    ${waitingMsgHtml}${apHtml}${activeHtml}
+    <div style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:8px;letter-spacing:.04em">⏳ 進行中・これから</div>
+    ${waitingMsg}${activeHtml}${schedHtml}${hintHtml}
   </div>`;
 }
+function renderWaitingStatusCard(){ return ''; }
 
 // ─────────── 次におすすめ (v1.0f) ───────────
 let _dismissedToday = new Set();
@@ -13866,16 +13892,12 @@ function renderHome(){
       ${renderTodayAction()}
       <div id="home-cases-anchor">${renderIncomingSection()}</div>
       ${renderFinanceSummary()}
-      ${renderWaitingStatusCard()}
-      ${renderUpcomingCard()}
+      ${renderProgressCard()}
       <button onclick="G._homeMoreOpen=!G._homeMoreOpen;renderTab()" style="width:100%;padding:9px;background:none;border:1px solid var(--border);border-radius:12px;font-size:12px;color:var(--muted);cursor:pointer;font-family:inherit;margin-bottom:8px;touch-action:manipulation">
         ${_moreOpen ? '▲ 閉じる' : '▼ もっと見る（成長・履歴・経営指標）'}
       </button>
       ${_moreContent}
-      <button class="adv-btn" onclick="advanceDay()">
-        🌿 明日へ進む<br><span style="font-size:11px;font-weight:400;opacity:0.8">${getNextDayLabel()}へ</span>
-        <div style="font-size:10px;font-weight:400;opacity:0.65;margin-top:2px">売上・案件・入居募集などが進行します</div>
-      </button>
+      <div style="height:62px"></div><!-- adv-fixed placeholder -->
       <button onclick="showManagementMeeting()" style="width:100%;padding:14px;background:var(--warm);border:1.5px solid #DDD0B0;border-radius:12px;font-size:13px;font-weight:700;cursor:pointer;color:var(--gr3);font-family:'Noto Serif JP',serif;display:flex;align-items:center;justify-content:center;gap:8px">
         🗣️ 経営会議を開く <span style="font-size:10px;font-weight:400;color:var(--muted)">4人の視点で相談する</span>
       </button>
@@ -13945,10 +13967,7 @@ function renderHome(){
   })() : '';
 
   return `
-    <button class="adv-btn" onclick="advanceDay()">
-      🌿 翌日へ進む ——${getNextDayLabel()}
-      <div style="font-size:10px;font-weight:400;opacity:0.65;margin-top:2px">売上・案件・入居募集などが進行します</div>
-    </button>
+    <div style="height:62px"></div><!-- adv-fixed placeholder -->
 
     ${renderCasesBox()}
 
@@ -13956,7 +13975,7 @@ function renderHome(){
 
     ${renderCashWarningBanner()}
 
-    ${renderWaitingStatusCard()}
+    ${renderProgressCard()}
 
     ${tutMissionHtml}
 
@@ -14095,15 +14114,6 @@ function renderStore(){
       ` : `<div style="font-size:12px;color:var(--muted);margin-bottom:8px">営業再開後に売上データが表示されます</div>`}
     </div>
 
-    ${s.isOpen && (!s.menu || s.menu.length === 0) ? `
-    <div id="menu-add-prompt" style="background:linear-gradient(135deg,#FFF8E1,#FFFDE7);border:2px solid #FFC107;border-radius:14px;padding:16px;margin-bottom:10px;text-align:center">
-      <div style="font-size:22px;margin-bottom:6px">🍽</div>
-      <div style="font-size:14px;font-weight:700;color:#E65100;margin-bottom:4px">まだメニューがありません</div>
-      <div style="font-size:12px;color:#795548;margin-bottom:14px;line-height:1.6">まず看板メニューを追加して、<br>お客様を迎える準備をしましょう。</div>
-      <button class="btn btn-gr" style="width:100%;padding:12px;font-size:14px;font-weight:700" onclick="openMenuModal(${si})">
-        🍱 メニューを追加する
-      </button>
-    </div>` : ''}
 
     ${(()=>{
       // ── 🛍 商品コーナー ──
@@ -16478,7 +16488,7 @@ window.addEventListener('visibilitychange', ()=>{
 <script>
 if(/[?&](qa|debug)=1/.test(location.search)){
   var _qaScript=document.createElement('script');
-  _qaScript.src='maikon-qa.js?v=20260804-v11a-home-information-priority';
+  _qaScript.src='maikon-qa.js?v=20260804-v11b-first-day-ux-polish';
   document.head.appendChild(_qaScript);
 }
 </script>
