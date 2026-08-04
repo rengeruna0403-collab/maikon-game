@@ -3,9 +3,9 @@
  * ?qa=1 または ?debug=1 の場合のみ動作
  * ゲーム本体への影響なし・読み取り専用（Phase 2Aは1日テスト後に必ず復元）
  */
-window._MAIKON_QA_VERSION = '2026-08-03-v10b-growth-visibility';
+window._MAIKON_QA_VERSION = '2026-08-04-v10d-finance-visibility';
 console.log('[MAIKON-QA] loaded version:', window._MAIKON_QA_VERSION);
-console.log('[QA FILE LOADED] v10b-growth-visibility-20260803');
+console.log('[QA FILE LOADED] v10d-finance-visibility-20260804');
 
 (function () {
   'use strict';

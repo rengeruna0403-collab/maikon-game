@@ -1966,6 +1966,68 @@ function renderTutMissionCard(){
 
 // ─── 現金警告バナー（チュートリアル外でも常時表示）───
 // ① 経営状態バッジ（v0.9e）
+// ─────────── 財務用語説明・ホーム金額サマリー (v1.0d) ───────────
+
+const _FINANCE_TERMS = {
+  cash:    { label:'現金', icon:'💰', desc:'今すぐ仕入れ・投資・支払いに使えるお金です。売上が出ても、月末まで現金には反映されません。' },
+  revenue: { label:'今月の売上', icon:'📈', desc:'お客様に商品やサービスを届けた金額です。材料費や固定費を引く前の金額です。' },
+  profit:  { label:'今月の利益', icon:'📊', desc:'売上から材料費・固定費などの費用を引いた後の成果です。現金の増減とは異なります。' },
+  recv:    { label:'未精算の売上', icon:'🕐', desc:'売上には計上されていますが、まだ現金として受け取っていない金額です。月末に現金へ反映されます。' }
+};
+
+function showFinanceTermHelp(key){
+  const t = _FINANCE_TERMS[key];
+  if(!t) return;
+  let el = document.getElementById('_fin-tooltip');
+  if(!el){
+    el = document.createElement('div');
+    el.id = '_fin-tooltip';
+    el.style.cssText = 'position:fixed;inset:0;z-index:900;display:flex;align-items:flex-end;justify-content:center';
+    el.onclick = ()=>{ el.style.display='none'; };
+    document.body.appendChild(el);
+  }
+  el.innerHTML = `<div style="background:var(--card);border-radius:14px 14px 0 0;width:100%;max-width:480px;padding:20px 20px 32px">
+    <div style="font-size:16px;font-weight:700;margin-bottom:8px">${t.icon} ${t.label}</div>
+    <div style="font-size:13px;color:var(--text);line-height:1.9">${t.desc}</div>
+    <div style="text-align:center;margin-top:16px;font-size:11px;color:var(--muted)">タップして閉じる</div>
+  </div>`;
+  el.style.display = 'flex';
+}
+
+function renderFinanceSummary(){
+  if(!G.started || G.tut.phase !== 'done') return '';
+  const mRev  = G.monthRevenue || 0;
+  const mExp  = G.monthExpense || 0;
+  const mProfit = mRev - mExp;
+  const recv  = G.receivables || 0;
+  const profitColor = mProfit >= 0 ? 'var(--gr)' : 'var(--orange)';
+  const mixedNote = (mProfit > 0 && (G.money < (G._monthSnap||{}).money)) ?
+    `<div style="font-size:10px;color:var(--muted);margin-top:5px;line-height:1.7">利益は出ていますが、投資や未精算の影響で現金は減っています。</div>` : '';
+  const negNote = mProfit < 0 ?
+    `<div style="font-size:10px;color:var(--orange);margin-top:5px">今月は費用が売上を上回っています。</div>` : '';
+  const recvNote = recv > 0 ?
+    `<div style="display:flex;justify-content:space-between;font-size:11px;margin-top:6px;padding-top:6px;border-top:1px solid var(--border)">
+      <span style="color:var(--muted)">🕐 未精算の売上 <button onclick="showFinanceTermHelp('recv')" style="border:none;background:none;font-size:10px;color:var(--muted);cursor:pointer;padding:0">ⓘ</button></span>
+      <span style="color:var(--muted)">${fmt(recv)}　月末に入金</span>
+    </div>` : '';
+  return `<div class="card" style="padding:12px 14px">
+    <div style="font-size:10px;color:var(--muted);font-weight:700;margin-bottom:8px">今月の経営数字</div>
+    <div style="font-size:19px;font-weight:700;color:var(--text);margin-bottom:2px">${fmt(G.money)}</div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:8px">💰 現金 — 今使えるお金 <button onclick="showFinanceTermHelp('cash')" style="border:none;background:none;font-size:10px;color:var(--muted);cursor:pointer;padding:0">ⓘ</button></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+      <div style="background:var(--bg2);border-radius:8px;padding:8px">
+        <div style="font-size:12px;font-weight:700">${fmt(mRev)}</div>
+        <div style="font-size:9px;color:var(--muted)">📈 今月の売上 <button onclick="showFinanceTermHelp('revenue')" style="border:none;background:none;font-size:9px;color:var(--muted);cursor:pointer;padding:0">ⓘ</button></div>
+      </div>
+      <div style="background:var(--bg2);border-radius:8px;padding:8px">
+        <div style="font-size:12px;font-weight:700;color:${profitColor}">${mProfit>=0?'+':''}${fmt(mProfit)}</div>
+        <div style="font-size:9px;color:var(--muted)">📊 今月の利益 <button onclick="showFinanceTermHelp('profit')" style="border:none;background:none;font-size:9px;color:var(--muted);cursor:pointer;padding:0">ⓘ</button></div>
+      </div>
+    </div>
+    ${recvNote}${mixedNote}${negNote}
+  </div>`;
+}
+
 function getFinancialHealthLevel(){
   if(!G.started) return null;
   const {profit} = calcDailyRevenue();
@@ -2771,6 +2833,10 @@ function monthlyTick(){
   }
   sendMonthlyAnalytics(monthProfit);
 
+  G._monthSnap.revenue = G.monthRevenue;
+  G._monthSnap.expense = G.monthExpense;
+  G._monthSnap.ingredientCost = G.monthIngredientCost || 0;
+  G._monthSnap.collected = collected;
   G.monthRevenue=0; G.monthExpense=0; G.monthIngredientCost=0; // Balance v0.2-model-1
 }
 
@@ -2860,6 +2926,39 @@ function showMonthlyMeeting(monthProfit, promotions, ownerRankUp){
       <div style="font-size:16px;font-weight:700;text-align:center;margin-bottom:10px;font-family:'Noto Serif JP',serif">月末評価会議</div>
       ${_changeSummary}
       ${_seasonInfoHtml}
+      ${(()=>{
+        const _sr = (_snap.revenue||0), _se = (_snap.expense||0), _si = (_snap.ingredientCost||0);
+        const _sc = (_snap.collected||0);
+        const _fixedExp = _se - _si;
+        const _introHtml = (!G.tut._financeIntroSeen && (G.tut._financeIntroSeen=true, true)) ? `
+          <div style="background:#E3F2FD;border-radius:8px;padding:10px 12px;margin-bottom:8px;font-size:11px;line-height:1.9">
+            <div style="font-weight:700;margin-bottom:4px">💡 売上・利益・現金は、それぞれ違う数字です</div>
+            売上 — お客様に届けた金額<br>
+            利益 — 売上から費用を引いた成果<br>
+            現金 — 今すぐ使えるお金
+          </div>` : '';
+        if(!_sr) return '';
+        const _negNote = monthProfit < 0 ? `<div style="font-size:10px;color:var(--orange);margin-top:4px">今月は費用が売上を上回っています。</div>` : '';
+        const _cashDelta = G.money - (_snap.money||G.money);
+        const _cashDeltaStr = (_cashDelta>=0?'+':'')+fmt(_cashDelta);
+        const _cashDeltaColor = _cashDelta>=0?'var(--gr)':'var(--orange)';
+        return `${_introHtml}
+          <div style="background:var(--warm);border:1px solid #DDD0B0;border-radius:10px;padding:10px 14px;margin-bottom:8px">
+            <div style="font-size:10px;color:var(--muted);font-weight:700;margin-bottom:8px">📊 今月の経営成果</div>
+            <div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0"><span>売上</span><span>${fmt(_sr)}</span></div>
+            <div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0;color:var(--muted)"><span>　材料費</span><span>－${fmt(_si)}</span></div>
+            ${_fixedExp>0?`<div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0;color:var(--muted)"><span>　その他費用</span><span>－${fmt(_fixedExp)}</span></div>`:''}
+            <div style="display:flex;justify-content:space-between;font-size:13px;font-weight:700;padding:5px 0;border-top:1px solid var(--border);margin-top:3px"><span>利益</span><span style="color:${monthProfit>=0?'var(--gr)':'var(--orange)'}">${monthProfit>=0?'+':''}${fmt(monthProfit)}</span></div>
+            ${_negNote}
+          </div>
+          <div style="background:var(--bg2);border-radius:10px;padding:10px 14px;margin-bottom:10px">
+            <div style="font-size:10px;color:var(--muted);font-weight:700;margin-bottom:8px">💰 今月の現金の動き</div>
+            ${_sc>0?`<div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0"><span>月末入金（未精算の売上）</span><span style="color:var(--gr)">+${fmt(_sc)}</span></div>`:''}
+            <div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0;color:var(--muted)"><span>月初の現金</span><span>${fmt(_snap.money||0)}</span></div>
+            <div style="display:flex;justify-content:space-between;font-size:12px;font-weight:700;padding:5px 0;border-top:1px solid var(--border);margin-top:3px"><span>現在の現金</span><span>${fmt(G.money)}</span></div>
+            <div style="display:flex;justify-content:space-between;font-size:11px;padding:2px 0;color:${_cashDeltaColor}"><span>今月の現金増減</span><span>${_cashDeltaStr}</span></div>
+          </div>`;
+      })()}
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:12px">
         <div style="background:var(--bg2);border-radius:8px;padding:8px;text-align:center;animation:_fxPop .5s cubic-bezier(.36,.07,.19,.97)">
           <div style="font-size:15px;font-weight:700;color:${monthProfit>=0?'var(--gr)':'var(--orange)'}">${monthProfit>=0?'+':''}${fmt(monthProfit)}</div>
@@ -13546,6 +13645,7 @@ function renderHome(){
       ${renderTodayMood()}
       ${renderTutMissionCard()}
       ${renderMainStoryCard()}
+      ${renderFinanceSummary()}
       <div class="hq-vis">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
           <div class="hq-year" style="margin-bottom:0">第${G.year}年 ${G.month}月</div>
@@ -16199,7 +16299,7 @@ window.addEventListener('visibilitychange', ()=>{
 <script>
 if(/[?&](qa|debug)=1/.test(location.search)){
   var _qaScript=document.createElement('script');
-  _qaScript.src='maikon-qa.js?v=20260803-v10b-growth-visibility';
+  _qaScript.src='maikon-qa.js?v=20260804-v10d-finance-visibility';
   document.head.appendChild(_qaScript);
 }
 </script>
