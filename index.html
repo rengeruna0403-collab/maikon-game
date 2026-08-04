@@ -229,6 +229,19 @@ body{font-family:'Noto Sans JP',sans-serif;background:var(--bg);color:var(--text
 .ms-card-ttl{font-size:11px;color:var(--muted);margin-bottom:4px;font-weight:600}
 .ms-card-ch{font-size:13px;font-weight:700;color:var(--gr3);font-family:'Noto Serif JP',serif;margin-bottom:4px}
 .ms-card-sub{font-size:12px;color:var(--text);line-height:1.7;margin-bottom:10px}
+/* ACTION RESULT FEEDBACK (v1.0g) */
+.arf-wrap{position:fixed;bottom:72px;left:50%;transform:translateX(-50%);width:calc(100% - 32px);max-width:448px;z-index:750;pointer-events:none}
+.arf-card{background:var(--card);border:1.5px solid #C8DBC8;border-radius:14px;padding:12px 14px;box-shadow:0 4px 20px rgba(0,0,0,.18);pointer-events:auto;animation:arfIn .2s ease}
+@keyframes arfIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+.arf-title{font-size:13px;font-weight:700;color:var(--gr3);margin-bottom:8px}
+.arf-row{display:flex;justify-content:space-between;font-size:12px;padding:3px 0;border-bottom:1px solid var(--border)}
+.arf-row:last-of-type{border-bottom:none}
+.arf-lbl{color:var(--muted)}
+.arf-val{font-weight:600;color:var(--text)}
+.arf-val.neg{color:#e53935}
+.arf-val.pos{color:var(--gr3)}
+.arf-timing{font-size:11px;color:var(--muted);margin-top:6px;padding-top:6px;border-top:1px solid var(--border)}
+.arf-story{font-size:11px;color:var(--gr3);margin-top:4px}
 .ms-modal{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:800;display:flex;align-items:flex-end;justify-content:center}
 .ms-modal-box{background:var(--card);border-radius:18px 18px 0 0;width:100%;max-width:480px;padding:24px 20px 32px;max-height:80vh;overflow-y:auto}
 .ms-scene-speaker{font-size:11px;color:var(--muted);font-weight:700;margin-bottom:4px}
@@ -968,6 +981,38 @@ function notify(msg,type=''){
 function addNews(msg){
   G.news.unshift({day:G.day,month:G.month,year:G.year,msg});
   if(G.news.length>40) G.news.pop();
+}
+
+// ─────────── 行動結果フィードバック (v1.0g) ───────────
+let _arfTimer = null;
+function showActionResultFeedback({ title, changes=[], timing='', storyHint=false }){
+  let wrap = document.getElementById('arf-wrap');
+  if(!wrap){ wrap=document.createElement('div'); wrap.id='arf-wrap'; wrap.className='arf-wrap'; document.body.appendChild(wrap); }
+  if(_arfTimer){ clearTimeout(_arfTimer); }
+  const rows = changes.filter(c => {
+    const diff = c.diff !== undefined ? c.diff : (c.after - c.before);
+    return diff !== 0;
+  }).map(c => {
+    const diff = c.diff !== undefined ? c.diff : (c.after - c.before);
+    let val='', cls='';
+    if(c.type==='money'){
+      val = (diff>=0?'+':'')+'¥'+Math.abs(diff).toLocaleString(); cls=diff<0?'neg':'pos';
+    } else if(c.type==='ap'){
+      val = (diff>=0?'+':'')+diff+' AP'; cls=diff<0?'neg':'pos';
+    } else if(c.type==='arrow'){
+      val = c.from+' → '+c.to; cls='';
+    } else {
+      val = (diff>0?'+':'')+diff; cls=diff>0?'pos':diff<0?'neg':'';
+    }
+    return `<div class="arf-row"><span class="arf-lbl">${c.label}</span><span class="arf-val ${cls}">${val}</span></div>`;
+  }).join('');
+  const timingHtml = timing ? `<div class="arf-timing">🕒 ${timing}</div>` : '';
+  const storyHtml = storyHint ? `<div class="arf-story">📖 次の物語へ一歩近づきました</div>` : '';
+  wrap.innerHTML = `<div class="arf-card" onclick="this.parentElement.innerHTML=''">
+    <div class="arf-title">✅ ${title}</div>
+    ${rows}${timingHtml}${storyHtml}
+  </div>`;
+  _arfTimer = setTimeout(()=>{ if(wrap) wrap.innerHTML=''; }, 4500);
 }
 function addStory(msg, type='normal'){
   G.storyLog.unshift({day:G.day,month:G.month,year:G.year,msg,type});
@@ -12372,31 +12417,35 @@ function buyMenu(si,name,cost,sat,cust){
   if(G.money<cost){notify('資金不足','warn');return;}
   const apCost = getApCost(15, si);
   if(!useAP(apCost, 'メニュー企画', ()=>buyMenu(si,name,cost,sat,cust))) return;
+  const _bfMoney=G.money, _bfAp=G.ap, _bfSat=G.stores[si].satisfaction, _bfCust=G.stores[si].customers, _bfMenuCnt=G.stores[si].menu.length;
   const menuOpt = MENU_OPTIONS.find(m => m.name === name);
   const priceUp = menuOpt ? (menuOpt.priceUp || 0) : 0;
   G.money-=cost; G.stores[si].menu.push(name);
-  // メニュー追加月を記録（寿命管理）
   G.stores[si].menuAddedMonth = G.stores[si].menuAddedMonth || {};
   const totalMonthsNow = (G.year-1)*12 + (G.month-1);
   G.stores[si].menuAddedMonth[name] = totalMonthsNow;
   G.stores[si].satisfaction=Math.min(100,G.stores[si].satisfaction+sat);
-  // 客単価を上げる（メニューが増えると客がより多く使う）
   G.stores[si].unitPrice = (G.stores[si].unitPrice || 700) + priceUp;
-  // 新規客をわずかに増加（口コミ効果）
   G.stores[si].newCustomers = (G.stores[si].newCustomers || G.stores[si].customers) + cust;
   G.stores[si].customers = G.stores[si].newCustomers + (G.stores[si].regulars||0);
-  // トレードオフ：食材コスト増・スタッフ負担増
-  const ingPerCustUp = 50; // Balance v0.2-model-1: 客数比例モデルのため客一人あたり原価を増加
+  const ingPerCustUp = 50;
   G.stores[si].ingredientCostPerCustomer = (G.stores[si].ingredientCostPerCustomer||0) + ingPerCustUp;
   G.staff.filter(s=>s.store===G.stores[si].name).forEach(s=>{
     s.burden=Math.min(100,(s.burden||0)+10);
   });
   scoreOwner(3,'menu');
   addNews(`🍱 「${name}」追加 / 食材原価+¥${ingPerCustUp}/人・スタッフ負担+10`);
-  notify(`「${name}」追加！ 客数+${cust} / 食材原価+¥${ingPerCustUp}/人`);
   tutCompleteStep('set_menu');
   if(name.includes('たもぎ茸')) tutCheckMission('menu');
-  // 全メニュー購入済み → 初回のみ完了通知 (v0.9f)
+  const _storyHint = !!(G.mainStory && !G.mainStory.completedChapters?.includes('chapter_1') && G.mainStory.unlockedChapters?.length > 0);
+  showActionResultFeedback({ title:`「${name}」をメニューに追加しました`, changes:[
+    {label:'現金', type:'money', before:_bfMoney, after:G.money},
+    {label:'AP', type:'ap', before:_bfAp, after:G.ap},
+    {label:'メニュー数', type:'count', diff:G.stores[si].menu.length-_bfMenuCnt},
+    {label:'来店客数', type:'count', diff:G.stores[si].customers-_bfCust},
+    {label:'満足度', type:'count', diff:G.stores[si].satisfaction-_bfSat},
+    {label:'食材原価/人', type:'money', diff:ingPerCustUp}
+  ], timing:'次の営業日から効果が反映されます', storyHint:_storyHint });
   if(G.tut.phase === 'done' && _isAllMenusPurchased(si) && !G.stores[si]._menuAllPurchasedNotified){
     G.stores[si]._menuAllPurchasedNotified = true;
     setTimeout(()=> notify('🎉 メニューが充実しました！ 次の成長候補をホームで確認しましょう。', 'gold'), 500);
@@ -12546,13 +12595,21 @@ function buyRenov(si,name,cost,cust,sat,score){
   if(G.money<cost){notify('資金不足','warn');return;}
   const apCost = getApCost(20, si);
   if(!useAP(apCost, '改装立ち合い', ()=>buyRenov(si,name,cost,cust,sat,score))) return;
+  const _bfMoney=G.money, _bfAp=G.ap, _bfCust=G.stores[si].customers, _bfSat=G.stores[si].satisfaction, _bfLevel=G.stores[si].level;
   G.money-=cost; G.stores[si].upgrades.push(name);
   if(cust) G.stores[si].customers+=cust;
   if(sat) G.stores[si].satisfaction=Math.min(100,G.stores[si].satisfaction+sat);
   if(score) scoreOwner(score,'renov');
   G.stores[si].level=Math.min(5,G.stores[si].level+1);
   addStory(`${G.stores[si].name}に「${name}」を導入した。`, 'normal');
-  addNews(`🔨 「${name}」完了`); notify(`「${name}」完了！`); updateHeader();
+  addNews(`🔨 「${name}」完了`);
+  showActionResultFeedback({ title:`「${name}」改装を完了しました`, changes:[
+    {label:'現金', type:'money', before:_bfMoney, after:G.money},
+    {label:'AP', type:'ap', before:_bfAp, after:G.ap},
+    {label:'来店客数', type:'count', diff:G.stores[si].customers-_bfCust},
+    {label:'満足度', type:'count', diff:G.stores[si].satisfaction-_bfSat},
+    {label:'店舗レベル', type:'arrow', from:_bfLevel, to:G.stores[si].level}
+  ], timing:'将来の成長につながります' }); updateHeader();
 }
 function openNewStoreModal(){
   showActionModal(`
@@ -12896,11 +12953,16 @@ function openRentModal(bi,ri){
 }
 function startRecruiting(bi,ri){
   if(!useAP(10, '入居者募集・書類作成', ()=>startRecruiting(bi,ri))) return;
+  const _bfAp=G.ap;
   const r = G.buildings[bi].rooms[ri];
   r.seeking = true;
   addNews(`📋 ${G.buildings[bi].name} ${r.num}号室 入居者募集開始（賃料 ${fmt(r.rent)}/月）`);
-  notify(`🏠 ${r.num}号室の入居募集を開始しました！`, 'gold');
   addStory(`🏠 ${G.buildings[bi].name} ${r.num}号室の入居募集を開始しました！\n\n地域の不動産会社や募集サイトへ掲載しました。\n\n条件が合えば、数日〜数週間で入居希望者から連絡が入ります。\n\n信用度・地域評価・家賃設定によって、反応の早さや入居希望者の質が変化します。`, 'highlight');
+  showActionResultFeedback({ title:`${r.num}号室の入居者募集を開始しました`, changes:[
+    {label:'AP', type:'ap', before:_bfAp, after:G.ap},
+    {label:'状態', type:'arrow', from:'空室', to:'募集中'},
+    {label:'家賃', type:'arrow', from:fmt(r.rent)+'/月', to:fmt(r.rent)+'/月'}
+  ], timing:'申込みが届くまで日を進めましょう' });
   if(r.num==='103'){ tutCheckMission('vacancy'); tutCompleteStep('vacancy'); setTimeout(()=>{ document.getElementById('tutRecruitComplete').style.display='flex'; }, 400); }
   updateHeader(); renderTab();
 }
@@ -12962,18 +13024,24 @@ function buyBuilding(cost,rooms){
 function investRegion(ri,cost,type,score,bondUp){
   if(G.money<cost){notify('資金不足','warn');return;}
   if(!useAP(20, '地域活動対応', ()=>investRegion(ri,cost,type,score,bondUp))) return;
-  G.money-=cost;
+  const _bfMoney=G.money, _bfAp=G.ap;
   const reg=G.regions[ri];
+  const _bfBond=reg.communityBond||0;
+  G.money-=cost;
   if(!reg.investments) reg.investments = {};
   G._totalEventHeld = (G._totalEventHeld||0) + 1;
   if(!reg.investments[type]) addHistory('🌿', `地域投資「${type}」開始`);
   reg.investTotal+=cost;
-  reg.communityBond = Math.min(100, (reg.communityBond||0) + bondUp);
-  reg.investments[type] = (reg.investments[type]||0) + 1;  // 継続回数を記録
+  reg.communityBond = Math.min(100, _bfBond + bondUp);
+  reg.investments[type] = (reg.investments[type]||0) + 1;
   scoreOwner(score,'region_invest');
   addStory(`${reg.name}に「${type}」を開設した。${fmt(cost)}の投資が地域を変えていく。`, 'highlight');
   addNews(`🌏 ${reg.name}「${type}」に投資`);
-  notify(`地域との絆が深まりました！`); updateHeader(); renderTab();
+  showActionResultFeedback({ title:`「${type}」を実施しました`, changes:[
+    {label:'現金', type:'money', before:_bfMoney, after:G.money},
+    {label:'AP', type:'ap', before:_bfAp, after:G.ap},
+    {label:'地域の絆', type:'count', diff:reg.communityBond-_bfBond}
+  ], timing:'将来の成長につながります' }); updateHeader(); renderTab();
 }
 function unlockRegion(ri){
   const reg=G.regions[ri];
@@ -13121,6 +13189,7 @@ function trainStaff(id,skill){
   const cost=50000;
   if(G.money<cost){notify('資金不足','warn');return;}
   if(!useAP(15, 'スタッフ研修・面談', ()=>trainStaff(id,skill))) return;
+  const _bfMoney=G.money, _bfAp=G.ap, _bfSkill=s.skills[skill], _bfLevel=s.level;
   G.money-=cost;
   s.skills[skill]=Math.min(100,s.skills[skill]+12);
   s.growthPts+=12;
@@ -13128,7 +13197,15 @@ function trainStaff(id,skill){
   scoreOwner(5,'train');
   const skillName={service:'接客',cooking:'調理',management:'管理'}[skill];
   addNews(`📚 ${s.name}の${skillName}スキルを研修 +12`);
-  notify(`${s.name} ${skillName}+12！`); updateHeader(); renderTab();
+  const _promoted = s.level > _bfLevel;
+  const _timing = _promoted ? '昇格しました！' : '将来の成長につながります';
+  showActionResultFeedback({ title:`${s.name}さんが${skillName}研修を受けました`, changes:[
+    {label:'現金', type:'money', before:_bfMoney, after:G.money},
+    {label:'AP', type:'ap', before:_bfAp, after:G.ap},
+    {label:skillName+'スキル', type:'arrow', from:_bfSkill, to:s.skills[skill]},
+    {label:'成長ポイント', type:'count', diff:12}
+  ], timing:_timing });
+  updateHeader(); renderTab();
 }
 
 // ─────────── HEADER ───────────
@@ -16367,7 +16444,7 @@ window.addEventListener('visibilitychange', ()=>{
 <script>
 if(/[?&](qa|debug)=1/.test(location.search)){
   var _qaScript=document.createElement('script');
-  _qaScript.src='maikon-qa.js?v=20260804-v10f-guidance-vs-freeplay';
+  _qaScript.src='maikon-qa.js?v=20260804-v10g-action-result-feedback';
   document.head.appendChild(_qaScript);
 }
 </script>
