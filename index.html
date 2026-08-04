@@ -985,7 +985,7 @@ function addNews(msg){
 
 // ─────────── 行動結果フィードバック (v1.0g) ───────────
 let _arfTimer = null;
-function showActionResultFeedback({ title, changes=[], timing='', storyHint=false }){
+function showActionResultFeedback({ title, changes=[], timing='', storyHint=false, homeBtn=false }){
   let wrap = document.getElementById('arf-wrap');
   if(!wrap){ wrap=document.createElement('div'); wrap.id='arf-wrap'; wrap.className='arf-wrap'; document.body.appendChild(wrap); }
   if(_arfTimer){ clearTimeout(_arfTimer); }
@@ -1008,11 +1008,15 @@ function showActionResultFeedback({ title, changes=[], timing='', storyHint=fals
   }).join('');
   const timingHtml = timing ? `<div class="arf-timing">🕒 ${timing}</div>` : '';
   const storyHtml = storyHint ? `<div class="arf-story">📖 次の物語へ一歩近づきました</div>` : '';
-  wrap.innerHTML = `<div class="arf-card" onclick="this.parentElement.innerHTML=''">
-    <div class="arf-title">✅ ${title}</div>
-    ${rows}${timingHtml}${storyHtml}
+  const homeBtnHtml = homeBtn ? `<button onclick="document.getElementById('arf-wrap').innerHTML='';setTab('home')" style="width:100%;margin-top:8px;padding:9px;background:var(--gr);color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;touch-action:manipulation">ホームへ戻る →</button>` : '';
+  wrap.innerHTML = `<div class="arf-card" style="${homeBtn?'pointer-events:auto':''}">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start">
+      <div class="arf-title" style="margin-bottom:6px">✅ ${title}</div>
+      ${!homeBtn?`<span onclick="this.closest('.arf-card').parentElement.innerHTML=''" style="font-size:16px;color:var(--muted);cursor:pointer;flex-shrink:0;margin-left:8px">×</span>`:''}
+    </div>
+    ${rows}${timingHtml}${storyHtml}${homeBtnHtml}
   </div>`;
-  _arfTimer = setTimeout(()=>{ if(wrap) wrap.innerHTML=''; }, 4500);
+  if(!homeBtn) _arfTimer = setTimeout(()=>{ if(wrap) wrap.innerHTML=''; }, 4500);
 }
 function addStory(msg, type='normal'){
   G.storyLog.unshift({day:G.day,month:G.month,year:G.year,msg,type});
@@ -12429,10 +12433,28 @@ function openMenuModal(si){
     </div>
   `).join('');
   const _menuApCost = getApCost ? getApCost(15, si) : 15;
-  const menuInfoCard = _renderActionGuide('buyMenu', _menuApCost, 0);
+  const _g = MANAGEMENT_ACTION_GUIDE.buyMenu;
+  const _guideHeader = `<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;padding:7px 10px;background:var(--bg2);border-radius:8px">
+    <span style="font-size:12px;font-weight:700;color:var(--gr3)">${_g.role}</span>
+    <span style="font-size:11px;color:var(--muted)">反映：${_g.timing}</span>
+    <span style="font-size:11px;color:var(--muted);margin-left:auto">AP ${_menuApCost}</span>
+  </div>`;
+  const _rows2 = opts.map(m=>{
+    const afterM = G.money - m.cost;
+    const moneyWarn = afterM < 100000;
+    return `<div class="fin-row">
+      <div>
+        <div style="font-weight:700;font-size:13px">${m.name}</div>
+        <div style="font-size:11px;color:var(--gr)">客単価+¥${m.priceUp||0}・客数+${m.cust}/日・満足度+${m.sat}</div>
+        <div style="font-size:11px;color:var(--orange)">食材費+¥3,000/日・スタッフ負担+10</div>
+        <div style="font-size:11px;color:${moneyWarn?'#e53935':'var(--muted)'}">実行後：現金 ${fmt(afterM)} / AP ${G.ap - _menuApCost}</div>
+      </div>
+      <button class="btn btn-gr btn-sm" onclick="buyMenu(${si},'${m.name}',${m.cost},${m.sat},${m.cust});closeActionModal()">${fmt(m.cost)}</button>
+    </div>`;
+  }).join('');
   const _menuBody = allDone
     ? `<div class="modal-title" style="margin-bottom:14px">🍱 メニュー追加</div>${allDoneHtml}`
-    : `<div class="modal-title" style="margin-bottom:14px">🍱 メニュー追加</div>${menuInfoCard}${tutNote}${rows}`;
+    : `<div class="modal-title" style="margin-bottom:14px">🍱 メニュー追加</div>${_guideHeader}${tutNote}${_rows2}`;
   showActionModal(`${_menuBody}
     <button class="btn btn-bg" style="width:100%;margin-top:10px" onclick="closeActionModal()">閉じる</button>`);
 }
@@ -12461,7 +12483,8 @@ function buyMenu(si,name,cost,sat,cust){
   tutCompleteStep('set_menu');
   if(name.includes('たもぎ茸')) tutCheckMission('menu');
   const _storyHint = !!(G.mainStory && !G.mainStory.completedChapters?.includes('chapter_1') && G.mainStory.unlockedChapters?.length > 0);
-  showActionResultFeedback({ title:`「${name}」をメニューに追加しました`, changes:[
+  const _isTutMenu = G.tut.phase === 'playing';
+  showActionResultFeedback({ title:`「${name}」をメニューに追加しました`, homeBtn:_isTutMenu, changes:[
     {label:'現金', type:'money', before:_bfMoney, after:G.money},
     {label:'AP', type:'ap', before:_bfAp, after:G.ap},
     {label:'メニュー数', type:'count', diff:G.stores[si].menu.length-_bfMenuCnt},
@@ -13683,16 +13706,26 @@ function renderTodayAction(){
     actions.push({ icon:'🌿', label:'明日へ進む', desc:'今日はここまでにする', onclick:'advanceDay()' });
   }
 
-  // dismiss済みを除外
-  const _visible = actions.filter(a => !_dismissedToday.has(a.label));
-  if(_visible.length === 0){
+  // dismiss済み: 最初の候補がdismiss済みなら自動昇格せず空状態へ (v1.1a)
+  const _mainCandidate = actions[0];
+  const _isDismissed = _dismissedToday.has(_mainCandidate.label);
+  const _remainingOthers = actions.slice(1).filter(a => !_dismissedToday.has(a.label));
+
+  if(_isDismissed){
+    const _showMore = !!(G.tut && G.tut._showMoreActions);
+    const _moreOthers = _remainingOthers.length > 0 ? `
+      <button onclick="if(G.tut)G.tut._showMoreActions=!G.tut._showMoreActions;renderTab()" style="width:100%;font-size:12px;color:var(--gr3);background:none;border:none;cursor:pointer;padding:4px 0;margin-bottom:${_showMore?'6px':'0'}">
+        ほかにもできます ${_showMore?'▲':'▼'}
+      </button>
+      ${_showMore ? _remainingOthers.map(a=>`<div style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:rgba(255,255,255,.45);border-radius:10px;margin-bottom:5px"><span style="font-size:18px;flex-shrink:0">${a.icon}</span><div style="flex:1;min-width:0"><div style="font-size:12px;font-weight:600;color:var(--gr3)">${a.label}</div><div style="font-size:11px;color:var(--muted)">${a.desc}</div></div><button onclick="${a.onclick}" class="btn btn-gr" style="padding:5px 12px;font-size:12px;white-space:nowrap;flex-shrink:0">→</button></div>`).join('') : ''}` : '';
     return `<div class="card" style="background:var(--warm);border-color:#c8d8a0;padding:12px 14px;margin-bottom:8px">
       <div style="font-size:12px;font-weight:700;color:var(--gr3);margin-bottom:3px">💡 次におすすめ</div>
       <div style="font-size:11px;color:var(--muted);margin-bottom:10px">自由に経営できます。</div>
-      <div style="font-size:12px;color:var(--text);line-height:2;background:rgba(255,255,255,.5);border-radius:10px;padding:10px 12px">
-        今日のおすすめはすべて確認しました。<br>
+      <div style="font-size:12px;color:var(--text);line-height:2;background:rgba(255,255,255,.5);border-radius:10px;padding:10px 12px;margin-bottom:${_remainingOthers.length?'8px':'0'}">
+        今日のおすすめは確認しました。<br>
         ・店舗の様子を見る &nbsp;・地域へ出かける<br>・物件を探す &nbsp;・スタッフを管理する<br>など、自由に動いてみてください。
       </div>
+      ${_moreOthers}
     </div>`;
   }
 
@@ -13705,8 +13738,8 @@ function renderTodayAction(){
     </div>`;
   }
 
-  const _main = _visible[0];
-  const _rest = _visible.slice(1);
+  const _main = _mainCandidate;
+  const _rest = actions.slice(1).filter(a => !_dismissedToday.has(a.label));
   const _showMore = !!(G.tut && G.tut._showMoreActions);
 
   const _freeTexts = ['自由に経営しても大丈夫です。','好きなことを試してみてください。','他の判断をしても問題ありません。'];
@@ -13771,7 +13804,7 @@ function renderHome(){
   const bCount=totalBuildings();
   const phasePct=Math.min(100,Math.round(bCount/thresholds[G.phase]*100));
 
-  // チュートリアル完了後：今やること＋案件ボックスをまとめて上部に
+  // チュートリアル完了後：優先順位整理版 (v1.1a)
   if(G.tut.phase === 'done'){
     const _day1Hint = (G.year===1 && G.month===1 && G.day===1 && !G.tut._day1HintDone) ? `
       <div class="day1-hint">
@@ -13779,24 +13812,11 @@ function renderHome(){
         <span>案件を選んだら「翌日へ進む」を押してみましょう！</span>
         <button class="day1-hint-close" onclick="G.tut._day1HintDone=true;renderTab()">OK</button>
       </div>` : '';
-    return `
-      <button class="adv-btn" onclick="advanceDay()">
-        🌿 明日へ進む<br><span style="font-size:11px;font-weight:400;opacity:0.8">${getNextDayLabel()}へ</span>
-        <div style="font-size:10px;font-weight:400;opacity:0.65;margin-top:2px">売上・案件・入居募集などが進行します</div>
-      </button>
-      ${_day1Hint}
-      ${renderEarlyWarningCard()}
-      ${renderCashWarningBanner()}
-      ${renderTodayAction()}
+    const _moreOpen = !!G._homeMoreOpen;
+    const _moreContent = _moreOpen ? `
       ${renderPostMenuGrowthCard(0)}
-      <div id="home-cases-anchor">${renderIncomingSection()}</div>
       ${renderOptionalManagementSection()}
-      ${renderUpcomingCard()}
-      ${renderWaitingStatusCard()}
       ${renderTodayMood()}
-      ${renderTutMissionCard()}
-      ${renderMainStoryCard()}
-      ${renderFinanceSummary()}
       <div class="hq-vis">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
           <div class="hq-year" style="margin-bottom:0">第${G.year}年 ${G.month}月</div>
@@ -13836,7 +13856,26 @@ function renderHome(){
             <div>${n.msg}</div>
           </div>
         `).join('')||'<div class="empty">まだ出来事はありません</div>'}
-      </div>
+      </div>` : '';
+    return `
+      ${_day1Hint}
+      ${renderEarlyWarningCard()}
+      ${renderCashWarningBanner()}
+      ${renderMainStoryCard()}
+      ${renderTutMissionCard()}
+      ${renderTodayAction()}
+      <div id="home-cases-anchor">${renderIncomingSection()}</div>
+      ${renderFinanceSummary()}
+      ${renderWaitingStatusCard()}
+      ${renderUpcomingCard()}
+      <button onclick="G._homeMoreOpen=!G._homeMoreOpen;renderTab()" style="width:100%;padding:9px;background:none;border:1px solid var(--border);border-radius:12px;font-size:12px;color:var(--muted);cursor:pointer;font-family:inherit;margin-bottom:8px;touch-action:manipulation">
+        ${_moreOpen ? '▲ 閉じる' : '▼ もっと見る（成長・履歴・経営指標）'}
+      </button>
+      ${_moreContent}
+      <button class="adv-btn" onclick="advanceDay()">
+        🌿 明日へ進む<br><span style="font-size:11px;font-weight:400;opacity:0.8">${getNextDayLabel()}へ</span>
+        <div style="font-size:10px;font-weight:400;opacity:0.65;margin-top:2px">売上・案件・入居募集などが進行します</div>
+      </button>
       <button onclick="showManagementMeeting()" style="width:100%;padding:14px;background:var(--warm);border:1.5px solid #DDD0B0;border-radius:12px;font-size:13px;font-weight:700;cursor:pointer;color:var(--gr3);font-family:'Noto Serif JP',serif;display:flex;align-items:center;justify-content:center;gap:8px">
         🗣️ 経営会議を開く <span style="font-size:10px;font-weight:400;color:var(--muted)">4人の視点で相談する</span>
       </button>
@@ -16439,7 +16478,7 @@ window.addEventListener('visibilitychange', ()=>{
 <script>
 if(/[?&](qa|debug)=1/.test(location.search)){
   var _qaScript=document.createElement('script');
-  _qaScript.src='maikon-qa.js?v=20260804-v10h-action-role-guidance';
+  _qaScript.src='maikon-qa.js?v=20260804-v11a-home-information-priority';
   document.head.appendChild(_qaScript);
 }
 </script>
