@@ -11878,6 +11878,39 @@ function hireMidori(){
 }
 
 // ─────────── STORE ACTIONS ───────────
+// ─────────── 行動ガイド定義 (v1.0h) ───────────
+const MANAGEMENT_ACTION_GUIDE = {
+  buyMenu:     { role:'📈 売上づくり',        roleColor:'var(--gr3)',  timing:'次の営業日から', suitable:['売上を早めに増やしたい','まだメニューが少ない'], caution:'食材費とスタッフ負担も増えます' },
+  buyAd:       { role:'📣 集客',              roleColor:'var(--blue)', timing:'すぐ反映',       suitable:['来店客を増やしたい','資金に余裕がある'],  caution:'広告費を上回る利益が必ず出るとは限りません' },
+  buyRenov:    { role:'🏪 お店の基盤づくり',  roleColor:'var(--text)', timing:'すぐ反映',       suitable:['資金に余裕がある','お店の魅力・満足度を高めたい'], caution:'高額です。手元の現金も確認しましょう' },
+  trainStaff:  { role:'🌱 将来への投資',      roleColor:'#c9a227',     timing:'将来の成長に',   suitable:['スタッフを昇格へ近づけたい','将来お店を任せたい'], caution:'すぐに売上が増えるとは限りません' },
+  investRegion:{ role:'🤝 地域との関係づくり',roleColor:'var(--gr)',   timing:'将来の成長に',   suitable:['地域評価を高めたい','融資評価にも反映されます'], caution:'短期的な利益を増やす行動ではありません' },
+};
+
+function _renderActionGuide(key, apCost, moneyCost){
+  const g = MANAGEMENT_ACTION_GUIDE[key];
+  if(!g) return '';
+  const afterMoney = G.money - (moneyCost||0);
+  const afterAp = G.ap - (apCost||0);
+  const moneyWarn = moneyCost && afterMoney < 100000;
+  const apWarn = apCost && afterAp < 10;
+  const costRows = `
+    <div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap">
+      ${moneyCost ? `<span style="font-size:11px;background:var(--bg2);padding:3px 8px;border-radius:8px">現金 ${fmt(G.money)} → <b style="color:${moneyWarn?'#e53935':'var(--text)'}">${fmt(afterMoney)}</b></span>` : ''}
+      ${apCost ? `<span style="font-size:11px;background:var(--bg2);padding:3px 8px;border-radius:8px">AP ${G.ap} → <b style="color:${apWarn?'#e53935':'var(--text)'}">${afterAp}</b></span>` : ''}
+    </div>
+    ${moneyWarn ? `<div style="font-size:11px;color:#e53935;margin-bottom:4px">⚠ 実行後の手元資金が少なくなります</div>` : ''}
+    ${apWarn ? `<div style="font-size:11px;color:#e53935;margin-bottom:4px">⚠ 実行後のAPが少なくなります</div>` : ''}`;
+  const situItems = g.suitable.map(s=>`<span style="font-size:11px;display:block;color:var(--muted);margin-top:2px">・${s}</span>`).join('');
+  return `<div style="background:var(--bg2);border-radius:10px;padding:10px 12px;margin-bottom:10px">
+    <div style="font-size:12px;font-weight:700;color:${g.roleColor};margin-bottom:4px">${g.role}</div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:6px">向いている状況${situItems}</div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:4px">反映 <b style="color:var(--text)">${g.timing}</b></div>
+    ${costRows}
+    ${g.caution ? `<div style="font-size:11px;color:var(--muted);border-top:1px solid var(--border);padding-top:6px;margin-top:4px">注意 ${g.caution}</div>` : ''}
+  </div>`;
+}
+
 const MENU_OPTIONS=[
   {name:'たもぎ茸舞昆定食', requireProduct:'tamogitake_maikon', cost:80000,sat:8,cust:2,priceUp:200},
   {name:'黒舞昆おにぎり',cost:40000,sat:5,cust:1,priceUp:100},
@@ -12395,18 +12428,8 @@ function openMenuModal(si){
         ${fmt(m.cost)}</button>
     </div>
   `).join('');
-  const menuInfoCard = `<div class="act-info-card">
-    <div class="act-info-effects">
-      <span class="act-info-tag">✓ 売上アップ</span>
-      <span class="act-info-tag">✓ 常連客が増えやすくなる</span>
-      <span class="act-info-tag">✓ 序盤の資金作りにおすすめ</span>
-    </div>
-    <div class="act-info-row">
-      <div class="act-info-col"><div class="act-info-col-lbl">必要AP</div><div class="act-info-col-val">15</div></div>
-      <div class="act-info-col"><div class="act-info-col-lbl">反映</div><div class="act-info-col-val" style="color:var(--gr)">すぐ</div></div>
-      <div class="act-info-col"><div class="act-info-col-lbl">おすすめ</div><div class="act-info-col-val" style="font-size:10px;font-weight:600">売上を増やしたいとき</div></div>
-    </div>
-  </div>`;
+  const _menuApCost = getApCost ? getApCost(15, si) : 15;
+  const menuInfoCard = _renderActionGuide('buyMenu', _menuApCost, 0);
   const _menuBody = allDone
     ? `<div class="modal-title" style="margin-bottom:14px">🍱 メニュー追加</div>${allDoneHtml}`
     : `<div class="modal-title" style="margin-bottom:14px">🍱 メニュー追加</div>${menuInfoCard}${tutNote}${rows}`;
@@ -12545,17 +12568,8 @@ function openAdModal(si){
         ${fmt(a.cost)}</button>
     </div>
   `).join('');
-  const adInfoCard = `<div class="act-info-card">
-    <div class="act-info-effects">
-      <span class="act-info-tag">✓ 新規のお客様が来店しやすくなる</span>
-      <span class="act-info-tag">✓ 短期間の集客向け</span>
-    </div>
-    <div class="act-info-row">
-      <div class="act-info-col"><div class="act-info-col-lbl">必要AP</div><div class="act-info-col-val">10</div></div>
-      <div class="act-info-col"><div class="act-info-col-lbl">反映</div><div class="act-info-col-val" style="color:var(--gr)">すぐ</div></div>
-      <div class="act-info-col"><div class="act-info-col-lbl">おすすめ</div><div class="act-info-col-val" style="font-size:10px;font-weight:600">来客が落ちてきたとき</div></div>
-    </div>
-  </div>`;
+  const _adApCost = getApCost ? getApCost(10, si) : 10;
+  const adInfoCard = _renderActionGuide('buyAd', _adApCost, 0);
   showActionModal(`<div class="modal-title" style="margin-bottom:14px">📣 広告</div>${adInfoCard}${rows}
     <button class="btn btn-bg" style="width:100%;margin-top:10px" onclick="closeActionModal()">閉じる</button>`);
 }
@@ -12577,17 +12591,8 @@ function openRenovModal(si){
         ${fmt(r.cost)}</button>
     </div>
   `).join('')||'<div class="empty">全改装済み</div>';
-  const renovInfoCard = `<div class="act-info-card">
-    <div class="act-info-effects">
-      <span class="act-info-tag">✓ お店の魅力アップ</span>
-      <span class="act-info-tag">✓ 将来の店舗価値向上</span>
-    </div>
-    <div class="act-info-row">
-      <div class="act-info-col"><div class="act-info-col-lbl">必要AP</div><div class="act-info-col-val">20</div></div>
-      <div class="act-info-col"><div class="act-info-col-lbl">反映</div><div class="act-info-col-val" style="color:var(--blue)">長期</div></div>
-      <div class="act-info-col"><div class="act-info-col-lbl">おすすめ</div><div class="act-info-col-val" style="font-size:10px;font-weight:600">資金に余裕があるとき</div></div>
-    </div>
-  </div>`;
+  const _renovApCost = getApCost ? getApCost(20, si) : 20;
+  const renovInfoCard = _renderActionGuide('buyRenov', _renovApCost, 0);
   showActionModal(`<div class="modal-title" style="margin-bottom:14px">🔨 店舗改装</div>${renovInfoCard}${rows}
     <button class="btn btn-bg" style="width:100%;margin-top:10px" onclick="closeActionModal()">閉じる</button>`);
 }
@@ -13665,8 +13670,8 @@ function renderTodayAction(){
     const _todayNum = (G.year-1)*360 + (G.month-1)*30 + G.day;
     const _apActions = [];
     if(store && store.isOpen)
-      _apActions.push({ icon:'🏪', label:'店舗を整える', desc:'店の様子を確認し、売上アップのヒントを探す', onclick:"setTab('store')" });
-    _apActions.push({ icon:'🌿', label:'地域へ出る', desc:'地域活動で評判を高める', onclick:"setTab('region');setTimeout(()=>{document.getElementById('region-activity-anchor')?.scrollIntoView({behavior:'smooth',block:'start'})},200)" });
+      _apActions.push({ icon:'🏪', label:'店舗を整える', desc:'店の様子を確認し、売上アップのヒントを探す', onclick:"setTab('store')", role:'🏪 お店の基盤づくり' });
+    _apActions.push({ icon:'🌿', label:'地域へ出る', desc:'地域活動で評判を高める', onclick:"setTab('region');setTimeout(()=>{document.getElementById('region-activity-anchor')?.scrollIntoView({behavior:'smooth',block:'start'})},200)", role:'🤝 地域との関係づくり' });
     if(store && store.isOpen && (store.customers||0) > 0 && G._regularChatDoneDay !== _todayNum)
       _apActions.push({ icon:'☕', label:'時間があれば常連さんと話す', desc:'今日1回限り・AP5消費', onclick:"showRegularChatModal()" });
     const seed = G.day + G.month * 31;
@@ -13715,6 +13720,7 @@ function renderTodayAction(){
       <span style="font-size:20px;flex-shrink:0">${_main.icon}</span>
       <div style="flex:1;min-width:0">
         <div style="font-size:13px;font-weight:700;color:var(--gr3);line-height:1.3">${_main.label}</div>
+        ${_main.role ? `<div style="font-size:10px;color:var(--muted);margin-top:1px">${_main.role}</div>` : ''}
         <div style="font-size:11px;color:var(--muted);margin-top:1px">${_main.desc}</div>
         ${_storyHint}
       </div>
@@ -14494,18 +14500,7 @@ function renderRegion(){
               <div class="reg-stat"><div class="reg-stat-v">${reg.vacancyRate}%</div><div class="reg-stat-l">空き家率</div></div>
             </div>
             <div style="font-size:11px;color:var(--muted);margin-top:10px;margin-bottom:6px">🌿 地域貢献投資（継続すると毎月+2絆）</div>
-            <div class="act-info-card" style="margin-bottom:8px">
-              <div class="act-info-effects">
-                <span class="act-info-tag">✓ 地域とのつながりが深まる</span>
-                <span class="act-info-tag">✓ 将来の地域評価アップ</span>
-                <span class="act-info-tag">✓ 長期投資</span>
-              </div>
-              <div class="act-info-row">
-                <div class="act-info-col"><div class="act-info-col-lbl">必要AP</div><div class="act-info-col-val">20</div></div>
-                <div class="act-info-col"><div class="act-info-col-lbl">反映</div><div class="act-info-col-val" style="color:var(--blue)">長期</div></div>
-                <div class="act-info-col"><div class="act-info-col-lbl">おすすめ</div><div class="act-info-col-val" style="font-size:10px;font-weight:600">資金に余裕があるとき</div></div>
-              </div>
-            </div>
+            ${_renderActionGuide('investRegion', 20, 0)}
             <div class="act-grid">
               <button class="act-btn" onclick="investRegion(${ri},100000,'子ども食堂',15,10)" style="${inv['子ども食堂']?'border-color:var(--gr)':''}">
                 <span class="act-icon">🍜</span><span class="act-lbl">子ども食堂${inv['子ども食堂']?'✓':''}</span><span class="act-cost">¥100,000</span>
@@ -16444,7 +16439,7 @@ window.addEventListener('visibilitychange', ()=>{
 <script>
 if(/[?&](qa|debug)=1/.test(location.search)){
   var _qaScript=document.createElement('script');
-  _qaScript.src='maikon-qa.js?v=20260804-v10g-action-result-feedback';
+  _qaScript.src='maikon-qa.js?v=20260804-v10h-action-role-guidance';
   document.head.appendChild(_qaScript);
 }
 </script>
