@@ -1956,8 +1956,8 @@ function renderTutMissionCard(){
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
       <span style="font-size:22px">🍚</span>
       <div>
-        <div style="font-size:12px;font-weight:700">今やること</div>
-        <div style="font-size:11px;color:${goalColor};font-weight:600">${goalTitle}</div>
+        <div style="font-size:12px;font-weight:700;color:var(--muted)">💡 次の目標</div>
+        <div style="font-size:13px;font-weight:700;color:${goalColor}">${goalTitle}</div>
       </div>
     </div>
     <div style="font-size:12px;color:var(--muted);line-height:1.7">${goalHint}</div>
@@ -13209,15 +13209,20 @@ function setTab(tab){
 function renderTab(){
   const m=document.getElementById('main-content');
   if(!G.started) return;
+  let _html='';
   switch(G.tab){
-    case 'home': m.innerHTML=renderHome(); break;
-    case 'store': m.innerHTML=renderStore(); break;
-    case 'apt': m.innerHTML=renderApt(); break;
-    case 'region': m.innerHTML=renderRegion(); break;
-    case 'staff': m.innerHTML=renderStaff(); break;
-    case 'story': m.innerHTML=renderStory(); break;
-    case 'finance': m.innerHTML=renderFinance(); break;
+    case 'home': _html=renderHome(); break;
+    case 'store': _html=renderStore(); break;
+    case 'apt': _html=renderApt(); break;
+    case 'region': _html=renderRegion(); break;
+    case 'staff': _html=renderStaff(); break;
+    case 'story': _html=renderStory(); break;
+    case 'finance': _html=renderFinance(); break;
   }
+  if(G.tut.phase === 'playing' && G.tab !== 'home'){
+    _html += `<div style="padding:10px 0 20px"><button onclick="setTab('home')" style="width:100%;padding:12px;background:var(--warm);border:1.5px solid #DDD0B0;border-radius:12px;font-size:13px;font-weight:700;cursor:pointer;color:var(--gr3)">← ホームへ戻る</button></div>`;
+  }
+  m.innerHTML=_html;
 }
 
 // ─────────── 未来予告システム ───────────────────────────────────
@@ -13543,7 +13548,14 @@ function renderWaitingStatusCard(){
   </div>`;
 }
 
-// ─────────── 今すぐやること ───────────
+// ─────────── 次におすすめ (v1.0f) ───────────
+let _dismissedToday = new Set();
+
+function dismissRecommendedAction(label){
+  _dismissedToday.add(label);
+  renderTab();
+}
+
 function renderTodayAction(){
   const actions = [];
   const store = G.stores[0];
@@ -13571,42 +13583,98 @@ function renderTodayAction(){
     actions.push({ icon:'📋', label:`案件に対応する（${_pendingCnt}件）`, desc:'未処理の案件があります',
       onclick:"document.getElementById('home-cases-anchor')?.scrollIntoView({behavior:'smooth'})" });
   }
-  // 優先5: APが20以上余っている → 行動候補を提示
+  // 優先5: APが20以上余っている
   if(ap >= 20 && actions.length < 3){
     const _todayNum = (G.year-1)*360 + (G.month-1)*30 + G.day;
     const _apActions = [];
     if(store && store.isOpen)
       _apActions.push({ icon:'🏪', label:'店舗を整える', desc:'店の様子を確認し、売上アップのヒントを探す', onclick:"setTab('store')" });
     _apActions.push({ icon:'🌿', label:'地域へ出る', desc:'地域活動で評判を高める', onclick:"setTab('region');setTimeout(()=>{document.getElementById('region-activity-anchor')?.scrollIntoView({behavior:'smooth',block:'start'})},200)" });
-    // 常連さんとの交流：1日1回・AP20以上・来客あり・今日未実施
     if(store && store.isOpen && (store.customers||0) > 0 && G._regularChatDoneDay !== _todayNum)
       _apActions.push({ icon:'☕', label:'時間があれば常連さんと話す', desc:'今日1回限り・AP5消費', onclick:"showRegularChatModal()" });
-    // シードで1つ選ぶ（日付ベースで変化する）
     const seed = G.day + G.month * 31;
     const pick = _apActions[seed % _apActions.length];
     if(pick) actions.push(pick);
   }
-
-  // 優先6: すべて完了 → 翌日へ進む（最後の手段）
+  // 優先6: すべて完了
   if(actions.length === 0){
     actions.push({ icon:'🌿', label:'明日へ進む', desc:'今日はここまでにする', onclick:'advanceDay()' });
   }
 
-  const items = actions.slice(0, 3).map(a => `
-    <div style="display:flex;align-items:center;gap:10px;padding:9px 10px;background:rgba(255,255,255,.55);border-radius:10px;margin-bottom:5px">
-      <span style="font-size:20px;flex-shrink:0">${a.icon}</span>
-      <div style="flex:1;min-width:0">
-        <div style="font-size:13px;font-weight:700;color:var(--gr3);line-height:1.3">${a.label}</div>
-        <div style="font-size:11px;color:var(--muted);margin-top:1px">${a.desc}</div>
+  // dismiss済みを除外
+  const _visible = actions.filter(a => !_dismissedToday.has(a.label));
+  if(_visible.length === 0){
+    return `<div class="card" style="background:var(--warm);border-color:#c8d8a0;padding:12px 14px;margin-bottom:8px">
+      <div style="font-size:12px;font-weight:700;color:var(--gr3);margin-bottom:3px">💡 次におすすめ</div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:10px">自由に経営できます。</div>
+      <div style="font-size:12px;color:var(--text);line-height:2;background:rgba(255,255,255,.5);border-radius:10px;padding:10px 12px">
+        今日のおすすめはすべて確認しました。<br>
+        ・店舗の様子を見る &nbsp;・地域へ出かける<br>・物件を探す &nbsp;・スタッフを管理する<br>など、自由に動いてみてください。
       </div>
-      <button onclick="${a.onclick}" class="btn btn-gr" style="padding:6px 14px;min-height:36px;font-size:12px;white-space:nowrap;flex-shrink:0">→</button>
-    </div>`).join('');
+    </div>`;
+  }
 
-  const _apHint = ap <= 25 ? `<div style="background:#fff3cd;border:1px solid #e6c96a;border-radius:8px;padding:8px 12px;margin-bottom:6px;font-size:12px;color:#7a6010;line-height:1.8">💡 今週はAPを使い切らず<br>残しておくのもおすすめです。</div>` : '';
+  // 初回イントロ（1回のみ表示）
+  let _introHtml = '';
+  if(G.tut && !G.tut._recommendIntroSeen){
+    G.tut._recommendIntroSeen = true;
+    _introHtml = `<div style="background:#e8f5e9;border-radius:8px;padding:8px 12px;margin-bottom:8px;font-size:11px;line-height:1.9;color:var(--text)">
+      💡 <b>おすすめについて</b><br>迷ったときのヒントです。自由に好きな経営をしても大丈夫です。
+    </div>`;
+  }
+
+  const _main = _visible[0];
+  const _rest = _visible.slice(1);
+  const _showMore = !!(G.tut && G.tut._showMoreActions);
+
+  const _freeTexts = ['自由に経営しても大丈夫です。','好きなことを試してみてください。','他の判断をしても問題ありません。'];
+  const _freeTxt = _freeTexts[(G.day + (G.month||1)) % _freeTexts.length];
+
+  const _storyHint = (G.mainStory?.unlockedChapters?.length > 0 && !G.mainStory?.completedChapters?.includes('chapter_1'))
+    ? `<div style="font-size:10px;color:var(--gr3);margin-top:3px">📖 この行動は物語にもつながります</div>` : '';
+
+  const _mainHtml = `
+    <div style="display:flex;align-items:center;gap:10px;padding:10px;background:rgba(255,255,255,.65);border-radius:10px;margin-bottom:6px">
+      <span style="font-size:20px;flex-shrink:0">${_main.icon}</span>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;font-weight:700;color:var(--gr3);line-height:1.3">${_main.label}</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:1px">${_main.desc}</div>
+        ${_storyHint}
+      </div>
+      <button onclick="${_main.onclick}" class="btn btn-gr" style="padding:6px 14px;min-height:36px;font-size:12px;white-space:nowrap;flex-shrink:0">→</button>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;padding:0 2px">
+      <button onclick='dismissRecommendedAction(${JSON.stringify(_main.label)})' style="font-size:11px;color:var(--muted);background:none;border:1px solid var(--border);border-radius:8px;padding:4px 10px;cursor:pointer;flex-shrink:0">あとでやる</button>
+      <span style="font-size:10px;color:var(--muted)">${_freeTxt}</span>
+    </div>`;
+
+  let _restHtml = '';
+  if(_rest.length > 0){
+    const _moreItems = _rest.map(a => `
+      <div style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:rgba(255,255,255,.45);border-radius:10px;margin-bottom:5px">
+        <span style="font-size:18px;flex-shrink:0">${a.icon}</span>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:12px;font-weight:600;color:var(--gr3)">${a.label}</div>
+          <div style="font-size:11px;color:var(--muted)">${a.desc}</div>
+        </div>
+        <button onclick="${a.onclick}" class="btn btn-gr" style="padding:5px 12px;font-size:12px;white-space:nowrap;flex-shrink:0">→</button>
+      </div>`).join('');
+    _restHtml = `
+      <button onclick="if(G.tut)G.tut._showMoreActions=!G.tut._showMoreActions;renderTab()" style="width:100%;font-size:12px;color:var(--gr3);background:none;border:none;cursor:pointer;padding:4px 0;margin-bottom:${_showMore?'6px':'0'}">
+        ほかにもできます ${_showMore ? '▲' : '▼'}
+      </button>
+      ${_showMore ? _moreItems : ''}`;
+  }
+
+  const _freePlayHtml = `<div style="border-top:1px solid var(--border);margin-top:8px;padding-top:8px;font-size:11px;color:var(--muted);line-height:2">
+    ほかにも自由に——<br>
+    ・店舗を育てる &nbsp;・物件を見る &nbsp;・地域へ出る &nbsp;・スタッフを管理する
+  </div>`;
 
   return `<div class="card" style="background:var(--warm);border-color:#c8d8a0;padding:12px 14px;margin-bottom:8px">
-    <div style="font-size:12px;font-weight:700;color:var(--gr3);margin-bottom:8px;letter-spacing:.04em">✅ 今すぐやること</div>
-    ${_apHint}${items}
+    <div style="font-size:12px;font-weight:700;color:var(--gr3);margin-bottom:2px;letter-spacing:.04em">💡 次におすすめ</div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:8px">自由に経営できます。迷ったらこちらを参考に。</div>
+    ${_introHtml}${_mainHtml}${_restHtml}${_freePlayHtml}
   </div>`;
 }
 
@@ -16299,7 +16367,7 @@ window.addEventListener('visibilitychange', ()=>{
 <script>
 if(/[?&](qa|debug)=1/.test(location.search)){
   var _qaScript=document.createElement('script');
-  _qaScript.src='maikon-qa.js?v=20260804-v10e-calendar-unification';
+  _qaScript.src='maikon-qa.js?v=20260804-v10f-guidance-vs-freeplay';
   document.head.appendChild(_qaScript);
 }
 </script>
