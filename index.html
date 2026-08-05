@@ -52,7 +52,8 @@ body{font-family:'Noto Sans JP',sans-serif;background:var(--bg);color:var(--text
 .adv-fixed button{pointer-events:auto;width:100%;padding:13px 16px;background:var(--gr3);color:#fff;border:2px solid rgba(255,255,255,.22);border-radius:14px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;box-shadow:0 4px 18px rgba(58,107,69,.45);touch-action:manipulation;display:block;line-height:1.4}
 .adv-fixed button:active{transform:scale(.97);filter:brightness(.9)}
 /* scroll anchor */
-#home-cases-anchor{scroll-margin-top:16px}
+#home-cases-anchor{scroll-margin-top:140px}
+#home-incoming-section{scroll-margin-top:140px}
 /* CARDS */
 .card{background:var(--card);border-radius:14px;padding:18px;margin-bottom:12px;
   box-shadow:0 1px 6px rgba(0,0,0,.07);border:1px solid var(--border)}
@@ -12219,7 +12220,7 @@ function renderMainStoryCard(){
       ${_renderMsProgressBlock()}
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
         <button onclick="showMainStoryChapter('chapter_1',true)" style="padding:6px 12px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;font-size:11px;cursor:pointer;color:var(--text)">これまでの物語を読む</button>
-        <button onclick="document.getElementById('home-cases-anchor')?.scrollIntoView({behavior:'smooth'})" style="padding:6px 12px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;font-size:11px;cursor:pointer;color:var(--text)">今できることを見る</button>
+        <button onclick="scrollToIncomingSection()" style="padding:6px 12px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;font-size:11px;cursor:pointer;color:var(--text)">今できることを見る</button>
       </div>
       <div style="font-size:10px;color:var(--muted);margin-top:8px">次の物語を準備中</div>
     </div>`;
@@ -12377,11 +12378,24 @@ function _checkCasesAllDoneHint(){
   }, 600);
 }
 
+function scrollToIncomingSection(){
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      const target = document.getElementById('home-incoming-section');
+      if(!target) return;
+      const hdr = document.getElementById('hdr');
+      const headerH = hdr ? hdr.getBoundingClientRect().height : 0;
+      const y = window.scrollY + target.getBoundingClientRect().top - headerH - 8;
+      window.scrollTo({ top: Math.max(0, y), behavior: 'smooth' });
+    });
+  });
+}
+
 function renderIncomingSection(){
   const cnt = G.cases.filter(c => !c.resolved).length;
   if(cnt === 0) return '';
   const badge = `<span style="background:var(--blue);color:#fff;font-size:11px;font-weight:700;border-radius:99px;padding:1px 8px;margin-left:6px">${cnt}件</span>`;
-  return `<div style="margin-bottom:2px">
+  return `<div id="home-incoming-section" style="margin-bottom:2px">
     <div style="font-size:13px;font-weight:700;color:var(--blue);margin-bottom:8px;letter-spacing:.04em">📥 届いていること${badge}</div>
     ${renderCasesBox()}
   </div>`;
@@ -16616,7 +16630,7 @@ window.addEventListener('visibilitychange', ()=>{
 <script>
 if(/[?&](qa|debug)=1/.test(location.search)){
   var _qaScript=document.createElement('script');
-  _qaScript.src='maikon-qa.js?v=20260805-v11f-incoming-action-priority';
+  _qaScript.src='maikon-qa.js?v=20260805-v11f2-incoming-scroll-fix';
   document.head.appendChild(_qaScript);
 }
 </script>
