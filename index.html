@@ -13622,6 +13622,80 @@ function _checkApLowWarning(){
   }
 }
 
+// ─────────── 今週の経営目標 (v1.1e) ───────────
+const WEEKLY_GOALS = [
+  { id:'open_store',    icon:'🏪', label:'舞昆茶屋を開店する',
+    cur:()=> (G.stores[0]?.isOpen?1:0), target:1, unit:'回',
+    done:()=> !!G.stores[0]?.isOpen, storyLink:false },
+  { id:'first_menu',   icon:'🍱', label:'最初のメニューを追加する',
+    cur:()=> (G.stores[0]?.menu||[]).length, target:1, unit:'品',
+    done:()=> (G.stores[0]?.menu||[]).length>=1, storyLink:true },
+  { id:'regulars5',    icon:'👥', label:'常連客を5人にする',
+    cur:()=> G.stores[0]?.regulars||0, target:5, unit:'人',
+    done:()=> (G.stores[0]?.regulars||0)>=5, storyLink:true },
+  { id:'revenue100k',  icon:'💰', label:'今月の売上を¥10万にする',
+    cur:()=> G.monthRevenue||0, target:100000, unit:'円', isMoney:true,
+    done:()=> (G.monthRevenue||0)>=100000, storyLink:false },
+  { id:'start_seeking',icon:'🏠', label:'空室の入居者募集を始める',
+    cur:()=> G.buildings.some(b=>b.rooms.some(r=>r.seeking||r.tenant))?1:0, target:1, unit:'室',
+    done:()=> G.buildings.some(b=>b.rooms.some(r=>r.seeking||r.tenant)), storyLink:false },
+  { id:'first_tenant', icon:'🔑', label:'初めての入居者を迎える',
+    cur:()=> G.buildings.reduce((n,b)=>n+b.rooms.filter(r=>r.tenant).length,0), target:1, unit:'人',
+    done:()=> G.buildings.some(b=>b.rooms.some(r=>r.tenant)), storyLink:false },
+  { id:'rep20',        icon:'🌸', label:'地域評価を20にする',
+    cur:()=> Math.round(G.regions[0]?.reputation||0), target:20, unit:'',
+    done:()=> (G.regions[0]?.reputation||0)>=20, storyLink:false },
+  { id:'regulars20',   icon:'👥', label:'常連客を20人にする',
+    cur:()=> G.stores[0]?.regulars||0, target:20, unit:'人',
+    done:()=> (G.stores[0]?.regulars||0)>=20, storyLink:true },
+  { id:'revenue300k',  icon:'📈', label:'月売上¥30万を達成する',
+    cur:()=> G.monthRevenue||0, target:300000, unit:'円', isMoney:true,
+    done:()=> (G.monthRevenue||0)>=300000, storyLink:false },
+];
+
+function getWeeklyGoal(){
+  if(!G.started || G.tut.phase !== 'done') return null;
+  return WEEKLY_GOALS.find(g=>!g.done()) || null;
+}
+
+function renderWeeklyGoalCard(){
+  const goal = getWeeklyGoal();
+  if(!goal) return '';
+
+  // 達成切替検知 → 通知
+  const _gId = goal.id;
+  if(G._wgCurrentId && G._wgCurrentId !== _gId){
+    setTimeout(()=> notify('🌱 今週の経営目標を達成しました！','gold'), 400);
+  }
+  G._wgCurrentId = _gId;
+
+  const cur = goal.cur();
+  const pct = Math.min(100, Math.round(cur / goal.target * 100));
+  const curStr = goal.isMoney ? fmt(cur) : cur + (goal.unit ? ' '+goal.unit : '');
+  const tgtStr = goal.isMoney ? fmt(goal.target) : goal.target + (goal.unit ? ' '+goal.unit : '');
+  const barFill = Math.max(4, pct); // 最小幅4%で存在感を出す
+
+  // 進捗バー（10セグメント）
+  const segs = 10;
+  const filled = Math.round(pct / 10);
+  const barSegs = Array.from({length:segs},(_,i)=>`<div style="flex:1;height:6px;border-radius:2px;background:${i<filled?'var(--gr)':'var(--border)'};margin:0 1px"></div>`).join('');
+
+  const storyHtml = goal.storyLink
+    ? `<div style="font-size:10px;color:var(--gr3);margin-top:6px;padding-top:5px;border-top:1px solid var(--border)">📖 この目標は物語にもつながります</div>`
+    : '';
+
+  return `<div class="card" style="padding:12px 14px;border-color:var(--gr);border-width:1.5px;margin-bottom:8px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+      <div style="font-size:11px;font-weight:700;color:var(--gr3);letter-spacing:.04em">🌱 今週の経営目標</div>
+      <div style="font-size:10px;color:var(--muted)">${pct}%</div>
+    </div>
+    <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:8px">${goal.icon} ${goal.label}</div>
+    <div style="display:flex;gap:0;margin-bottom:4px">${barSegs}</div>
+    <div style="font-size:12px;color:var(--gr3);font-weight:700">${curStr} <span style="color:var(--muted);font-weight:400">/ ${tgtStr}</span></div>
+    ${storyHtml}
+  </div>`;
+}
+
 // ─────────── 進行中・これからカード (v1.1b) ───────────
 function renderProgressCard(){
   if(!G.started) return '';
@@ -13907,6 +13981,7 @@ function renderHome(){
       ${renderEarlyWarningCard()}
       ${renderCashWarningBanner()}
       ${renderMainStoryCard()}
+      ${renderWeeklyGoalCard()}
       ${renderTutMissionCard()}
       ${renderTodayAction()}
       <div id="home-cases-anchor">${renderIncomingSection()}</div>
@@ -16507,7 +16582,7 @@ window.addEventListener('visibilitychange', ()=>{
 <script>
 if(/[?&](qa|debug)=1/.test(location.search)){
   var _qaScript=document.createElement('script');
-  _qaScript.src='maikon-qa.js?v=20260805-v11d-next-day-guidance';
+  _qaScript.src='maikon-qa.js?v=20260805-v11e-weekly-goal';
   document.head.appendChild(_qaScript);
 }
 </script>
