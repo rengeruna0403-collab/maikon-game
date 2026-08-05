@@ -14303,7 +14303,8 @@ function renderStore(){
     ${renderTutBanner()}
     <div class="sel-tabs">${tabs}<button class="sel-tab" onclick="openNewStoreModal()">+ 新店舗</button></div>
     ${!s.isOpen ? `<div id="store-reopen-anchor" style="background:#FFF3E0;border:2px solid #FF8F00;border-radius:12px;padding:14px 16px;margin-bottom:10px">
-      <div style="font-size:13px;font-weight:700;color:#E65100;margin-bottom:10px">🔒 このお店は現在閉店中です</div>
+      <div style="font-size:13px;font-weight:700;color:#E65100;margin-bottom:4px">🔒 このお店は現在閉店中です</div>
+      <div style="font-size:11px;color:#E65100;opacity:.8;margin-bottom:10px">イートイン営業は停止中です。商品コーナーは引き続き確認できます。</div>
       <button class="btn btn-gr" style="width:100%;padding:13px;font-size:15px;font-weight:700" onclick="openStore(${si})">
         🏪 舞昆茶屋を再開する <span style="font-size:12px;opacity:.85;margin-left:6px">AP -10</span>
       </button>
@@ -14384,7 +14385,7 @@ function renderStore(){
                   <div style="font-size:13px;font-weight:600">${_c.name}</div>
                   <div style="font-size:10px;color:var(--muted)">${_c.desc}</div>
                 </div>
-                <span style="font-size:11px;color:var(--gr);font-weight:700">販売中</span>
+                <span style="font-size:11px;color:var(--gr);font-weight:700">取扱中</span>
               </div>`;
             }).join('')}
           </div>
@@ -14411,12 +14412,13 @@ function renderStore(){
           </div>
         </div>` : '';
       return `<div class="card">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:${!s.isOpen?'6px':'10px'}">
           <div class="card-ttl" style="margin-bottom:0">🛍 商品コーナー</div>
           ${giftLevel===0?`<span class="badge badge-w" style="font-size:10px">ギフト未展開</span>`:
             giftLevel===1?`<span class="badge badge-g" style="font-size:10px">ギフト展開中</span>`:
             `<span class="badge badge-g" style="font-size:10px">✨ ギフト強化済み</span>`}
         </div>
+        ${!s.isOpen ? `<div style="font-size:11px;color:var(--muted);margin-bottom:10px">茶屋は閉店中ですが、取扱商品は確認できます。</div>` : ''}
         ${_prodListHtml}
         ${_eatListHtml}
         <div style="font-size:10px;font-weight:700;color:var(--muted);margin-bottom:6px">パッケージ・ギフト</div>
@@ -14429,7 +14431,7 @@ function renderStore(){
                 <div style="font-size:13px;font-weight:${unlocked?'600':'400'}">${p.name}</div>
                 <div style="font-size:10px;color:var(--muted)">${p.desc}</div>
               </div>
-              ${unlocked?'<span style="font-size:11px;color:var(--gr);font-weight:700">販売中</span>':'<span style="font-size:10px;color:var(--muted)">🔒 未展開</span>'}
+              ${unlocked?'<span style="font-size:11px;color:var(--gr);font-weight:700">取扱中</span>':'<span style="font-size:10px;color:var(--muted)">🔒 未展開</span>'}
             </div>`;
           }).join('')}
         </div>
@@ -16729,7 +16731,7 @@ window.addEventListener('visibilitychange', ()=>{
 <script>
 if(/[?&](qa|debug)=1/.test(location.search)){
   var _qaScript=document.createElement('script');
-  _qaScript.src='maikon-qa.js?v=20260805-v11g-initial-setup-guide';
+  _qaScript.src='maikon-qa.js?v=20260805-v11h-store-product-status-copy';
   document.head.appendChild(_qaScript);
 }
 </script>
