@@ -214,6 +214,8 @@ body{font-family:'Noto Sans JP',sans-serif;background:var(--bg);color:var(--text
 @keyframes _windChime{0%,100%{transform:rotate(-8deg)}50%{transform:rotate(8deg)}}
 @keyframes dayFlash{0%{opacity:0;transform:scale(.92)}15%{opacity:1;transform:scale(1)}80%{opacity:1}100%{opacity:0}}
 @keyframes townPop{0%{transform:scale(.8);opacity:0}100%{transform:scale(1);opacity:1}}
+@keyframes setupPulse{0%,100%{box-shadow:0 0 0 0 rgba(58,107,69,.35)}60%{box-shadow:0 0 0 10px rgba(58,107,69,0)}}
+.setup-spotlight{animation:setupPulse 1.5s ease-in-out 3;outline:2.5px solid var(--gr);outline-offset:3px;border-radius:14px}
 .scene-box{position:relative;width:100%;height:72px;overflow:hidden;border-radius:10px;background:var(--bg2);margin-bottom:12px}
 .scene-char{position:absolute;font-size:20px;bottom:4px;animation-fill-mode:forwards}
 .day-flash-overlay{position:fixed;inset:0;z-index:500;display:flex;align-items:center;justify-content:center;pointer-events:none;animation:dayFlash .8s ease forwards}
@@ -13375,6 +13377,7 @@ function renderTab(){
   }
   m.innerHTML=_html;
   _updateAdvFixed();
+  if(G.tab === 'home' && G.tut && G.tut.phase === 'done') requestAnimationFrame(focusInitialSetupTarget);
 }
 
 function _isModalOpen(){
@@ -13397,10 +13400,11 @@ function _updateAdvFixed(){
     el.id = '_adv-fixed';
     el.className = 'adv-fixed';
     document.body.appendChild(el);
-    const _apNote2 = (G.ap||0) <= 25 ? `<div style="font-size:10px;font-weight:400;opacity:.85;margin-top:2px">APを残して経営を進めましょう</div>` : '';
-    el.innerHTML = `<button onclick="advanceDay()">🌿 明日へ進む　<span style="font-size:11px;font-weight:400;opacity:.85">${getNextDayLabel()}へ</span>${_apNote2}</button>`;
+  }
+  const _prg = getInitialSetupProgress();
+  if(_prg && !_prg.done){
+    el.innerHTML = `<button onclick="advanceDay()" style="opacity:.75">🌱 まずは開店準備を進めましょう　<span style="font-size:10px;font-weight:400;opacity:.85">（日送りもできます）</span></button>`;
   } else {
-    // 内容更新（ラベルが変わる場合）
     const _apNote2 = (G.ap||0) <= 25 ? `<div style="font-size:10px;font-weight:400;opacity:.85;margin-top:2px">APを残して経営を進めましょう</div>` : '';
     el.innerHTML = `<button onclick="advanceDay()">🌿 明日へ進む　<span style="font-size:11px;font-weight:400;opacity:.85">${getNextDayLabel()}へ</span>${_apNote2}</button>`;
   }
@@ -13964,6 +13968,68 @@ function renderTodayAction(){
   </div>`;
 }
 
+// ─────────── 初期準備導線 (v1.1g) ────────────────────────────────
+function getInitialSetupProgress(){
+  if(!G.started || G.tut.phase !== 'done') return null;
+  const step1 = !!(G.stores[0] && G.stores[0].isOpen);
+  const step2 = !!(G.stores[0] && (G.stores[0].menu||[]).length > 0);
+  const step3 = G.buildings.some(b => b.rooms.some(r => r.seeking));
+  return { step1, step2, step3, done: step1 && step2 && step3 };
+}
+
+function renderInitialSetupCard(){
+  const p = getInitialSetupProgress();
+  if(!p || p.done) return '';
+  const steps = [
+    { label:'舞昆茶屋を開店する',    done:p.step1, onclick:"setTab('store')", hint:'お店を開いて営業の準備を始めましょう' },
+    { label:'最初のメニューを設定する', done:p.step2, onclick:"setTab('store')", hint:'メニューを1品追加するとお客様が来られます' },
+    { label:'空室募集を開始する',     done:p.step3, onclick:"setTab('apt')",   hint:'入居者を募集して家賃収入を始めましょう' },
+  ];
+  const doneCount = [p.step1, p.step2, p.step3].filter(Boolean).length;
+  const cur = steps.find(s => !s.done);
+  const stepList = steps.map((s, i) => {
+    const icon  = s.done ? '✓' : s === cur ? '●' : '○';
+    const clr   = s.done ? 'var(--gr)' : s === cur ? 'var(--gr3)' : 'var(--muted)';
+    const wt    = s === cur ? 700 : 400;
+    const sz    = s === cur ? '13px' : '12px';
+    return `<div style="display:flex;align-items:center;gap:8px;padding:5px 0;opacity:${s.done ? .55 : 1}">
+      <span style="width:16px;text-align:center;flex-shrink:0;font-size:13px;color:${clr}">${icon}</span>
+      <span style="font-size:${sz};font-weight:${wt};color:${clr}">${i + 1}　${s.label}</span>
+    </div>`;
+  }).join('');
+  return `<div class="card" id="initial-setup-card" style="border:2px solid var(--gr2);background:linear-gradient(135deg,#EEF6EE,#FAFFF8);margin-bottom:12px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+      <div style="font-size:14px;font-weight:700;color:var(--gr3)">🌱 はじめにやること</div>
+      <span style="font-size:11px;background:var(--gr2);color:var(--gr3);border-radius:99px;padding:2px 8px;font-weight:700">${doneCount} / 3</span>
+    </div>
+    ${stepList}
+    <div style="margin-top:10px;background:rgba(255,255,255,.7);border-radius:10px;padding:10px 12px">
+      <div style="font-size:13px;font-weight:700;color:var(--gr3);margin-bottom:4px">${cur.label}</div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.6">${cur.hint}</div>
+      <button onclick="${cur.onclick}" class="btn btn-gr" style="width:100%;padding:10px;font-size:13px;font-weight:700">進む →</button>
+    </div>
+  </div>`;
+}
+
+function focusInitialSetupTarget(){
+  const p = getInitialSetupProgress();
+  if(!p || p.done) return;
+  const stepKey = !p.step1 ? 's1' : !p.step2 ? 's2' : 's3';
+  G._setupSpotlight = G._setupSpotlight || {};
+  if(G._setupSpotlight[stepKey]) return;
+  G._setupSpotlight[stepKey] = true;
+  requestAnimationFrame(() => {
+    const el = document.getElementById('initial-setup-card');
+    if(!el) return;
+    const hdr = document.getElementById('hdr');
+    const headerH = hdr ? hdr.getBoundingClientRect().height : 0;
+    const y = window.scrollY + el.getBoundingClientRect().top - headerH - 8;
+    window.scrollTo({ top: Math.max(0, y), behavior: 'smooth' });
+    el.classList.add('setup-spotlight');
+    setTimeout(() => el.classList.remove('setup-spotlight'), 4500);
+  });
+}
+
 // ─────────── RENDER HOME ───────────
 function renderHome(){
   const {rev,exp,profit}=calcDailyRevenue();
@@ -14027,6 +14093,37 @@ function renderHome(){
           </div>
         `).join('')||'<div class="empty">まだ出来事はありません</div>'}
       </div>` : '';
+    const _prog = getInitialSetupProgress();
+    // 古いセーブ（4日目以降）は完了済みとして扱い完了カードをスキップ
+    if(_prog.done && G._initSetupCompleteSeen == null){
+      if((G.year-1)*360 + (G.month-1)*30 + G.day > 3) G._initSetupCompleteSeen = true;
+    }
+    // ── 初期準備中レイアウト ──
+    if(!_prog.done){
+      const _hc2 = G.cases.filter(c => !c.resolved).length > 0;
+      return `
+        ${renderEarlyWarningCard()}
+        ${renderCashWarningBanner()}
+        ${renderInitialSetupCard()}
+        ${_hc2 ? `<div id="home-cases-anchor">${renderIncomingSection()}</div>` : '<div id="home-cases-anchor"></div>'}
+        ${renderFinanceSummary()}
+        ${renderProgressCard()}
+        <div style="height:62px"></div>
+      `;
+    }
+    // ── 初期準備完了お知らせ（初回のみ） ──
+    if(!G._initSetupCompleteSeen){
+      return `
+        <div class="card" style="border:2px solid var(--gr);background:linear-gradient(135deg,#EEF6EE,#FAFFF8);text-align:center;margin-bottom:12px">
+          <div style="font-size:28px;margin-bottom:8px">🎉</div>
+          <div style="font-size:16px;font-weight:700;color:var(--gr3);font-family:'Noto Serif JP',serif;margin-bottom:8px">経営を始める準備が整いました！</div>
+          <div style="font-size:12px;color:var(--muted);line-height:1.8;margin-bottom:14px">案件に対応したり、<br>お店や物件を自由に育てられます。</div>
+          <button class="btn btn-gr" style="width:100%;padding:11px;font-size:13px" onclick="G._initSetupCompleteSeen=true;saveGame();renderTab()">ホームを見る →</button>
+        </div>
+        <div style="height:62px"></div>
+      `;
+    }
+    // ── 通常ホームレイアウト ──
     const _hasCases = G.cases.filter(c => !c.resolved).length > 0;
     return `
       ${_day1Hint}
@@ -16632,7 +16729,7 @@ window.addEventListener('visibilitychange', ()=>{
 <script>
 if(/[?&](qa|debug)=1/.test(location.search)){
   var _qaScript=document.createElement('script');
-  _qaScript.src='maikon-qa.js?v=20260805-v11d3-fixed-advance-regression';
+  _qaScript.src='maikon-qa.js?v=20260805-v11g-initial-setup-guide';
   document.head.appendChild(_qaScript);
 }
 </script>
