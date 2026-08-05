@@ -13378,7 +13378,9 @@ function renderTab(){
 }
 
 function _isModalOpen(){
-  if(G.activeEvent || G.isAdvancingDay || G.processingMonthly) return true;
+  // G.activeEvent は「待機中」状態でも true になるため単独では判定しない。
+  // 実際にモーダルが表示中かどうかは DOM の display:flex で判断する。
+  if(G.isAdvancingDay || G.processingMonthly) return true;
   const IDS = ['event-modal','tut-modal','action-modal','apLowWarningModal',
     'goen-modal','tutOpenStoreComplete','tutRecruitComplete','_ms-modal'];
   return IDS.some(id => { const e=document.getElementById(id); return e && e.style.display==='flex'; });
@@ -16630,7 +16632,7 @@ window.addEventListener('visibilitychange', ()=>{
 <script>
 if(/[?&](qa|debug)=1/.test(location.search)){
   var _qaScript=document.createElement('script');
-  _qaScript.src='maikon-qa.js?v=20260805-v11f2-incoming-scroll-fix';
+  _qaScript.src='maikon-qa.js?v=20260805-v11d3-fixed-advance-regression';
   document.head.appendChild(_qaScript);
 }
 </script>
