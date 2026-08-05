@@ -9758,7 +9758,7 @@ function renderCasesBox(){
   // ─── 業務ケース1行 ───
   const CAT_LABEL = { ops:'🛠 業務', mgmt:'💼 経営', strategy:'🏦 戦略' };
   const CAT_COLOR = { ops:'var(--muted)', mgmt:'var(--gold)', strategy:'#e53935' };
-  const INIT_SHOW = 5;
+  const INIT_SHOW = 2;
   const expanded = G.casesExpanded || false;
   const showBiz = expanded ? bizCases : bizCases.slice(0, INIT_SHOW);
   const hiddenCount = bizCases.length - INIT_SHOW;
@@ -12378,16 +12378,13 @@ function _checkCasesAllDoneHint(){
 }
 
 function renderIncomingSection(){
-  const casesHtml = renderCasesBox();
-  const hasCases = G.cases.filter(c=>!c.resolved).length > 0;
-  const emptyHtml = !hasCases ? `<div class="card" style="border-color:var(--blue);border-width:1.5px">
-    <div class="card-ttl" style="color:var(--blue)">📥 届いていること</div>
-    <div style="font-size:12px;color:var(--muted);line-height:1.7">今、急いで対応する相談はありません。</div>
-  </div>` : `<div style="margin-bottom:2px">
-    <div style="font-size:11px;color:var(--blue);font-weight:700;margin-bottom:6px;letter-spacing:.04em">📥 届いていること — お客様や地域から届いた相談です</div>
-    ${casesHtml}
+  const cnt = G.cases.filter(c => !c.resolved).length;
+  if(cnt === 0) return '';
+  const badge = `<span style="background:var(--blue);color:#fff;font-size:11px;font-weight:700;border-radius:99px;padding:1px 8px;margin-left:6px">${cnt}件</span>`;
+  return `<div style="margin-bottom:2px">
+    <div style="font-size:13px;font-weight:700;color:var(--blue);margin-bottom:8px;letter-spacing:.04em">📥 届いていること${badge}</div>
+    ${renderCasesBox()}
   </div>`;
-  return hasCases ? emptyHtml : emptyHtml;
 }
 
 function renderOptionalManagementSection(){
@@ -13829,13 +13826,8 @@ function renderTodayAction(){
         _seekFollowUp: true });
     }
   }
-  // 優先4: 未対応案件あり
-  const _pendingCnt = G.cases.filter(c => !c.resolved).length;
-  if(_pendingCnt > 0){
-    actions.push({ icon:'📋', label:`案件に対応する（${_pendingCnt}件）`, desc:'未処理の案件があります',
-      onclick:"document.getElementById('home-cases-anchor')?.scrollIntoView({behavior:'smooth',block:'start'})" });
-  }
-  // 優先5: AP低下（_checkApLowWarning と同じ閾値25）→ 日送りを優先
+  // 優先4: AP低下（_checkApLowWarning と同じ閾値25）→ 日送りを優先
+  // ※案件は届いていることセクションで直接表示するためここでは案内しない
   const _AP_LOW_THR = 25; // matches _checkApLowWarning
   if(ap <= _AP_LOW_THR && actions.length < 3){
     const _nowDay2 = (G.year-1)*360 + (G.month-1)*30 + G.day;
@@ -14019,15 +14011,17 @@ function renderHome(){
           </div>
         `).join('')||'<div class="empty">まだ出来事はありません</div>'}
       </div>` : '';
+    const _hasCases = G.cases.filter(c => !c.resolved).length > 0;
     return `
       ${_day1Hint}
       ${renderEarlyWarningCard()}
       ${renderCashWarningBanner()}
       ${renderMainStoryCard()}
+      ${_hasCases ? `<div id="home-cases-anchor">${renderIncomingSection()}</div>` : ''}
       ${renderWeeklyGoalCard()}
       ${renderTutMissionCard()}
       ${renderTodayAction()}
-      <div id="home-cases-anchor">${renderIncomingSection()}</div>
+      ${!_hasCases ? `<div id="home-cases-anchor">${renderIncomingSection()}</div>` : ''}
       ${renderFinanceSummary()}
       ${renderProgressCard()}
       <button onclick="G._homeMoreOpen=!G._homeMoreOpen;renderTab()" style="width:100%;padding:9px;background:none;border:1px solid var(--border);border-radius:12px;font-size:12px;color:var(--muted);cursor:pointer;font-family:inherit;margin-bottom:8px;touch-action:manipulation">
@@ -16622,7 +16616,7 @@ window.addEventListener('visibilitychange', ()=>{
 <script>
 if(/[?&](qa|debug)=1/.test(location.search)){
   var _qaScript=document.createElement('script');
-  _qaScript.src='maikon-qa.js?v=20260805-v11d2-fixed-button-modal-guard';
+  _qaScript.src='maikon-qa.js?v=20260805-v11f-incoming-action-priority';
   document.head.appendChild(_qaScript);
 }
 </script>
