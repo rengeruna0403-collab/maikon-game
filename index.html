@@ -2512,6 +2512,7 @@ function normalizeDate(){
 function advanceDay(){
   playSfx('day');
   G.tut._day1HintDone = true; // 初日ヒントは翌日へ進むと同時に消す
+  _dismissedToday.clear(); // 新しい日 = おすすめをリセット
   console.log('[advanceDay] start day=' + G.day + ' month=' + G.month + ' year=' + G.year + ' G.activeEvent=' + JSON.stringify(G.activeEvent&&(G.activeEvent.id||G.activeEvent)) + ' advancing=' + G.isAdvancingDay + ' monthly=' + G.processingMonthly);
   // ① 同期的二重実行防止
   if(G.isAdvancingDay){ console.log('[advanceDay] blocked: isAdvancingDay'); return; }
@@ -12500,6 +12501,7 @@ function buyMenu(si,name,cost,sat,cust){
   });
   scoreOwner(3,'menu');
   addNews(`🍱 「${name}」追加 / 食材原価+¥${ingPerCustUp}/人・スタッフ負担+10`);
+  _dismissedToday.clear();
   tutCompleteStep('set_menu');
   if(name.includes('たもぎ茸')) tutCheckMission('menu');
   const _storyHint = !!(G.mainStory && !G.mainStory.completedChapters?.includes('chapter_1') && G.mainStory.unlockedChapters?.length > 0);
@@ -13012,6 +13014,7 @@ function startRecruiting(bi,ri){
     {label:'家賃', type:'arrow', from:fmt(r.rent)+'/月', to:fmt(r.rent)+'/月'}
   ], timing:'申込みが届くまで日を進めましょう' });
   if(r.num==='103'){ tutCheckMission('vacancy'); tutCompleteStep('vacancy'); setTimeout(()=>{ document.getElementById('tutRecruitComplete').style.display='flex'; }, 400); }
+  _dismissedToday.clear();
   updateHeader(); renderTab();
 }
 
@@ -13320,6 +13323,7 @@ function updateHeader(){
 // ─────────── TAB ───────────
 function setTab(tab){
   playSfx('tab');
+  const _prevTab = G.tab;
   G.tab=tab;
   const navMap={home:'home',store:'store',apt:'apt',region:'region',staff:'staff',story:'story',finance:'fin'};
   Object.keys(navMap).forEach(t=>{
@@ -13330,6 +13334,10 @@ function setTab(tab){
   clearTabHighlight(tab);
   if(tab==='finance') clearTabHighlight('fin');
   renderTab();
+  // ホームへ戻る時は必ず最上部へ（別タブからの復帰時のみ）
+  if(tab === 'home' && _prevTab !== 'home'){
+    requestAnimationFrame(() => window.scrollTo(0, 0));
+  }
 }
 function renderTab(){
   const m=document.getElementById('main-content');
@@ -16488,7 +16496,7 @@ window.addEventListener('visibilitychange', ()=>{
 <script>
 if(/[?&](qa|debug)=1/.test(location.search)){
   var _qaScript=document.createElement('script');
-  _qaScript.src='maikon-qa.js?v=20260804-v11b-first-day-ux-polish';
+  _qaScript.src='maikon-qa.js?v=20260805-v11c-home-flow-fix';
   document.head.appendChild(_qaScript);
 }
 </script>
