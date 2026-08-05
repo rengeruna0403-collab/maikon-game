@@ -2515,6 +2515,7 @@ function advanceDay(){
   playSfx('day');
   G.tut._day1HintDone = true; // 初日ヒントは翌日へ進むと同時に消す
   _dismissedToday.clear(); // 新しい日 = おすすめをリセット
+  _seekingStartedToday = false;
   console.log('[advanceDay] start day=' + G.day + ' month=' + G.month + ' year=' + G.year + ' G.activeEvent=' + JSON.stringify(G.activeEvent&&(G.activeEvent.id||G.activeEvent)) + ' advancing=' + G.isAdvancingDay + ' monthly=' + G.processingMonthly);
   // ① 同期的二重実行防止
   if(G.isAdvancingDay){ console.log('[advanceDay] blocked: isAdvancingDay'); return; }
@@ -12507,8 +12508,8 @@ function buyMenu(si,name,cost,sat,cust){
   tutCompleteStep('set_menu');
   if(name.includes('たもぎ茸')) tutCheckMission('menu');
   const _storyHint = !!(G.mainStory && !G.mainStory.completedChapters?.includes('chapter_1') && G.mainStory.unlockedChapters?.length > 0);
-  const _isTutMenu = G.tut.phase === 'playing';
-  showActionResultFeedback({ title:`「${name}」をメニューに追加しました`, homeBtn:_isTutMenu, changes:[
+  const _isFirstMenu = _bfMenuCnt === 0; // 初回メニュー追加（チュートリアル状態に依存しない）
+  showActionResultFeedback({ title:_isFirstMenu?`最初のメニューを追加しました`:`「${name}」をメニューに追加しました`, homeBtn:_isFirstMenu, changes:[
     {label:'現金', type:'money', before:_bfMoney, after:G.money},
     {label:'AP', type:'ap', before:_bfAp, after:G.ap},
     {label:'メニュー数', type:'count', diff:G.stores[si].menu.length-_bfMenuCnt},
@@ -13016,6 +13017,7 @@ function startRecruiting(bi,ri){
     {label:'家賃', type:'arrow', from:fmt(r.rent)+'/月', to:fmt(r.rent)+'/月'}
   ], timing:'申込みが届くまで日を進めましょう' });
   if(r.num==='103'){ tutCheckMission('vacancy'); tutCompleteStep('vacancy'); setTimeout(()=>{ document.getElementById('tutRecruitComplete').style.display='flex'; }, 400); }
+  _seekingStartedToday = true;
   _dismissedToday.clear();
   updateHeader(); renderTab();
 }
@@ -13766,6 +13768,7 @@ function renderWaitingStatusCard(){ return ''; }
 
 // ─────────── 次におすすめ (v1.0f) ───────────
 let _dismissedToday = new Set();
+let _seekingStartedToday = false; // 当日に空室募集開始済みフラグ
 
 function dismissRecommendedAction(label){
   _dismissedToday.add(label);
@@ -13788,10 +13791,20 @@ function renderTodayAction(){
       onclick:"setTab('store');setTimeout(()=>{document.getElementById('store-menu-anchor')?.scrollIntoView({behavior:'smooth',block:'center'})},200)" });
   }
   // 優先3: 空室あり・募集未開始
-  const _hasUnseekingVacant = G.buildings.some(b => b.rooms.some(r => !r.tenant && !r.seeking));
+  const _unseekingRooms = G.buildings.flatMap(b => b.rooms.filter(r => !r.tenant && !r.seeking));
+  const _hasUnseekingVacant = _unseekingRooms.length > 0;
   if(_hasUnseekingVacant){
-    actions.push({ icon:'🏠', label:'空室募集を開始する', desc:'空き部屋の入居者を募集しましょう',
-      onclick:"setTab('apt');setTimeout(()=>{document.getElementById('apt-seek-anchor')?.scrollIntoView({behavior:'smooth'})},150)" });
+    const _seekOnclick = "setTab('apt');setTimeout(()=>{document.getElementById('apt-seek-anchor')?.scrollIntoView({behavior:'smooth'})},150)";
+    if(!_seekingStartedToday){
+      // 初回：最優先で案内
+      actions.push({ icon:'🏠', label:'空室募集を開始する', desc:'空き部屋の入居者を募集しましょう', onclick:_seekOnclick });
+    } else {
+      // 当日既に1室募集済み：別候補がある場合は後回し、ない場合のみ低優先で追加
+      const _roomNums = _unseekingRooms.map(r=>r.num).join('・');
+      actions.push({ icon:'🏠', label:'ほかの空室でも募集を始める',
+        desc:`未募集の空室があと${_unseekingRooms.length}室（${_roomNums}号室）`, onclick:_seekOnclick,
+        _seekFollowUp: true });
+    }
   }
   // 優先4: 未対応案件あり
   const _pendingCnt = G.cases.filter(c => !c.resolved).length;
@@ -13823,6 +13836,13 @@ function renderTodayAction(){
   // 優先6: すべて完了
   if(actions.length === 0){
     actions.push({ icon:'🌿', label:'明日へ進む', desc:'今日はここまでにする', onclick:'advanceDay()' });
+  }
+
+  // 当日募集済みフォローアップは、別候補がある場合のみ末尾へ移動
+  if(_seekingStartedToday){
+    const _prim = actions.filter(a => !a._seekFollowUp);
+    const _foll = actions.filter(a => a._seekFollowUp);
+    if(_prim.length > 0 && _foll.length > 0) actions.splice(0, actions.length, ..._prim, ..._foll);
   }
 
   // dismiss済み: 最初の候補がdismiss済みなら自動昇格せず空状態へ (v1.1a)
@@ -14467,11 +14487,8 @@ function renderStore(){
           </div>
         </div>`;
       } else if(!s.menu || s.menu.length === 0) {
-        return `<div style="background:#FFF3E0;border:1.5px solid #FFCC80;border-radius:12px;padding:12px 14px;margin-bottom:10px">
-          <div style="font-size:12px;color:#E65100;margin-bottom:8px">🍽️ メニューがありません。まず看板商品を追加してください。</div>
-          <button class="btn btn-gr" style="width:100%;padding:10px;font-size:13px" onclick="openMenuModal(${si})">
-            🍱 メニューを追加する <span style="font-size:11px;opacity:.8;margin-left:6px">¥80,000〜</span>
-          </button>
+        return `<div style="background:var(--bg2);border-radius:12px;padding:10px 14px;margin-bottom:10px">
+          <div style="font-size:12px;color:var(--muted)">🍽️ メニューを追加すると営業が始まります（上のカードから追加できます）</div>
         </div>`;
       } else {
         const policy = s.policy || 'owner';
@@ -16582,7 +16599,7 @@ window.addEventListener('visibilitychange', ()=>{
 <script>
 if(/[?&](qa|debug)=1/.test(location.search)){
   var _qaScript=document.createElement('script');
-  _qaScript.src='maikon-qa.js?v=20260805-v11e-weekly-goal';
+  _qaScript.src='maikon-qa.js?v=20260805-v11c2-first-flow-hotfix';
   document.head.appendChild(_qaScript);
 }
 </script>
