@@ -47,10 +47,12 @@ body{font-family:'Noto Sans JP',sans-serif;background:var(--bg);color:var(--text
   box-shadow:0 3px 10px rgba(58,107,69,.3);min-height:52px;touch-action:manipulation}
 .adv-btn:hover{background:var(--gr2)}
 .adv-btn:active{transform:scale(.97);filter:brightness(.9)}
-/* FIXED ADV BTN (v1.1b) */
-.adv-fixed{position:fixed;bottom:calc(76px + env(safe-area-inset-bottom) + 8px);left:50%;transform:translateX(-50%);width:calc(100% - 32px);max-width:398px;z-index:600;pointer-events:none}
-.adv-fixed button{pointer-events:auto;width:100%;padding:14px;background:var(--gr);color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;box-shadow:0 3px 14px rgba(58,107,69,.35);touch-action:manipulation;display:block;line-height:1.4}
+/* FIXED ADV BTN (v1.1b/d) */
+.adv-fixed{position:fixed;bottom:calc(76px + env(safe-area-inset-bottom) + 6px);left:50%;transform:translateX(-50%);width:calc(100% - 24px);max-width:406px;z-index:600;pointer-events:none;filter:drop-shadow(0 -2px 10px rgba(0,0,0,.18))}
+.adv-fixed button{pointer-events:auto;width:100%;padding:13px 16px;background:var(--gr3);color:#fff;border:2px solid rgba(255,255,255,.22);border-radius:14px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;box-shadow:0 4px 18px rgba(58,107,69,.45);touch-action:manipulation;display:block;line-height:1.4}
 .adv-fixed button:active{transform:scale(.97);filter:brightness(.9)}
+/* scroll anchor */
+#home-cases-anchor{scroll-margin-top:16px}
 /* CARDS */
 .card{background:var(--card);border-radius:14px;padding:18px;margin-bottom:12px;
   box-shadow:0 1px 6px rgba(0,0,0,.07);border:1px solid var(--border)}
@@ -13360,7 +13362,8 @@ function renderTab(){
   let _advFixed = document.getElementById('_adv-fixed');
   if(G.tab === 'home'){
     if(!_advFixed){ _advFixed = document.createElement('div'); _advFixed.id='_adv-fixed'; _advFixed.className='adv-fixed'; document.body.appendChild(_advFixed); }
-    _advFixed.innerHTML = `<button onclick="advanceDay()">🌿 明日へ進む　<span style="font-size:11px;font-weight:400;opacity:.8">${getNextDayLabel()}へ</span></button>`;
+    const _apNote = (G.ap||0) <= 25 ? `<div style="font-size:10px;font-weight:400;opacity:.85;margin-top:2px">APを残して経営を進めましょう</div>` : '';
+    _advFixed.innerHTML = `<button onclick="advanceDay()">🌿 明日へ進む　<span style="font-size:11px;font-weight:400;opacity:.85">${getNextDayLabel()}へ</span>${_apNote}</button>`;
   } else {
     if(_advFixed) _advFixed.innerHTML = '';
   }
@@ -13720,10 +13723,18 @@ function renderTodayAction(){
   const _pendingCnt = G.cases.filter(c => !c.resolved).length;
   if(_pendingCnt > 0){
     actions.push({ icon:'📋', label:`案件に対応する（${_pendingCnt}件）`, desc:'未処理の案件があります',
-      onclick:"document.getElementById('home-cases-anchor')?.scrollIntoView({behavior:'smooth'})" });
+      onclick:"document.getElementById('home-cases-anchor')?.scrollIntoView({behavior:'smooth',block:'start'})" });
   }
-  // 優先5: APが20以上余っている
-  if(ap >= 20 && actions.length < 3){
+  // 優先5: AP低下（_checkApLowWarning と同じ閾値25）→ 日送りを優先
+  const _AP_LOW_THR = 25; // matches _checkApLowWarning
+  if(ap <= _AP_LOW_THR && actions.length < 3){
+    const _nowDay2 = (G.year-1)*360 + (G.month-1)*30 + G.day;
+    const _apCycleR = 7 - (_nowDay2 % 7);
+    const _apDaysR = _apCycleR === 7 ? 7 : _apCycleR;
+    actions.push({ icon:'🌿', label:'今日はAPを残して明日へ進む',
+      desc:`AP ${ap}/${G.apMax||100}・次の回復まであと${_apDaysR}日`, onclick:'advanceDay()' });
+  } else if(ap > _AP_LOW_THR && actions.length < 3){
+    // 通常時: 任意行動を提案
     const _todayNum = (G.year-1)*360 + (G.month-1)*30 + G.day;
     const _apActions = [];
     if(store && store.isOpen)
@@ -16496,7 +16507,7 @@ window.addEventListener('visibilitychange', ()=>{
 <script>
 if(/[?&](qa|debug)=1/.test(location.search)){
   var _qaScript=document.createElement('script');
-  _qaScript.src='maikon-qa.js?v=20260805-v11c-home-flow-fix';
+  _qaScript.src='maikon-qa.js?v=20260805-v11d-next-day-guidance';
   document.head.appendChild(_qaScript);
 }
 </script>
