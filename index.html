@@ -47,8 +47,8 @@ body{font-family:'Noto Sans JP',sans-serif;background:var(--bg);color:var(--text
   box-shadow:0 3px 10px rgba(58,107,69,.3);min-height:52px;touch-action:manipulation}
 .adv-btn:hover{background:var(--gr2)}
 .adv-btn:active{transform:scale(.97);filter:brightness(.9)}
-/* FIXED ADV BTN (v1.1b/d) */
-.adv-fixed{position:fixed;bottom:calc(76px + env(safe-area-inset-bottom) + 6px);left:50%;transform:translateX(-50%);width:calc(100% - 24px);max-width:406px;z-index:600;pointer-events:none;filter:drop-shadow(0 -2px 10px rgba(0,0,0,.18))}
+/* FIXED ADV BTN (v1.1b/d/d2) */
+.adv-fixed{position:fixed;bottom:calc(76px + env(safe-area-inset-bottom) + 6px);left:50%;transform:translateX(-50%);width:calc(100% - 24px);max-width:406px;z-index:150;pointer-events:none;filter:drop-shadow(0 -2px 10px rgba(0,0,0,.18))}
 .adv-fixed button{pointer-events:auto;width:100%;padding:13px 16px;background:var(--gr3);color:#fff;border:2px solid rgba(255,255,255,.22);border-radius:14px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;box-shadow:0 4px 18px rgba(58,107,69,.45);touch-action:manipulation;display:block;line-height:1.4}
 .adv-fixed button:active{transform:scale(.97);filter:brightness(.9)}
 /* scroll anchor */
@@ -10504,6 +10504,7 @@ function showFollowUpModal(f){
     <button class="btn btn-gr" style="width:100%;margin-top:16px;padding:12px" onclick="closeFollowUp()">閉じる</button>
   `;
   document.getElementById('event-modal').style.display = 'flex';
+  _updateAdvFixed();
   G.activeEvent = { _followUp: true, _followUpEffects: f.effects || null,
     _followUpData: { charTarget: f.charTarget || null, charNoteText: f.charNoteText || null } };
 }
@@ -12272,6 +12273,7 @@ function showMainStoryChapter(chId, replayMode){
     sceneIdx++;
     if(sceneIdx >= total){
       document.getElementById('_ms-modal').style.display = 'none';
+      _updateAdvFixed();
       if(!replayMode){
         ensureMainStoryState();
         if(!G.mainStory.completedChapters.includes(chId)){
@@ -12292,10 +12294,11 @@ function showMainStoryChapter(chId, replayMode){
     el = document.createElement('div');
     el.id = '_ms-modal';
     el.className = 'ms-modal';
-    el.onclick = e => { if(e.target === el) el.style.display='none'; };
+    el.onclick = e => { if(e.target === el){ el.style.display='none'; _updateAdvFixed(); } };
     document.body.appendChild(el);
   }
   el.style.display = 'flex';
+  _updateAdvFixed();
   buildModal();
 }
 
@@ -13360,15 +13363,35 @@ function renderTab(){
     _html += `<div style="padding:10px 0 20px"><button onclick="setTab('home')" style="width:100%;padding:12px;background:var(--warm);border:1.5px solid #DDD0B0;border-radius:12px;font-size:13px;font-weight:700;cursor:pointer;color:var(--gr3)">← ホームへ戻る</button></div>`;
   }
   m.innerHTML=_html;
-  // 固定「明日へ進む」ボタン
-  let _advFixed = document.getElementById('_adv-fixed');
-  if(G.tab === 'home'){
-    if(!_advFixed){ _advFixed = document.createElement('div'); _advFixed.id='_adv-fixed'; _advFixed.className='adv-fixed'; document.body.appendChild(_advFixed); }
-    const _apNote = (G.ap||0) <= 25 ? `<div style="font-size:10px;font-weight:400;opacity:.85;margin-top:2px">APを残して経営を進めましょう</div>` : '';
-    _advFixed.innerHTML = `<button onclick="advanceDay()">🌿 明日へ進む　<span style="font-size:11px;font-weight:400;opacity:.85">${getNextDayLabel()}へ</span>${_apNote}</button>`;
-  } else {
-    if(_advFixed) _advFixed.innerHTML = '';
+  _updateAdvFixed();
+}
+
+function _isModalOpen(){
+  if(G.activeEvent || G.isAdvancingDay || G.processingMonthly) return true;
+  const IDS = ['event-modal','tut-modal','action-modal','apLowWarningModal',
+    'goen-modal','tutOpenStoreComplete','tutRecruitComplete','_ms-modal'];
+  return IDS.some(id => { const e=document.getElementById(id); return e && e.style.display==='flex'; });
+}
+
+function _updateAdvFixed(){
+  let el = document.getElementById('_adv-fixed');
+  if(G.tab !== 'home' || !G.started){
+    if(el) el.style.display = 'none';
+    return;
   }
+  if(!el){
+    el = document.createElement('div');
+    el.id = '_adv-fixed';
+    el.className = 'adv-fixed';
+    document.body.appendChild(el);
+    const _apNote2 = (G.ap||0) <= 25 ? `<div style="font-size:10px;font-weight:400;opacity:.85;margin-top:2px">APを残して経営を進めましょう</div>` : '';
+    el.innerHTML = `<button onclick="advanceDay()">🌿 明日へ進む　<span style="font-size:11px;font-weight:400;opacity:.85">${getNextDayLabel()}へ</span>${_apNote2}</button>`;
+  } else {
+    // 内容更新（ラベルが変わる場合）
+    const _apNote2 = (G.ap||0) <= 25 ? `<div style="font-size:10px;font-weight:400;opacity:.85;margin-top:2px">APを残して経営を進めましょう</div>` : '';
+    el.innerHTML = `<button onclick="advanceDay()">🌿 明日へ進む　<span style="font-size:11px;font-weight:400;opacity:.85">${getNextDayLabel()}へ</span>${_apNote2}</button>`;
+  }
+  el.style.display = _isModalOpen() ? 'none' : '';
 }
 
 // ─────────── 未来予告システム ───────────────────────────────────
@@ -16599,7 +16622,7 @@ window.addEventListener('visibilitychange', ()=>{
 <script>
 if(/[?&](qa|debug)=1/.test(location.search)){
   var _qaScript=document.createElement('script');
-  _qaScript.src='maikon-qa.js?v=20260805-v11c2-first-flow-hotfix';
+  _qaScript.src='maikon-qa.js?v=20260805-v11d2-fixed-button-modal-guard';
   document.head.appendChild(_qaScript);
 }
 </script>
