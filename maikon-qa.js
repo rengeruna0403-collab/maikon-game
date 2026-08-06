@@ -3,9 +3,9 @@
  * ?qa=1 または ?debug=1 の場合のみ動作
  * ゲーム本体への影響なし・読み取り専用（Phase 2Aは1日テスト後に必ず復元）
  */
-window._MAIKON_QA_VERSION = '2026-08-05-v11h-store-product-status-copy';
+window._MAIKON_QA_VERSION = '2026-08-05-v11i-inherited-shop-world-setting';
 console.log('[MAIKON-QA] loaded version:', window._MAIKON_QA_VERSION);
-console.log('[QA FILE LOADED] v11h-store-product-status-copy-20260805');
+console.log('[QA FILE LOADED] v11i-inherited-shop-world-setting-20260805');
 
 // ゲーム内1年は360日（30日×12月）
 const GAME_DAYS_PER_YEAR = 360;

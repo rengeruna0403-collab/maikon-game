@@ -12047,15 +12047,15 @@ function renderPostMenuGrowthCard(si){
 const MAIN_STORY_CHAPTERS = [
   {
     id: 'chapter_1', chapter: 1, title: '舞昆って何？',
-    subtitle: '知らないところから始まる物語',
+    subtitle: '引き継いだけれど、知らないことが多い',
     status: 'implemented',
     unlock: { all: [
       { type: 'tutDone' },
       { type: 'menuSet' }
     ]},
     scenes: [
-      { speaker: 'あなた', text: 'ようやく店が動き始めた。\nお客様が来て、舞昆がお客様の手に渡っていく。\nそれだけで、少し胸が温かくなった。' },
-      { speaker: 'あなた', text: 'ところで——\n舞昆って、どんなものなんだろう。\n「昆布の佃煮」とは聞いたけれど、それだけじゃない気がしてきた。' },
+      { speaker: 'あなた', text: 'お客様が舞昆を手にとって、そのまま帰っていく。\n祖父が長年続けてきた光景が、また動き始めた。\nそれだけで、少し胸が温かくなった。' },
+      { speaker: 'あなた', text: 'ところで——\n舞昆って、どんなものなんだろう。\n子どもの頃から身近にあったけれど、改めて聞かれると答えられない。' },
       { speaker: '成田（銀行員）', text: 'いい質問ですね。\n商品を売るより先に、まずお客様の反応を見てみてください。\nそこに答えがありますよ。' },
       { speaker: 'ナレーション', text: 'その日の午後、一人のお客様が舞昆をお買い上げになった。\n「これ、ごはんと一緒に食べるのが好きでね。\n毎日の食卓に欠かせないんですよ」' },
       { speaker: 'あなた', text: '商品を売るだけじゃなくて、\n誰かの食卓へ届ける仕事なんだ。\n——そう気がついた気がした。' },
@@ -12110,7 +12110,7 @@ function _evalMainStoryUnlock(){
 
 const MAIN_STORY_GROWTH_STAGES = [
   { id:'beforeChapter1', icon:'🌱', title:'駆け出し経営者',
-    description:'お店を始めたばかりです。\nまずは舞昆とお客様のことを知っていきましょう。' },
+    description:'祖父から引き継いだばかりです。\nまずは舞昆とお客様のことを知っていきましょう。' },
   { id:'afterChapter1', icon:'🌿', title:'舞昆を知り始めた経営者',
     description:'舞昆を売るだけでなく、\nお客様の食卓へ届ける仕事だと気づきました。' }
 ];
@@ -13666,7 +13666,7 @@ function _checkApLowWarning(){
 
 // ─────────── 今週の経営目標 (v1.1e) ───────────
 const WEEKLY_GOALS = [
-  { id:'open_store',    icon:'🏪', label:'舞昆茶屋を開店する',
+  { id:'open_store',    icon:'🏪', label:'舞昆茶屋を再開する',
     cur:()=> (G.stores[0]?.isOpen?1:0), target:1, unit:'回',
     done:()=> !!G.stores[0]?.isOpen, storyLink:false },
   { id:'first_menu',   icon:'🍱', label:'最初のメニューを追加する',
@@ -13822,7 +13822,7 @@ function renderTodayAction(){
 
   // 優先1: 店舗が閉店中
   if(store && !store.isOpen){
-    actions.push({ icon:'🏪', label:'舞昆茶屋を開店する', desc:'お店がまだ閉まっています',
+    actions.push({ icon:'🏪', label:'舞昆茶屋を再開する', desc:'お店がまだ閉まっています',
       onclick:"setTab('store');setTimeout(()=>{document.getElementById('store-reopen-anchor')?.scrollIntoView({behavior:'smooth',block:'center'})},200)" });
   }
   // 優先2: 店舗は開いているがメニュー未設定
@@ -13981,7 +13981,7 @@ function renderInitialSetupCard(){
   const p = getInitialSetupProgress();
   if(!p || p.done) return '';
   const steps = [
-    { label:'舞昆茶屋を開店する',    done:p.step1, onclick:"setTab('store')", hint:'お店を開いて営業の準備を始めましょう' },
+    { label:'舞昆茶屋を再開する',    done:p.step1, onclick:"setTab('store')", hint:'祖父が閉めていたお店を再び開きましょう' },
     { label:'最初のメニューを設定する', done:p.step2, onclick:"setTab('store')", hint:'メニューを1品追加するとお客様が来られます' },
     { label:'空室募集を開始する',     done:p.step3, onclick:"setTab('apt')",   hint:'入居者を募集して家賃収入を始めましょう' },
   ];
@@ -16731,7 +16731,7 @@ window.addEventListener('visibilitychange', ()=>{
 <script>
 if(/[?&](qa|debug)=1/.test(location.search)){
   var _qaScript=document.createElement('script');
-  _qaScript.src='maikon-qa.js?v=20260805-v11h-store-product-status-copy';
+  _qaScript.src='maikon-qa.js?v=20260805-v11i-inherited-shop-world-setting';
   document.head.appendChild(_qaScript);
 }
 </script>
