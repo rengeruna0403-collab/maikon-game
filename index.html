@@ -12099,7 +12099,35 @@ const MAIN_STORY_CHAPTERS = [
     ],
     learningTheme: '舞昆への最初の興味', reward: null
   },
-  { id:'chapter_2', chapter:2, title:'一杯のごはんから', subtitle:'', status:'planned', unlock:{}, scenes:[], learningTheme:'ごはんと食卓', reward:null },
+  {
+    id: 'chapter_2', chapter: 2, title: '祖父が残したご縁',
+    subtitle: '数字の向こうに、人がいる',
+    status: 'implemented',
+    unlock: {
+      all: [
+        { type: 'storyCompleted', chapterId: 'chapter_1' },
+        { type: 'tutDone' }
+      ],
+      any: [
+        { type: 'regularCustomersAtLeast', value: 5 },
+        { type: 'totalRevenueAtLeast', value: 300000 }
+      ]
+    },
+    scenes: [
+      { speaker: 'ナレーション', text: '店の奥を片づけていると、\n棚の隙間から古い帳面が出てきた。\n\n表紙には、\n祖父の字で「ご注文控え」と書かれている。' },
+      { speaker: 'あなた', text: '注文の数だけが\n書かれているわけじゃない。\n\n名前の横に、\n小さなメモが残っている。' },
+      { speaker: 'ナレーション', text: '「黒舞昆をいつもの数」\n「娘さんが帰省する頃に」\n「固いものは少なめに」\n\n商品の記録というよりも、\nまるで、その人のことを覚えておくための\nメモのようだった。' },
+      { speaker: 'お客様', text: 'この店がまた開いて、\n本当によかった。\n\nおじいさんは、\n私が何を買うかだけじゃなくて、\n家族のことまで覚えてくれていたの。' },
+      { speaker: 'あなた', text: '自分に、\n祖父と同じことができるだろうか。\n\n商品も、お客様のことも、\nまだ知らないことばかりだ。' },
+      { speaker: '成田（銀行員）', text: '同じやり方をする必要はありません。\n\nまずは、\n目の前のお客様が何を望んでいるか、\n少しずつ知っていけばいいと思います。' },
+      { speaker: 'あなた', text: '常連客という数字の向こうに、\n一人ひとりの暮らしがある。\n\n祖父が残したのは、\n売上だけじゃなかったんだ。' },
+      { speaker: 'あなた', text: 'まずは、\nもっとお客様のことを知ろう。\n\nまた来たいと思ってもらえる店を、\n自分なりにつくっていこう。',
+        isLast: true,
+        nextGoal: '常連客を10人にする、\nまたはお店の安定した売上をつくりましょう。'
+      }
+    ],
+    learningTheme: '常連客とご縁', reward: null
+  },
   { id:'chapter_3', chapter:3, title:'味をつくる人たち', subtitle:'', status:'planned', unlock:{}, scenes:[], learningTheme:'素材と製造', reward:null },
   { id:'chapter_4', chapter:4, title:'贈る気持ち', subtitle:'', status:'planned', unlock:{}, scenes:[], learningTheme:'贈り物とご縁', reward:null },
   { id:'chapter_5', chapter:5, title:'人に任せるということ', subtitle:'', status:'planned', unlock:{}, scenes:[], learningTheme:'育てる・任せる', reward:null },
@@ -12126,11 +12154,10 @@ function _evalMainStoryUnlock(){
     const cond = ch.unlock || {};
     let ok = true;
     if(cond.all){
-      ok = cond.all.every(c => {
-        if(c.type === 'tutDone') return G.tut && G.tut.phase === 'done';
-        if(c.type === 'menuSet') return G.stores && G.stores.length > 0 && G.stores[0].menu && G.stores[0].menu.length > 0;
-        return false;
-      });
+      ok = cond.all.every(c => _evalChapterUnlockCond(c));
+    }
+    if(ok && cond.any){
+      ok = cond.any.some(c => _evalChapterUnlockCond(c));
     }
     if(ok){
       G.mainStory.unlockedChapters.push(ch.id);
@@ -12141,22 +12168,64 @@ function _evalMainStoryUnlock(){
   });
 }
 
+function _evalChapterUnlockCond(c){
+  if(c.type === 'tutDone') return G.tut && G.tut.phase === 'done';
+  if(c.type === 'menuSet') return G.stores && G.stores.length > 0 && G.stores[0].menu && G.stores[0].menu.length > 0;
+  if(c.type === 'storyCompleted') return G.mainStory && G.mainStory.completedChapters && G.mainStory.completedChapters.includes(c.chapterId);
+  if(c.type === 'regularCustomersAtLeast'){
+    const regs = (G.stores || []).reduce((sum, s) => sum + (s.regulars || 0), 0);
+    return regs >= c.value;
+  }
+  if(c.type === 'totalRevenueAtLeast') return (G.totalRevenue || 0) >= c.value;
+  return false;
+}
+
 const MAIN_STORY_GROWTH_STAGES = [
   { id:'beforeChapter1', icon:'🌱', title:'駆け出し経営者',
     description:'祖父から引き継いだばかりです。\nまずは舞昆とお客様のことを知っていきましょう。' },
   { id:'afterChapter1', icon:'🌿', title:'舞昆を知り始めた経営者',
-    description:'舞昆を売るだけでなく、\nお客様の食卓へ届ける仕事だと気づきました。' }
+    description:'舞昆を売るだけでなく、\nお客様の食卓へ届ける仕事だと気づきました。' },
+  { id:'afterChapter2', icon:'🌿', title:'ご縁を見つめ始めた経営者',
+    description:'売上や常連数の向こうに、\n一人ひとりのお客様がいることに気づきました。' }
 ];
 
 function getMainStoryGrowthStage(){
   ensureMainStoryState();
-  return G.mainStory.completedChapters.includes('chapter_1')
-    ? MAIN_STORY_GROWTH_STAGES[1] : MAIN_STORY_GROWTH_STAGES[0];
+  const completed = G.mainStory.completedChapters;
+  if(completed.includes('chapter_2')) return MAIN_STORY_GROWTH_STAGES[2];
+  if(completed.includes('chapter_1')) return MAIN_STORY_GROWTH_STAGES[1];
+  return MAIN_STORY_GROWTH_STAGES[0];
 }
 
 function getMainStoryProgressMetrics(){
-  const resolvedCases = (G.cases||[]).filter(c=>c.resolved).length;
+  ensureMainStoryState();
+  const completed = G.mainStory.completedChapters;
   const totalRev = G.totalRevenue || 0;
+  const totalRegs = (G.stores || []).reduce((sum, s) => sum + (s.regulars || 0), 0);
+
+  // 第2章未解放・第1章完了済み → 第2章解放条件を表示
+  if(completed.includes('chapter_1') && !completed.includes('chapter_2')){
+    return [
+      { label:'常連客', value:totalRegs, target:5, unit:'人', isMoney:false,
+        note:'何度も来てくれるお客様が増えると、\n次の物語が開きます。' },
+      { label:'累計売上', value:totalRev, target:300000, unit:'円', isMoney:true,
+        note:'どちらかの目安を達成すると、\n次の物語が開きます。' },
+    ];
+  }
+
+  // 第2章完了済み → 第3章への目安（準備中メッセージ）
+  if(completed.includes('chapter_2')){
+    const resolvedCases = (G.cases||[]).filter(c=>c.resolved).length;
+    return [
+      { label:'月間売上の安定', value:totalRev, target:1000000, unit:'円', isMoney:true,
+        note:'お店を安定させながら、\n次の物語を待ちましょう。' },
+      { label:'お客様とのご縁', value:resolvedCases, target:10, unit:'件', isMoney:false,
+        note:'相談に向き合うことで、\nお店への理解が深まります。' },
+    ];
+  }
+
+  // デフォルト（第1章未完了）
+  const resolvedCases = (G.cases||[]).filter(c=>c.resolved).length;
   return [
     { label:'お客様とのご縁', value:resolvedCases, target:10, unit:'件', isMoney:false,
       note:'相談に向き合うことで、\n舞昆がどんな場面で喜ばれるか分かってきます。' },
@@ -12173,6 +12242,16 @@ function _checkMainStoryMilestones(){
     G.mainStory.milestonesShown.push('cases_5');
     setTimeout(()=> notify('✨ 主人公が一歩成長しました\nお客様とのご縁が増え、舞昆への理解が深まっています。', 'gold'), 300);
   }
+  // 第2章解放条件チェック（通知）
+  if(G.mainStory.completedChapters.includes('chapter_1') &&
+     !G.mainStory.unlockedChapters.includes('chapter_2') &&
+     !G.mainStory.milestonesShown.includes('ch2_unlock_notified')){
+    _evalMainStoryUnlock();
+    if(G.mainStory.unlockedChapters.includes('chapter_2')){
+      G.mainStory.milestonesShown.push('ch2_unlock_notified');
+      setTimeout(()=> notify('📖 新しい物語が開きました\n第2章「祖父が残したご縁」', 'gold'), 500);
+    }
+  }
 }
 
 function _renderMsGrowthStageBlock(){
@@ -12185,10 +12264,15 @@ function _renderMsGrowthStageBlock(){
 }
 
 function _renderMsAchievementsBlock(){
+  ensureMainStoryState();
+  const completed = G.mainStory.completedChapters;
+  const totalRegs = (G.stores || []).reduce((sum, s) => sum + (s.regulars || 0), 0);
   const items = [
     '✓ お店を開店した',
     (G.stores && G.stores[0] && G.stores[0].menu && G.stores[0].menu.length > 0) ? '✓ 最初のメニューを用意した' : null,
-    '✓ 舞昆をお客様へ届け始めた'
+    '✓ 舞昆をお客様へ届け始めた',
+    completed.includes('chapter_2') ? '✓ 常連客とのご縁に気づき始めた' : null,
+    (completed.includes('chapter_2') && totalRegs >= 10) ? '✓ 常連客が10人を超えた' : null,
   ].filter(Boolean);
   return `<div style="margin-top:8px">
     <div style="font-size:10px;color:var(--muted);font-weight:700;margin-bottom:4px">ここまでできたこと</div>
@@ -12214,9 +12298,15 @@ function _renderMsProgressBlock(){
       <div style="font-size:10px;color:var(--muted);margin-top:3px;line-height:1.7;white-space:pre-line">${m.note}</div>
     </div>`;
   }).join('');
+  ensureMainStoryState();
+  const _completedNow = G.mainStory.completedChapters;
+  const _isAwaitingCh2 = _completedNow.includes('chapter_1') && !_completedNow.includes('chapter_2');
+  const _progressNote = _isAwaitingCh2
+    ? '常連客5人、または累計売上30万円で\n次の物語が開きます。どちらか達成で解放。'
+    : 'お客様とのご縁を増やし、\nお店を少しずつ成長させましょう。';
   return `<div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border)">
     <div style="font-size:10px;color:var(--muted);font-weight:700;margin-bottom:6px">次の物語へ向けた目安</div>
-    <div style="font-size:11px;color:var(--text);line-height:1.7;margin-bottom:8px">お客様とのご縁を増やし、\nお店を少しずつ成長させましょう。</div>
+    <div style="font-size:11px;color:var(--text);line-height:1.7;margin-bottom:8px;white-space:pre-line">${_progressNote}</div>
     ${rows}
   </div>`;
 }
@@ -12224,49 +12314,102 @@ function _renderMsProgressBlock(){
 function renderMainStoryCard(){
   ensureMainStoryState();
   _evalMainStoryUnlock();
-  const ch1 = MAIN_STORY_CHAPTERS[0];
-  const completed = G.mainStory.completedChapters.includes('chapter_1');
-  const unlocked = G.mainStory.unlockedChapters.includes('chapter_1');
 
-  if(!unlocked) return '';
+  const completedIds = G.mainStory.completedChapters;
+  const unlockedIds  = G.mainStory.unlockedChapters;
 
-  if(completed){
-    const _msOpen = !!G._msDetailOpen;
-    if(!_msOpen){
-      const _stage = getMainStoryGrowthStage();
-      return `<div class="ms-card">
-        <div style="display:flex;justify-content:space-between;align-items:center">
-          <div>
-            <div style="font-size:10px;color:var(--muted);font-weight:700;margin-bottom:2px">📖 ${ch1.chapter}章　${ch1.title} <span style="opacity:.7">✅ 完了</span></div>
-            <div style="font-size:13px;font-weight:700;color:var(--gr3)">${_stage.icon} ${_stage.title}</div>
-          </div>
-          <button onclick="G._msDetailOpen=true;renderTab()" style="flex-shrink:0;font-size:11px;color:var(--gr);background:none;border:1px solid var(--gr);border-radius:8px;padding:3px 8px;cursor:pointer;margin-left:8px">詳細 ▼</button>
-        </div>
-      </div>`;
-    }
+  // 未解放なら非表示
+  if(unlockedIds.length === 0) return '';
+
+  // 次に読む章（未完了の最初の解放済み章）
+  const pendingCh = MAIN_STORY_CHAPTERS.find(
+    ch => unlockedIds.includes(ch.id) && !completedIds.includes(ch.id) && ch.scenes && ch.scenes.length > 0
+  );
+
+  // 第2章が解放されていて未完了 → 大きなカード
+  if(pendingCh && pendingCh.id === 'chapter_2'){
     return `<div class="ms-card">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-        <div class="ms-card-ttl" style="margin-bottom:0">📖 メインストーリー</div>
-        <button onclick="G._msDetailOpen=false;renderTab()" style="flex-shrink:0;font-size:11px;color:var(--muted);background:none;border:1px solid var(--border);border-radius:8px;padding:3px 8px;cursor:pointer">▲ 閉じる</button>
-      </div>
-      <div class="ms-card-ch">${ch1.chapter}章　${ch1.title} <span style="font-size:10px;color:var(--muted)">✅ 完了</span></div>
+      <div class="ms-card-ttl">📖 新しい物語が開きました</div>
+      <div class="ms-card-ch">${pendingCh.chapter}章　${pendingCh.title}</div>
+      <div class="ms-card-sub">${pendingCh.subtitle}</div>
+      <div style="font-size:12px;color:var(--text);line-height:1.9;margin:8px 0;white-space:pre-line">店の奥から、\n祖父が使っていた古い帳面が見つかりました。</div>
       ${_renderMsGrowthStageBlock()}
-      ${_renderMsAchievementsBlock()}
-      ${_renderMsProgressBlock()}
-      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
-        <button onclick="showMainStoryChapter('chapter_1',true)" style="padding:6px 12px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;font-size:11px;cursor:pointer;color:var(--text)">これまでの物語を読む</button>
-        <button onclick="scrollToIncomingSection()" style="padding:6px 12px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;font-size:11px;cursor:pointer;color:var(--text)">今できることを見る</button>
-      </div>
-      <div style="font-size:10px;color:var(--muted);margin-top:8px">次の物語を準備中</div>
+      <button onclick="showMainStoryChapter('chapter_2')" style="width:100%;padding:10px;background:var(--gr3);color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;margin-top:10px">物語を進める</button>
     </div>`;
   }
 
+  // 第1章が未完了 → 第1章カード
+  if(pendingCh && pendingCh.id === 'chapter_1'){
+    return `<div class="ms-card">
+      <div class="ms-card-ttl">📖 メインストーリー</div>
+      <div class="ms-card-ch">${pendingCh.chapter}章　${pendingCh.title}</div>
+      <div class="ms-card-sub">${pendingCh.subtitle}</div>
+      ${_renderMsGrowthStageBlock()}
+      <button onclick="showMainStoryChapter('chapter_1')" style="width:100%;padding:10px;background:var(--gr3);color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;margin-top:10px">物語を進める</button>
+    </div>`;
+  }
+
+  // 完了済み章あり → 折りたたみカード
+  const _msOpen = !!G._msDetailOpen;
+  const _stage = getMainStoryGrowthStage();
+  const lastCompleted = [...completedIds].reverse()
+    .map(id => MAIN_STORY_CHAPTERS.find(c => c.id === id))
+    .find(Boolean);
+
+  if(!_msOpen){
+    return `<div class="ms-card">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div>
+          <div style="font-size:10px;color:var(--muted);font-weight:700;margin-bottom:2px">📖 ${lastCompleted ? lastCompleted.chapter + '章　' + lastCompleted.title : 'メインストーリー'} <span style="opacity:.7">✅ 完了</span></div>
+          <div style="font-size:13px;font-weight:700;color:var(--gr3)">${_stage.icon} ${_stage.title}</div>
+        </div>
+        <button onclick="G._msDetailOpen=true;renderTab()" style="flex-shrink:0;font-size:11px;color:var(--gr);background:none;border:1px solid var(--gr);border-radius:8px;padding:3px 8px;cursor:pointer;margin-left:8px">詳細 ▼</button>
+      </div>
+    </div>`;
+  }
+
+  // 詳細展開
+  const replayBtns = completedIds
+    .map(id => MAIN_STORY_CHAPTERS.find(c => c.id === id && c.scenes && c.scenes.length > 0))
+    .filter(Boolean)
+    .map(ch => `<button onclick="showMainStoryChapter('${ch.id}',true)" style="padding:6px 12px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;font-size:11px;cursor:pointer;color:var(--text)">${ch.chapter}章を読み返す</button>`)
+    .join('');
+
+  // 第2章完了時：祖父の帳面1ページ目
+  const grandpaNoteHtml = completedIds.includes('chapter_2')
+    ? `<div style="margin-top:10px;padding:10px 14px;background:var(--warm);border:1px solid #DDD0B0;border-radius:10px">
+        <div style="font-size:10px;color:var(--muted);font-weight:700;margin-bottom:4px">📓 祖父の帳面・1ページ目</div>
+        <div style="font-size:12px;color:var(--text);line-height:1.9;font-family:'Noto Serif JP',serif">「注文の数だけを見るな。<br>また頼んでくれた理由を忘れないこと。」</div>
+        <div style="font-size:10px;color:var(--muted);margin-top:4px">ゲーム内の祖父が残した帳面</div>
+      </div>` : '';
+
+  // 次の章への伏線（第2章完了後）
+  const ch2ForeshadowHtml = completedIds.includes('chapter_2')
+    ? `<div style="font-size:11px;color:var(--muted);line-height:1.8;margin-top:8px;white-space:pre-line">帳面の最後に、\n商品を届けてくれていた人の名前が残っていた。\n\nまだ、この店について知らないことがたくさんありそうだ。</div>` : '';
+
+  const nextChapterNote = completedIds.includes('chapter_2')
+    ? '<div style="font-size:10px;color:var(--muted);margin-top:8px">次の物語を準備中</div>'
+    : '<div style="font-size:10px;color:var(--muted);margin-top:8px">次の物語を準備中</div>';
+
   return `<div class="ms-card">
-    <div class="ms-card-ttl">📖 メインストーリー</div>
-    <div class="ms-card-ch">${ch1.chapter}章　${ch1.title}</div>
-    <div class="ms-card-sub">${ch1.subtitle}</div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+      <div class="ms-card-ttl" style="margin-bottom:0">📖 メインストーリー</div>
+      <button onclick="G._msDetailOpen=false;renderTab()" style="flex-shrink:0;font-size:11px;color:var(--muted);background:none;border:1px solid var(--border);border-radius:8px;padding:3px 8px;cursor:pointer">▲ 閉じる</button>
+    </div>
+    ${completedIds.map(id => {
+      const ch = MAIN_STORY_CHAPTERS.find(c => c.id === id);
+      return ch ? `<div class="ms-card-ch">${ch.chapter}章　${ch.title} <span style="font-size:10px;color:var(--muted)">✅ 完了</span></div>` : '';
+    }).join('')}
     ${_renderMsGrowthStageBlock()}
-    <button onclick="showMainStoryChapter('chapter_1')" style="width:100%;padding:10px;background:var(--gr3);color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;margin-top:10px">物語を進める</button>
+    ${grandpaNoteHtml}
+    ${_renderMsAchievementsBlock()}
+    ${_renderMsProgressBlock()}
+    ${ch2ForeshadowHtml}
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+      ${replayBtns}
+      <button onclick="scrollToIncomingSection()" style="padding:6px 12px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;font-size:11px;cursor:pointer;color:var(--text)">今できることを見る</button>
+    </div>
+    ${nextChapterNote}
   </div>`;
 }
 
@@ -12284,10 +12427,15 @@ function showMainStoryChapter(chId, replayMode){
     const sc = ch.scenes[sceneIdx];
     const isLast = sc.isLast || sceneIdx === total - 1;
     const dots = ch.scenes.map((_,i) => `<div class="ms-dot ${i===sceneIdx?'active':''}"></div>`).join('');
+    const _learningByChapter = {
+      'chapter_1': 'あなたは、<br>舞昆を「売るもの」ではなく<br>「食卓へ届けるもの」と考え始めました。',
+      'chapter_2': '常連客を、<br>ただの人数ではなく、<br>店を選び続けてくれる一人ひとりとして<br>見るようになりました。'
+    };
+    const _learningText = _learningByChapter[chId] || '';
     const nextGoalHtml = (isLast && sc.nextGoal && !replayMode) ? `
       <div style="background:var(--warm);border:1px solid #DDD0B0;border-radius:10px;padding:12px 14px;margin-bottom:10px">
-        <div style="font-size:11px;color:var(--muted);font-weight:700;margin-bottom:4px">🌿 今回の学び</div>
-        <div style="font-size:12px;line-height:1.9;font-family:'Noto Serif JP',serif">あなたは、<br>舞昆を「売るもの」ではなく<br>「食卓へ届けるもの」と考え始めました。</div>
+        <div style="font-size:11px;color:var(--muted);font-weight:700;margin-bottom:4px">🌱 今回の学び</div>
+        <div style="font-size:12px;line-height:1.9;font-family:'Noto Serif JP',serif">${_learningText}</div>
       </div>
       <div style="background:var(--bg2);border-radius:10px;padding:12px 14px;margin-bottom:14px">
         <div style="font-size:11px;color:var(--muted);font-weight:700;margin-bottom:4px">次の物語へ向けて</div>
@@ -14103,7 +14251,9 @@ function renderTodayAction(){
   const _freeTexts = ['自由に経営しても大丈夫です。','好きなことを試してみてください。','他の判断をしても問題ありません。'];
   const _freeTxt = _freeTexts[(G.day + (G.month||1)) % _freeTexts.length];
 
-  const _storyHint = (G.mainStory?.unlockedChapters?.length > 0 && !G.mainStory?.completedChapters?.includes('chapter_1'))
+  const _storyPending = G.mainStory?.pendingChapterId ||
+    (G.mainStory?.unlockedChapters || []).find(id => !(G.mainStory?.completedChapters || []).includes(id));
+  const _storyHint = _storyPending
     ? `<div style="font-size:10px;color:var(--gr3);margin-top:3px">📖 この行動は物語にもつながります</div>` : '';
 
   const _mainHtml = `
@@ -14528,6 +14678,7 @@ function renderStore(){
         <div style="flex:1;background:#f0faf4;border-radius:8px;padding:8px;text-align:center;border:1px solid #c8e6c9">
           <div style="font-size:14px;font-weight:700;color:var(--gr3)">${s.regulars||0}人</div>
           <div style="font-size:9px;color:var(--gr3)">常連客 ★</div>
+          ${(()=>{ const _ms2done = G.mainStory && G.mainStory.completedChapters && G.mainStory.completedChapters.includes('chapter_2'); return _ms2done ? '<div style="font-size:9px;color:var(--muted);margin-top:2px;line-height:1.4">一人ひとりとの<br>ご縁が力になります</div>' : '<div style="font-size:9px;color:var(--muted);margin-top:2px;line-height:1.4">何度も店を<br>選んでくれるお客様</div>'; })()}
         </div>
         <div style="flex:1;background:var(--bg2);border-radius:8px;padding:8px;text-align:center">
           <div style="font-size:14px;font-weight:700">${totalCust}人</div>
