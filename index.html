@@ -2753,6 +2753,7 @@ function advanceDay(){
   renderTab();
   saveGame();
   setTimeout(_checkOchawanProposal, 1500);
+  setTimeout(()=>{ try { _checkMenuImpactResult(); } catch(e){ console.error('[advanceDay] menuImpact:', e); } }, 2200);
   try { _checkApLowWarning(); } catch(e){ console.error('[advanceDay] apLowWarning:', e); }
   } finally {
     // 月末処理中でない場合のみここで解除
@@ -12535,7 +12536,7 @@ function buyMenu(si,name,cost,sat,cust){
   if(G.money<cost){notify('資金不足','warn');return;}
   const apCost = getApCost(15, si);
   if(!useAP(apCost, 'メニュー企画', ()=>buyMenu(si,name,cost,sat,cust))) return;
-  const _bfMoney=G.money, _bfAp=G.ap, _bfSat=G.stores[si].satisfaction, _bfCust=G.stores[si].customers, _bfMenuCnt=G.stores[si].menu.length;
+  const _bfMoney=G.money, _bfAp=G.ap, _bfSat=G.stores[si].satisfaction, _bfCust=G.stores[si].customers, _bfMenuCnt=G.stores[si].menu.length, _bfUnitPrice=G.stores[si].unitPrice||700;
   const menuOpt = MENU_OPTIONS.find(m => m.name === name);
   const priceUp = menuOpt ? (menuOpt.priceUp || 0) : 0;
   G.money-=cost; G.stores[si].menu.push(name);
@@ -12568,8 +12569,138 @@ function buyMenu(si,name,cost,sat,cust){
     isFirst: _isFirstMenu,
     isAllDone: _isAllDone
   });
+  // 翌営業日フィードバック用ベースライン記録
+  if(!G.pendingMenuImpact || G.pendingMenuImpact.storeId !== si){
+    G.pendingMenuImpact = {
+      storeId: si,
+      menuNames: [name],
+      baseline: { customers: _bfCust, unitPrice: _bfUnitPrice, satisfaction: _bfSat, regulars: G.stores[si].regulars||0 }
+    };
+  } else {
+    if(!G.pendingMenuImpact.menuNames.includes(name)) G.pendingMenuImpact.menuNames.push(name);
+  }
   updateHeader();
 }
+// ─────────── メニュー追加翌営業日フィードバック (v1.2b) ────────────
+function _checkMenuImpactResult(){
+  if(!G.pendingMenuImpact) return;
+  if(_isModalOpen()) return; // モーダル中は保留
+  if(G.processingMonthly || G.isAdvancingDay) return;
+  const impact = G.pendingMenuImpact;
+  const s = G.stores[impact.storeId];
+  if(!s){ G.pendingMenuImpact = null; return; }
+  // 店舗が実際に営業した日のみ表示
+  if(!s.servedToday) return; // 閉店・休業中は保留
+  // 月次処理直後（月末）は翌日に回す
+  if(G._isMonthEnd) return;
+  const result = {
+    customers: s.customers || 0,
+    unitPrice: s.unitPrice || 700,
+    satisfaction: Math.round(s.satisfaction || 0),
+    regulars: s.regulars || 0
+  };
+  showMenuImpactResultCard(impact, result);
+  const menuLabel = impact.menuNames.length > 1
+    ? `新しいメニュー${impact.menuNames.length}品追加後`
+    : `「${impact.menuNames[0]}」追加後`;
+  const _revNews = Number.isFinite(G.lastDayRevenue) ? `今日の総売上¥${Math.round(G.lastDayRevenue).toLocaleString()}` : null;
+  const _custNews = Number.isFinite(result.customers) ? `来店客数${result.customers}人` : null;
+  const _priceNews = Number.isFinite(result.unitPrice) ? `客単価¥${result.unitPrice.toLocaleString()}` : null;
+  const _bl = impact.baseline;
+  const _hasBl = Number.isFinite(_bl.customers) && _bl.customers > 0;
+  const _custDiffStr = (_hasBl && Number.isFinite(result.customers))
+    ? (result.customers - _bl.customers > 0 ? `前回より客数＋${result.customers - _bl.customers}人` : result.customers - _bl.customers < 0 ? `前回より客数−${_bl.customers - result.customers}人` : null)
+    : null;
+  const _newsBody = [_custNews, _revNews, _priceNews].filter(Boolean).join('・');
+  const _newsDiff = _custDiffStr ? ` / ${_custDiffStr}` : '';
+  addNews(`🍽 ${menuLabel}の最初の営業 / ${_newsBody}${_newsDiff}`);
+  G.pendingMenuImpact = null;
+  saveGame();
+}
+
+function showMenuImpactResultCard(impact, result){
+  let wrap = document.getElementById('arf-wrap');
+  if(!wrap){ wrap=document.createElement('div'); wrap.id='arf-wrap'; wrap.className='arf-wrap'; document.body.appendChild(wrap); }
+  if(_arfTimer){ clearTimeout(_arfTimer); _arfTimer=null; }
+  const bl = impact.baseline;
+  const isMulti = impact.menuNames.length > 1;
+  const title = isMulti ? '🍽 新しいメニュー追加後の営業' : '🍽 新しいメニューで最初の営業';
+  const menuLead = isMulti
+    ? `次のメニューを加えてから、<br>最初の営業日が終わりました。`
+    : `「${impact.menuNames[0]}」を加えてから、<br>最初の営業日が終わりました。`;
+  const nameListHtml = isMulti
+    ? `<div style="margin:6px 0 2px">${impact.menuNames.map(n=>`<div style="font-size:11px;color:var(--gr3);line-height:1.8">・${n}</div>`).join('')}</div>`
+    : '';
+
+  // ── 今日のお店の実績（主役）──
+  const _safeNum = v => (Number.isFinite(v) && v >= 0) ? v : null;
+  const todayCust   = _safeNum(result.customers);
+  const todayPrice  = _safeNum(result.unitPrice);
+  const todaySat    = _safeNum(result.satisfaction);
+  const todayReg    = _safeNum(result.regulars);
+  // 売上は G.lastDayRevenue（全店舗合計）を参照
+  const todayRev    = _safeNum(typeof G !== 'undefined' && Number.isFinite(G.lastDayRevenue) ? G.lastDayRevenue : null);
+  const _tdRow = (lbl, val, fmt) => {
+    if(val === null) return '';
+    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid rgba(0,0,0,.05)"><span style="font-size:12px;color:var(--muted)">${lbl}</span><span style="font-size:13px;font-weight:700;color:var(--text)">${fmt(val)}</span></div>`;
+  };
+  const todayRows = [
+    _tdRow('来店客数',   todayCust,  v=>`${v}人`),
+    _tdRow('今日の総売上', todayRev, v=>`¥${Math.round(v).toLocaleString()}`),
+    _tdRow('客単価',     todayPrice, v=>`¥${v.toLocaleString()}`),
+    _tdRow('満足度',     todaySat,   v=>`${v}`),
+    _tdRow('常連数',     todayReg,   v=>`${v}人`),
+  ].join('');
+
+  // ── 前回との差分（補足・比較可能な場合のみ）──
+  const hasBefore = Number.isFinite(bl.customers) && bl.customers > 0;
+  let diffHtml = '';
+  if(hasBefore && todayCust !== null){
+    const _diffRow = (lbl, bef, now, fmt) => {
+      if(!Number.isFinite(bef) || !Number.isFinite(now)) return '';
+      const d = now - bef;
+      if(d === 0) return '';
+      const sign = d > 0 ? '＋' : '−';
+      const abs = Math.abs(d);
+      return `<div style="display:flex;justify-content:space-between;padding:3px 0"><span style="font-size:11px;color:var(--muted)">${lbl}</span><span style="font-size:11px;color:var(--muted)">${sign}${fmt(abs)}</span></div>`;
+    };
+    const revNow    = (todayCust !== null && todayPrice !== null) ? todayCust * todayPrice : null;
+    const revBefore = bl.customers * (bl.unitPrice || 700);
+    const diffCust = _diffRow('来店客数', bl.customers, todayCust, v=>`${v}人`);
+    const diffRev  = (revNow !== null) ? _diffRow('売上目安', revBefore, revNow, v=>`¥${Math.round(v).toLocaleString()}`) : '';
+    const diffBody = diffCust + diffRev;
+    if(diffBody){
+      const custDiff = todayCust - bl.customers;
+      const diffNote = custDiff < 0
+        ? '<div style="font-size:10px;color:var(--muted);margin-top:4px">1日だけでは判断できません。何日か営業しながら様子を見てみましょう。</div>'
+        : '';
+      diffHtml = `<div style="margin-top:10px;padding:8px 12px;background:rgba(0,0,0,.03);border-radius:8px">
+        <div style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:4px">前回の営業と比べて</div>
+        ${diffBody}${diffNote}
+      </div>`;
+    }
+  }
+
+  // ── 締め文 ──
+  const closing = !hasBefore
+    ? 'ここから、お店の反応を見ていきましょう。'
+    : '少しずつ、お店に新しい変化が出ています。';
+
+  wrap.innerHTML = `<div class="arf-card" style="pointer-events:auto;background:linear-gradient(135deg,#EEF6EE,#FAFFF8);border:2px solid var(--gr2)">
+    <div style="font-size:13px;font-weight:700;color:var(--gr3);margin-bottom:6px">${title}</div>
+    <div style="font-size:12px;color:var(--muted);line-height:1.7;margin-bottom:2px">${menuLead}</div>
+    ${nameListHtml}
+    <div style="font-size:11px;font-weight:700;color:var(--muted);margin:8px 0 2px">今日のお店</div>
+    <div style="background:rgba(255,255,255,.8);border-radius:10px;padding:6px 12px;margin-bottom:4px">${todayRows || '<div style="font-size:11px;color:var(--muted);padding:4px 0">データを取得中です</div>'}</div>
+    ${diffHtml}
+    <div style="font-size:11px;color:var(--muted);line-height:1.7;margin-top:8px">${closing}</div>
+    <div style="display:flex;gap:8px;margin-top:10px">
+      <button onclick="document.getElementById('arf-wrap').innerHTML='';setTab('store')" style="flex:1;padding:9px;background:var(--gr);color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;touch-action:manipulation">お店を見る</button>
+      <button onclick="document.getElementById('arf-wrap').innerHTML=''" style="flex:1;padding:9px;background:none;border:1.5px solid var(--border);border-radius:8px;font-size:12px;color:var(--muted);cursor:pointer;touch-action:manipulation">閉じる</button>
+    </div>
+  </div>`;
+}
+
 function doTastingEvent(si){
   const s = G.stores[si];
   if(!s.isOpen){ notify('先に店舗を開店してください','warn'); return; }
@@ -16758,7 +16889,7 @@ window.addEventListener('visibilitychange', ()=>{
 <script>
 if(/[?&](qa|debug)=1/.test(location.search)){
   var _qaScript=document.createElement('script');
-  _qaScript.src='maikon-qa.js?v=20260806-v12a-menu-reward-ap-flow';
+  _qaScript.src='maikon-qa.js?v=20260806-v12b2-menu-impact-daily-summary';
   document.head.appendChild(_qaScript);
 }
 </script>
