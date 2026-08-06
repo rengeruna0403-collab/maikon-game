@@ -3,9 +3,9 @@
  * ?qa=1 または ?debug=1 の場合のみ動作
  * ゲーム本体への影響なし・読み取り専用（Phase 2Aは1日テスト後に必ず復元）
  */
-window._MAIKON_QA_VERSION = '2026-08-05-v11i-inherited-shop-world-setting';
+window._MAIKON_QA_VERSION = '2026-08-06-v12a-menu-reward-ap-flow';
 console.log('[MAIKON-QA] loaded version:', window._MAIKON_QA_VERSION);
-console.log('[QA FILE LOADED] v11i-inherited-shop-world-setting-20260805');
+console.log('[QA FILE LOADED] v12a-menu-reward-ap-flow-20260806');
 
 // ゲーム内1年は360日（30日×12月）
 const GAME_DAYS_PER_YEAR = 360;
@@ -14841,6 +14841,81 @@ ${ar.experienceKPI ? _sim3ExperienceKpiHtml(ar.experienceKPI) : ''}
       console.groupEnd();
       console.log('[sim5Diag]', JSON.stringify(summary));
     }
+
+    // ── Section 33: v1.2a AP日次回復 回帰チェック ────────────────────
+    console.group('Section 33: v1.2a AP日次回復 回帰チェック');
+
+    // 33-1: advanceDay に AP>0 条件がないこと（AP=0でも日送り可能）
+    {
+      const src = typeof advanceDay === 'function' ? advanceDay.toString() : '';
+      // AP=0 をブロックするような条件がないか確認（"G.ap > 0" や "if(!G.ap)" 等）
+      const hasApBlock = /if\s*\(\s*(!G\.ap|G\.ap\s*<=?\s*0|G\.ap\s*<\s*1)\s*\)/.test(src);
+      !hasApBlock
+        ? pass('33-1 AP=0でも日送り可能', 'advanceDay にAP=0ブロック条件なし')
+        : fail('33-1 AP=0でも日送り可能', 'advanceDayにAP依存ブロックを検出');
+    }
+
+    // 33-2: dailyFlags で AP が apMax を超えていないこと
+    {
+      const df33 = rNew?.trials?.[0]?.dailyFlags;
+      if (!df33 || !df33.length) {
+        warn('33-2 AP≦apMax', 'dailyFlags が空（シミュレーション未実行）');
+      } else {
+        const apMax33 = (typeof G !== 'undefined' ? G.apMax : null) || 100;
+        const over = df33.filter(d => d.ap > apMax33);
+        over.length === 0
+          ? pass('33-2 AP≦apMax', `全${df33.length}日 apMax=${apMax33} 超過なし`)
+          : fail('33-2 AP≦apMax', `${over.length}日でapMax超過: max=${Math.max(...over.map(d=>d.ap))}`);
+      }
+    }
+
+    // 33-3: dailyFlags で AP が負数にならないこと
+    {
+      const df33b = rNew?.trials?.[0]?.dailyFlags;
+      if (!df33b || !df33b.length) {
+        warn('33-3 AP≧0', 'dailyFlags が空');
+      } else {
+        const neg = df33b.filter(d => d.ap < 0);
+        neg.length === 0
+          ? pass('33-3 AP≧0', `全${df33b.length}日でAPが負数にならない`)
+          : fail('33-3 AP≧0', `${neg.length}日でAP負数: min=${Math.min(...neg.map(d=>d.ap))}`);
+      }
+    }
+
+    // 33-4: dailyFlags で AP が有限値であること（NaN/Infinity でないこと）
+    {
+      const df33c = rNew?.trials?.[0]?.dailyFlags;
+      if (!df33c || !df33c.length) {
+        warn('33-4 AP有限値', 'dailyFlags が空');
+      } else {
+        const nan = df33c.filter(d => !Number.isFinite(d.ap));
+        nan.length === 0
+          ? pass('33-4 AP有限値', `全${df33c.length}日でAP=NaN/Infinityなし`)
+          : fail('33-4 AP有限値', `${nan.length}日でAP非有限値`);
+      }
+    }
+
+    // 33-5: 日次回復が+5固定であること（advanceDay ソースで確認）
+    {
+      const src = typeof advanceDay === 'function' ? advanceDay.toString() : '';
+      const hasDaily5 = /G\.ap\s*\+\s*5/.test(src) || /\+\s*5[\s\S]{0,20}apMax/.test(src);
+      hasDaily5
+        ? pass('33-5 AP日次回復+5仕様確認', 'advanceDayソースにAP+5パターンあり')
+        : warn('33-5 AP日次回復+5仕様確認', 'advanceDayソースで+5パターン未検出（難読化の可能性）');
+    }
+
+    // 33-6: 月次回復で AP が apMax になること（monthlyTick ソース確認）
+    {
+      const src = typeof monthlyTick === 'function' ? monthlyTick.toString()
+                : typeof _monthlyTick === 'function' ? _monthlyTick.toString() : '';
+      // G.ap = G.apMax パターンを確認
+      const hasMonthlyFull = /G\.ap\s*=\s*G\.apMax/.test(src);
+      hasMonthlyFull
+        ? pass('33-6 月次AP満タン回復維持', 'G.ap=G.apMaxパターン確認')
+        : warn('33-6 月次AP満タン回復維持', '月次回復パターン未検出（実装変更の可能性）');
+    }
+
+    console.groupEnd();
 
     // ── 総合判定 ──────────────────────────────────────────────────
     const nPass = results.filter(r=>r.st==='PASS').length;

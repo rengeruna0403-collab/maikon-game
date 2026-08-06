@@ -994,6 +994,33 @@ function addNews(msg){
 
 // ─────────── 行動結果フィードバック (v1.0g) ───────────
 let _arfTimer = null;
+
+// ─────────── メニュー完成専用カード (v1.2a) ───────────
+function showMenuSuccessCard({ name, si, menuBefore, custDiff, satDiff, isFirst, isAllDone }){
+  let wrap = document.getElementById('arf-wrap');
+  if(!wrap){ wrap=document.createElement('div'); wrap.id='arf-wrap'; wrap.className='arf-wrap'; document.body.appendChild(wrap); }
+  if(_arfTimer){ clearTimeout(_arfTimer); _arfTimer=null; }
+  const storeName = G.stores[si] ? G.stores[si].name : '舞昆茶屋';
+  const menuAfter = G.stores[si] ? G.stores[si].menu.length : menuBefore + 1;
+  const diffs = [`<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(0,0,0,.06)"><span style="font-size:12px;color:var(--muted)">メニュー数</span><span style="font-size:12px;font-weight:700;color:var(--gr3)">${menuBefore} → ${menuAfter}</span></div>`];
+  if(custDiff > 0) diffs.push(`<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(0,0,0,.06)"><span style="font-size:12px;color:var(--muted)">来店客数</span><span style="font-size:12px;font-weight:700;color:var(--gr3)">+${custDiff}人/日</span></div>`);
+  if(satDiff > 0) diffs.push(`<div style="display:flex;justify-content:space-between;padding:5px 0"><span style="font-size:12px;color:var(--muted)">満足度</span><span style="font-size:12px;font-weight:700;color:var(--gr3)">+${satDiff}</span></div>`);
+  const diffsHtml = `<div style="background:rgba(255,255,255,.75);border-radius:10px;padding:8px 12px;margin:10px 0">${diffs.join('')}</div>`;
+  const timingHtml = `<div style="font-size:11px;color:var(--muted);text-align:center;margin-top:6px">🕒 次の営業日から効果が反映されます</div>`;
+  let titleHtml, btnsHtml;
+  if(isAllDone){
+    titleHtml = `<div style="text-align:center;padding-top:4px"><div style="font-size:28px;margin-bottom:8px">🎊</div><div style="font-size:15px;font-weight:700;color:var(--gr3);font-family:'Noto Serif JP',serif;margin-bottom:6px">メニューがすべてそろいました！</div><div style="font-size:12px;color:var(--muted);line-height:1.7">舞昆茶屋のイートインメニューが完成しました。<br>次はスタッフ育成・店舗改装・地域とのご縁など、<br>次のお店づくりへ進められます。</div></div>`;
+    btnsHtml = `<div style="display:flex;flex-direction:column;gap:8px;margin-top:12px"><button onclick="document.getElementById('arf-wrap').innerHTML='';setTab('home');setTimeout(()=>document.getElementById('post-menu-growth-card')?.scrollIntoView({behavior:'smooth',block:'center'}),150)" style="width:100%;padding:10px;background:var(--gr);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;touch-action:manipulation">次の成長を見る →</button><button onclick="document.getElementById('arf-wrap').innerHTML=''" style="width:100%;padding:8px;background:none;border:1px solid var(--border);border-radius:8px;font-size:12px;color:var(--muted);cursor:pointer;touch-action:manipulation">閉じる</button></div>`;
+  } else if(isFirst){
+    titleHtml = `<div style="text-align:center;padding-top:4px"><div style="font-size:28px;margin-bottom:8px">🎉</div><div style="font-size:15px;font-weight:700;color:var(--gr3);font-family:'Noto Serif JP',serif;margin-bottom:4px">最初のメニューが完成しました！</div><div style="font-size:12px;color:var(--muted);margin-bottom:2px">「${name}」が${storeName}のメニューに加わりました。</div></div>`;
+    btnsHtml = `<div style="margin-top:12px"><button onclick="document.getElementById('arf-wrap').innerHTML='';setTab('home')" style="width:100%;padding:10px;background:var(--gr);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;touch-action:manipulation">ホームへ戻って次の準備へ →</button></div>`;
+  } else {
+    titleHtml = `<div style="padding-top:4px"><div style="font-size:24px;margin-bottom:6px">🎉</div><div style="font-size:14px;font-weight:700;color:var(--gr3);font-family:'Noto Serif JP',serif;margin-bottom:4px">新メニュー完成！</div><div style="font-size:12px;color:var(--muted)">「${name}」が${storeName}のメニューに加わりました。</div></div>`;
+    btnsHtml = `<div style="display:flex;gap:8px;margin-top:12px"><button onclick="document.getElementById('arf-wrap').innerHTML='';setTab('store')" style="flex:1;padding:9px;background:var(--gr);color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;touch-action:manipulation">お店の変化を見る</button><button onclick="document.getElementById('arf-wrap').innerHTML='';setTab('home')" style="flex:1;padding:9px;background:none;border:1.5px solid var(--gr);border-radius:8px;font-size:12px;font-weight:700;color:var(--gr3);cursor:pointer;touch-action:manipulation">ホームへ戻る</button></div>`;
+  }
+  wrap.innerHTML = `<div class="arf-card" style="pointer-events:auto;background:linear-gradient(135deg,#EEF6EE,#FAFFF8);border:2px solid var(--gr2)">${titleHtml}${diffsHtml}${isAllDone?'':timingHtml}${btnsHtml}</div>`;
+}
+
 function showActionResultFeedback({ title, changes=[], timing='', storyHint=false, homeBtn=false }){
   let wrap = document.getElementById('arf-wrap');
   if(!wrap){ wrap=document.createElement('div'); wrap.id='arf-wrap'; wrap.className='arf-wrap'; document.body.appendChild(wrap); }
@@ -1050,7 +1077,7 @@ function getApCost(baseCost, storeIdx){
 function useAP(cost, label, _unused){
   if(cost <= 0){ return true; }
   if(G.ap < cost){
-    notify(`🍚 APが足りないため\n今週はこの案件に対応できません。\n\nAPは来週回復します。（AP残 ${G.ap}）`, 'warn');
+    notify(`🍚 APが足りないため対応できません。\n\nAPは毎日+5回復します。（AP残 ${G.ap}）`, 'warn');
     return false;
   }
   G.ap = Math.max(0, G.ap - cost);
@@ -2518,6 +2545,7 @@ function advanceDay(){
   playSfx('day');
   G.tut._day1HintDone = true; // 初日ヒントは翌日へ進むと同時に消す
   _dismissedToday.clear(); // 新しい日 = おすすめをリセット
+  _menuAddedToday = new Set(); // 当日追加メニューNEW表示をリセット
   _seekingStartedToday = false;
   console.log('[advanceDay] start day=' + G.day + ' month=' + G.month + ' year=' + G.year + ' G.activeEvent=' + JSON.stringify(G.activeEvent&&(G.activeEvent.id||G.activeEvent)) + ' advancing=' + G.isAdvancingDay + ' monthly=' + G.processingMonthly);
   // ① 同期的二重実行防止
@@ -2560,13 +2588,16 @@ function advanceDay(){
     else { s.servedToday = false; }
   });
 
-  // AP週次回復（7日ごとに+50、上限まで）
+  // AP日次回復（+5/日・週総量35≈旧週30。月末は monthlyTick で満タン回復）
+  {
+    const _apBef = G.ap;
+    G.ap = Math.min(G.apMax, G.ap + 5);
+    if(G.ap > _apBef) notify(`🌿 AP +${G.ap - _apBef} 回復しました（残 ${G.ap}）`);
+  }
+  // 週次: 疲労チェック（AP回復は日次へ移行済み）
   const totalDaysNow2 = (G.year-1)*360 + (G.month-1)*30 + G.day;
   if(totalDaysNow2 > 0 && totalDaysNow2 % 7 === 0){
     checkFatiguePenalty();
-    const before = G.ap;
-    G.ap = Math.min(G.apMax, G.ap + 30);
-    if(G.ap > before) notify(`🧠 週次AP回復 +${G.ap - before}（残 ${G.ap}）`);
   }
 
   // 臨時休業ペナルティ
@@ -10604,7 +10635,7 @@ function showEventModal(ev){
     <div style="background:${canUseFatigue?'#FFF3E0':'#FFEBEE'};border-radius:8px;padding:8px 12px;margin-bottom:8px;font-size:12px;border-left:3px solid ${canUseFatigue?'var(--orange)':'#e53935'}">
       ${canUseFatigue
         ? `⚠️ AP不足（残${G.ap}／必要${apCost}）。<strong>無理して対応</strong>すると疲労が+${apShortfall}蓄積します。`
-        : `🚫 AP不足（残${G.ap}／必要${apCost}）。この案件は翌週以降に対応してください。<br><span style="color:#8D6E63;display:block;margin-top:5px;font-style:italic">🥣「今日は少し考えすぎたみたいです。明日に備えましょう」</span>`}
+        : `🚫 AP不足（残${G.ap}／必要${apCost}）。明日以降にAPが回復したら対応できます。<br><span style="color:#8D6E63;display:block;margin-top:5px;font-style:italic">🥣「今日は少し考えすぎたみたいです。明日に備えましょう」</span>`}
     </div>` : '';
 
   const body=document.getElementById('event-modal-body');
@@ -10639,7 +10670,7 @@ function showEventModal(ev){
         <button class="choice-btn" style="opacity:.4;pointer-events:none">
           <div class="choice-lbl">${c.label}</div>
           ${getChoiceImpactIcons(c)}
-          <div class="choice-eff" style="color:var(--orange);margin-top:4px">AP不足 — 来週対応</div>
+          <div class="choice-eff" style="color:var(--orange);margin-top:4px">AP不足 — 明日以降に対応</div>
         </button>` : canUseFatigue ? `
         <button class="choice-btn" onclick="chooseEvent(${i},true)" style="border-color:var(--orange)">
           <div class="choice-lbl">${c.label}</div>
@@ -12408,7 +12439,7 @@ function renderOptionalManagementSection(){
   const cards = getOptionalManagementCards();
   const ap = G.ap || 0;
   const apNote = ap < 20
-    ? `<div style="background:#FFF9C4;border-radius:8px;padding:7px 10px;margin-bottom:8px;font-size:11px;color:#7a6010;line-height:1.7">💡 APを残して日を進めるのも経営判断です（週次で+30回復します）</div>`
+    ? `<div style="background:#FFF9C4;border-radius:8px;padding:7px 10px;margin-bottom:8px;font-size:11px;color:#7a6010;line-height:1.7">💡 APを残して日を進めるのも経営判断です（毎日+5ずつ回復します）</div>`
     : '';
 
   if(cards.length === 0){
@@ -12482,10 +12513,12 @@ function openMenuModal(si){
   const _rows2 = opts.map(m=>{
     const afterM = G.money - m.cost;
     const moneyWarn = afterM < 100000;
+    const _menuAfterCnt = s.menu.length + 1;
     return `<div class="fin-row">
       <div>
         <div style="font-weight:700;font-size:13px">${m.name}</div>
-        <div style="font-size:11px;color:var(--gr)">客単価+¥${m.priceUp||0}・客数+${m.cust}/日・満足度+${m.sat}</div>
+        <div style="font-size:11px;color:var(--gr3);margin-top:2px">メニュー数　${s.menu.length} → ${_menuAfterCnt}品</div>
+        <div style="font-size:11px;color:var(--gr);margin-top:2px">来店客数+${m.cust}/日・満足度+${m.sat}・客単価+¥${m.priceUp||0}</div>
         <div style="font-size:11px;color:var(--orange)">食材費+¥3,000/日・スタッフ負担+10</div>
         <div style="font-size:11px;color:${moneyWarn?'#e53935':'var(--muted)'}">実行後：現金 ${fmt(afterM)} / AP ${G.ap - _menuApCost}</div>
       </div>
@@ -12509,6 +12542,7 @@ function buyMenu(si,name,cost,sat,cust){
   G.stores[si].menuAddedMonth = G.stores[si].menuAddedMonth || {};
   const totalMonthsNow = (G.year-1)*12 + (G.month-1);
   G.stores[si].menuAddedMonth[name] = totalMonthsNow;
+  _menuAddedToday.add(name); // 当日NEWバッジ用
   G.stores[si].satisfaction=Math.min(100,G.stores[si].satisfaction+sat);
   G.stores[si].unitPrice = (G.stores[si].unitPrice || 700) + priceUp;
   G.stores[si].newCustomers = (G.stores[si].newCustomers || G.stores[si].customers) + cust;
@@ -12523,20 +12557,17 @@ function buyMenu(si,name,cost,sat,cust){
   _dismissedToday.clear();
   tutCompleteStep('set_menu');
   if(name.includes('たもぎ茸')) tutCheckMission('menu');
-  const _storyHint = !!(G.mainStory && !G.mainStory.completedChapters?.includes('chapter_1') && G.mainStory.unlockedChapters?.length > 0);
-  const _isFirstMenu = _bfMenuCnt === 0; // 初回メニュー追加（チュートリアル状態に依存しない）
-  showActionResultFeedback({ title:_isFirstMenu?`最初のメニューを追加しました`:`「${name}」をメニューに追加しました`, homeBtn:_isFirstMenu, changes:[
-    {label:'現金', type:'money', before:_bfMoney, after:G.money},
-    {label:'AP', type:'ap', before:_bfAp, after:G.ap},
-    {label:'メニュー数', type:'count', diff:G.stores[si].menu.length-_bfMenuCnt},
-    {label:'来店客数', type:'count', diff:G.stores[si].customers-_bfCust},
-    {label:'満足度', type:'count', diff:G.stores[si].satisfaction-_bfSat},
-    {label:'食材原価/人', type:'money', diff:ingPerCustUp}
-  ], timing:'次の営業日から効果が反映されます', storyHint:_storyHint });
-  if(G.tut.phase === 'done' && _isAllMenusPurchased(si) && !G.stores[si]._menuAllPurchasedNotified){
-    G.stores[si]._menuAllPurchasedNotified = true;
-    setTimeout(()=> notify('🎉 メニューが充実しました！ 次の成長候補をホームで確認しましょう。', 'gold'), 500);
-  }
+  const _isFirstMenu = _bfMenuCnt === 0;
+  const _isAllDone = G.tut.phase === 'done' && _isAllMenusPurchased(si) && !G.stores[si]._menuAllPurchasedNotified;
+  if(_isAllDone) G.stores[si]._menuAllPurchasedNotified = true;
+  showMenuSuccessCard({
+    name, si,
+    menuBefore: _bfMenuCnt,
+    custDiff: G.stores[si].customers - _bfCust,
+    satDiff: G.stores[si].satisfaction - _bfSat,
+    isFirst: _isFirstMenu,
+    isAllDone: _isAllDone
+  });
   updateHeader();
 }
 function doTastingEvent(si){
@@ -13486,12 +13517,9 @@ function buildUpcomingEvents(){
     }
   }
 
-  // ⑦ AP週次回復（7日ごと）
-  const _apCycle = 7 - (nowDay % 7);
-  const _apDays = _apCycle === 7 ? 7 : _apCycle; // 今日が回復日なら次は7日後
-  if(G.ap < G.apMax){
-    const _apGain = Math.min(30, G.apMax - G.ap);
-    items.push({ icon:'🧠', label:`APが+${_apGain}回復します`, sub:`あと${_apDays}日`, daysLeft:_apDays, type:'ap' });
+  // ⑦ AP日次回復（毎日+5）
+  if(G.ap < G.apMax && G.ap < 40){
+    items.push({ icon:'🧠', label:`明日AP +5回復します`, sub:`現在 ${G.ap}/${G.apMax}`, daysLeft:1, type:'ap' });
   }
 
   // ⑧ 月末決算・売掛金入金
@@ -13762,10 +13790,7 @@ function renderProgressCard(){
   // --- 次の予定アイテム ---
   const schedItems = [];
   if(ap < 40){
-    const _apCycle = 7 - (nowDay % 7);
-    const _apDays = _apCycle === 7 ? 7 : _apCycle;
-    const _apGain = Math.min(30, (G.apMax||100) - ap);
-    schedItems.push({ icon:'⚡', label:`APが${_apGain}回復します`, sub:`あと${_apDays}日`, daysLeft:_apDays });
+    schedItems.push({ icon:'⚡', label:`明日AP +5回復します`, sub:`現在 ${ap}/${G.apMax||100}`, daysLeft:1 });
   }
   buildUpcomingEvents().slice(0, 3).forEach(ev => schedItems.push(ev));
   const topSched = schedItems.slice(0, 3);
@@ -13808,6 +13833,7 @@ function renderWaitingStatusCard(){ return ''; }
 
 // ─────────── 次におすすめ (v1.0f) ───────────
 let _dismissedToday = new Set();
+let _menuAddedToday = new Set(); // 当日追加メニューのNEW表示用（日送りでリセット）
 let _seekingStartedToday = false; // 当日に空室募集開始済みフラグ
 
 function dismissRecommendedAction(label){
@@ -13850,11 +13876,8 @@ function renderTodayAction(){
   // ※案件は届いていることセクションで直接表示するためここでは案内しない
   const _AP_LOW_THR = 25; // matches _checkApLowWarning
   if(ap <= _AP_LOW_THR && actions.length < 3){
-    const _nowDay2 = (G.year-1)*360 + (G.month-1)*30 + G.day;
-    const _apCycleR = 7 - (_nowDay2 % 7);
-    const _apDaysR = _apCycleR === 7 ? 7 : _apCycleR;
     actions.push({ icon:'🌿', label:'今日はAPを残して明日へ進む',
-      desc:`AP ${ap}/${G.apMax||100}・次の回復まであと${_apDaysR}日`, onclick:'advanceDay()' });
+      desc:`AP ${ap}/${G.apMax||100}・明日+5AP回復します`, onclick:'advanceDay()' });
   } else if(ap > _AP_LOW_THR && actions.length < 3){
     // 通常時: 任意行動を提案
     const _todayNum = (G.year-1)*360 + (G.month-1)*30 + G.day;
@@ -14510,38 +14533,42 @@ function renderStore(){
       </div>`;
     })()}
 
-    <div class="card" id="store-menu-anchor">
-      <div class="card-ttl">🍽️ イートインメニュー</div>
-      ${(()=>{
-        const _tdR = (G.year-1)*360 + (G.month-1)*30 + G.day;
-        // bento は別カードに表示するので除外
-        const _launchedBentoNames = (G.launchedMenus||[]).filter(m => m.isBento && !m._expired).map(m => m.name);
-        const _pendEat = (G.pendingMenuLaunches||[]).filter(p => p.type === 'eatIn' && !p.isBento);
-        const _launchedEat = (G.launchedMenus||[]).filter(m => m.type === 'eatIn' && m.seasonal && !m._expired && !m.isBento);
-        const _menuNonBento = (s.menu||[]).filter(m => !_launchedBentoNames.includes(m));
-        const _hasCurrent = _menuNonBento.length > 0;
-        if(!_hasCurrent && _pendEat.length === 0){
-          const _isOpen = s.isOpen;
-          return _isOpen
-            ? `<div style="font-size:12px;color:var(--muted);margin-bottom:10px">まだメニューがありません。まず看板商品を追加してください。</div>
-               <button class="btn btn-gr" style="width:100%;padding:12px;font-size:14px;font-weight:700" onclick="openMenuModal(${si})">
-                 🍱 メニューを追加する <span style="font-size:11px;opacity:.8;margin-left:6px">¥80,000〜</span>
-               </button>`
-            : `<div style="font-size:12px;color:var(--muted);padding:4px 0">まだメニューがありません。再開後に追加できます。</div>`;
-        }
-        const _regularTags = _menuNonBento.map(m => {
-          const _lm = _launchedEat.find(lm => lm.name === m);
-          const _daysLeft = _lm ? ((_lm.launchedDay||0) + (_lm.seasonDays||90) - _tdR) : null;
-          const _suffix = _daysLeft !== null ? `<span style="font-size:8px;opacity:.6;margin-left:3px">（残${_daysLeft}日）</span>` : '';
-          return `<span class="menu-tag">✓ ${m}${_suffix}</span>`;
+    ${(()=>{
+      const _tdR2 = (G.year-1)*360 + (G.month-1)*30 + G.day;
+      const _launchedBentoNames2 = (G.launchedMenus||[]).filter(m => m.isBento && !m._expired).map(m => m.name);
+      const _pendEat2 = (G.pendingMenuLaunches||[]).filter(p => p.type === 'eatIn' && !p.isBento);
+      const _launchedEat2 = (G.launchedMenus||[]).filter(m => m.type === 'eatIn' && m.seasonal && !m._expired && !m.isBento);
+      const _menuNonBento2 = (s.menu||[]).filter(m => !_launchedBentoNames2.includes(m));
+      const _hasCurrent2 = _menuNonBento2.length > 0;
+      const _menuCntBadge = _hasCurrent2
+        ? `<span style="font-size:11px;background:var(--gr2);color:var(--gr3);border-radius:99px;padding:2px 8px;font-weight:700">${_menuNonBento2.length}品</span>`
+        : '';
+      const _hdr2 = `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px"><div class="card-ttl" style="margin-bottom:0">🍽️ イートインメニュー</div>${_menuCntBadge}</div>`;
+      let _body2;
+      if(!_hasCurrent2 && _pendEat2.length === 0){
+        _body2 = s.isOpen
+          ? `<div style="font-size:12px;color:var(--muted);margin-bottom:10px">まだメニューがありません。まず看板商品を追加してください。</div>
+             <button class="btn btn-gr" style="width:100%;padding:12px;font-size:14px;font-weight:700" onclick="openMenuModal(${si})">
+               🍱 メニューを追加する <span style="font-size:11px;opacity:.8;margin-left:6px">¥80,000〜</span>
+             </button>`
+          : `<div style="font-size:12px;color:var(--muted);padding:4px 0">まだメニューがありません。再開後に追加できます。</div>`;
+      } else {
+        const _regularTags2 = _menuNonBento2.map(m => {
+          const _lm2 = _launchedEat2.find(lm => lm.name === m);
+          const _daysLeft2 = _lm2 ? ((_lm2.launchedDay||0) + (_lm2.seasonDays||90) - _tdR2) : null;
+          const _suffix2 = _daysLeft2 !== null ? `<span style="font-size:8px;opacity:.6;margin-left:3px">（残${_daysLeft2}日）</span>` : '';
+          const _isNew2 = typeof _menuAddedToday !== 'undefined' && _menuAddedToday.has(m);
+          const _newBadge2 = _isNew2 ? `<span style="background:var(--gr);color:#fff;font-size:8px;font-weight:700;border-radius:4px;padding:1px 4px;margin-right:4px;vertical-align:middle">NEW</span>` : '';
+          return `<span class="menu-tag" style="${_isNew2?'border-color:var(--gr);background:rgba(58,107,69,.08)':''}">✓ ${_newBadge2}${m}${_suffix2}</span>`;
         }).join('');
-        const _pendTags = _pendEat.map(p => {
-          const _daysToLaunch = Math.max(0, p.launchDay - _tdR);
-          return `<span class="menu-tag" style="opacity:.65;border-style:dashed;color:var(--muted)">🕐 ${p.name}（${_daysToLaunch}日後に開始）</span>`;
+        const _pendTags2 = _pendEat2.map(p => {
+          const _daysToLaunch2 = Math.max(0, p.launchDay - _tdR2);
+          return `<span class="menu-tag" style="opacity:.65;border-style:dashed;color:var(--muted)">🕐 ${p.name}（${_daysToLaunch2}日後に開始）</span>`;
         }).join('');
-        return `<div class="menu-tags">${_regularTags}${_pendTags}</div>`;
-      })()}
-    </div>
+        _body2 = `<div class="menu-tags">${_regularTags2}${_pendTags2}</div>`;
+      }
+      return `<div class="card" id="store-menu-anchor">${_hdr2}${_body2}</div>`;
+    })()}
 
     ${(()=>{
       // ── テイクアウト・お弁当カード ──
@@ -16731,7 +16758,7 @@ window.addEventListener('visibilitychange', ()=>{
 <script>
 if(/[?&](qa|debug)=1/.test(location.search)){
   var _qaScript=document.createElement('script');
-  _qaScript.src='maikon-qa.js?v=20260805-v11i-inherited-shop-world-setting';
+  _qaScript.src='maikon-qa.js?v=20260806-v12a-menu-reward-ap-flow';
   document.head.appendChild(_qaScript);
 }
 </script>
