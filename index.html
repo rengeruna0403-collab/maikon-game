@@ -2753,7 +2753,8 @@ function advanceDay(){
   renderTab();
   saveGame();
   setTimeout(_checkOchawanProposal, 1500);
-  setTimeout(()=>{ try { _checkMenuImpactResult(); } catch(e){ console.error('[advanceDay] menuImpact:', e); } }, 2200);
+  // 日送りフラッシュ（850ms）終了後に営業確定チェック。表示はモーダル状態次第で延期される
+  setTimeout(()=>{ try { _checkMenuImpactResult(); } catch(e){ console.error('[advanceDay] menuImpact:', e); } }, 950);
   try { _checkApLowWarning(); } catch(e){ console.error('[advanceDay] apLowWarning:', e); }
   } finally {
     // 月末処理中でない場合のみここで解除
@@ -12582,39 +12583,66 @@ function buyMenu(si,name,cost,sat,cust){
   updateHeader();
 }
 // ─────────── メニュー追加翌営業日フィードバック (v1.2b) ────────────
+// 営業確定チェック：結果を G.pendingMenuImpactResult へ移し pendingMenuImpact をクリアする
+// 実際のカード表示は _tryShowMenuImpactResult() が担う
 function _checkMenuImpactResult(){
   if(!G.pendingMenuImpact) return;
-  if(_isModalOpen()) return; // モーダル中は保留
   if(G.processingMonthly || G.isAdvancingDay) return;
   const impact = G.pendingMenuImpact;
   const s = G.stores[impact.storeId];
   if(!s){ G.pendingMenuImpact = null; return; }
-  // 店舗が実際に営業した日のみ表示
-  if(!s.servedToday) return; // 閉店・休業中は保留
-  // 月次処理直後（月末）は翌日に回す
-  if(G._isMonthEnd) return;
+  if(!s.servedToday) return;  // 閉店・休業中は保留（翌営業日まで維持）
+  if(G._isMonthEnd) return;   // 月末直後は翌日へ
+  // 結果を確定して表示キューへ移す
   const result = {
     customers: s.customers || 0,
-    unitPrice: s.unitPrice || 700,
+    unitPrice:  s.unitPrice || 700,
     satisfaction: Math.round(s.satisfaction || 0),
-    regulars: s.regulars || 0
+    regulars:  s.regulars || 0,
+    lastDayRevenue: Number.isFinite(G.lastDayRevenue) ? G.lastDayRevenue : null,
   };
+  G.pendingMenuImpactResult = { impact, result };
+  G.pendingMenuImpact = null;
+  console.log('[MENU IMPACT RESULT QUEUED]', { menuNames: impact.menuNames, day: G.day });
+  _tryShowMenuImpactResult();
+}
+
+// 表示可能な状態になったらカードを1回だけ表示する
+// renderTab / closeMonthlyChallengeModal / 日送り後フラッシュ終了後から呼ばれる
+function _tryShowMenuImpactResult(){
+  if(!G.pendingMenuImpactResult) return;
+  if(_isModalOpen()){
+    console.log('[MENU IMPACT RESULT DEFERRED]', {
+      modalOpen: true,
+      isAdvancingDay: G.isAdvancingDay,
+      processingMonthly: G.processingMonthly,
+    });
+    return;
+  }
+  const { impact, result } = G.pendingMenuImpactResult;
+  // 消費してからカード表示（二重表示防止）
+  G.pendingMenuImpactResult = null;
+  console.log('[MENU IMPACT RESULT SHOWN]');
   showMenuImpactResultCard(impact, result);
+  // ニュース記録
   const menuLabel = impact.menuNames.length > 1
     ? `新しいメニュー${impact.menuNames.length}品追加後`
     : `「${impact.menuNames[0]}」追加後`;
-  const _revNews = Number.isFinite(G.lastDayRevenue) ? `今日の総売上¥${Math.round(G.lastDayRevenue).toLocaleString()}` : null;
-  const _custNews = Number.isFinite(result.customers) ? `来店客数${result.customers}人` : null;
-  const _priceNews = Number.isFinite(result.unitPrice) ? `客単価¥${result.unitPrice.toLocaleString()}` : null;
+  const _revNews   = Number.isFinite(result.lastDayRevenue) ? `今日の総売上¥${Math.round(result.lastDayRevenue).toLocaleString()}` : null;
+  const _custNews  = Number.isFinite(result.customers)   ? `来店客数${result.customers}人`                                : null;
+  const _priceNews = Number.isFinite(result.unitPrice)   ? `客単価¥${result.unitPrice.toLocaleString()}`                 : null;
   const _bl = impact.baseline;
   const _hasBl = Number.isFinite(_bl.customers) && _bl.customers > 0;
   const _custDiffStr = (_hasBl && Number.isFinite(result.customers))
-    ? (result.customers - _bl.customers > 0 ? `前回より客数＋${result.customers - _bl.customers}人` : result.customers - _bl.customers < 0 ? `前回より客数−${_bl.customers - result.customers}人` : null)
+    ? (result.customers - _bl.customers > 0
+        ? `前回より客数＋${result.customers - _bl.customers}人`
+        : result.customers - _bl.customers < 0
+          ? `前回より客数−${_bl.customers - result.customers}人`
+          : null)
     : null;
   const _newsBody = [_custNews, _revNews, _priceNews].filter(Boolean).join('・');
   const _newsDiff = _custDiffStr ? ` / ${_custDiffStr}` : '';
   addNews(`🍽 ${menuLabel}の最初の営業 / ${_newsBody}${_newsDiff}`);
-  G.pendingMenuImpact = null;
   saveGame();
 }
 
@@ -13540,6 +13568,8 @@ function renderTab(){
   m.innerHTML=_html;
   _updateAdvFixed();
   if(G.tab === 'home' && G.tut && G.tut.phase === 'done') requestAnimationFrame(focusInitialSetupTarget);
+  // モーダルが閉じてrenderTabが走るタイミングで表示待ち結果を消化する
+  try { _tryShowMenuImpactResult(); } catch(_e){ /* ignore */ }
 }
 
 function _isModalOpen(){
@@ -16447,9 +16477,10 @@ function _normalizeSaveData(){
   G.receivables = safeNumber(G.receivables, 0);
 
   // 古いセーブデータの不足フィールドを補完
-  G.pendingMenuLaunches  ||= [];
-  G.pendingBentoLaunches ||= [];
-  G.resolvedEvents       ||= {};
+  G.pendingMenuLaunches     ||= [];
+  G.pendingBentoLaunches    ||= [];
+  G.pendingMenuImpactResult ??= null; // 旧セーブ補完
+  G.resolvedEvents          ||= {};
   G.eventCooldowns       ||= {};
   G.seasonalEventStatus  ||= {};
   G.seasonalBentoStatus  ||= {};
@@ -16889,7 +16920,7 @@ window.addEventListener('visibilitychange', ()=>{
 <script>
 if(/[?&](qa|debug)=1/.test(location.search)){
   var _qaScript=document.createElement('script');
-  _qaScript.src='maikon-qa.js?v=20260806-v12b2-menu-impact-daily-summary';
+  _qaScript.src='maikon-qa.js?v=20260806-v12b3-menu-impact-display-queue';
   document.head.appendChild(_qaScript);
 }
 </script>

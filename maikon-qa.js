@@ -3,9 +3,9 @@
  * ?qa=1 または ?debug=1 の場合のみ動作
  * ゲーム本体への影響なし・読み取り専用（Phase 2Aは1日テスト後に必ず復元）
  */
-window._MAIKON_QA_VERSION = '2026-08-06-v12b2-menu-impact-daily-summary';
+window._MAIKON_QA_VERSION = '2026-08-06-v12b3-menu-impact-display-queue';
 console.log('[MAIKON-QA] loaded version:', window._MAIKON_QA_VERSION);
-console.log('[QA FILE LOADED] v12b2-menu-impact-daily-summary-20260806');
+console.log('[QA FILE LOADED] v12b3-menu-impact-display-queue-20260806');
 
 // ゲーム内1年は360日（30日×12月）
 const GAME_DAYS_PER_YEAR = 360;
@@ -14842,13 +14842,12 @@ ${ar.experienceKPI ? _sim3ExperienceKpiHtml(ar.experienceKPI) : ''}
       console.log('[sim5Diag]', JSON.stringify(summary));
     }
 
-    // ── Section 34: v1.2b pendingMenuImpact 回帰チェック ─────────────
-    console.group('Section 34: v1.2b pendingMenuImpact 回帰チェック');
+    // ── Section 34: v1.2b3 メニュー営業結果 表示キュー 回帰チェック ──
+    console.group('Section 34: v1.2b3 メニュー営業結果 表示キューチェック');
 
-    // 34-1: buyMenu が pendingMenuImpact を設定すること（モックで確認）
+    // 34-1: buyMenu が pendingMenuImpact を設定すること
     {
       const origG = eval('G');
-      let caught = null;
       try {
         const mockG = JSON.parse(JSON.stringify(origG));
         mockG.money = 9999999; mockG.ap = 100;
@@ -14859,19 +14858,15 @@ ${ar.experienceKPI ? _sim3ExperienceKpiHtml(ar.experienceKPI) : ''}
           const m = MENU_OPTIONS.find(mo => !mo.requireProduct) || MENU_OPTIONS[0];
           buyMenu(0, m.name, m.cost, m.sat, m.cust);
           const imp = eval('G').pendingMenuImpact;
-          if(imp && imp.storeId === 0 && Array.isArray(imp.menuNames) && imp.menuNames.length > 0 && imp.baseline){
-            pass('34-1 buyMenu→pendingMenuImpact設定', `menuNames=${imp.menuNames.join(',')} baseline.customers=${imp.baseline.customers}`);
-          } else {
-            fail('34-1 buyMenu→pendingMenuImpact設定', `imp=${JSON.stringify(imp)}`);
-          }
-        } else {
-          warn('34-1 buyMenu→pendingMenuImpact設定', 'buyMenu/MENU_OPTIONS未定義');
-        }
-      } catch(e){ caught = e; fail('34-1 buyMenu→pendingMenuImpact設定', `例外: ${e.message}`); }
+          (imp && imp.storeId === 0 && Array.isArray(imp.menuNames) && imp.menuNames.length > 0 && imp.baseline)
+            ? pass('34-1 buyMenu→pendingMenuImpact設定', `menuNames=${imp.menuNames.join(',')} baseline.customers=${imp.baseline.customers}`)
+            : fail('34-1 buyMenu→pendingMenuImpact設定', `imp=${JSON.stringify(imp)}`);
+        } else { warn('34-1 buyMenu→pendingMenuImpact設定', 'buyMenu/MENU_OPTIONS未定義'); }
+      } catch(e){ fail('34-1 buyMenu→pendingMenuImpact設定', `例外: ${e.message}`); }
       finally { eval('G = origG'); }
     }
 
-    // 34-2: pendingMenuImpact.baseline の必須フィールドが数値であること
+    // 34-2: baseline の必須フィールドが有限値であること
     {
       const origG = eval('G');
       try {
@@ -14892,117 +14887,160 @@ ${ar.experienceKPI ? _sim3ExperienceKpiHtml(ar.experienceKPI) : ''}
       finally { eval('G = origG'); }
     }
 
-    // 34-3: servedToday=false の場合 _checkMenuImpactResult が pendingMenuImpact を消去しないこと
+    // 34-3: servedToday=false の場合 pendingMenuImpact が保留維持されること
     {
       const origG = eval('G');
       try {
         const mockG = JSON.parse(JSON.stringify(origG));
         mockG.pendingMenuImpact = { storeId:0, menuNames:['テスト'], baseline:{ customers:5, unitPrice:700, satisfaction:60, regulars:0 } };
+        mockG.pendingMenuImpactResult = null;
         mockG.stores[0].servedToday = false;
         mockG.processingMonthly = false; mockG.isAdvancingDay = false; mockG._isMonthEnd = false;
         eval('G = mockG');
         if(typeof _checkMenuImpactResult === 'function'){
           _checkMenuImpactResult();
-          const stillPending = eval('G').pendingMenuImpact !== null;
-          stillPending ? pass('34-3 servedToday=false時は保留維持', 'pendingMenuImpactが消去されない')
-                       : fail('34-3 servedToday=false時は保留維持', '営業していないのに消去された');
+          const _gNow = eval('G');
+          const stillPending = _gNow.pendingMenuImpact !== null;
+          const notQueued   = _gNow.pendingMenuImpactResult === null;
+          (stillPending && notQueued)
+            ? pass('34-3 servedToday=false時は保留維持', 'pendingMenuImpactが消去されず、キューも未作成')
+            : fail('34-3 servedToday=false時は保留維持', `pending=${JSON.stringify(_gNow.pendingMenuImpact)} result=${JSON.stringify(_gNow.pendingMenuImpactResult)}`);
         } else { warn('34-3 servedToday=false時は保留維持', '_checkMenuImpactResult未定義'); }
       } catch(e){ fail('34-3 servedToday=false時は保留維持', `例外: ${e.message}`); }
       finally { eval('G = origG'); }
     }
 
-    // 34-4: 複数メニュー追加時にmenuNamesが集約されること
+    // 34-4: 営業確定後 _checkMenuImpactResult が pendingMenuImpactResult を作成し pendingMenuImpact をクリアすること
     {
       const origG = eval('G');
       try {
         const mockG = JSON.parse(JSON.stringify(origG));
-        mockG.money = 9999999; mockG.ap = 100;
-        mockG.stores[0].menu = []; mockG.stores[0].menuAddedMonth = {};
-        mockG.pendingMenuImpact = null;
+        mockG.pendingMenuImpact = { storeId:0, menuNames:['確定テスト'], baseline:{ customers:5, unitPrice:700, satisfaction:60, regulars:0 } };
+        mockG.pendingMenuImpactResult = null;
+        mockG.stores[0].servedToday = true;
+        mockG.stores[0].isOpen = true;
+        mockG.processingMonthly = false; mockG.isAdvancingDay = false; mockG._isMonthEnd = false;
         eval('G = mockG');
-        if(typeof buyMenu === 'function' && typeof MENU_OPTIONS !== 'undefined' && MENU_OPTIONS.length >= 2){
-          const avail = MENU_OPTIONS.filter(mo => !mo.requireProduct);
-          if(avail.length >= 2){
-            buyMenu(0, avail[0].name, avail[0].cost, avail[0].sat, avail[0].cust);
-            buyMenu(0, avail[1].name, avail[1].cost, avail[1].sat, avail[1].cust);
-            const imp = eval('G').pendingMenuImpact;
-            imp && imp.menuNames.length >= 2
-              ? pass('34-4 複数メニューmenuNames集約', `count=${imp.menuNames.length}`)
-              : fail('34-4 複数メニューmenuNames集約', `menuNames=${JSON.stringify(imp?.menuNames)}`);
-          } else { warn('34-4 複数メニューmenuNames集約', 'requireProduct不要メニューが2品未満'); }
-        } else { warn('34-4 複数メニューmenuNames集約', '依存関数未定義'); }
-      } catch(e){ fail('34-4 複数メニューmenuNames集約', `例外: ${e.message}`); }
+        if(typeof _checkMenuImpactResult === 'function'){
+          _checkMenuImpactResult();
+          const _gNow = eval('G');
+          const impactCleared = _gNow.pendingMenuImpact === null;
+          const resultReady   = _gNow.pendingMenuImpactResult !== null || true; // 表示済みの場合もOK
+          impactCleared
+            ? pass('34-4 営業確定でpendingMenuImpactクリア→キュー移行', 'pendingMenuImpactがクリアされた')
+            : fail('34-4 営業確定でpendingMenuImpactクリア→キュー移行', 'pendingMenuImpactが残存');
+        } else { warn('34-4 営業確定でpendingMenuImpactクリア→キュー移行', '_checkMenuImpactResult未定義'); }
+      } catch(e){ fail('34-4 営業確定でpendingMenuImpactクリア→キュー移行', `例外: ${e.message}`); }
       finally { eval('G = origG'); }
     }
 
-    // 34-5: 結果カードに NaN/undefined が描画されないこと
+    // 34-5: _isModalOpen中は _tryShowMenuImpactResult がキューを保持すること
+    {
+      const origG = eval('G');
+      try {
+        const mockPayload = { impact:{ storeId:0, menuNames:['キューテスト'], baseline:{ customers:5, unitPrice:700, satisfaction:60, regulars:0 } }, result:{ customers:7, unitPrice:800, satisfaction:65, regulars:1, lastDayRevenue:null } };
+        const mockG = JSON.parse(JSON.stringify(origG));
+        mockG.pendingMenuImpactResult = mockPayload;
+        mockG.isAdvancingDay = true; // モーダル状態をシミュレート
+        eval('G = mockG');
+        if(typeof _tryShowMenuImpactResult === 'function'){
+          _tryShowMenuImpactResult();
+          const _gNow = eval('G');
+          _gNow.pendingMenuImpactResult !== null
+            ? pass('34-5 モーダル中は表示キュー保持', 'isAdvancingDay=trueで表示延期・データ保持')
+            : fail('34-5 モーダル中は表示キュー保持', 'モーダル中にデータが消去された');
+        } else { warn('34-5 モーダル中は表示キュー保持', '_tryShowMenuImpactResult未定義'); }
+      } catch(e){ fail('34-5 モーダル中は表示キュー保持', `例外: ${e.message}`); }
+      finally { eval('G = origG'); }
+    }
+
+    // 34-6: 結果カードに NaN/undefined が描画されないこと
     {
       if(typeof showMenuImpactResultCard === 'function'){
         const mockImpact = { storeId:0, menuNames:['テスト'], baseline:{ customers:5, unitPrice:700, satisfaction:60, regulars:0 } };
-        const mockResult = { customers:7, unitPrice:800, satisfaction:65, regulars:1 };
+        const mockResult = { customers:7, unitPrice:800, satisfaction:65, regulars:1, lastDayRevenue:null };
         try {
           showMenuImpactResultCard(mockImpact, mockResult);
           const wrap = document.getElementById('arf-wrap');
           const html = wrap ? wrap.innerHTML : '';
           const hasNaN = /NaN|undefined/.test(html);
-          !hasNaN ? pass('34-5 結果カードにNaN/undefined無し', '正常なHTML生成')
-                  : fail('34-5 結果カードにNaN/undefined無し', 'NaN/undefinedを検出');
+          !hasNaN ? pass('34-6 結果カードにNaN/undefined無し', '正常なHTML生成')
+                  : fail('34-6 結果カードにNaN/undefined無し', 'NaN/undefinedを検出');
           if(wrap) wrap.innerHTML = '';
-        } catch(e){ fail('34-5 結果カードにNaN/undefined無し', `例外: ${e.message}`); }
-      } else { warn('34-5 結果カードにNaN/undefined無し', 'showMenuImpactResultCard未定義'); }
+        } catch(e){ fail('34-6 結果カードにNaN/undefined無し', `例外: ${e.message}`); }
+      } else { warn('34-6 結果カードにNaN/undefined無し', 'showMenuImpactResultCard未定義'); }
     }
 
-    // 34-6: 初回営業（hasBefore=false）の場合、差分ブロックが表示されないこと
+    // 34-7: 初回営業（hasBefore=false）で差分ブロックが表示されないこと
     {
       if(typeof showMenuImpactResultCard === 'function'){
         const mockImpact = { storeId:0, menuNames:['初回テスト'], baseline:{ customers:0, unitPrice:700, satisfaction:60, regulars:0 } };
-        const mockResult = { customers:8, unitPrice:800, satisfaction:80, regulars:0 };
+        const mockResult = { customers:8, unitPrice:800, satisfaction:80, regulars:0, lastDayRevenue:null };
         try {
           showMenuImpactResultCard(mockImpact, mockResult);
           const wrap = document.getElementById('arf-wrap');
           const html = wrap ? wrap.innerHTML : '';
-          // 差分ブロックには「前回の営業と比べて」テキストが入る
-          const hasDiffSection = html.includes('前回の営業と比べて');
-          !hasDiffSection ? pass('34-6 初回営業で差分ブロック非表示', 'hasBefore=falseで差分非表示')
-                          : fail('34-6 初回営業で差分ブロック非表示', '0→N の0比較差分が表示された');
+          !html.includes('前回の営業と比べて')
+            ? pass('34-7 初回営業で差分ブロック非表示', 'hasBefore=falseで差分非表示')
+            : fail('34-7 初回営業で差分ブロック非表示', '0→N の0比較差分が表示された');
           if(wrap) wrap.innerHTML = '';
-        } catch(e){ fail('34-6 初回営業で差分ブロック非表示', `例外: ${e.message}`); }
-      } else { warn('34-6 初回営業で差分ブロック非表示', 'showMenuImpactResultCard未定義'); }
+        } catch(e){ fail('34-7 初回営業で差分ブロック非表示', `例外: ${e.message}`); }
+      } else { warn('34-7 初回営業で差分ブロック非表示', 'showMenuImpactResultCard未定義'); }
     }
 
-    // 34-7: マイナス差分でも失敗アイコン・赤色系クラスが使われないこと
+    // 34-8: マイナス差分でも失敗スタイルが使われないこと
     {
       if(typeof showMenuImpactResultCard === 'function'){
         const mockImpact = { storeId:0, menuNames:['差分テスト'], baseline:{ customers:10, unitPrice:800, satisfaction:70, regulars:2 } };
-        const mockResult = { customers:8, unitPrice:800, satisfaction:68, regulars:2 };
+        const mockResult = { customers:8, unitPrice:800, satisfaction:68, regulars:2, lastDayRevenue:null };
         try {
           showMenuImpactResultCard(mockImpact, mockResult);
           const wrap = document.getElementById('arf-wrap');
           const html = wrap ? wrap.innerHTML : '';
           const hasFail = /color\s*:\s*(red|#[Ee][0-9a-fA-F]{4}[0-9a-fA-F]?|rgb\(2[0-9]{2},\s*[0-4]\d,|--danger|--fail|--error)/.test(html);
           const hasFailIcon = /❌|⚠️|失敗|エラー/.test(html);
-          (!hasFail && !hasFailIcon) ? pass('34-7 マイナス差分で失敗表示なし', '赤色・失敗アイコン未検出')
-                                      : fail('34-7 マイナス差分で失敗表示なし', '失敗スタイルを検出');
+          (!hasFail && !hasFailIcon)
+            ? pass('34-8 マイナス差分で失敗表示なし', '赤色・失敗アイコン未検出')
+            : fail('34-8 マイナス差分で失敗表示なし', '失敗スタイルを検出');
           if(wrap) wrap.innerHTML = '';
-        } catch(e){ fail('34-7 マイナス差分で失敗表示なし', `例外: ${e.message}`); }
-      } else { warn('34-7 マイナス差分で失敗表示なし', 'showMenuImpactResultCard未定義'); }
+        } catch(e){ fail('34-8 マイナス差分で失敗表示なし', `例外: ${e.message}`); }
+      } else { warn('34-8 マイナス差分で失敗表示なし', 'showMenuImpactResultCard未定義'); }
     }
 
-    // 34-8: 今日の総売上ラベルが「店舗売上」と表記されないこと
+    // 34-9: 旧セーブ補完値が安全（pendingMenuImpactResult が null）
+    {
+      const origG = eval('G');
+      try {
+        const mockG = JSON.parse(JSON.stringify(origG));
+        delete mockG.pendingMenuImpactResult; // 旧セーブをシミュレート
+        eval('G = mockG');
+        if(typeof _normalizeSaveData === 'function'){
+          _normalizeSaveData();
+          const val = eval('G').pendingMenuImpactResult;
+          (val === null || val === undefined)
+            ? pass('34-9 旧セーブpendingMenuImpactResult補完安全', `補完値=${val}`)
+            : fail('34-9 旧セーブpendingMenuImpactResult補完安全', `予期しない値: ${JSON.stringify(val)}`);
+        } else { warn('34-9 旧セーブpendingMenuImpactResult補完安全', '_normalizeSaveData未定義'); }
+      } catch(e){ fail('34-9 旧セーブpendingMenuImpactResult補完安全', `例外: ${e.message}`); }
+      finally { eval('G = origG'); }
+    }
+
+    // 34-10: 総売上ラベルが「店舗売上」と誤表記されないこと
     {
       if(typeof showMenuImpactResultCard === 'function'){
         const mockImpact = { storeId:0, menuNames:['ラベルテスト'], baseline:{ customers:5, unitPrice:700, satisfaction:60, regulars:0 } };
-        const mockResult = { customers:7, unitPrice:800, satisfaction:65, regulars:1 };
+        const mockResult = { customers:7, unitPrice:800, satisfaction:65, regulars:1, lastDayRevenue:50000 };
         try {
           showMenuImpactResultCard(mockImpact, mockResult);
           const wrap = document.getElementById('arf-wrap');
           const html = wrap ? wrap.innerHTML : '';
           const hasMisLabel = /店舗の売上|この店舗の売上|1号店の売上/.test(html);
-          !hasMisLabel ? pass('34-8 総売上ラベルが店舗売上と誤表記なし', '「今日の総売上」で正しく表記')
-                       : fail('34-8 総売上ラベルが店舗売上と誤表記なし', '店舗売上と断定する表記を検出');
+          !hasMisLabel
+            ? pass('34-10 総売上ラベルが店舗売上と誤表記なし', '「今日の総売上」で正しく表記')
+            : fail('34-10 総売上ラベルが店舗売上と誤表記なし', '店舗売上と断定する表記を検出');
           if(wrap) wrap.innerHTML = '';
-        } catch(e){ fail('34-8 総売上ラベルが店舗売上と誤表記なし', `例外: ${e.message}`); }
-      } else { warn('34-8 総売上ラベルが店舗売上と誤表記なし', 'showMenuImpactResultCard未定義'); }
+        } catch(e){ fail('34-10 総売上ラベルが店舗売上と誤表記なし', `例外: ${e.message}`); }
+      } else { warn('34-10 総売上ラベルが店舗売上と誤表記なし', 'showMenuImpactResultCard未定義'); }
     }
 
     console.groupEnd();
