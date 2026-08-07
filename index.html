@@ -2594,13 +2594,24 @@ function advanceDay(){
     else { s.servedToday = false; }
   });
 
-  // AP日次回復（+5/日・週総量35≈旧週30。月末は monthlyTick で満タン回復）
+  // AP回復（日次+5、7日ごとに週次+15を加算。月末は monthlyTick で満タン回復）
   {
     const _apBef = G.ap;
-    G.ap = Math.min(G.apMax, G.ap + 5);
-    if(G.ap > _apBef) notify(`🌿 AP +${G.ap - _apBef} 回復しました（残 ${G.ap}）`);
+    const _totalDaysAp = (G.year-1)*360 + (G.month-1)*30 + G.day;
+    const _isWeekly = _totalDaysAp > 0 && _totalDaysAp % 7 === 0;
+    const _dailyGain = 5;
+    const _weeklyGain = _isWeekly ? 15 : 0;
+    G.ap = Math.min(G.apMax, G.ap + _dailyGain + _weeklyGain);
+    const _gained = G.ap - _apBef;
+    if(_gained > 0){
+      if(_isWeekly && _weeklyGain > 0){
+        notify(`🌿 AP +${_gained} 回復しました（日次+${_dailyGain}・週次+${_weeklyGain}）（残 ${G.ap}）`);
+      } else {
+        notify(`🌿 AP +${_gained} 回復しました（残 ${G.ap}）`);
+      }
+    }
   }
-  // 週次: 疲労チェック（AP回復は日次へ移行済み）
+  // 週次: 疲労チェック
   const totalDaysNow2 = (G.year-1)*360 + (G.month-1)*30 + G.day;
   if(totalDaysNow2 > 0 && totalDaysNow2 % 7 === 0){
     checkFatiguePenalty();
