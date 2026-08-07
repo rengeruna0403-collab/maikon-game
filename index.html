@@ -10672,20 +10672,32 @@ function showEventModal(ev){
           <div class="choice-lbl">${c.label}</div>
           ${getChoiceImpactIcons(c)}
         </button>`;
-        return apBlocked ? `
+        // 選択肢ごとに必要総APを計算（基本AP + 選択肢追加AP）
+        const _btnExtraAp = c.ap || 0;
+        const _btnTotalAp = apCost + _btnExtraAp;
+        const _btnShortfall = Math.max(0, _btnTotalAp - G.ap);
+        const _btnCanFatigue = _btnShortfall > 0 && ev.category === 'ops';
+        const _btnBlocked = _btnShortfall > 0 && ev.category !== 'ops';
+        const _apNote = _btnExtraAp > 0
+          ? `<div style="font-size:10px;color:var(--muted);margin-top:3px">必要AP ${_btnTotalAp}（通常${apCost}＋追加${_btnExtraAp}）</div>`
+          : '';
+        return _btnBlocked ? `
         <button class="choice-btn" style="opacity:.4;pointer-events:none">
           <div class="choice-lbl">${c.label}</div>
           ${getChoiceImpactIcons(c)}
-          <div class="choice-eff" style="color:var(--orange);margin-top:4px">AP不足 — 明日以降に対応</div>
-        </button>` : canUseFatigue ? `
+          ${_apNote}
+          <div class="choice-eff" style="color:var(--orange);margin-top:4px">AP不足（あと${_btnShortfall}必要） — 明日以降に対応</div>
+        </button>` : _btnCanFatigue ? `
         <button class="choice-btn" onclick="chooseEvent(${i},true)" style="border-color:var(--orange)">
           <div class="choice-lbl">${c.label}</div>
           ${getChoiceImpactIcons(c)}
-          <div style="font-size:10px;color:var(--orange);margin-top:4px">⚠️ 無理すると疲労+${apShortfall}</div>
+          ${_apNote}
+          <div style="font-size:10px;color:var(--orange);margin-top:4px">⚠️ 無理すると疲労+${_btnShortfall}</div>
         </button>` : `
         <button class="choice-btn" onclick="chooseEvent(${i})">
           <div class="choice-lbl">${c.label}</div>
           ${getChoiceImpactIcons(c)}
+          ${_apNote}
         </button>`;
       }).join('')}
     </div>
@@ -11023,20 +11035,29 @@ function chooseEvent(idx, useFatigue){
   if(ev.id === 'midori_overtime' && idx === 1){
     G._midoriOvertimeCount = (G._midoriOvertimeCount || 0) + 1;
   }
-  // case-level AP cost（みどり採用で半減・noAP:trueの見送り選択肢は消費しない）
+  // AP合算：基本AP + 選択肢追加APを事前に合算し、足りなければ何も消費しない
   const apCostRaw = ev.apCost || 0;
-  const apCost = apCostRaw > 0 && G.staffUnlocked ? Math.ceil(apCostRaw * 0.5) : apCostRaw;
-  if(apCost > 0 && !choice.noAP){
+  const baseCaseAp = apCostRaw > 0 && G.staffUnlocked ? Math.ceil(apCostRaw * 0.5) : apCostRaw;
+  const choiceExtraAp = (choice.noAP || !choice.ap) ? 0 : (choice.ap || 0);
+  const totalApNeeded = (choice.noAP ? 0 : baseCaseAp) + choiceExtraAp;
+  if(totalApNeeded > 0){
     if(useFatigue && ev.category === 'ops'){
-      const shortfall = Math.max(0, apCost - G.ap);
-      G.ap = Math.max(0, G.ap - apCost);
+      const shortfall = Math.max(0, totalApNeeded - G.ap);
+      G.ap = Math.max(0, G.ap - totalApNeeded);
+      updateHeader();
       if(shortfall > 0) addFatigue(shortfall, ev.title);
     } else {
-      if(!useAP(apCost, ev.title)) return;
+      if(G.ap < totalApNeeded){
+        notify(`🍚 APが足りないため対応できません。\n\nAPは毎日+5回復します。（AP残 ${G.ap}）`, 'warn');
+        return;
+      }
+      G.ap = Math.max(0, G.ap - totalApNeeded);
+      updateHeader();
+      if(G.ap <= 20){
+        notify(`🍚 「今週はもうあまり余裕がないね」（AP残 ${G.ap}）`, 'warn');
+      }
     }
   }
-  // choice-level extra AP (e.g. 面談)
-  if(choice.ap>0 && !useAP(choice.ap, ev.title)) return;
   if(_choiceCost > 0) G.money -= _choiceCost;
   G.totalDecisions = (G.totalDecisions||0) + 1;
   if(fx.hireStaff) G.totalHires = (G.totalHires||0) + 1;
@@ -17104,7 +17125,7 @@ window.addEventListener('visibilitychange', ()=>{
 <script>
 if(/[?&](qa|debug)=1/.test(location.search)){
   var _qaScript=document.createElement('script');
-  _qaScript.src='maikon-qa.js?v=20260807-v12c4-initial-setup-step3-fix';
+  _qaScript.src='maikon-qa.js?v=20260807-v12d-case-ap-transaction-fix';
   document.head.appendChild(_qaScript);
 }
 </script>
