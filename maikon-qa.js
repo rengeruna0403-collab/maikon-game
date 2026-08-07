@@ -3,9 +3,9 @@
  * ?qa=1 または ?debug=1 の場合のみ動作
  * ゲーム本体への影響なし・読み取り専用（Phase 2Aは1日テスト後に必ず復元）
  */
-window._MAIKON_QA_VERSION = '2026-08-06-v12b3-menu-impact-display-queue';
+window._MAIKON_QA_VERSION = '2026-08-06-v12c-navigation-render-regression-fix';
 console.log('[MAIKON-QA] loaded version:', window._MAIKON_QA_VERSION);
-console.log('[QA FILE LOADED] v12b3-menu-impact-display-queue-20260806');
+console.log('[QA FILE LOADED] v12c-navigation-render-regression-fix-20260806');
 
 // ゲーム内1年は360日（30日×12月）
 const GAME_DAYS_PER_YEAR = 360;
@@ -15041,6 +15041,85 @@ ${ar.experienceKPI ? _sim3ExperienceKpiHtml(ar.experienceKPI) : ''}
           if(wrap) wrap.innerHTML = '';
         } catch(e){ fail('34-10 総売上ラベルが店舗売上と誤表記なし', `例外: ${e.message}`); }
       } else { warn('34-10 総売上ラベルが店舗売上と誤表記なし', 'showMenuImpactResultCard未定義'); }
+    }
+
+    console.groupEnd();
+
+    // ── Section 35: v1.2c ナビゲーション・固定ボタン回帰チェック ──────
+    console.group('Section 35: v1.2c ナビゲーション・固定ボタン回帰チェック');
+
+    // 35-1: store-menu-anchor が store タブ描画後に存在すること（一意IDの確認）
+    {
+      const origTab = eval('G').tab;
+      try {
+        const _g = eval('G');
+        if(_g.started && _g.stores && _g.stores[0] && _g.stores[0].isOpen){
+          eval('G').tab = 'store';
+          const m = document.getElementById('main-content');
+          if(m && typeof renderStore === 'function'){
+            m.innerHTML = renderStore();
+            const anchors = document.querySelectorAll('#store-menu-anchor');
+            anchors.length === 1
+              ? pass('35-1 store-menu-anchor が一意', `count=${anchors.length}`)
+              : anchors.length === 0
+                ? warn('35-1 store-menu-anchor が一意', 'メニュー未設定状態では不存在の可能性あり（正常）')
+                : fail('35-1 store-menu-anchor が一意', `重複あり count=${anchors.length}`);
+          } else { warn('35-1 store-menu-anchor が一意', '開店前またはrenderStore未定義'); }
+        } else { warn('35-1 store-menu-anchor が一意', 'ゲーム未開始または店舗未開店'); }
+      } catch(e){ fail('35-1 store-menu-anchor が一意', `例外: ${e.message}`); }
+      finally { eval('G').tab = origTab; }
+    }
+
+    // 35-2: advanceDay ソースに finally 内 _updateAdvFixed 呼び出しがあること
+    {
+      const src = typeof advanceDay === 'function' ? advanceDay.toString() : '';
+      const hasFinallyUpdate = /finally[\s\S]{0,300}_updateAdvFixed/.test(src);
+      hasFinallyUpdate
+        ? pass('35-2 finally内にisAdvancingDay=false後の_updateAdvFixed呼び出し', '検出')
+        : fail('35-2 finally内にisAdvancingDay=false後の_updateAdvFixed呼び出し', 'finally内に_updateAdvFixed未検出');
+    }
+
+    // 35-3: _updateAdvFixed がホーム・モーダルなし・isAdvancingDay=false で表示true を返すこと
+    {
+      const origG = eval('G');
+      try {
+        const mockG = JSON.parse(JSON.stringify(origG));
+        mockG.tab = 'home'; mockG.started = true;
+        mockG.isAdvancingDay = false; mockG.processingMonthly = false; mockG.ap = 0;
+        eval('G = mockG');
+        // すべてのモーダルを非表示に
+        ['event-modal','tut-modal','action-modal','apLowWarningModal','goen-modal','tutOpenStoreComplete','tutRecruitComplete','_ms-modal']
+          .forEach(id => { const e = document.getElementById(id); if(e) e.style.display = 'none'; });
+        if(typeof _updateAdvFixed === 'function'){
+          _updateAdvFixed();
+          const el = document.getElementById('_adv-fixed');
+          const visible = el && el.style.display !== 'none';
+          visible
+            ? pass('35-3 ホーム・モーダルなし・AP0で固定ボタン表示', 'display!=none を確認')
+            : fail('35-3 ホーム・モーダルなし・AP0で固定ボタン表示', `display=${el?.style?.display}`);
+        } else { warn('35-3 ホーム・モーダルなし・AP0で固定ボタン表示', '_updateAdvFixed未定義'); }
+      } catch(e){ fail('35-3 ホーム・モーダルなし・AP0で固定ボタン表示', `例外: ${e.message}`); }
+      finally { eval('G = origG'); }
+    }
+
+    // 35-4: isAdvancingDay=true の場合は固定ボタンが非表示になること
+    {
+      const origG = eval('G');
+      try {
+        const mockG = JSON.parse(JSON.stringify(origG));
+        mockG.tab = 'home'; mockG.started = true;
+        mockG.isAdvancingDay = true; mockG.processingMonthly = false;
+        eval('G = mockG');
+        if(typeof _updateAdvFixed === 'function'){
+          _updateAdvFixed();
+          const el = document.getElementById('_adv-fixed');
+          const hidden = !el || el.style.display === 'none';
+          hidden
+            ? pass('35-4 isAdvancingDay=true で固定ボタン非表示', '正常')
+            : fail('35-4 isAdvancingDay=true で固定ボタン非表示', '日送り中でも表示されている');
+        } else { warn('35-4 isAdvancingDay=true で固定ボタン非表示', '_updateAdvFixed未定義'); }
+      } catch(e){ fail('35-4 isAdvancingDay=true で固定ボタン非表示', `例外: ${e.message}`); }
+      finally { eval('G = origG'); }
     }
 
     console.groupEnd();

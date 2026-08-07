@@ -2760,7 +2760,11 @@ function advanceDay(){
     // 月末処理中でない場合のみここで解除
     // （月末の場合は closeMonthlyChallengeModal で解除）
     // try内の途中returnや例外発生時も必ずここを通る
-    if(!G.processingMonthly) G.isAdvancingDay = false;
+    if(!G.processingMonthly){
+      G.isAdvancingDay = false;
+      // フラグ解除後に固定ボタン表示を再評価（renderTab内ではまだtrueだったため非表示のまま残る）
+      try { _updateAdvFixed(); } catch(_e){}
+    }
   }
 }
 
@@ -14316,7 +14320,7 @@ function renderInitialSetupCard(){
   if(!p || p.done) return '';
   const steps = [
     { label:'舞昆茶屋を再開する',    done:p.step1, onclick:"setTab('store')", hint:'祖父が閉めていたお店を再び開きましょう' },
-    { label:'最初のメニューを設定する', done:p.step2, onclick:"setTab('store')", hint:'メニューを1品追加するとお客様が来られます' },
+    { label:'最初のメニューを設定する', done:p.step2, onclick:"setTab('store');requestAnimationFrame(()=>requestAnimationFrame(()=>{const _el=document.getElementById('store-menu-anchor');if(_el){_el.scrollIntoView({behavior:'smooth',block:'center'});_el.classList.add('setup-spotlight');setTimeout(()=>_el.classList.remove('setup-spotlight'),1600);}}))", hint:'メニューを1品追加するとお客様が来られます' },
     { label:'空室募集を開始する',     done:p.step3, onclick:"setTab('apt')",   hint:'入居者を募集して家賃収入を始めましょう' },
   ];
   const doneCount = [p.step1, p.step2, p.step3].filter(Boolean).length;
@@ -17071,7 +17075,7 @@ window.addEventListener('visibilitychange', ()=>{
 <script>
 if(/[?&](qa|debug)=1/.test(location.search)){
   var _qaScript=document.createElement('script');
-  _qaScript.src='maikon-qa.js?v=20260806-v12b3-menu-impact-display-queue';
+  _qaScript.src='maikon-qa.js?v=20260806-v12c-navigation-render-regression-fix';
   document.head.appendChild(_qaScript);
 }
 </script>
