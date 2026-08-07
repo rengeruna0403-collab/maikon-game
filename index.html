@@ -14321,10 +14321,18 @@ function renderTodayAction(){
 // ─────────── 初期準備導線 (v1.1g) ────────────────────────────────
 function getInitialSetupProgress(){
   if(!G.started || G.tut.phase !== 'done') return null;
+  if(G.initialSetupCompleted) return { step1:true, step2:true, step3:true, done:true };
   const step1 = !!(G.stores[0] && G.stores[0].isOpen);
   const step2 = !!(G.stores[0] && (G.stores[0].menu||[]).length > 0);
-  const step3 = G.buildings.some(b => b.rooms.some(r => r.seeking));
-  return { step1, step2, step3, done: step1 && step2 && step3 };
+  const _allRooms3 = G.buildings.flatMap(b => b.rooms||[]);
+  // 全部屋が入居済み(満室) または 募集中なら完了。seeking=falseリセットにより満室を見落とさないよう every()で判定。
+  const step3 = _allRooms3.length > 0 && _allRooms3.every(r => r.tenant || r.seeking);
+  const done = step1 && step2 && step3;
+  if(done && !G.initialSetupCompleted){
+    G.initialSetupCompleted = true;
+    try { saveGame(); } catch(_e){}
+  }
+  return { step1, step2, step3, done };
 }
 
 function renderInitialSetupCard(){
@@ -14333,7 +14341,7 @@ function renderInitialSetupCard(){
   const steps = [
     { label:'舞昆茶屋を再開する',    done:p.step1, onclick:"setTab('store')", hint:'祖父が閉めていたお店を再び開きましょう' },
     { label:'最初のメニューを設定する', done:p.step2, onclick:"setTab('store');requestAnimationFrame(()=>requestAnimationFrame(()=>{const _el=document.getElementById('store-menu-anchor');if(_el){_el.scrollIntoView({behavior:'smooth',block:'center'});_el.classList.add('setup-spotlight');setTimeout(()=>_el.classList.remove('setup-spotlight'),1600);}}))", hint:'メニューを1品追加するとお客様が来られます' },
-    { label:'空室募集を開始する',     done:p.step3, onclick:"setTab('apt')",   hint:'入居者を募集して家賃収入を始めましょう' },
+    (()=>{ const _allR4=(G.buildings||[]).flatMap(b=>b.rooms||[]); const _isFull4=_allR4.length>0&&_allR4.every(r=>r.tenant); return { label:(_isFull4&&p.step3)?'アパート運営の準備が整いました':'空室募集を開始する', done:p.step3, onclick:"setTab('apt')", hint:(_isFull4&&p.step3)?'現在は満室です':'入居者を募集して家賃収入を始めましょう' }; })()
   ];
   const doneCount = [p.step1, p.step2, p.step3].filter(Boolean).length;
   const cur = steps.find(s => !s.done);
@@ -16647,6 +16655,15 @@ function _normalizeSaveData(){
   G.pendingMenuLaunches     ||= [];
   G.pendingBentoLaunches    ||= [];
   G.pendingMenuImpactResult ??= null; // 旧セーブ補完
+  G.initialSetupCompleted   ??= false;
+  // 旧セーブ救済：step1+step2達成済みで全部屋入居済みor募集中なら自動完了に昇格
+  if(!G.initialSetupCompleted && G.started && G.tut && G.tut.phase === 'done'){
+    const _s1ok = !!(G.stores && G.stores[0] && G.stores[0].isOpen);
+    const _s2ok = !!(G.stores && G.stores[0] && (G.stores[0].menu||[]).length > 0);
+    const _allRoomsN = (G.buildings||[]).flatMap(b => b.rooms||[]);
+    const _s3ok = _allRoomsN.length > 0 && _allRoomsN.every(r => r.tenant || r.seeking);
+    if(_s1ok && _s2ok && _s3ok) G.initialSetupCompleted = true;
+  }
   G.resolvedEvents          ||= {};
   G.eventCooldowns       ||= {};
   G.seasonalEventStatus  ||= {};
@@ -17087,7 +17104,7 @@ window.addEventListener('visibilitychange', ()=>{
 <script>
 if(/[?&](qa|debug)=1/.test(location.search)){
   var _qaScript=document.createElement('script');
-  _qaScript.src='maikon-qa.js?v=20260807-v12c3-menu-price-timing-copy';
+  _qaScript.src='maikon-qa.js?v=20260807-v12c4-initial-setup-step3-fix';
   document.head.appendChild(_qaScript);
 }
 </script>
