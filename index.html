@@ -1919,7 +1919,7 @@ function renderTutBanner(){
   // ステップ別アクションボタン
   const actionHtml = {
     open_store: `<button class="tut-banner-btn" onclick="openStore(0)">🏪 舞昆茶屋を再開する（AP-10）</button>`,
-    set_menu:   `<button class="tut-banner-btn" onclick="openMenuModal(0)">🍱 メニューを追加する（¥80,000〜）</button>`,
+    set_menu:   `<button class="tut-banner-btn" onclick="openMenuModal(0)">🍱 メニューを追加する（¥${fmt(Math.min(...MENU_OPTIONS.map(m=>m.cost)))}〜）</button>`,
     serve:      `<div style="font-size:12px;color:var(--gr);font-weight:700;text-align:center;padding:4px 0">▼ 画面下の「翌日へ進む」ボタンを押しましょう</div>`,
     vacancy:    `<button class="tut-banner-btn" onclick="openRentModal(0,2)">🏠 103号室の賃料を設定する（AP-10）</button>`,
     advance:    `<div style="font-size:12px;color:var(--gr);font-weight:700;text-align:center;padding:4px 0">▼ 画面下の「翌日へ進む」ボタンを押しましょう</div>`,
@@ -11933,7 +11933,7 @@ function hireMidori(){
 // ─────────── STORE ACTIONS ───────────
 // ─────────── 行動ガイド定義 (v1.0h) ───────────
 const MANAGEMENT_ACTION_GUIDE = {
-  buyMenu:     { role:'📈 売上づくり',        roleColor:'var(--gr3)',  timing:'次の営業日から', suitable:['売上を早めに増やしたい','まだメニューが少ない'], caution:'食材費とスタッフ負担も増えます' },
+  buyMenu:     { role:'📈 売上づくり',        roleColor:'var(--gr3)',  timing:'追加・店舗状態：すぐ', timing2:'営業結果：次の営業日から', suitable:['売上を早めに増やしたい','まだメニューが少ない'], caution:'食材費とスタッフ負担も増えます' },
   buyAd:       { role:'📣 集客',              roleColor:'var(--blue)', timing:'すぐ反映',       suitable:['来店客を増やしたい','資金に余裕がある'],  caution:'広告費を上回る利益が必ず出るとは限りません' },
   buyRenov:    { role:'🏪 お店の基盤づくり',  roleColor:'var(--text)', timing:'すぐ反映',       suitable:['資金に余裕がある','お店の魅力・満足度を高めたい'], caution:'高額です。手元の現金も確認しましょう' },
   trainStaff:  { role:'🌱 将来への投資',      roleColor:'#c9a227',     timing:'将来の成長に',   suitable:['スタッフを昇格へ近づけたい','将来お店を任せたい'], caution:'すぐに売上が増えるとは限りません' },
@@ -12629,6 +12629,18 @@ function renderOptionalManagementSection(){
   </div>`;
 }
 
+function _getMinAvailableMenuPrice(si){
+  const s = G.stores && G.stores[si];
+  const purchased = new Set(s ? (s.menu || []) : []);
+  const unlocked = G.unlockedProducts || [];
+  const avail = MENU_OPTIONS.filter(m =>
+    !purchased.has(m.name) &&
+    (!m.requireProduct || unlocked.includes(m.requireProduct))
+  );
+  const prices = avail.map(m => m.cost).filter(Number.isFinite);
+  return prices.length ? Math.min(...prices) : null;
+}
+
 function openMenuModal(si){
   const s=G.stores[si];
   const isTut = G.tut.phase==='playing' && !(G.tut.done && G.tut.done.menu);
@@ -12661,7 +12673,7 @@ function openMenuModal(si){
   const _g = MANAGEMENT_ACTION_GUIDE.buyMenu;
   const _guideHeader = `<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;padding:7px 10px;background:var(--bg2);border-radius:8px">
     <span style="font-size:12px;font-weight:700;color:var(--gr3)">${_g.role}</span>
-    <span style="font-size:11px;color:var(--muted)">反映：${_g.timing}</span>
+    <span style="font-size:11px;color:var(--muted);line-height:1.5">${_g.timing}${_g.timing2?`<br>${_g.timing2}`:''}</span>
     <span style="font-size:11px;color:var(--muted);margin-left:auto">AP ${_menuApCost}</span>
   </div>`;
   const _rows2 = opts.map(m=>{
@@ -14865,7 +14877,7 @@ function renderStore(){
         _body2 = s.isOpen
           ? `<div style="font-size:12px;color:var(--muted);margin-bottom:10px">まだメニューがありません。まず看板商品を追加してください。</div>
              <button class="btn btn-gr" style="width:100%;padding:12px;font-size:14px;font-weight:700" onclick="openMenuModal(${si})">
-               🍱 メニューを追加する <span style="font-size:11px;opacity:.8;margin-left:6px">¥80,000〜</span>
+               🍱 メニューを追加する <span style="font-size:11px;opacity:.8;margin-left:6px">${(()=>{const _p=_getMinAvailableMenuPrice(si);return _p?`¥${fmt(_p)}〜`:'';})()}</span>
              </button>`
           : `<div style="font-size:12px;color:var(--muted);padding:4px 0">まだメニューがありません。再開後に追加できます。</div>`;
       } else {
@@ -17075,7 +17087,7 @@ window.addEventListener('visibilitychange', ()=>{
 <script>
 if(/[?&](qa|debug)=1/.test(location.search)){
   var _qaScript=document.createElement('script');
-  _qaScript.src='maikon-qa.js?v=20260806-v12c-navigation-render-regression-fix';
+  _qaScript.src='maikon-qa.js?v=20260807-v12c3-menu-price-timing-copy';
   document.head.appendChild(_qaScript);
 }
 </script>
