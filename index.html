@@ -590,7 +590,7 @@ body.large-text #app{zoom:1.2;transform-origin:top center}
     <div style="font-size:28px;margin-bottom:10px">⚠</div>
     <div style="font-size:15px;font-weight:700;margin-bottom:12px">APが少なくなっています</div>
     <div style="font-size:13px;color:var(--gr3);line-height:2;margin-bottom:18px">急な案件に備えて<br>APを残しておくことも<br>大切な経営判断です。</div>
-    <button class="btn btn-gr" style="width:100%;padding:12px;font-size:14px" onclick="document.getElementById('apLowWarningModal').style.display='none';_lastApLowWarningWeek=Math.floor(((G.month-1)*30+G.day)/7);">OK</button>
+    <button class="btn btn-gr" style="width:100%;padding:12px;font-size:14px" onclick="document.getElementById('apLowWarningModal').style.display='none';_lastApLowWarningWeek=Math.floor(((G.month-1)*30+G.day)/7);try{_updateAdvFixed();}catch(_e){}">OK</button>
   </div>
 </div>
 
@@ -13787,7 +13787,8 @@ function _isModalOpen(){
   // G.activeEvent は「待機中」状態でも true になるため単独では判定しない。
   // 実際にモーダルが表示中かどうかは DOM の display:flex で判断する。
   if(G.isAdvancingDay || G.processingMonthly) return true;
-  const IDS = ['event-modal','tut-modal','action-modal','apLowWarningModal',
+  // apLowWarningModal は情報通知（blocking操作なし）のため除外。固定CTAを消さない。
+  const IDS = ['event-modal','tut-modal','action-modal',
     'goen-modal','tutOpenStoreComplete','tutRecruitComplete','_ms-modal'];
   return IDS.some(id => { const e=document.getElementById(id); return e && e.style.display==='flex'; });
 }
@@ -17159,7 +17160,7 @@ window.addEventListener('visibilitychange', ()=>{
 <script>
 if(/[?&](qa|debug)=1/.test(location.search)){
   var _qaScript=document.createElement('script');
-  _qaScript.src='maikon-qa.js?v=20260807-v12e-bulk-recruit-tutorial';
+  _qaScript.src='maikon-qa.js?v=20260807-v12f-ap-low-warning-modal-fix';
   document.head.appendChild(_qaScript);
 }
 </script>
