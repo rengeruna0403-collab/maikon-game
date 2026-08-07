@@ -13395,6 +13395,15 @@ function openRentModal(bi,ri){
     </div>
   `);
 }
+// 初期チュートリアルStep3専用：物件タブへ移動してチュートリアルカードを表示
+function _goToInitialPropertySetup(){
+  setTab('apt');
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    const el = document.getElementById('apt-recruit-tutorial');
+    if(el){ el.scrollIntoView({behavior:'smooth', block:'center'}); }
+  }));
+}
+
 // 初期チュートリアルStep3専用：未募集の空室をまとめて募集開始（AP-10一回のみ）
 function _startRecruitingAllVacant(){
   const _targets = [];
@@ -13415,7 +13424,7 @@ function _startRecruitingAllVacant(){
   showActionResultFeedback({ title:`${_targets.length}室の入居者募集を開始しました`, changes:[
     {label:'AP', type:'ap', before:_bfAp, after:G.ap},
     ..._targets.map(t => ({label:t.r.num+'号室', type:'arrow', from:'空室', to:'募集中'}))
-  ], timing:'申込みが届くまで日を進めましょう' });
+  ], timing:'💡 今後、入居状況や空室募集は「物件」から確認できます。', homeBtn:true });
   _seekingStartedToday = true;
   _dismissedToday.clear();
   updateHeader(); renderTab();
@@ -14395,7 +14404,7 @@ function renderInitialSetupCard(){
       const _unlistedVacant4=_allR4.filter(r=>!r.tenant&&!r.seeking).length;
       if(_isFull4) return { label:'アパート運営の準備が整いました', done:p.step3, onclick:"", hint:'現在は満室です' };
       if(_unlistedVacant4===0) return { label:'空室の募集を開始しました', done:p.step3, onclick:"", hint:'現在、すべての空室で入居者を募集しています' };
-      return { label:'空室の募集を始める', done:p.step3, onclick:"_startRecruitingAllVacant()", hint:`アパートには${_unlistedVacant4}室の空室があります。まとめて入居者募集を始めて、家賃収入の準備をしましょう。`, btnLabel:`${_unlistedVacant4}室まとめて募集を開始する →`, apNote:'AP-10（まとめて1回）' };
+      return { label:'空室の募集を始める', done:p.step3, onclick:"_goToInitialPropertySetup()", hint:`アパートには${_unlistedVacant4}室の空室があります。物件タブで確認して、まとめて募集を始めましょう。`, btnLabel:'物件を確認する →' };
     })()
   ];
   const doneCount = [p.step1, p.step2, p.step3].filter(Boolean).length;
@@ -15092,6 +15101,29 @@ function renderStore(){
 }
 
 // ─────────── RENDER APT ───────────
+function _renderAptTutorialCard(){
+  const _p = getInitialSetupProgress();
+  if(!_p || _p.done || G.initialSetupCompleted) return '';
+  if(_p.step3) return ''; // step3完了済みは表示しない
+  const _allRoomsT = G.buildings.flatMap(b => b.rooms||[]);
+  const _isFull = _allRoomsT.length > 0 && _allRoomsT.every(r => r.tenant);
+  if(_isFull) return ''; // 満室なら不要
+  const _unlistedT = _allRoomsT.filter(r => !r.tenant && !r.seeking);
+  if(_unlistedT.length === 0){
+    return `<div class="card" id="apt-recruit-tutorial" style="border:2px solid var(--gr2);background:linear-gradient(135deg,#EEF6EE,#FAFFF8);margin-bottom:10px">
+      <div style="font-size:14px;font-weight:700;color:var(--gr3);margin-bottom:6px">🏠 アパートの募集を始めましょう</div>
+      <div style="font-size:12px;color:var(--muted);line-height:1.7;margin-bottom:10px">すべての空室で入居者を募集しています。<br>申込みが届くまで日を進めましょう。</div>
+      <button onclick="setTab('home')" class="btn" style="width:100%;padding:10px;font-size:13px;font-weight:700;background:var(--bg2);color:var(--gr3)">← ホームへ戻る</button>
+    </div>`;
+  }
+  return `<div class="card" id="apt-recruit-tutorial" style="border:2px solid var(--gr2);background:linear-gradient(135deg,#EEF6EE,#FAFFF8);margin-bottom:10px">
+    <div style="font-size:14px;font-weight:700;color:var(--gr3);margin-bottom:6px">🏠 アパートの募集を始めましょう</div>
+    <div style="font-size:12px;color:var(--muted);line-height:1.7;margin-bottom:10px">この物件には${_unlistedT.length}室の空室があります。<br>最初はまとめて募集を出して、入居者を待ってみましょう。</div>
+    <button onclick="_startRecruitingAllVacant()" class="btn btn-gr" style="width:100%;padding:10px;font-size:13px;font-weight:700">${_unlistedT.length}室まとめて募集を開始する →</button>
+    <div style="font-size:10px;color:var(--muted);text-align:center;margin-top:6px">AP-10（まとめて1回）</div>
+  </div>`;
+}
+
 function renderApt(){
   const bi=G.selBuilding, b=G.buildings[bi];
   const tabs=G.buildings.map((bd,i)=>`
@@ -15101,6 +15133,7 @@ function renderApt(){
   const monthly=b.rooms.filter(r=>r.tenant).reduce((s,r)=>s+r.rent,0);
   return `
     ${renderTutBanner()}
+    ${_renderAptTutorialCard()}
     <div class="sel-tabs">${tabs}<button class="sel-tab" onclick="openBuyBldModal()">+ 物件購入</button></div>
     <div class="card">
       ${_renderAptFacade(b)}
@@ -17160,7 +17193,7 @@ window.addEventListener('visibilitychange', ()=>{
 <script>
 if(/[?&](qa|debug)=1/.test(location.search)){
   var _qaScript=document.createElement('script');
-  _qaScript.src='maikon-qa.js?v=20260807-v12f-ap-low-warning-modal-fix';
+  _qaScript.src='maikon-qa.js?v=20260807-v12e2-property-tab-tutorial';
   document.head.appendChild(_qaScript);
 }
 </script>
