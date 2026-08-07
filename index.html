@@ -13395,6 +13395,32 @@ function openRentModal(bi,ri){
     </div>
   `);
 }
+// 初期チュートリアルStep3専用：未募集の空室をまとめて募集開始（AP-10一回のみ）
+function _startRecruitingAllVacant(){
+  const _targets = [];
+  G.buildings.forEach((b, bi) => {
+    (b.rooms || []).forEach((r, ri) => {
+      if(!r.tenant && !r.seeking) _targets.push({b, bi, r, ri});
+    });
+  });
+  if(_targets.length === 0){ renderTab(); return; }
+  const _bfAp = G.ap;
+  if(!useAP(10, '入居者募集・書類作成')) return;
+  _targets.forEach(({b, r}) => {
+    r.seeking = true;
+    addNews(`📋 ${b.name} ${r.num}号室 入居者募集開始（賃料 ${fmt(r.rent)}/月）`);
+  });
+  const _roomNums = _targets.map(t => t.r.num + '号室').join('・');
+  addStory(`🏠 ${_roomNums}の入居募集をまとめて開始しました！\n\n地域の不動産会社や募集サイトへ掲載しました。\n\n条件が合えば、数日〜数週間で入居希望者から連絡が入ります。`, 'highlight');
+  showActionResultFeedback({ title:`${_targets.length}室の入居者募集を開始しました`, changes:[
+    {label:'AP', type:'ap', before:_bfAp, after:G.ap},
+    ..._targets.map(t => ({label:t.r.num+'号室', type:'arrow', from:'空室', to:'募集中'}))
+  ], timing:'申込みが届くまで日を進めましょう' });
+  _seekingStartedToday = true;
+  _dismissedToday.clear();
+  updateHeader(); renderTab();
+}
+
 function startRecruiting(bi,ri){
   if(!useAP(10, '入居者募集・書類作成', ()=>startRecruiting(bi,ri))) return;
   const _bfAp=G.ap;
@@ -14362,7 +14388,14 @@ function renderInitialSetupCard(){
   const steps = [
     { label:'舞昆茶屋を再開する',    done:p.step1, onclick:"setTab('store')", hint:'祖父が閉めていたお店を再び開きましょう' },
     { label:'最初のメニューを設定する', done:p.step2, onclick:"setTab('store');requestAnimationFrame(()=>requestAnimationFrame(()=>{const _el=document.getElementById('store-menu-anchor');if(_el){_el.scrollIntoView({behavior:'smooth',block:'center'});_el.classList.add('setup-spotlight');setTimeout(()=>_el.classList.remove('setup-spotlight'),1600);}}))", hint:'メニューを1品追加するとお客様が来られます' },
-    (()=>{ const _allR4=(G.buildings||[]).flatMap(b=>b.rooms||[]); const _isFull4=_allR4.length>0&&_allR4.every(r=>r.tenant); return { label:(_isFull4&&p.step3)?'アパート運営の準備が整いました':'空室募集を開始する', done:p.step3, onclick:"setTab('apt')", hint:(_isFull4&&p.step3)?'現在は満室です':'入居者を募集して家賃収入を始めましょう' }; })()
+    (()=>{
+      const _allR4=(G.buildings||[]).flatMap(b=>b.rooms||[]);
+      const _isFull4=_allR4.length>0&&_allR4.every(r=>r.tenant);
+      const _unlistedVacant4=_allR4.filter(r=>!r.tenant&&!r.seeking).length;
+      if(_isFull4) return { label:'アパート運営の準備が整いました', done:p.step3, onclick:"", hint:'現在は満室です' };
+      if(_unlistedVacant4===0) return { label:'空室の募集を開始しました', done:p.step3, onclick:"", hint:'現在、すべての空室で入居者を募集しています' };
+      return { label:'空室の募集を始める', done:p.step3, onclick:"_startRecruitingAllVacant()", hint:`アパートには${_unlistedVacant4}室の空室があります。まとめて入居者募集を始めて、家賃収入の準備をしましょう。`, btnLabel:`${_unlistedVacant4}室まとめて募集を開始する →`, apNote:'AP-10（まとめて1回）' };
+    })()
   ];
   const doneCount = [p.step1, p.step2, p.step3].filter(Boolean).length;
   const cur = steps.find(s => !s.done);
@@ -14385,7 +14418,8 @@ function renderInitialSetupCard(){
     <div style="margin-top:10px;background:rgba(255,255,255,.7);border-radius:10px;padding:10px 12px">
       <div style="font-size:13px;font-weight:700;color:var(--gr3);margin-bottom:4px">${cur.label}</div>
       <div style="font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.6">${cur.hint}</div>
-      <button onclick="${cur.onclick}" class="btn btn-gr" style="width:100%;padding:10px;font-size:13px;font-weight:700">進む →</button>
+      ${cur.onclick ? `<button onclick="${cur.onclick}" class="btn btn-gr" style="width:100%;padding:10px;font-size:13px;font-weight:700">${cur.btnLabel||'進む →'}</button>
+      ${cur.apNote ? `<div style="font-size:10px;color:var(--muted);text-align:center;margin-top:6px">${cur.apNote}</div>` : ''}` : ''}
     </div>
   </div>`;
 }
@@ -17125,7 +17159,7 @@ window.addEventListener('visibilitychange', ()=>{
 <script>
 if(/[?&](qa|debug)=1/.test(location.search)){
   var _qaScript=document.createElement('script');
-  _qaScript.src='maikon-qa.js?v=20260807-v12d-case-ap-transaction-fix';
+  _qaScript.src='maikon-qa.js?v=20260807-v12e-bulk-recruit-tutorial';
   document.head.appendChild(_qaScript);
 }
 </script>
