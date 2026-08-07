@@ -32,12 +32,18 @@ body{font-family:'Noto Sans JP',sans-serif;background:var(--bg);color:var(--text
   background:#fff;border-top:1px solid var(--border);display:flex;z-index:100;
   box-shadow:0 -2px 8px rgba(0,0,0,.08);
   padding-bottom:env(safe-area-inset-bottom)}
-.bnav-item{flex:1;display:flex;flex-direction:column;align-items:center;padding:8px 2px;
-  cursor:pointer;color:var(--muted);font-size:11px;gap:2px;border:none;background:none;
-  font-family:inherit;transition:color .15s;min-height:48px;touch-action:manipulation}
+.bnav-item{flex:1;display:flex;flex-direction:column;align-items:center;padding:8px 2px 8px;
+  cursor:pointer;color:var(--muted);font-size:11px;gap:2px;border:none;border-top:3px solid transparent;background:none;
+  font-family:inherit;transition:color .15s,background .15s,border-color .15s;min-height:48px;touch-action:manipulation}
 .bnav-item:active{opacity:.65;transform:scale(.94)}
 .bnav-item .icon{font-size:22px}
-.bnav-item.active{color:var(--gr)}
+.bnav-item.active{
+  color:var(--gr3);
+  background:var(--gr2);
+  border-top-color:var(--gr);
+  font-weight:700;
+}
+.bnav-item.active .icon{filter:drop-shadow(0 1px 2px rgba(58,107,69,.25))}
 /* MAIN */
 .main{padding:10px;padding-bottom:calc(76px + env(safe-area-inset-bottom));min-height:calc(100vh - 120px)}
 /* ADVANCE */
@@ -13758,7 +13764,9 @@ function setTab(tab){
   const navMap={home:'home',store:'store',apt:'apt',region:'region',staff:'staff',story:'story',finance:'fin'};
   Object.keys(navMap).forEach(t=>{
     const el=document.getElementById('nav-'+navMap[t]);
-    if(el) el.classList.toggle('active',t===tab);
+    if(!el) return;
+    el.classList.toggle('active',t===tab);
+    el.setAttribute('aria-current', t===tab ? 'page' : 'false');
   });
   // タブ訪問でハイライト消去
   clearTabHighlight(tab);
@@ -17193,7 +17201,7 @@ window.addEventListener('visibilitychange', ()=>{
 <script>
 if(/[?&](qa|debug)=1/.test(location.search)){
   var _qaScript=document.createElement('script');
-  _qaScript.src='maikon-qa.js?v=20260807-v12e2-property-tab-tutorial';
+  _qaScript.src='maikon-qa.js?v=20260807-v12e3-footer-active-tab';
   document.head.appendChild(_qaScript);
 }
 </script>
