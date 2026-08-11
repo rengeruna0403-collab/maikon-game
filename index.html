@@ -663,6 +663,7 @@ let G = {
   },
   tabHighlights: {}, // ハイライト中タブ { store:true, staff:true, ... }
   staffUnlocked: false, // 人材タブ解放フラグ（みどり採用で true）
+  staffUnavailableToday: [], // 当日のみ有効：休み・欠勤スタッフ名リスト。日送りでリセット。
   totalRevenue: 0, totalProfit: 0,
   monthRevenue: 0, monthExpense: 0, monthIngredientCost: 0,
   lastDayRevenue: 0,
@@ -940,7 +941,8 @@ function calcDailyRevenue(){
     // ── スタッフ負担・満足度 → 接客品質 → 売上補正 ──
     let staffMult = 1.0;
     if(G.staffUnlocked && G.staff.length > 0){
-      const _midori = G.staff.find(st => st.name === '佐々木みどり');
+      const _unavailNames = G.staffUnavailableToday || [];
+      const _midori = G.staff.find(st => st.name === '佐々木みどり' && !_unavailNames.includes('佐々木みどり'));
       if(_midori){
         const _burden = _midori.burden || 0;
         const _sat    = _midori.satisfaction || 70;
@@ -1190,7 +1192,7 @@ function getNPCStyleComment(){
       lines:[(G.staff && G.staff.length > 1)
                ? '「みんな働きやすそうで、うれしいです。\n続けていける職場って、なかなかないんですよ。」'
                : '「安心して働けています。\n続けていける職場って、なかなかないんですよ。」',
-              '「またスタッフの話をしてくれましたね。\nそういうオーナーさん、珍しいんですよ。」'],
+              '「スタッフのことを、いつも考えてくれていますね。\nそういうオーナーさん、珍しいんですよ。」'],
     },
     community: {
       npc:'石川', icon:'🌸',
@@ -2587,7 +2589,8 @@ function advanceDay(){
   G.stores.forEach(s => {
     if(!s.isOpen || !s.menu || !s.menu.length) return;
     const policy = s.policy || 'owner';
-    const hasStaff = G.staff.some(st => st.store === s.name);
+    const _unavail = G.staffUnavailableToday || [];
+    const hasStaff = G.staff.some(st => st.store === s.name && !_unavail.includes(st.name));
     if(policy === 'owner'){
       s.servedToday = true;
     } else if(policy === 'staff' && hasStaff){ s.servedToday = true; }
@@ -2774,6 +2777,8 @@ function advanceDay(){
   setTimeout(()=>{ try { _checkMenuImpactResult(); } catch(e){ console.error('[advanceDay] menuImpact:', e); } }, 950);
   try { _checkApLowWarning(); } catch(e){ console.error('[advanceDay] apLowWarning:', e); }
   } finally {
+    // 日次スタッフ休み状態リセット（翌日は通常復帰）
+    G.staffUnavailableToday = [];
     // 月末処理中でない場合のみここで解除
     // （月末の場合は closeMonthlyChallengeModal で解除）
     // try内の途中returnや例外発生時も必ずここを通る
@@ -4540,7 +4545,8 @@ function _renderStoreScene(s){
   const ch = G.characters || {};
   // 実際のG.staff配属データで判定（キャラ好感度ではなく配属状態を参照）
   const _policy = s.policy || 'owner';
-  const _assignedStaff = (G.staff || []).filter(st => st.store === s.name);
+  const _unavailNamesVis = G.staffUnavailableToday || [];
+  const _assignedStaff = (G.staff || []).filter(st => st.store === s.name && !_unavailNamesVis.includes(st.name));
   const _primaryStaff = _assignedStaff.length > 0 ? _assignedStaff[0] : null;
   const _showOwner = !_primaryStaff || _policy === 'owner';
   const _isMidoriAssigned = !_showOwner && _primaryStaff && _primaryStaff.name === '佐々木みどり';
@@ -6766,7 +6772,7 @@ const DOMAIN_CASES = [
     title:'「子どもが熱を出してしまって」',
     body:'朝7時、みどりから連絡が来た。\n\n「すみません、娘が昨夜から熱を出してしまって。\n今日、お休みいただけますか。\n\n病院に連れて行ったらすぐ向かいます、と言いたいんですが\nどうしても娘のそばにいないといけなくて……\n\n本当に申し訳ありません」\n\n——今日の午前シフトはみどり一人の予定だった。',
     choices:[
-      {label:'「大丈夫です。お子さんのそばにいてあげて」と快諾する',cost:0,effects:{score:6,staffSat:12,midoriTrust:8,storeSat:-8,profile:{people:4}},label2:'信頼+・午前ワンオペ・満足度-8',storyTag:'みどりを休ませた。その日の午前は一人でやりきったが、接客が遅れてお客さんを待たせてしまった。夕方、「娘が笑うようになりました」とメッセージが届いた。'},
+      {label:'「大丈夫です。お子さんのそばにいてあげて」と快諾する',cost:0,effects:{score:6,staffSat:12,midoriTrust:8,storeSat:-8,staffOff:'佐々木みどり',profile:{people:4}},label2:'信頼+・午前ワンオペ・満足度-8',storyTag:'みどりを休ませた。その日の午前は一人でやりきったが、接客が遅れてお客さんを待たせてしまった。夕方、「娘が笑うようになりました」とメッセージが届いた。'},
       {label:'「午前だけでもお願いできますか」と打診する',cost:0,effects:{score:2,staffSat:-8,midoriTrust:-4,profile:{finance:1}},label2:'みどりの信頼・満足度 大幅ダウン',storyTag:'午前の対応をお願いした。みどりは来てくれたが、終始うわの空だった。翌日、目に見えて元気がなかった。'},
     ]},
 
@@ -6780,8 +6786,8 @@ const DOMAIN_CASES = [
         label2:'信頼+5 / 人手不足で接客遅れ・満足-6',
         storyTag:'みどりを定時で帰した。接客が少し遅れてお客様を待たせてしまったが、人を大切にできたことには満足している。',
         followUp:{ days:2, icon:'⏰', sender:'お客様の声',
-          title:'定時帰宅の翌日',
-          body:'翌日、昨日来店されたお客様のひとりが「昨日ちょっと待ちましたけど、スタッフさんが一人で頑張ってたんですね。お疲れさまです」と言ってくれた。\n\n人を大切にする経営は、見ていてくれる人がいる。',
+          title:'みどりが定時で帰った翌日',
+          body:'翌日、昨日来店されたお客様のひとりが「昨日ちょっと待ちましたけど、よく回りましたね。お疲れさまです」と言ってくれた。\n\n人を大切にする経営は、見ていてくれる人がいる。',
           effects:{ rep:1 },
           _chanceOnly: true }},
       { label:'「30分だけお願いできますか」と頼む（追加賃金 ¥1,500）',
@@ -11094,6 +11100,11 @@ function chooseEvent(idx, useFatigue){
   if(fx.customerLoyalty) G.customerLoyalty = Math.max(0, Math.min(100, (G.customerLoyalty||0) + fx.customerLoyalty));
   if(fx.storeBrand)      G.storeBrand      = Math.max(0, Math.min(100, (G.storeBrand||0)      + fx.storeBrand));
   if(fx.resilience)      G.resilience      = Math.max(0, Math.min(100, (G.resilience||0)      + fx.resilience));
+  if(fx.staffOff){
+    // 当日のみスタッフを欠勤扱いにする（翌日自動復帰）
+    G.staffUnavailableToday = G.staffUnavailableToday || [];
+    if(!G.staffUnavailableToday.includes(fx.staffOff)) G.staffUnavailableToday.push(fx.staffOff);
+  }
   if(fx.storeSat) G.stores[0].satisfaction=Math.min(100,G.stores[0].satisfaction+fx.storeSat);
   if(fx.custUp){
     // 序盤スケール：開店90日未満は15%、180日未満は35%、以降65%
@@ -15027,7 +15038,8 @@ function renderStore(){
       if(!s.isOpen){
         return `<div style="font-size:11px;color:var(--muted);padding:4px 0;text-align:center">↑ 上のボタンから再開できます</div>`;
       }
-      const hasStaff = G.staff.some(st => st.store === s.name);
+      const _unavailCard = G.staffUnavailableToday || [];
+      const hasStaff = G.staff.some(st => st.store === s.name && !_unavailCard.includes(st.name));
       // 2号店以降でスタッフ未配置の場合、採用 or 異動を促す
       if(si > 0 && !hasStaff && s.isOpen){
         const transferable = G.staff.filter(st => st.store !== s.name);
@@ -15048,13 +15060,16 @@ function renderStore(){
           ${transferBtns}
         </div>`;
       }
-      const staffName = hasStaff ? G.staff.find(st => st.store === s.name).name : null;
+      const _activeStaff = G.staff.filter(st => st.store === s.name && !_unavailCard.includes(st.name));
+      const staffName = _activeStaff.length > 0 ? _activeStaff[0].name : null;
+      const _unavailStaff = G.staff.filter(st => st.store === s.name && _unavailCard.includes(st.name));
       if(hasStaff){
+        const _staffLabel = _activeStaff.length >= 2 ? `スタッフ${_activeStaff.length}名` : (staffName || 'スタッフ');
         return `<div style="background:#E8F5E9;border:1.5px solid #A5D6A7;border-radius:12px;padding:12px 14px;margin-bottom:10px;display:flex;align-items:center;gap:10px">
           <span style="font-size:22px">👩</span>
           <div>
-            <div style="font-size:13px;font-weight:700;color:var(--gr3)">${staffName}が接客中</div>
-            <div style="font-size:11px;color:var(--muted)">客数${s.customers}人/日 ✅ 自動対応中 — あなたのAPは他の仕事へ</div>
+            <div style="font-size:13px;font-weight:700;color:var(--gr3)">${_staffLabel}が接客中</div>
+            <div style="font-size:11px;color:var(--muted)">客数${s.customers}人/日 ✅ 自動対応中 — あなたのAPは他の仕事へ${_unavailStaff.length > 0 ? `（${_unavailStaff.map(st=>st.name).join('・')}は本日お休み）` : ''}</div>
           </div>
         </div>`;
       } else if(s.servedToday){
@@ -16764,6 +16779,7 @@ function _normalizeSaveData(){
   G.pendingBentoLaunches    ||= [];
   G.pendingMenuImpactResult ??= null; // 旧セーブ補完
   G.initialSetupCompleted   ??= false;
+  G.staffUnavailableToday   ||= [];
   // 旧セーブ救済：step1+step2達成済みで全部屋入居済みor募集中なら自動完了に昇格
   if(!G.initialSetupCompleted && G.started && G.tut && G.tut.phase === 'done'){
     const _s1ok = !!(G.stores && G.stores[0] && G.stores[0].isOpen);
