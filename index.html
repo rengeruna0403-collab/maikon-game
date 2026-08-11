@@ -6722,7 +6722,12 @@ const DOMAIN_CASES = [
       {label:'「大人なんだから自分たちで解決して」と伝える',cost:0,effects:{score:3,staffSat:-12},label2:'問題悪化のリスク',storyTag:'自分たちで解決するよう求めた。関係が硬直化した。'},
     ]},
 
+  // TEMPORARILY_DISABLED: 採用直後の早期昇給要求は不自然なため停止中。
+  // 将来は「勤務実績・研修・成長・貢献」を踏まえたオーナー主導の待遇見直しシステムに再設計予定。
+  // TODO: スタッフ待遇見直しシステム（最短90日以降、研修/成長実績、スタッフ満足度、
+  //        オーナー側からの待遇見直し、長期間据え置き時のみ本人から相談）
   { id:'staff_raise', requireStaff:true, repeatable:true, domain:'staff', sender:'みどり', icon:'💰', apCost:15, expireDays:21, category:'mgmt',
+    _DISABLED_TEMPORARILY: true, // 早期昇給要求停止。再設計後に有効化予定。
     expirePenalty:{staffSat:-8, news:'💰 昇給相談を放置した。みどりの不満が高まっている。'},
     title:'昇給の相談をしたいと言われた',
     body:'みどりから改まって相談がきました。\n\n「働き始めてから1年以上経ちました。\n責任も増えてきたので……\n少し給与のご相談をしたいのですが。\nいつか話せる時間いただけますか？」',
@@ -8460,6 +8465,7 @@ function generateWeeklyCases(){
   const _hasVacancy = G.buildings.some(b => b.rooms.some(r => !r.tenant));
   const _ok = c => {
     if(c.conditionOnly) return false;
+    if(c._DISABLED_TEMPORARILY) return false; // 一時停止案件は候補から除外
     if(G.cases.some(x => x.id === c.id && !x.resolved)) return false;
     if(c.requireStaff && !G.staffUnlocked){
       if(DEV_MODE) console.log(`[CaseFilter] ${c.id} 除外 — スタッフ相談：除外 / 理由：スタッフ未採用`);
@@ -9788,6 +9794,14 @@ function isCaseStillApplicable(c){
       c._autoSkipped = true;
       return false;
     }
+  }
+  // 一時停止案件：フラグ or IDで判定（旧セーブはフラグなしのため両方チェック）
+  // AP消費・スタッフ満足度変化・評価ペナルティなし
+  const _DISABLED_CASE_IDS = ['staff_raise'];
+  if(c._DISABLED_TEMPORARILY || _DISABLED_CASE_IDS.includes(c.id)){
+    c.resolved = true;
+    c._autoSkipped = true;
+    return false;
   }
   return true;
 }
@@ -16821,6 +16835,17 @@ function _normalizeSaveData(){
     Object.keys(G.characters).forEach(key => {
       const _ch = G.characters[key];
       if(_ch && _ch.met && !_ch.lastCaseDay) _ch.lastCaseDay = _nowDayNorm;
+    });
+  }
+  // 旧セーブ救済：一時停止案件（staff_raise等）が未解決で残っていれば失効
+  // expirePenalty不発・AP変化なし・スタッフ満足度変化なし
+  {
+    const _DISABLED_CASE_IDS = ['staff_raise'];
+    (G.cases||[]).forEach(c => {
+      if(!c.resolved && _DISABLED_CASE_IDS.includes(c.id)){
+        c.resolved = true;
+        c._autoSkipped = true;
+      }
     });
   }
   // 旧セーブ救済：narita_fullhouse_goalが未解決なのに建物が満室なら自動解決
