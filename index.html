@@ -9775,9 +9775,26 @@ function renderTodayMood(){
   </div>`;
 }
 
+// 案件の現在有効性チェック：前提状態が消えた案件を失効させて非表示にする
+// 副作用あり：前提消失案件を resolved=true にして G.cases から事実上除外する
+// AP消費・評価ペナルティなし（プレイヤーは目標を先行達成している）
+function isCaseStillApplicable(c){
+  if(c.id === 'narita_fullhouse_goal'){
+    const _b0 = (G.buildings||[])[0];
+    const _rooms = _b0 ? (_b0.rooms||[]) : [];
+    // 建物の全部屋に入居者がいれば前提消失 → 失効
+    if(_rooms.length > 0 && _rooms.every(r => r.tenant)){
+      c.resolved = true;
+      c._autoSkipped = true;
+      return false;
+    }
+  }
+  return true;
+}
+
 function renderCasesBox(){
   if(!G.started) return '';
-  const pending = G.cases.filter(c => !c.resolved);
+  const pending = G.cases.filter(c => !c.resolved).filter(isCaseStillApplicable);
 
   // ─── ご縁ケースと業務ケースを分離 ───
   const goEnCases  = pending.filter(c => !!c.character);
@@ -16805,6 +16822,19 @@ function _normalizeSaveData(){
       const _ch = G.characters[key];
       if(_ch && _ch.met && !_ch.lastCaseDay) _ch.lastCaseDay = _nowDayNorm;
     });
+  }
+  // 旧セーブ救済：narita_fullhouse_goalが未解決なのに建物が満室なら自動解決
+  // （auto-skip追加以前のセーブデータ向け）
+  {
+    const _b0Norm = (G.buildings||[])[0];
+    const _fhgPending = (G.cases||[]).find(c => c.id === 'narita_fullhouse_goal' && !c.resolved);
+    if(_b0Norm && _fhgPending){
+      const _rn = _b0Norm.rooms || [];
+      if(_rn.length > 0 && _rn.every(r => r.tenant)){
+        _fhgPending.resolved = true;
+        _fhgPending._autoSkipped = true;
+      }
+    }
   }
   G.stores               ||= [];
   G.buildings            ||= [];
