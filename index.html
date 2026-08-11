@@ -9790,18 +9790,22 @@ function renderCasesBox(){
       const realIdx = G.cases.indexOf(c);
       const charState = G.characters[c.character] || {};
       const info = CHARACTERS[c.character] || {};
+      // met=false（初回対面前）はキャラ名・星・ノートを非表示にしてプライバシー保護
+      const _isMet = !!charState.met;
+      const _displayName = _isMet ? (info.name || c.sender) : c.sender;
+      const _displayIcon = _isMet ? (info.icon || '👤') : '👤';
       const lv = charState.level || 1;
-      const stars = '★'.repeat(Math.min(lv,5)) + '☆'.repeat(Math.max(0,5-lv));
-      const lastNote = (charState.notes||[]).slice(-1)[0];
+      const stars = _isMet ? ('★'.repeat(Math.min(lv,5)) + '☆'.repeat(Math.max(0,5-lv))) : '';
+      const lastNote = _isMet ? (charState.notes||[]).slice(-1)[0] : null;
       const noteText = lastNote ? lastNote.text.slice(0,30)+(lastNote.text.length>30?'…':'') : '';
       return `<div onclick="resolveCase(${realIdx})" style="cursor:pointer;background:linear-gradient(135deg,#FFFDF5,#FFF8E8);border:1.5px solid #D4A843;border-radius:12px;padding:12px;display:flex;gap:10px;align-items:flex-start">
-        <div style="font-size:26px;flex-shrink:0;line-height:1">${info.icon||'👤'}</div>
+        <div style="font-size:26px;flex-shrink:0;line-height:1">${_displayIcon}</div>
         <div style="flex:1;min-width:0">
           <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px">
-            <span style="font-size:15px;font-weight:700">${info.name||c.sender}</span>
+            <span style="font-size:15px;font-weight:700">${_displayName}</span>
             <span style="font-size:10px;background:#e65100;color:#fff;border-radius:99px;padding:1px 6px;font-weight:700">NEW</span>
           </div>
-          <div style="font-size:12px;color:#B8860B;margin-bottom:4px">${stars}</div>
+          ${stars?`<div style="font-size:12px;color:#B8860B;margin-bottom:4px">${stars}</div>`:''}
           <div style="font-size:14px;font-weight:600;color:#3E2000">${c.title}</div>
           ${noteText?`<div style="font-size:12px;color:#8D6E63;margin-top:3px">最近：${noteText}</div>`:''}
         </div>
@@ -9811,7 +9815,7 @@ function renderCasesBox(){
     return `<div style="margin-bottom:10px">
       <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
         <span style="font-size:14px;font-weight:700;color:#B8860B">📖 ご縁</span>
-        <span style="background:#e65100;color:#fff;font-size:10px;font-weight:700;border-radius:99px;padding:1px 7px">${goEnCases.length}件の続き</span>
+        <span style="background:#e65100;color:#fff;font-size:10px;font-weight:700;border-radius:99px;padding:1px 7px">${goEnCases.length}件</span>
         <button onclick="showGoEnNote()" style="margin-left:auto;font-size:10px;padding:2px 8px;border-radius:99px;border:1px solid #D4A843;background:transparent;color:#B8860B;cursor:pointer;font-weight:600">ノートを見る</button>
       </div>
       <div style="display:flex;flex-direction:column;gap:7px">${cards}</div>
@@ -16793,6 +16797,15 @@ function _normalizeSaveData(){
   G.seasonalEventStatus  ||= {};
   G.seasonalBentoStatus  ||= {};
   G.cases                ||= [];
+  // 旧セーブ救済：met=trueだがlastCaseDayが未定義の場合は現在日を設定
+  // （lastCaseDay=0のままだとcharReady(30)が起動初日から満たされてしまう）
+  if(G.characters){
+    const _nowDayNorm = (G.year-1)*360 + (G.month-1)*30 + (G.day||1);
+    Object.keys(G.characters).forEach(key => {
+      const _ch = G.characters[key];
+      if(_ch && _ch.met && !_ch.lastCaseDay) _ch.lastCaseDay = _nowDayNorm;
+    });
+  }
   G.stores               ||= [];
   G.buildings            ||= [];
   G.staff                ||= [];
