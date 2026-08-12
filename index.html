@@ -5563,7 +5563,7 @@ const CASE_POOL = [
     title:'メニューを見直してほしいとの声',
     body:'常連のお客さまから声がかかりました。\n\n「最近、ちょっとマンネリになってきた気がして。\n季節の食材とか、新しいものを試してもらえたら嬉しいな」',
     choices:[
-      {label:'季節メニューのアイデアを一緒に考える（AP-10）',cost:0,effects:{score:12,storeSat:8,custUp:2,storeBrand:3,profile:{community:2}},label2:'顧客満足+・ブランド+',storyTag:'常連さんと一緒に季節メニューを考えた。「こういう店、好きです」と言ってもらえた。'},
+      {label:'季節メニューのアイデアを一緒に考える',cost:0,effects:{score:12,storeSat:8,custUp:2,storeBrand:3,profile:{community:2}},label2:'顧客満足+・ブランド+',storyTag:'常連さんと一緒に季節メニューを考えた。「こういう店、好きです」と言ってもらえた。'},
       {label:'「検討します」と答えてそのまま',cost:0,effects:{score:3,storeSat:-2},label2:'信頼やや低下',storyTag:''},
     ]},
 
@@ -10958,6 +10958,7 @@ function showEffectList(fx, cost){
   if(fx.staffSat < 0)                  lines.push({ t:'👩 スタッフ ' + fx.staffSat,   c:'neg' });
   if(fx.custRegular > 0)               lines.push({ t:'👥 常連 +' + fx.custRegular,   c:'pos' });
   if(fx.custUp > 0)                    lines.push({ t:'🛍 客数 +' + fx.custUp,        c:'pos' });
+  if(fx.storeBrand > 0)               lines.push({ t:'✨ ブランド +' + fx.storeBrand,  c:'pos' });
   if(fx.credit > 0)                    lines.push({ t:'🏦 信用度 +' + fx.credit,      c:'pos' });
   if(fx.credit < 0)                    lines.push({ t:'🏦 信用度 ' + fx.credit,       c:'neg' });
   if(fx.charMeet)                      lines.push({ t:'📖 ご縁 +1',                   c:'pos' });
@@ -14248,8 +14249,12 @@ function renderProgressCard(){
     activeItems.push(`💰 売掛金が積み上がっています（月末あと${30-G.day}日で入金）`);
   }
   const _pendingCases = (G.cases||[]).filter(c=>!c.resolved).length;
-  if(_pendingCases === 0 && G.buildings && G.buildings.length > 0)
-    activeItems.push(`📨 新しい案件・入居申込を待っています`);
+  if(_pendingCases === 0 && G.buildings && G.buildings.length > 0){
+    const _waitMsg = seekingCount > 0
+      ? `📨 新しい案件・入居申込を待っています`
+      : `📨 新しい案件を待っています`;
+    activeItems.push(_waitMsg);
+  }
 
   // --- 次の予定アイテム ---
   const schedItems = [];
