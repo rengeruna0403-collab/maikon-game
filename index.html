@@ -8476,6 +8476,23 @@ function generateWeeklyCases(){
     if(c.requireTenant && !G.buildings.some(b => (b.rooms||[]).some(r => r.tenant))) return false;
     if(c.menuProposal && !_canProposeNewMenu()) return false;
     if(c.id === 'narita_loan' && !G.staffUnlocked) return false;
+    // midgame_menu_renewal：開店から30日以上 + メニュー2品以上 + 常連1人以上
+    // （「最近マンネリ」が成立するには十分な営業期間とメニュー蓄積が必要）
+    if(c.id === 'midgame_menu_renewal'){
+      const _openDay = G.tut ? (G.tut.tutCompletedDay || 0) : 0;
+      const _s0 = (G.stores||[])[0] || {};
+      if(_openDay === 0 || tdNow - _openDay < 30) return false; // チュートリアル未完了or開店30日未満
+      if((_s0.menu||[]).length < 2) return false; // メニュー1品以下
+      if((_s0.regulars||0) < 1) return false; // 常連0人
+    }
+    // midgame_repeat_customer：開店から60日以上 + 常連3人以上
+    // （「長い付き合い」「昔みたいに」の表現が序盤に成立しない）
+    if(c.id === 'midgame_repeat_customer'){
+      const _openDay2 = G.tut ? (G.tut.tutCompletedDay || 0) : 0;
+      const _s0b = (G.stores||[])[0] || {};
+      if(_openDay2 === 0 || tdNow - _openDay2 < 60) return false; // 開店60日未満
+      if((_s0b.regulars||0) < 3) return false; // 常連3人未満（「長い付き合い」が成立しない）
+    }
     // 経過日数・評判フィルター
     if(c.minDay && tdNow < c.minDay) return false;
     if(c.minRep && (G.regions[0]?.reputation||0) < c.minRep) return false;
