@@ -6110,13 +6110,13 @@ const DOMAIN_CASES = [
       {label:'書類だけ送付する',cost:0,effects:{score:4},label2:'事務的対応',storyTag:'更新書類を送付した。'},
     ]},
 
-  { id:'early_departure', repeatable:true, domain:'landlord', sender:'入居者', icon:'📦', apCost:15, expireDays:7, category:'mgmt',
+  { id:'early_departure', requireTenant:true, repeatable:true, domain:'landlord', sender:'入居者', icon:'📦', apCost:15, expireDays:7, category:'mgmt',
     expirePenalty:{news:'📦 退去対応を遅らせた。次の入居者募集が遅れている。'},
-    title:'退去予告が届きました',
-    body:'入居者から退去の意向が届きました。\n\n「来月末で退去します。\nお世話になりました」\n\n原状回復確認と次の入居者募集が必要です。',
+    title:'退去の申し出がありました',
+    body:'入居者から退去の申し出がありました。\n\n「退去したいと思っています。\nこれまでお世話になりました」\n\n手続きを進めるか、\n一度お話を聞いてみるか判断しましょう。',
     choices:[
-      {label:'退去手続きを速やかに進める',cost:0,effects:{score:8,credit:1,removeTenant:true},label2:'空室になります・次の募集へ',storyTag:'退去手続きをスムーズに進めた。部屋が空いた。'},
-      {label:'引き止めの提案をする',cost:0,effects:{score:5,rep:2},label2:'評判+2（退去は保留）',storyTag:'引き止めを試みた。'},
+      {label:'退去手続きを速やかに進める',cost:0,effects:{score:8,credit:1,removeTenant:true},label2:'空室になります・次の募集へ',storyTag:'退去手続きを進めた。部屋が空いた。'},
+      {label:'住み続けられないか相談する',cost:0,effects:{score:5,rep:2},label2:'今回は退去を見送ってもらえた',storyTag:'話を聞いた結果、しばらく住み続けてもらえることになった。'},
     ]},
 
   // ③ 家賃関連（ops→mgmt→strategy, AP 5-25）
@@ -8108,6 +8108,31 @@ function addCase(caseData){
       if(entry.title) entry.title = entry.title.replace(/\{\{TENANT_NAME\}\}/g, _t.name+'さん').replace(/\{\{TENANT_ROOM\}\}/g, _t.room);
     }
   }
+  // early_departure: 案件生成時に対象room（満足度最低・ホールドなし）を固定
+  if(entry.id === 'early_departure'){
+    const _tdNowEd = (G.year-1)*360 + (G.month-1)*30 + G.day;
+    let _edMinSat = Infinity, _edBi = -1, _edRi = -1;
+    G.buildings.forEach((b, bi) => {
+      (b.rooms||[]).forEach((r, ri) => {
+        if(r.tenant && _tdNowEd >= (r._departureHoldUntil||0)){
+          const _sat = r.satisfaction||70;
+          if(_sat < _edMinSat){ _edMinSat = _sat; _edBi = bi; _edRi = ri; }
+        }
+      });
+    });
+    if(_edBi < 0) return; // 有効ターゲットなし（全入居者が引き止めホールド中）
+    // choices を deep copy してから storyTag を対象者名に書き換え
+    entry.choices = entry.choices.map(c => ({...c}));
+    const _edRoom = G.buildings[_edBi].rooms[_edRi];
+    entry._targetBi           = _edBi;
+    entry._targetRi           = _edRi;
+    entry._targetTenantName   = _edRoom.tenant.name;
+    entry._targetRoomNum      = _edRoom.num;
+    entry._targetBuildingName = G.buildings[_edBi].name;
+    entry.choices[0].storyTag = `退去手続きを進めた。${_edRoom.tenant.name}が${G.buildings[_edBi].name} ${_edRoom.num}号室を退去した。`;
+    entry.choices[1].storyTag = `${_edRoom.tenant.name}の話を聞いた。しばらく住み続けてもらえることになった。`;
+  }
+
   // スケジューラのステージングモード中はキューへ溜める
   if(_schedStaging){
     _schedRaw.push(entry);
@@ -8474,6 +8499,13 @@ function generateWeeklyCases(){
     if(c.requireVacancy && !_hasVacancy) return false;
     if(c.maxOccupancyPct !== undefined && totalRooms() > 0 && occupiedRooms()/totalRooms() > c.maxOccupancyPct) return false;
     if(c.requireTenant && !G.buildings.some(b => (b.rooms||[]).some(r => r.tenant))) return false;
+    // early_departure: 引き止めホールド中でないtenantが少なくとも1室必要
+    if(c.id === 'early_departure'){
+      const _hasValidEdTarget = G.buildings.some(b =>
+        (b.rooms||[]).some(r => r.tenant && tdNow >= (r._departureHoldUntil||0))
+      );
+      if(!_hasValidEdTarget) return false;
+    }
     if(c.menuProposal && !_canProposeNewMenu()) return false;
     if(c.id === 'narita_loan' && !G.staffUnlocked) return false;
     // midgame_menu_renewal：開店から30日以上 + メニュー2品以上 + 常連1人以上
@@ -9802,6 +9834,17 @@ function renderTodayMood(){
 // 副作用あり：前提消失案件を resolved=true にして G.cases から事実上除外する
 // AP消費・評価ペナルティなし（プレイヤーは目標を先行達成している）
 function isCaseStillApplicable(c){
+  // early_departure: 生成時に固定した対象tenantがまだ存在するか確認
+  if(c.id === 'early_departure' && c._targetBi !== undefined){
+    const _edB = (G.buildings||[])[c._targetBi];
+    const _edR = _edB ? (_edB.rooms||[])[c._targetRi] : null;
+    if(!_edR || !_edR.tenant || _edR.tenant.name !== c._targetTenantName){
+      // 対象入居者がすでにいない → ペナルティなし失効
+      c.resolved = true;
+      c._autoSkipped = true;
+      return false;
+    }
+  }
   if(c.id === 'narita_fullhouse_goal'){
     const _b0 = (G.buildings||[])[0];
     const _rooms = _b0 ? (_b0.rooms||[]) : [];
@@ -11654,24 +11697,46 @@ function chooseEvent(idx, useFatigue){
     }
   }
 
-  // 退去手続き完了：入居中のテナントを1室空ける（満足度最低の部屋を優先）
+  // 退去手続き完了：案件生成時固定ターゲット（early_departure）または旧フォールバック
   if(fx.removeTenant){
     let removed = false;
-    let minSat = Infinity, minBi = -1, minRi = -1;
-    for(let bi = 0; bi < G.buildings.length; bi++){
-      for(let ri = 0; ri < G.buildings[bi].rooms.length; ri++){
-        const r = G.buildings[bi].rooms[ri];
-        if(r.tenant && (r.satisfaction||70) < minSat){
-          minSat = r.satisfaction||70; minBi = bi; minRi = ri;
+    if(ev.id === 'early_departure' && ev._targetBi !== undefined){
+      // 固定ターゲットで退去処理
+      const _edB = G.buildings[ev._targetBi];
+      const _edR = _edB ? (_edB.rooms||[])[ev._targetRi] : null;
+      if(_edR && _edR.tenant && _edR.tenant.name === ev._targetTenantName){
+        addNews(`🚪 ${_edR.tenant.name}が${_edB.name} ${_edR.num}号室を退去した`);
+        _edR.tenant = null; _edR.seeking = false;
+        scoreOwner(-2, 'tenant_leave');
+        removed = true;
+        setTimeout(() => showActionResultFeedback({
+          title: `${ev._targetTenantName}が退去しました`,
+          changes:[{label:ev._targetBuildingName+' '+ev._targetRoomNum+'号室', type:'arrow', from:'入居中', to:'空室（未募集）'}],
+          timing:'物件タブを開いて募集を開始すると、入居申込が届きます',
+        }), 600);
+      } else {
+        // 対象がすでにいない（先行退去等）→ ペナルティなし
+        addNews('📦 退去手続きを完了した（対象入居者はすでに退去済み）');
+        removed = true;
+      }
+    } else {
+      // フォールバック: removeTenant を使う他の案件向け（満足度最低の部屋）
+      let minSat = Infinity, minBi = -1, minRi = -1;
+      for(let bi = 0; bi < G.buildings.length; bi++){
+        for(let ri = 0; ri < G.buildings[bi].rooms.length; ri++){
+          const r = G.buildings[bi].rooms[ri];
+          if(r.tenant && (r.satisfaction||70) < minSat){
+            minSat = r.satisfaction||70; minBi = bi; minRi = ri;
+          }
         }
       }
-    }
-    if(minBi >= 0){
-      const _r = G.buildings[minBi].rooms[minRi];
-      addNews(`🚪 ${_r.tenant.name}が${G.buildings[minBi].name} ${_r.num}号室を退去した`);
-      _r.tenant = null; _r.seeking = false;
-      scoreOwner(-2, 'tenant_leave');
-      removed = true;
+      if(minBi >= 0){
+        const _r = G.buildings[minBi].rooms[minRi];
+        addNews(`🚪 ${_r.tenant.name}が${G.buildings[minBi].name} ${_r.num}号室を退去した`);
+        _r.tenant = null; _r.seeking = false;
+        scoreOwner(-2, 'tenant_leave');
+        removed = true;
+      }
     }
     if(!removed) addNews('📦 退去手続きを完了した（空室なし）');
   }
@@ -11682,6 +11747,21 @@ function chooseEvent(idx, useFatigue){
       r.rent = Math.max(30000, Math.round(r.rent * (1 - fx.reduceRent)));
     }));
     addNews(`📉 全室の賃料を${Math.round(fx.reduceRent*100)}%引き下げた`);
+  }
+
+  // 引き止め選択時：対象roomに90日ホールドを設定してフィードバック表示
+  if(ev.id === 'early_departure' && idx === 1 && ev._targetBi !== undefined){
+    const _holdB = G.buildings[ev._targetBi];
+    const _holdR = _holdB ? (_holdB.rooms||[])[ev._targetRi] : null;
+    if(_holdR && _holdR.tenant){
+      const _tdNowHold = (G.year-1)*360 + (G.month-1)*30 + G.day;
+      _holdR._departureHoldUntil = _tdNowHold + 90;
+    }
+    setTimeout(() => showActionResultFeedback({
+      title: '今回は住み続けてもらえることになりました',
+      changes:[],
+      timing: '話を聞いた結果、しばらくこの部屋で暮らしてもらえることになりました。',
+    }), 600);
   }
 
   G.activeEvent=null;

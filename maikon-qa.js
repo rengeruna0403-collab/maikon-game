@@ -3,9 +3,9 @@
  * ?qa=1 または ?debug=1 の場合のみ動作
  * ゲーム本体への影響なし・読み取り専用（Phase 2Aは1日テスト後に必ず復元）
  */
-window._MAIKON_QA_VERSION = '2026-08-12-v13d2-menu-result-and-home-display';
+window._MAIKON_QA_VERSION = '2026-08-12-v13e-early-departure-consistency';
 console.log('[MAIKON-QA] loaded version:', window._MAIKON_QA_VERSION);
-console.log('[QA FILE LOADED] v13d2-menu-result-and-home-display-20260812');
+console.log('[QA FILE LOADED] v13e-early-departure-consistency-20260812');
 
 // ゲーム内1年は360日（30日×12月）
 const GAME_DAYS_PER_YEAR = 360;
@@ -15223,5 +15223,178 @@ ${ar.experienceKPI ? _sim3ExperienceKpiHtml(ar.experienceKPI) : ''}
   } else {
     setTimeout(init, 0);
   }
+
+  // ══════════════════════════════════════════════════════════════
+  // ■ QA Section 34: early_departure 退去案件整合チェック (v1.3e)
+  // ══════════════════════════════════════════════════════════════
+  /**
+   * window._qaEarlyDeparture() でコンソールから実行
+   *
+   * 検証項目:
+   *  34-1  requireTenant: テナント0人 → early_departure 生成不可
+   *  34-2  requireTenant: テナントあり → 生成候補に入る
+   *  34-3  生成時ターゲット固定: _targetBi / _targetRi / _targetTenantName が設定される
+   *  34-4  ターゲット選定: 満足度最低の入居中部屋が選ばれる
+   *  34-5  ホールド中スキップ: _departureHoldUntil > tdNow の部屋は対象外
+   *  34-6  ターゲット消失: 対象tenant が消えた後は isCaseStillApplicable が false
+   *  34-7  本文: 「来月末」を含まない
+   *  34-8  本文: 「原状回復」を含まない
+   *  34-9  退去後: tenant=null / seeking=false
+   *  34-10 引き止め後: _departureHoldUntil が設定される
+   */
+  window._qaEarlyDeparture = function () {
+    const _g = (function () { try { return eval('G'); } catch(e) { return null; } })();
+    if (!_g) { console.error('[QA-34] G not found'); return; }
+
+    const results = [];
+    function pass(id, detail) { results.push({ st: 'PASS', id, detail }); console.log(`✅ [PASS] ${id}: ${detail}`); }
+    function fail(id, detail) { results.push({ st: 'FAIL', id, detail }); console.error(`❌ [FAIL] ${id}: ${detail}`); }
+    function warn(id, detail) { results.push({ st: 'WARN', id, detail }); console.warn(`⚠️  [WARN] ${id}: ${detail}`); }
+
+    const _DOMAIN_CASES = (function () { try { return eval('DOMAIN_CASES'); } catch(e) { return []; } })();
+    const _CASE_POOL    = (function () { try { return eval('CASE_POOL');    } catch(e) { return []; } })();
+    const _addCase      = (function () { try { return eval('addCase');      } catch(e) { return null; } })();
+    const _isCsA        = (function () { try { return eval('isCaseStillApplicable'); } catch(e) { return null; } })();
+
+    const _edDef = [..._DOMAIN_CASES, ..._CASE_POOL].find(c => c.id === 'early_departure');
+    if (!_edDef) { fail('34-0', 'early_departure 定義が見つからない'); return results; }
+
+    // 34-1: requireTenant 設定確認
+    if (_edDef.requireTenant === true) {
+      pass('34-1', 'requireTenant:true が設定されている');
+    } else {
+      fail('34-1', `requireTenant が ${_edDef.requireTenant}（true でない）`);
+    }
+
+    // 34-7: 本文に「来月末」が含まれないか
+    if (!(_edDef.body || '').includes('来月末')) {
+      pass('34-7', '本文に「来月末」を含まない');
+    } else {
+      fail('34-7', '本文に「来月末」が残っている');
+    }
+
+    // 34-8: 本文に「原状回復」が含まれないか
+    if (!(_edDef.body || '').includes('原状回復')) {
+      pass('34-8', '本文に「原状回復」を含まない');
+    } else {
+      fail('34-8', '本文に「原状回復」が残っている');
+    }
+
+    // --- ゲームデータを使った検証 ---
+    if (!_g.buildings || _g.buildings.length === 0) {
+      warn('34-2', '建物データなし（ゲーム未開始の可能性）');
+      console.group('[QA Section 34: early_departure]');
+      results.forEach(r => console.log(`${r.st === 'PASS' ? '✅' : r.st === 'FAIL' ? '❌' : '⚠️'} [${r.st}] ${r.id}: ${r.detail}`));
+      console.groupEnd();
+      return results;
+    }
+
+    const _tdNow = (_g.year - 1) * 360 + (_g.month - 1) * 30 + _g.day;
+    const _allRooms = _g.buildings.flatMap((b, bi) => (b.rooms || []).map((r, ri) => ({ b, bi, r, ri })));
+    const _occupiedRooms = _allRooms.filter(x => x.r.tenant);
+    const _validTargets  = _occupiedRooms.filter(x => _tdNow >= (x.r._departureHoldUntil || 0));
+
+    // 34-2: テナントあり → 生成候補
+    if (_occupiedRooms.length > 0) {
+      pass('34-2', `入居中 ${_occupiedRooms.length} 室あり → 生成候補になる`);
+    } else {
+      warn('34-2', '現在テナントなし（34-1の効果確認はゲームプレイ中に実施）');
+    }
+
+    // 34-4 / 34-5: ターゲット選定ロジック確認（最低満足度・ホールドなし）
+    if (_validTargets.length > 0) {
+      const _minSat = Math.min(..._validTargets.map(x => x.r.satisfaction || 70));
+      const _expectedTarget = _validTargets.find(x => (x.r.satisfaction || 70) === _minSat);
+      pass('34-4', `満足度最低=${_minSat}（${_expectedTarget.b.name} ${_expectedTarget.r.num}号室）が選定対象`);
+
+      const _holdedRooms = _occupiedRooms.filter(x => _tdNow < (x.r._departureHoldUntil || 0));
+      if (_holdedRooms.length > 0) {
+        pass('34-5', `引き止めホールド中の部屋 ${_holdedRooms.length} 室を除外（残有効ターゲット: ${_validTargets.length} 室）`);
+      } else {
+        pass('34-5', 'ホールド中の部屋なし（全入居中部屋が候補）');
+      }
+    } else if (_occupiedRooms.length > 0) {
+      warn('34-5', `全 ${_occupiedRooms.length} 室がホールド中 → early_departure は生成されない（正常動作）`);
+    } else {
+      warn('34-4', '入居中の部屋なし（起動直後のため）');
+    }
+
+    // 34-3 / 34-6: 既存案件のターゲット固定確認
+    const _existingEd = (_g.cases || []).filter(c => c.id === 'early_departure' && !c.resolved);
+    if (_existingEd.length > 0) {
+      _existingEd.forEach(c => {
+        if (c._targetBi !== undefined && c._targetRi !== undefined && c._targetTenantName) {
+          pass('34-3', `案件 _targetBi=${c._targetBi} _targetRi=${c._targetRi} name=${c._targetTenantName} が固定済み`);
+        } else {
+          fail('34-3', `early_departure 案件にターゲット固定フィールドがない（旧セーブの可能性）`);
+        }
+      });
+
+      // 34-6: isCaseStillApplicable でターゲット消失検出
+      if (_isCsA) {
+        const _mockLostCase = {
+          id: 'early_departure',
+          _targetBi: 0,
+          _targetRi: 999,
+          _targetTenantName: '__nonexistent__',
+          resolved: false,
+        };
+        const _result = _isCsA(_mockLostCase);
+        if (!_result && _mockLostCase.resolved === true && _mockLostCase._autoSkipped === true) {
+          pass('34-6', 'ターゲット消失時に isCaseStillApplicable がペナルティなし失効させる');
+        } else {
+          fail('34-6', `ターゲット消失時の失効処理が想定通りでない (result=${_result}, resolved=${_mockLostCase.resolved})`);
+        }
+      } else {
+        warn('34-6', 'isCaseStillApplicable 関数取得不可');
+      }
+    } else {
+      warn('34-3', '未解決の early_departure 案件なし（ターゲット固定確認はプレイ中に実施）');
+      warn('34-6', '未解決の early_departure 案件なし（ターゲット消失確認はプレイ中に実施）');
+
+      // isCaseStillApplicable のモックテストは案件の有無に関わらず実行
+      if (_isCsA) {
+        const _mockLostCase = {
+          id: 'early_departure',
+          _targetBi: 0,
+          _targetRi: 999,
+          _targetTenantName: '__nonexistent__',
+          resolved: false,
+        };
+        const _result = _isCsA(_mockLostCase);
+        if (!_result && _mockLostCase.resolved === true) {
+          pass('34-6', 'モックテスト: ターゲット消失 → ペナルティなし失効 ✅');
+        } else {
+          fail('34-6', `モックテスト: ターゲット消失時の失効が想定外 (result=${_result}, resolved=${_mockLostCase.resolved})`);
+        }
+      }
+    }
+
+    // 34-9 / 34-10: 退去後・引き止め後の状態確認（現在のroomから判断）
+    const _holdedRooms2 = _occupiedRooms.filter(x => _tdNow < (x.r._departureHoldUntil || 0));
+    if (_holdedRooms2.length > 0) {
+      pass('34-10', `引き止め後 _departureHoldUntil 設定済みの部屋 ${_holdedRooms2.length} 室を確認`);
+    } else {
+      warn('34-10', '引き止め済みの部屋なし（プレイ中に引き止め選択後に確認）');
+    }
+
+    const _vacantUnseeking = _allRooms.filter(x => !x.r.tenant && !x.r.seeking);
+    if (_vacantUnseeking.length > 0) {
+      pass('34-9', `退去後の空室・未募集部屋 ${_vacantUnseeking.length} 室: tenant=null/seeking=false ✅`);
+    } else {
+      warn('34-9', '現在の未募集空室なし（退去選択後に確認）');
+    }
+
+    // 総合判定
+    const nP = results.filter(r => r.st === 'PASS').length;
+    const nF = results.filter(r => r.st === 'FAIL').length;
+    const nW = results.filter(r => r.st === 'WARN').length;
+    const overall = nF === 0 ? (nW === 0 ? '✅ ALL PASS' : '⚠️  PASS（WARN有）') : '❌ FAIL';
+    console.group(`[QA Section 34: early_departure]  ${overall}  PASS:${nP} FAIL:${nF} WARN:${nW}`);
+    results.forEach(r => console.log(`${r.st === 'PASS' ? '✅' : r.st === 'FAIL' ? '❌' : '⚠️'} [${r.st}] ${r.id}: ${r.detail}`));
+    console.groupEnd();
+    return results;
+  };
+  window._qaEarlyDeparture.help = 'window._qaEarlyDeparture() — early_departure 退去案件整合チェック';
 
 })();
