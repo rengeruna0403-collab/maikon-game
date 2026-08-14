@@ -16178,4 +16178,308 @@ ${ar.experienceKPI ? _sim3ExperienceKpiHtml(ar.experienceKPI) : ''}
   };
   window._qaStaffGrowthPhase.help = 'window._qaStaffGrowthPhase() — みどり成長フェーズ A〜E 発火タイミング整合 v1.3h（読み取り専用）';
 
+  // ══════════════════════════════════════════════════════════════
+  // ■ Section 39: Day31〜60 イベント密度・解禁タイミング監査
+  //   window._qaDay31to60EventAudit()
+  //   ゲーム状態は変更しない（読み取り専用）
+  // ══════════════════════════════════════════════════════════════
+  window._qaDay31to60EventAudit = function() {
+    const _gEval = eval('G');
+    if(!_gEval){ console.error('[QA] G not found'); return null; }
+
+    console.group('=== Day31〜60 イベント密度・解禁タイミング監査 ===');
+
+    const totalDays = (_gEval.year - 1) * 360 + (_gEval.month - 1) * 30 + _gEval.day;
+    const midori    = (_gEval.staff || []).find(s => s.name === '佐々木みどり');
+    const lunchStaff = (_gEval.staff || []).find(s => s.type === 'lunchStaff');
+    const hired     = !!_gEval.staffUnlocked && !!midori;
+    const dw        = hired ? (midori.daysWorked || 0) : 0;
+    const midoriSat = hired ? (midori.satisfaction || 70) : 0;
+    const lunchDay  = _gEval._lunchStaffHiredDay || null;
+    const daysSinceLunch = (lunchDay !== null) ? totalDays - lunchDay : -1;
+    const hasTamogi = (_gEval.unlockedProducts || []).includes('tamogitake_maikon');
+    const credit    = _gEval.creditScore || 45;
+    const rep       = (_gEval.regions[0] || {}).reputation || 0;
+    const monthIdx  = (_gEval.year - 1) * 12 + _gEval.month; // 1年4月=4
+    const cust      = (_gEval.stores[0] || {}).customers || 0;
+    const storeLv   = (_gEval.stores[0] || {}).level || 1;
+    const giftLv    = (_gEval.stores[0] || {}).giftLevel || 0;
+    const hasVacancy = (_gEval.buildings||[]).some(b => b.rooms.some(r => !r.tenant));
+    const hasTenant  = (_gEval.buildings||[]).some(b => b.rooms.some(r => r.tenant));
+
+    const hasCaseResolved   = id => (_gEval.cases||[]).some(c => c.id === id && c.resolved);
+    const hasCaseUnresolved = id => (_gEval.cases||[]).some(c => c.id === id && !c.resolved);
+    const hasCase           = id => (_gEval.cases||[]).some(c => c.id === id);
+    const unresolved        = (_gEval.cases||[]).filter(c => !c.resolved).length;
+    const pendingFU         = (_gEval.pendingFollowUps||[]).length;
+
+    // ── 現在状態サマリー ──
+    console.group('■ 現在状態（監査基準日）');
+    console.log(`totalDays=${totalDays} month=${_gEval.month} year=${_gEval.year}`);
+    console.log(`みどり: hired=${hired} dw=${dw} sat=${midoriSat}`);
+    console.log(`さくら: ${lunchStaff ? '採用済み' : '未採用'} daysSinceLunch=${daysSinceLunch}`);
+    console.log(`信用度=${credit} 評判=${rep} 客数=${cust} 店舗Lv=${storeLv} giftLv=${giftLv}`);
+    console.log(`案件ボックス: 未処理=${unresolved}/6 pendingFollowUp=${pendingFU}`);
+    console.log(`たもぎ茸=${hasTamogi ? '解放済み' : '未解放'} 空室あり=${hasVacancy} 入居者あり=${hasTenant}`);
+    console.groupEnd();
+
+    // ── Day30境界で解禁されるもの ──
+    console.group('■ Day30境界 解禁チェック（みどりdw=30時点）');
+    const dw30Events = [
+      { id:'midori_jido',          type:'condition-daily', label:'参観日早退（dw>=30）' },
+      { id:'narita_expansion',     type:'condition-daily', label:'成田拡大提案（dw>=30）' },
+      { id:'taste_midori_snack',   type:'condition-daily', label:'みどりつまみ食い（dw>=30,sat>=70）' },
+      { id:'midori_pop',           type:'weekly-pool',     label:'POP作成（weekly pool）' },
+      { id:'staff_gift_improve',   type:'weekly-pool',     label:'ギフト包装改善（weekly pool）' },
+    ];
+    // 上記が実際に現在どういう状態か
+    dw30Events.forEach(ev => {
+      const st = hasCaseResolved(ev.id) ? '✅完了' : hasCaseUnresolved(ev.id) ? '📥未処理' : '─未発火';
+      console.log(`  ${st} ${ev.id} [${ev.type}] ${ev.label}`);
+    });
+    if(hired && dw >= 30){
+      console.log('  → dw30境界を過ぎている。上記5件のうち condition-daily系（jido/expansion/snack）が同日発火した可能性あり。');
+    } else if(hired){
+      console.log(`  → 現在dw=${dw}（dw=30まで${30-dw}日）。境界解禁は未発生。`);
+    }
+    console.groupEnd();
+
+    // ── Day60境界で解禁されるもの ──
+    console.group('■ Day60境界 解禁チェック（totalDays=60, dw=50+）');
+    const day60Events = [
+      { id:'narita_site_visit',       cond: totalDays >= 60 && credit >= 35, label:'成田現場視察（totalDays>=60, credit>=35）' },
+      { id:'midgame_repeat_customer', cond: totalDays >= 60, label:'常連マンネリ（tutDay+60, 常連3人以上）' },
+      { id:'staff_analysis',          cond: hired && dw >= 60 && monthIdx >= 5 && hasCaseResolved('midori_growth'), label:'売れ筋分析（dw>=60, 月末1回以上, 研修完了）' },
+    ];
+    day60Events.forEach(ev => {
+      const met = ev.cond ? '✅条件満足' : '─条件未達';
+      const st  = hasCaseResolved(ev.id) ? '完了' : hasCaseUnresolved(ev.id) ? '📥未処理' : '未発火';
+      console.log(`  [${met}] ${ev.id} 現在状態:${st} — ${ev.label}`);
+    });
+    console.groupEnd();
+
+    // ── 案件ボックス容量分析 ──
+    console.group('■ 案件ボックス容量（MAX=6）');
+    console.log(`現在未処理: ${unresolved}件`);
+    console.log(`週次生成目標: 3件（scale依存）/ canAdd = ${Math.max(0, 6 - unresolved)}`);
+    console.log(`補充ライン: 未処理<3で4日後に追加generateWeeklyCases`);
+    if(unresolved >= 6){
+      console.warn('⚠️ WARN: 案件ボックス満杯。generateWeeklyCases はスキップされている。');
+    } else if(unresolved >= 5){
+      console.warn('⚠️ WARN: 案件ボックスほぼ満杯。新規追加は1件以下。');
+    } else {
+      console.log('  容量に余裕あり。');
+    }
+    console.groupEnd();
+
+    // ── generateConditionCases 同日複数追加リスク ──
+    console.group('■ condition-daily 同日複数追加リスク');
+    {
+      const risks = [];
+      // dw=30 to dw=31 境界でjido/narita_expansion/taste_midori_snackが重なる
+      if(hired && dw === 30){
+        risks.push('⚠️ 今日がdw=30: midori_jido + narita_expansion + taste_midori_snack が同日addCase()される可能性');
+      }
+      // 成田系: narita_first_visit（Day30）+ narita_site_visit（Day60）が2件同時に案件ボックス入りする
+      if(totalDays >= 60 && !hasCaseResolved('narita_first_visit') && !hasCaseResolved('narita_site_visit')){
+        risks.push('⚠️ narita_first_visit未解決かつnarita_site_visit解禁済み → 成田案件2件が案件ボックスに重複している可能性');
+      }
+      if(risks.length === 0){ console.log('  特定リスクなし（現在時点）'); }
+      else { risks.forEach(r => console.warn(r)); }
+    }
+    console.groupEnd();
+
+    // ── followUp流入量 ──
+    console.group('■ pendingFollowUps');
+    const fuList = (_gEval.pendingFollowUps || []).map(f => ({
+      id: f.id || f.title || '?',
+      triggerDay: f.triggerDay,
+      daysLeft: f.triggerDay - totalDays,
+    }));
+    if(fuList.length === 0){
+      console.log('  現在 pendingFollowUps: 0件');
+    } else {
+      fuList.forEach(f => console.log(`  📨 ${f.id} → triggerDay=${f.triggerDay} あと${f.daysLeft}日`));
+    }
+    console.groupEnd();
+
+    // ── みどり成長フェーズ状態（Day31-60視点）──
+    console.group('■ みどり成長フェーズ（Day31-60視点）');
+    if(!hired){
+      console.log('  みどり未採用 — スタッフ成長イベントは発生しない');
+    } else {
+      const phases = [
+        { phase:'A', range:'即時〜dw30', events:['midori_growth','staff_manual','staff_complaint_fear','staff_product_study','midori_failure','midori_sick','midori_overtime'] },
+        { phase:'B', range:'lunchDay+7〜',events:['staff_new_training'] },
+        { phase:'C', range:'dw30〜45',   events:['midori_pop','staff_gift_improve','taste_midori_snack','staff_self_resolve'] },
+        { phase:'D', range:'dw60〜90',   events:['staff_analysis','staff_order_challenge'] },
+        { phase:'E', range:'dw180〜360', events:['staff_promotion_discuss','staff_want_independent','staff_thanks'] },
+      ];
+      phases.forEach(ph => {
+        const statuses = ph.events.map(id => {
+          const done = hasCaseResolved(id) ? '✅' : hasCaseUnresolved(id) ? '📥' : '─';
+          return `${done}${id}`;
+        });
+        console.log(`  [${ph.phase}] ${ph.range}: ${statuses.join('  ')}`);
+      });
+      console.log(`  現在dw=${dw} → 主役フェーズ: ${dw < 30 ? 'A' : dw < 45 ? 'B/C' : dw < 60 ? 'C/D境界' : dw < 90 ? 'D' : 'D/E境界'}`);
+    }
+    console.groupEnd();
+
+    // ── さくら加入後のタイムライン ──
+    console.group('■ さくら加入後のイベントタイムライン');
+    if(!lunchStaff){
+      console.log('  さくら未採用 — B/Dフェーズのスタッフ2人系は発生しない');
+    } else {
+      console.log(`  さくら加入 totalDay=${lunchDay} 経過${daysSinceLunch}日`);
+      console.log(`  +7日: staff_new_training → ${hasCaseResolved('staff_new_training') ? '✅完了' : hasCaseUnresolved('staff_new_training') ? '📥未処理' : (daysSinceLunch >= 7 ? '─未発火（未生成？）' : `─${7-daysSinceLunch}日後解禁`)}`);
+    }
+    console.groupEnd();
+
+    // ── 地域イベント密度 ──
+    console.group('■ 地域・コミュニティイベント密度（Day31-60）');
+    const comEvents = [
+      'com_cleanup','com_senior_lunch','com_work_experience','com_stamp_rally',
+      'com_board_candidate','com_rep_neighbor','com_rep_school','com_rep_city',
+    ];
+    const comStatuses = comEvents.map(id => {
+      const done = hasCaseResolved(id) ? '✅' : hasCaseUnresolved(id) ? '📥' : '─';
+      return `${done}${id}`;
+    });
+    console.log('  ' + comStatuses.join('  '));
+    console.log(`  評判=${rep} → community weight=${rep < 40 ? '2.0（高め）' : '1.0（標準）'}`);
+    console.groupEnd();
+
+    // ── 成田フェーズ状態 ──
+    console.group('■ 成田フェーズ（Day31-60）');
+    const naritaEvents = [
+      { id:'narita_first_ad',      minDays:2,  label:'初期広告' },
+      { id:'narita_first_visit',   minDays:30, label:'初訪問' },
+      { id:'narita_expansion',     label:'拡大提案（dw>=30）' },
+      { id:'narita_site_visit',    minDays:60, label:'現場視察' },
+      { id:'narita_cashflow',      minDays:90, label:'資金繰り表' },
+      { id:'narita_fullhouse_goal',label:'満室目標' },
+    ];
+    naritaEvents.forEach(ev => {
+      const done = hasCaseResolved(ev.id) ? '✅完了' : hasCaseUnresolved(ev.id) ? '📥未処理' : '─未発火';
+      const dayOk = ev.minDays ? (totalDays >= ev.minDays ? '解禁済' : `Day${ev.minDays}待ち`) : '';
+      console.log(`  ${done} ${ev.id} ${dayOk} — ${ev.label}`);
+    });
+    console.groupEnd();
+
+    // ── 退去案件分析 ──
+    console.group('■ early_departure（退去案件）');
+    if(!hasTenant){
+      console.log('  入居者なし — 退去案件は発生しない');
+    } else {
+      const now = totalDays;
+      let holdCount = 0;
+      let validTarget = 0;
+      (_gEval.buildings||[]).forEach(b => {
+        (b.rooms||[]).forEach(r => {
+          if(r.tenant){
+            const holdUntil = r._departureHoldUntil || 0;
+            if(now < holdUntil){ holdCount++; }
+            else { validTarget++; }
+          }
+        });
+      });
+      console.log(`  入居者 合計: hold中=${holdCount} 有効ターゲット=${validTarget}`);
+      const edDone = hasCaseResolved('early_departure');
+      const edActive = hasCaseUnresolved('early_departure');
+      console.log(`  early_departure: ${edDone ? '✅完了済み' : edActive ? '📥未処理' : '─未発火'}`);
+      if(validTarget >= 2){
+        console.log('  WARN: 有効ターゲット2部屋以上 → 1件解決後に別部屋の退去が連続する可能性あり');
+      }
+    }
+    console.groupEnd();
+
+    // ── スケジューラ状態 ──
+    console.group('■ キャラクタースケジューラ状態');
+    const sched = _gEval._sched || {};
+    console.log(`  backlog件数: ${(sched.backlog||[]).length}`);
+    console.log(`  lastEventDay: ${sched.lastEventDay||0} (${totalDays-(sched.lastEventDay||0)}日前)`);
+    console.log(`  daysSinceEvent >= 6 → blankRisk: ${(totalDays - (sched.lastEventDay||0)) >= 6}`);
+    if((sched.backlog||[]).length > 0){
+      const top5 = (sched.backlog||[]).slice(0,5).map(m => `${m.c.id}[p${m.pri}]`);
+      console.log(`  backlog先頭: ${top5.join(' / ')}`);
+    }
+    const personCDs = Object.entries(sched.recentPersons||{}).map(([p,d]) => `${p}:+${totalDays-d}日`).join(' ');
+    if(personCDs) console.log(`  personCD: ${personCDs}`);
+    console.groupEnd();
+
+    // ── 月末処理の重なり ──
+    console.group('■ 月末処理 同日重なりチェック');
+    const isMonthEndSoon = _gEval.day >= 28;
+    if(isMonthEndSoon){
+      console.log(`  ⚠️ Day${_gEval.day} — あと${30-_gEval.day}日で月末。以下が同日処理される：`);
+      console.log('    • monthlyTick（AP全回復・売掛金入金・入居者満足度・店舗満足度）');
+      console.log('    • 成田チャレンジ判定');
+      console.log('    • 月末generateConditionCases → narita_site_visit(Day60以降)等');
+      console.log('    • 既存pendingFollowUps');
+    } else {
+      console.log(`  Day${_gEval.day} — 月末まであと${30-_gEval.day}日。重なりリスク低。`);
+    }
+    console.groupEnd();
+
+    // ── 空白日・過密日リスク評価 ──
+    console.group('■ 空白日・過密日リスク評価');
+    {
+      const blankRiskDays = [];
+      const denseDays = [];
+
+      // 空白日リスク: _schedがbacklog少ない + weekly生成が今週でない + condition変化なし
+      const weekDay = totalDays % 7;
+      const daysToWeekly = 7 - weekDay; // 次のweekly生成まで
+      if(daysToWeekly >= 4 && (sched.backlog||[]).length === 0 && unresolved >= 4){
+        blankRiskDays.push(`次のweekly生成まで${daysToWeekly}日 + schedバックログなし + 案件ボックス${unresolved}件`);
+      }
+
+      // 過密日リスク: pending fullow-ups が月末近くに集中
+      if(isMonthEndSoon && pendingFU >= 2){
+        denseDays.push(`月末前日 + pendingFollowUp ${pendingFU}件 + monthlyTick`);
+      }
+      if(hired && dw === 30){
+        denseDays.push('dw=30境界日: condition-daily 3件同時追加リスク（jido+expansion+snack）');
+      }
+
+      if(blankRiskDays.length === 0){
+        console.log('  空白日リスク: 低（現在状態では特定の空白日リスクなし）');
+      } else {
+        blankRiskDays.forEach(r => console.warn(`  ⚠️ 空白日リスク: ${r}`));
+      }
+      if(denseDays.length === 0){
+        console.log('  過密日リスク: 低（現在状態では特定の過密日リスクなし）');
+      } else {
+        denseDays.forEach(r => console.warn(`  ⚠️ 過密日リスク: ${r}`));
+      }
+    }
+    console.groupEnd();
+
+    // ── 結果オブジェクト ──
+    const result = {
+      totalDays, month: _gEval.month, year: _gEval.year,
+      midori: { hired, dw, sat: midoriSat },
+      sakura: { hired: !!lunchStaff, daysSinceLunch },
+      caseBox: { unresolved, max: 6 },
+      pendingFollowUps: pendingFU,
+      day30Boundary: {
+        passed: hired && dw >= 30,
+        simultaneousRisk: hired && dw >= 30,
+        events: dw30Events.map(e => ({ id: e.id, state: hasCaseResolved(e.id) ? 'done' : hasCaseUnresolved(e.id) ? 'active' : 'pending' })),
+      },
+      day60Boundary: {
+        naritaSiteVisit: { conditionMet: totalDays >= 60 && credit >= 35, state: hasCaseResolved('narita_site_visit') ? 'done' : hasCaseUnresolved('narita_site_visit') ? 'active' : 'pending' },
+        staffAnalysis:   { conditionMet: hired && dw >= 60 && monthIdx >= 5 && hasCaseResolved('midori_growth'), state: hasCaseResolved('staff_analysis') ? 'done' : hasCaseUnresolved('staff_analysis') ? 'active' : 'pending' },
+      },
+      scheduler: { backlogCount: (sched.backlog||[]).length, daysSinceEvent: totalDays - (sched.lastEventDay||0) },
+    };
+
+    console.groupEnd();
+    return result;
+  };
+  window._qaDay31to60EventAudit.help = 'window._qaDay31to60EventAudit() — Day31〜60 イベント密度・解禁タイミング監査（読み取り専用）';
+
+  // ── バージョン更新 ──
+
 })();
