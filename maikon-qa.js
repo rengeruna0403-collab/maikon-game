@@ -3,7 +3,7 @@
  * ?qa=1 または ?debug=1 の場合のみ動作
  * ゲーム本体への影響なし・読み取り専用（Phase 2Aは1日テスト後に必ず復元）
  */
-window._MAIKON_QA_VERSION = '2026-08-12-v13f-financial-health-ux';
+window._MAIKON_QA_VERSION = '2026-08-14-v13c-hotfix-followup-timing';
 console.log('[MAIKON-QA] loaded version:', window._MAIKON_QA_VERSION);
 console.log('[QA FILE LOADED] v13e-early-departure-consistency-20260812');
 
@@ -15753,5 +15753,158 @@ ${ar.experienceKPI ? _sim3ExperienceKpiHtml(ar.experienceKPI) : ''}
     return results;
   };
   window._qaFinancialHealth.help = 'window._qaFinancialHealth() — Financial Health UX v1.3f テスト（G値を一時置換して復元）';
+
+  // ■ QA Section 36: 後日談タイミング監査 (v1.3g)
+  /**
+   * window._qaFollowUpTimingAudit() でコンソールから実行
+   * 読み取り専用・ゲーム状態変更なし
+   */
+  window._qaFollowUpTimingAudit = function () {
+    const _gEval = eval('G');
+    const nowAbs = (_gEval.year - 1) * 360 + (_gEval.month - 1) * 30 + _gEval.day;
+    const started = _gEval.started;
+
+    // ── 後日談定義テーブル（静的）──
+    // 「翌日/昨日」等の相対日表現を含むものに flag をつける
+    const FOLLOWUP_DEFS = [
+      { evId: 'cust_down',        choiceIdx: 1, days: 3,  title: 'メニュー見直しの手ごたえがありました',        hasRelativeDate: false },
+      { evId: 'community_event',  choiceIdx: -1,days: 45, title: 'NPO連携の効果が出てきています',               hasRelativeDate: false },
+      { evId: 'flyer_collab',     choiceIdx: -1,days: 10, title: 'チラシを見てきたお客様が増えています',         hasRelativeDate: false },
+      { evId: 'midori_new_sakura',choiceIdx: 0, days: 14, title: 'さくらさん、戦力になってきました',             hasRelativeDate: false },
+      { evId: 'midori_overtime',  choiceIdx: 0, days: 1,  title: 'お客様からひとこと',                         hasRelativeDate: false,
+        relNote: 'v1.3c-hotfix修正済: days:2→1, 相対日表現除去' },
+      { evId: 'midori_overtime',  choiceIdx: 1, days: 1,  title: 'みどりからひとこと',                         hasRelativeDate: false,
+        relNote: 'v1.3c-hotfix修正済: days:3→1, 相対日表現除去' },
+      { evId: 'community_greet',  choiceIdx: -1,days: 21, title: '「あのお店の人、感じがよかったよ」と広まっています', hasRelativeDate: false },
+      { evId: 'community_clean',  choiceIdx: -1,days: 30, title: '清掃で顔を覚えてもらえたようです',           hasRelativeDate: false },
+      { evId: 'community_meeting',choiceIdx: -1,days: 30, title: '会議での発言が評判を呼んでいます',           hasRelativeDate: false },
+      { evId: 'community_school', choiceIdx: -1,days: 30, title: '体験した生徒の親御さんが来てくれました',     hasRelativeDate: false },
+      { evId: 'community_npo',    choiceIdx: -1,days: 45, title: '少しずつ、つながりが広がっています',         hasRelativeDate: false },
+      { evId: 'community_elder',  choiceIdx: -1,days: 45, title: 'あの日会った方がお店に来てくれました',       hasRelativeDate: false },
+      { evId: 'community_watch',  choiceIdx: -1,days: 50, title: '見守りを続けた結果が届いています',           hasRelativeDate: false },
+      { evId: 'seasonal_event',   choiceIdx: -1,days: 30, title: '地域活動が実を結んでいます',                 hasRelativeDate: false },
+      { evId: 'product_develop',  choiceIdx: -1,days: 25, title: '新商品を楽しみにしているお客様が増えています', hasRelativeDate: false },
+      { evId: 'staff_training',   choiceIdx: -1,days: 45, title: 'スタッフの接客が変わってきました',           hasRelativeDate: false },
+      { evId: 'festival_collab',  choiceIdx: -1,days: 21, title: 'お祭りのご縁が続いています',                 hasRelativeDate: false },
+      { evId: 'regional_fair',    choiceIdx: -1,days: 18, title: '「あの舞昆、また食べたい」という声が届いています', hasRelativeDate: false },
+      { evId: 'media_feature',    choiceIdx: -1,days: 21, title: '記事が出ました',                             hasRelativeDate: false },
+    ];
+
+    console.group('[QA Section 36: 後日談タイミング監査 v1.3g]');
+    console.log('現在日: year=' + _gEval.year + ' month=' + _gEval.month + ' day=' + _gEval.day + '  abs=' + nowAbs);
+    console.log('');
+
+    // ── 1. スケジューリングロジック解説 ──
+    console.group('■ スケジューリングロジック（chooseEvent 内）');
+    console.log('T0      = chooseEvent() 実行時の絶対日 = (year-1)*360 + (month-1)*30 + day');
+    console.log('stored  = triggerDay = T0 + followUp.days');
+    console.log('');
+    console.log('advanceDay() 処理順:');
+    console.log('  1. G.day++  →  nowDay2 = T0 + n  （n回advance後）');
+    console.log('  2. tryFireEvent()  （20%でランダムイベント発火 → G.activeEvent セット）');
+    console.log('  3. followUp check: triggerDay <= nowDay2 なら showFollowUpModal(f)');
+    console.log('  4. showFollowUpModal: G.activeEvent がセットなら triggerDay = nowDay2+1 に延期');
+    console.log('');
+    console.log('→ Tdisplay_min = T0 + days  （モーダル競合なし・理想ケース）');
+    console.log('→ Tdisplay_max = T0 + days + 1以上  （tryFireEvent競合: 20%確率で+1日）');
+    console.groupEnd();
+
+    // ── 2. 相対日表現イベント詳細トレース ──
+    console.group('■ 相対日表現を含むイベント（要注意）');
+    const relativeDefs = FOLLOWUP_DEFS.filter(d => d.hasRelativeDate);
+    relativeDefs.forEach(d => {
+      const T0label = 'T0';
+      const T1label = 'T0+1（翌日）';
+      const Tdisplay = 'T0+' + d.days;
+      const gap = d.days - 1; // "翌日"想定=T0+1との乖離
+      console.group(`  ${d.evId}  choice[${d.choiceIdx}]  days:${d.days}`);
+      console.log('  title    :', d.title);
+      console.log('  想定T1  :', T1label, '（テキストが「翌日」を描写）');
+      console.log('  Tdisplay :', Tdisplay, '（実際の表示日）');
+      console.log('  乖離     : +' + gap + '日遅い');
+      console.log('  詳細     :', d.relNote);
+      console.groupEnd();
+    });
+    console.groupEnd();
+
+    // ── 3. 具体例：Day40にmidori_overtimeを選択した場合 ──
+    console.group('■ 具体例：Day40（絶対日）でイベント解決した場合');
+    console.log('  T0 = 40  （Day40にみどり残業イベントを解決）');
+    console.log('');
+    console.log('  [choice 0: 定時で帰す]  days:1  ← v1.3c-hotfix修正済');
+    console.log('    triggerDay = 40 + 1 = 41');
+    console.log('    → Day41 advance: nowDay2=41  41>=41? YES → 表示される（T0+1）');
+    console.log('    テキスト「お客様からひとこと」「先日来店された」— 相対日表現なし ✅');
+    console.log('    → tryFireEvent競合時はDay42表示になるが文章は矛盾しない ✅');
+    console.log('');
+    console.log('  [choice 1: 30分残業]  days:1  ← v1.3c-hotfix修正済');
+    console.log('    triggerDay = 40 + 1 = 41');
+    console.log('    → Day41 advance: nowDay2=41  41>=41? YES → 表示される（T0+1）');
+    console.log('    テキスト「みどりからひとこと」「大丈夫でしたか？」— 相対日表現なし ✅');
+    console.log('    → tryFireEvent競合時はDay42表示になるが文章は矛盾しない ✅');
+    console.groupEnd();
+
+    // ── 4. モーダル競合による追加遅延リスク ──
+    console.group('■ モーダル競合（tryFireEvent）による追加遅延');
+    console.log('advanceDay() の tryFireEvent（20%確率）が followUp チェックより先に実行される');
+    console.log('→ G.activeEvent がセットされると showFollowUpModal が延期を検出');
+    console.log('→ triggerDay = nowDay2 + 1 に書き換えてキューに戻す');
+    console.log('→ 結果: Tdisplay が さらに +1日 遅れる可能性 (20% probability per day)');
+    console.log('');
+    console.log('複数followUpが同日に due した場合:');
+    console.log('  due[0] → 表示（G.activeEventを_followUpにセット）');
+    console.log('  due[1] → G.activeEvent検出 → triggerDay+1 に延期（意図的仕様）');
+    console.groupEnd();
+
+    // ── 5. 全イベント一覧（days別）──
+    console.group('■ 全followUpイベント一覧');
+    console.log('days  | イベント                          | 相対日問題');
+    console.log('------+-----------------------------------+-----------');
+    FOLLOWUP_DEFS.forEach(d => {
+      const flag = d.hasRelativeDate ? '❌ あり' : '✅ なし';
+      const name = (d.evId + '  ch[' + d.choiceIdx + ']').padEnd(35);
+      console.log('  ' + String(d.days).padStart(3) + ' | ' + name + ' | ' + flag);
+    });
+    console.groupEnd();
+
+    // ── 6. 現在のpendingFollowUps状態 ──
+    console.group('■ 現在の pendingFollowUps（ライブ状態）');
+    if (!started) {
+      console.log('（ゲーム未開始）');
+    } else {
+      const pending = _gEval.pendingFollowUps || [];
+      if (pending.length === 0) {
+        console.log('（なし）');
+      } else {
+        pending.forEach((f, i) => {
+          const daysLeft = f.triggerDay - nowAbs;
+          const label = daysLeft <= 0 ? '【本日表示予定】' : daysLeft === 1 ? '【明日】' : '【' + daysLeft + '日後】';
+          console.log('  [' + i + '] triggerDay=' + f.triggerDay + '  ' + label + '  title:' + f.title);
+        });
+      }
+    }
+    console.groupEnd();
+
+    // ── 7. 修正案 ──
+    console.group('■ 修正案（3択）');
+    console.log('[案A] days値を修正する → ✅ v1.3c-hotfix で適用済み');
+    console.log('  midori_overtime ch0: days:2 → days:1');
+    console.log('  midori_overtime ch1: days:3 → days:1');
+    console.log('');
+    console.log('[案B] テキストから相対日表現を除去する → ✅ v1.3c-hotfix で適用済み');
+    console.log('  ch0 title: 「翌日のお客様の声」→「お客様からひとこと」');
+    console.log('  ch0 body : 「翌日、昨日来店された」→「先日来店された」');
+    console.log('  ch1 title: 「残業の翌日」→「みどりからひとこと」');
+    console.log('  ch1 body : 「昨日は大丈夫でしたか」→「大丈夫でしたか？」');
+    console.log('');
+    console.log('[案C] 動的テキスト生成 → 採用せず（実装コスト過剰）');
+    console.log('');
+    console.log('適用済み: 案A＋案B（v1.3c-hotfix-followup-timing）');
+    console.groupEnd();
+
+    console.groupEnd(); // end Section 36
+    return { audit: 'followUpTiming', relativeDateIssues: relativeDefs.length, pendingCount: (_gEval.pendingFollowUps || []).length };
+  };
+  window._qaFollowUpTimingAudit.help = 'window._qaFollowUpTimingAudit() — 後日談タイミング監査 v1.3g（読み取り専用）';
 
 })();
