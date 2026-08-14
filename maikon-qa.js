@@ -3,7 +3,7 @@
  * ?qa=1 または ?debug=1 の場合のみ動作
  * ゲーム本体への影響なし・読み取り専用（Phase 2Aは1日テスト後に必ず復元）
  */
-window._MAIKON_QA_VERSION = '2026-08-14-v13g-staff-analysis-timing';
+window._MAIKON_QA_VERSION = '2026-08-14-v13h-staff-growth-phase';
 console.log('[MAIKON-QA] loaded version:', window._MAIKON_QA_VERSION);
 console.log('[QA FILE LOADED] v13e-early-departure-consistency-20260812');
 
@@ -16024,5 +16024,158 @@ ${ar.experienceKPI ? _sim3ExperienceKpiHtml(ar.experienceKPI) : ''}
     return results;
   };
   window._qaStaffAnalysis.help = 'window._qaStaffAnalysis() — staff_analysis 発生タイミング整合チェック v1.3g（読み取り専用）';
+
+  // ■ QA Section 38: みどり成長フェーズ A〜E 発火タイミング整合チェック (v1.3h)
+  /**
+   * window._qaStaffGrowthPhase() でコンソールから実行
+   * 読み取り専用・ゲーム状態変更なし
+   */
+  window._qaStaffGrowthPhase = function () {
+    const _gEval  = eval('G');
+    const results = [];
+    const p = (st, id, detail) => results.push({ st, id, detail });
+
+    const midori    = (_gEval.staff || []).find(s => s.name === '佐々木みどり');
+    const dw        = midori ? (midori.daysWorked || 0) : -1;
+    const hired     = !!_gEval.staffUnlocked;
+    const cases     = _gEval.cases || [];
+    const hasCaseUnresolved = id => cases.some(c => c.id === id && !c.resolved);
+    const hasCaseResolved   = id => cases.some(c => c.id === id && c.resolved);
+    const hasCase           = id => cases.some(c => c.id === id);
+
+    const lunchStaff    = (_gEval.staff || []).find(s => s.type === 'lunchStaff');
+    const lunchHiredDay = _gEval._lunchStaffHiredDay || 0;
+    const totalDays     = (_gEval.year - 1) * 360 + (_gEval.month - 1) * 30 + _gEval.day;
+    const daysSinceLunch = lunchHiredDay > 0 ? totalDays - lunchHiredDay : -1;
+
+    // ── ヘルパー：「dw < N で出ていないか」チェック ──
+    const checkNotBeforeDW = (evId, minDW, label) => {
+      if(!hired){ p('PASS', evId, `みどり未採用 — ${evId} は出ない`); return; }
+      if(dw < minDW){
+        if(hasCaseUnresolved(evId)){
+          p('FAIL', evId, `${label}: dw=${dw} < ${minDW} なのに ${evId} が案件ボックスに存在`);
+        } else {
+          p('PASS', evId, `${label}: dw=${dw} < ${minDW} → ${evId} は出ていない ✅`);
+        }
+      } else {
+        p('PASS', evId, `${label}: dw=${dw} >= ${minDW} — 条件通過`);
+      }
+    };
+
+    // ─── A フェーズ ───
+    // AイベントはdaysWorked guardが少ない（生活イベントは14〜30日からの既存guard）
+    // 代わりに、採用10日時点でE相当イベントが出ていないことを確認する
+    console.group('[QA Section 38: みどり成長フェーズ A〜E v1.3h]');
+    console.group('■ A フェーズ（基礎習得）');
+    {
+      // 採用10日以内に D/E 相当イベントが存在しないこと
+      const earlyDE = ['staff_analysis','staff_order_challenge','staff_promotion_discuss','staff_want_independent','staff_thanks'];
+      if(hired && dw <= 10){
+        let foundEarly = false;
+        earlyDE.forEach(id => {
+          if(hasCaseUnresolved(id)){ foundEarly = true; p('FAIL', 'A_early_de', `採用${dw}日でD/Eイベント ${id} が案件ボックスに存在`); }
+        });
+        if(!foundEarly) p('PASS', 'A_early_de', `採用${dw}日時点でD/Eイベントは出ていない ✅`);
+      } else {
+        p('PASS', 'A_early_de', `dw=${dw} — 採用10日以内チェックはスキップ（該当段階でない）`);
+      }
+    }
+    console.groupEnd();
+
+    // ─── B フェーズ ───
+    console.group('■ B フェーズ（少し先輩になる）');
+    {
+      if(!hired){ p('PASS', 'B_new_training', 'みどり未採用 — スキップ'); }
+      else if(!lunchStaff){ p('PASS', 'B_new_training', 'さくら未採用 — staff_new_training は出ない ✅'); }
+      else if(daysSinceLunch >= 0 && daysSinceLunch < 7){
+        if(hasCaseUnresolved('staff_new_training')){
+          p('FAIL', 'B_new_training', `さくら加入${daysSinceLunch}日 < 7日 なのに staff_new_training が存在`);
+        } else {
+          p('PASS', 'B_new_training', `さくら加入${daysSinceLunch}日 < 7日 → staff_new_training は出ていない ✅`);
+        }
+      } else {
+        p('PASS', 'B_new_training', `さくら加入${daysSinceLunch}日 >= 7日 — 発火条件通過`);
+      }
+    }
+    console.groupEnd();
+
+    // ─── C フェーズ ───
+    console.group('■ C フェーズ（自主的な改善）');
+    checkNotBeforeDW('midori_pop',        30, 'C: POP作成');
+    checkNotBeforeDW('staff_gift_improve',30, 'C: ギフト包装改善');
+    checkNotBeforeDW('taste_midori_snack',30, 'C: 試食提案');
+    // staff_self_resolve: dw >= 45 + complaint_fear 順序
+    if(!hired){ p('PASS', 'staff_self_resolve', 'みどり未採用 — スキップ'); }
+    else if(dw < 45){
+      if(hasCaseUnresolved('staff_self_resolve')){
+        p('FAIL', 'staff_self_resolve', `C: クレーム自主解決: dw=${dw} < 45 なのに存在`);
+      } else {
+        p('PASS', 'staff_self_resolve', `C: クレーム自主解決: dw=${dw} < 45 → 出ていない ✅`);
+      }
+    } else {
+      const fearExists  = hasCase('staff_complaint_fear');
+      const fearResolved = hasCaseResolved('staff_complaint_fear');
+      if(fearExists && !fearResolved && hasCaseUnresolved('staff_self_resolve')){
+        p('FAIL', 'staff_self_resolve', `C: staff_complaint_fear が未解決なのに staff_self_resolve が存在`);
+      } else {
+        p('PASS', 'staff_self_resolve', `C: dw=${dw}>=45, fearDone=${fearResolved} — 条件通過`);
+      }
+    }
+    console.groupEnd();
+
+    // ─── D フェーズ ───
+    console.group('■ D フェーズ（分析・運営）');
+    checkNotBeforeDW('staff_analysis',      60, 'D: 売れ筋分析');
+    checkNotBeforeDW('staff_order_challenge',90, 'D: 発注業務');
+    // staff_order_challenge の先行条件（分析未完了で120日未満はNG）
+    if(hired && dw >= 90 && dw < 120){
+      const anDone = hasCaseResolved('staff_analysis');
+      if(!anDone && hasCaseUnresolved('staff_order_challenge')){
+        p('FAIL', 'order_prereq', `D: staff_analysis 未完了 & dw=${dw}<120 なのに staff_order_challenge が存在`);
+      } else {
+        p('PASS', 'order_prereq', `D: dw=${dw}, analysisDone=${anDone} — 発注業務前提チェック通過`);
+      }
+    } else if(hired && dw >= 120){
+      p('PASS', 'order_prereq', `D: dw=${dw} >= 120 — fallback通過`);
+    } else {
+      p('PASS', 'order_prereq', `D: dw=${dw} — 対象段階でない`);
+    }
+    console.groupEnd();
+
+    // ─── E フェーズ ───
+    console.group('■ E フェーズ（育成・マネジメント）');
+    const eEvents = [
+      { id:'staff_promotion_discuss', minDW:210 },
+      { id:'staff_want_independent',  minDW:180 },
+      { id:'staff_thanks',            minDW:360 },
+    ];
+    eEvents.forEach(({ id, minDW }) => {
+      if(!hired){ p('PASS', id, 'みどり未採用 — スキップ'); return; }
+      if(dw < 100){
+        if(hasCaseUnresolved(id)){
+          p('FAIL', id, `E: 採用${dw}日でEイベント ${id} が案件ボックスに存在（minDW=${minDW}）`);
+        } else {
+          p('PASS', id, `E: dw=${dw} < 100 → ${id} は出ていない ✅`);
+        }
+      } else {
+        p('PASS', id, `E: dw=${dw} — minDW=${minDW}との比較は既存guardに委任`);
+      }
+    });
+    console.groupEnd();
+
+    // ─── 結果表示 ───
+    const nP = results.filter(r => r.st === 'PASS').length;
+    const nF = results.filter(r => r.st === 'FAIL').length;
+    const nW = results.filter(r => r.st === 'WARN').length;
+    const overall = nF > 0 ? '❌ FAIL' : nW > 0 ? '⚠️ WARN' : '✅ PASS';
+    console.log(`[Summary]  ${overall}  PASS:${nP} FAIL:${nF} WARN:${nW}`);
+    console.log(`現在: dw=${dw}  daysSinceLunch=${daysSinceLunch}  month=${_gEval.month}  hired=${hired}`);
+    results.filter(r => r.st !== 'PASS').forEach(r =>
+      console.log(`${r.st==='FAIL'?'❌':'⚠️'} [${r.st}] ${r.id}: ${r.detail}`)
+    );
+    console.groupEnd();
+    return results;
+  };
+  window._qaStaffGrowthPhase.help = 'window._qaStaffGrowthPhase() — みどり成長フェーズ A〜E 発火タイミング整合 v1.3h（読み取り専用）';
 
 })();

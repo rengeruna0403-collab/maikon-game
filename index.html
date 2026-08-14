@@ -6725,14 +6725,14 @@ const DOMAIN_CASES = [
     ]},
 
   { id:'staff_new_training', requireStaff:true, repeatable:false, domain:'staff', sender:'みどり', icon:'🎓', apCost:15, expireDays:21, category:'mgmt',
-    title:'「さくらさんの教育、私にやらせてもらえますか」',
-    body:'みどりが少し緊張した様子で話しかけてきた。\n\n「さくらさん、一生懸命なんですが\nまだ昼のピーク時に戸惑うことがあって。\n\n私が横について教えれば、\n2週間くらいで一人で動けるようになると思います。\n\n……教える側って、初めてで不安なんですけど、\nやってみてもいいですか？」\n\n頼もしくなってきた。',
+    title:'「さくらさんの力になれたら、と思って」',
+    body:'みどりが少し遠慮がちに話しかけてきた。\n\n「あの……さくらさん、昼ピークのときに少し不安そうにしているなと思って。\n\n私も最初は全然わからなくて。\n自分が教えてもらったことを、少し伝えてみてもいいですか？\n\n……教える側は初めてで、うまくできるかわからないんですが」\n\n少し先輩になろうとしている。',
     choices:[
-      {label:'任せる（主任候補として正式に認める）',
+      {label:'「任せてみよう」と伝える',
        cost:0,
        effects:{score:18,staffSat:15,midoriTrust:4,profile:{people:5}},
-       label2:'みどり大成長・主任候補確定',
-       storyTag:'みどりに新人教育を任せた。さくらさんが少しずつ独り立ちし始め、みどりの表情が変わった。「責任感が全然違います」と自分でも感じているようだった。',
+       label2:'みどりが少し先輩になる',
+       storyTag:'みどりにさくらへの声がけを任せた。さくらさんが少しずつ独り立ちし始め、みどりの表情が変わった。「責任感が全然違います」と自分でも感じているようだった。',
        followUp:{days:14,icon:'🎓',sender:'みどり',
          title:'さくらさん、戦力になってきました',
          body:'みどりから報告がありました。\n\n「さくらさん、すごく早く覚えてくれて。\n\n今日、私が手を離しても\n昼のレジと接客を一人でこなしてくれました。\n\n教えるって、こんなに嬉しいものなんですね。\n……私、主任になりたいって、思い始めています」\n\nみどりの中で、何かが変わった。',
@@ -8572,15 +8572,44 @@ function generateWeeklyCases(){
       if(_openDay2 === 0 || tdNow - _openDay2 < 60) return false; // 開店60日未満
       if((_s0b.regulars||0) < 3) return false; // 常連3人未満（「長い付き合い」が成立しない）
     }
-    // staff_analysis：「先月の売上分析」が時制上成立する最低条件
-    // ① みどり採用60日以上（中期〜後期の行動、採用直後は除外）
-    // ② 月末評価1回以上完了（「先月」の実績が存在する）= 5月以降
-    // ③ 研修（midori_growth）解決済み（基礎成長フェーズ終了後）
+    // ── みどり成長フェーズ別ガード（v1.3h）──
+    // C相当：midori_pop（POP作成）— 日常業務に慣れた後の小さな自主改善
+    if(c.id === 'midori_pop'){
+      const _mpM = G.staffUnlocked && (G.staff||[]).find(s => s.name === '佐々木みどり');
+      if(!_mpM || (_mpM.daysWorked || 0) < 30) return false; // 採用30日未満
+    }
+    // C相当：staff_gift_improve（ギフト包装改善）— 贈答需要を観察できる期間
+    if(c.id === 'staff_gift_improve'){
+      const _giM = G.staffUnlocked && (G.staff||[]).find(s => s.name === '佐々木みどり');
+      if(!_giM || (_giM.daysWorked || 0) < 30) return false; // 採用30日未満
+    }
+    // C相当：staff_self_resolve（クレーム自主解決）— 不安→経験→自信の順序
+    // staff_complaint_fear 解決済みを第一候補。未発火なら45日以上で代替
+    if(c.id === 'staff_self_resolve'){
+      const _srM = G.staffUnlocked && (G.staff||[]).find(s => s.name === '佐々木みどり');
+      if(!_srM || (_srM.daysWorked || 0) < 45) return false; // 採用45日未満
+      const _fearDone = G.cases.some(c2 => c2.id === 'staff_complaint_fear' && c2.resolved);
+      const _fearExists = G.cases.some(c2 => c2.id === 'staff_complaint_fear');
+      // 不安イベントが存在するが未解決なら、先に解決させる
+      if(_fearExists && !_fearDone) return false;
+    }
+    // D相当：staff_analysis（売れ筋分析）— 時制・成長段階の整合
+    // ① みどり採用60日以上 ② 月末評価1回以上 ③ 研修（midori_growth）完了
     if(c.id === 'staff_analysis'){
       const _saM = G.staffUnlocked && (G.staff||[]).find(s => s.name === '佐々木みどり');
       if(!_saM || (_saM.daysWorked || 0) < 60) return false; // 採用60日未満
       if((G.year - 1) * 12 + G.month < 5) return false; // 月末評価未経験（4月中は除外）
       if(!G.cases.some(c2 => c2.id === 'midori_growth' && c2.resolved)) return false; // 研修未完了
+    }
+    // D相当：staff_order_challenge（発注業務）— 分析より後
+    // 必須: 採用90日以上 + 研修完了
+    // 先行: staff_analysis完了 または fallback daysWorked >= 120
+    if(c.id === 'staff_order_challenge'){
+      const _ocM = G.staffUnlocked && (G.staff||[]).find(s => s.name === '佐々木みどり');
+      if(!_ocM || (_ocM.daysWorked || 0) < 90) return false; // 採用90日未満
+      if(!G.cases.some(c2 => c2.id === 'midori_growth' && c2.resolved)) return false; // 研修未完了
+      const _anDone = G.cases.some(c2 => c2.id === 'staff_analysis' && c2.resolved);
+      if(!_anDone && (_ocM.daysWorked || 0) < 120) return false; // 分析未完了 & 120日未満
     }
     // 経過日数・評判フィルター
     if(c.minDay && tdNow < c.minDay) return false;
@@ -8922,7 +8951,7 @@ function generateConditionCases(){
       // ── みどり新人教育イベント（昼スタッフ採用14日後・未発火）──
       if(_hasLunchStaff && G._lunchStaffHiredDay !== undefined){
         const _daysSinceLunch = totalDays - G._lunchStaffHiredDay;
-        if(_daysSinceLunch >= 14 && !G.cases.some(c => c.id === 'staff_new_training')){
+        if(_daysSinceLunch >= 7 && !G.cases.some(c => c.id === 'staff_new_training')){
           const base = DOMAIN_CASES.find(c => c.id === 'staff_new_training');
           if(base) addCase(base);
         }
@@ -9213,7 +9242,7 @@ function generateConditionCases(){
   // みどりのつまみ食い台詞（採用60日後・満足度70以上・未発火）
   if(G.staffUnlocked){
     const midori2 = G.staff.find(s=>s.name==='佐々木みどり');
-    if(midori2 && (midori2.daysWorked||0) >= 60 && (midori2.satisfaction||70) >= 70 && !G.cases.some(c=>c.id==='taste_midori_snack')){
+    if(midori2 && (midori2.daysWorked||0) >= 30 && (midori2.satisfaction||70) >= 70 && !G.cases.some(c=>c.id==='taste_midori_snack')){
       addCase(CASE_POOL.find(c=>c.id==='taste_midori_snack'));
     }
   }
