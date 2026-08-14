@@ -2121,21 +2121,42 @@ function renderFinanceSummary(){
   </div>`;
 }
 
+// ─── v1.3f 資金繰り状態 ─────────────────────────────────────
+// 「資金繰り」と「収益性」を別概念として判定する
+// ※ calcDailyRevenue() は現在の経営状態からの推計値（実績でなく見込み）
+function _getCashFlowStatus(){
+  if(!G.started) return { level:'stable', data:{} };
+  const { exp: dailyExp } = calcDailyRevenue();
+  const money      = G.money;
+  const recv       = G.receivables || 0;
+  const daysLeft   = Math.max(0, 30 - G.day); // 今日を含まない残日数
+  const expNeeded  = dailyExp * daysLeft;       // 月末までの想定支出
+  const cashAfter  = money + recv - expNeeded;  // 月末入金後の見込み残高（支出引き後）
+
+  if(money < 0) return { level:'critical', data:{ money, recv, daysLeft, expNeeded, cashAfter, dailyExp } };
+  // danger: 売掛金を加えても月末まで資金が持たない
+  if(cashAfter < 0) return { level:'danger', data:{ money, recv, daysLeft, expNeeded, cashAfter, dailyExp } };
+  // caution: 現金単体で月末支出を20%の余裕をもってカバーできない（ただし入金込みでは黒字）
+  // 理由: expNeeded ちょうどで初めて警告すると対処猶予がないため、
+  //       必要額の120%を切ったら早期に「注意」を表示する
+  const cautionThreshold = expNeeded * 1.2;
+  if(money < cautionThreshold) return { level:'caution', data:{ money, recv, daysLeft, expNeeded, cashAfter, dailyExp, cautionThreshold } };
+  return { level:'stable', data:{ money, recv, daysLeft, expNeeded, cashAfter, dailyExp } };
+}
+
+// ─── 収益性状態（資金繰りとは完全独立）───────────────────────
+function _getProfitabilityStatus(){
+  if(!G.started) return { isNegative:false, data:{} };
+  const { rev:dailyRev, exp:dailyExp, profit:dailyProfit } = calcDailyRevenue();
+  return { isNegative: dailyProfit < 0, data:{ dailyRev, dailyExp, dailyProfit } };
+}
+
+// ─── バッジ・旧呼び出し箇所との後方互換ラッパー ────────────────
 function getFinancialHealthLevel(){
   if(!G.started) return null;
-  const {profit} = calcDailyRevenue();
-  const dailyProfit = profit;
-  const daysToMonthEnd = 30 - G.day;
-  const projectedCash = G.money + (G.receivables||0);
-  // 🔴 危険：現金マイナス または 月末入金込みでもマイナス
-  if(G.money < 0 || projectedCash < 0) return 'danger';
-  // 🔴 危険：現金が月次固定費の半分未満
-  const monthlyExp = calcDailyRevenue().exp * 30;
-  if(G.money < monthlyExp * 0.3) return 'danger';
-  // 🟡 注意：運転資金が2ヶ月分未満
-  if(G.money < monthlyExp * 1.5) return 'caution';
-  // 🟡 注意：日次利益が3日連続マイナス傾向（簡易判定：利益がマイナス）
-  if(dailyProfit < 0) return 'caution';
+  const cf = _getCashFlowStatus();
+  if(cf.level === 'critical' || cf.level === 'danger') return 'danger';
+  if(cf.level === 'caution') return 'caution';
   return 'stable';
 }
 
@@ -2150,68 +2171,94 @@ function renderFinancialHealthBadge(){
   </div>`;
 }
 
-// ① 事前警告カード（v0.9e）— 黄→橙の段階的警告
+// ① 事前警告カード（v1.3f）— 資金繰りと収益性を分離した2カード構成
 function renderEarlyWarningCard(){
   if(!G.started) return '';
   if(G.tab !== 'home') return '';
-  const level = getFinancialHealthLevel();
-  if(level === 'stable' || !level) return '';
-  if(level === 'danger' && G.money < 0) return ''; // renderCashWarningBanner が担当
-  const {exp} = calcDailyRevenue();
-  const monthlyExp = exp * 30;
-  const daysToMonthEnd = 30 - G.day;
-  const projectedCash = G.money + (G.receivables||0);
-  if(level === 'danger'){
-    return `<div style="background:#FFF3E0;border:2px solid #E65100;border-radius:12px;padding:12px 14px;margin-bottom:10px;font-size:12px">
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
-        <span style="font-size:18px">🟠</span>
+  const cf   = _getCashFlowStatus();
+  const prof = _getProfitabilityStatus();
+  let html   = '';
+
+  // ── 資金繰りカード（critical は renderCashWarningBanner が担当）──
+  if(cf.level === 'danger'){
+    const d = cf.data;
+    const _cashAfterStr  = d.cashAfter >= 0 ? fmt(d.cashAfter) : `−${fmt(-d.cashAfter)}`;
+    const _cashAfterColor = d.cashAfter >= 0 ? '#2E7D32' : '#C62828';
+    html += `<div style="background:#FFF3E0;border:2px solid #E65100;border-radius:12px;padding:12px 14px;margin-bottom:10px;font-size:12px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+        <span style="font-size:18px">⚠️</span>
         <div style="font-weight:700;font-size:13px;color:#E65100">資金繰りに注意が必要です</div>
       </div>
-      <div style="color:#5D4037;line-height:1.8">
-        このままでは<strong>数日以内に資金不足になる可能性があります。</strong><br>
-        今のうちに経営を見直しましょう。
+      <div style="color:#5D4037;line-height:1.7;margin-bottom:8px">
+        月末までの支出を現金と月末入金を合わせてもまかなえない見込みです。
       </div>
-      <div style="margin-top:6px;font-size:11px;color:#8D6E63">
-        現金: ${fmt(G.money)} ／ 月末入金予定: +${fmt(G.receivables||0)} ／ 月次支出目安: ${fmt(monthlyExp)}
+      <div style="background:rgba(0,0,0,.04);border-radius:8px;padding:8px 10px;font-size:11px;line-height:2">
+        <div style="display:flex;justify-content:space-between"><span style="color:#5D4037">手元の現金</span><span style="font-weight:700">${fmt(d.money)}</span></div>
+        <div style="display:flex;justify-content:space-between"><span style="color:#5D4037">月末までの支出見込み（あと${d.daysLeft}日）</span><span style="color:#C62828;font-weight:700">−${fmt(d.expNeeded)}</span></div>
+        <div style="display:flex;justify-content:space-between"><span style="color:#5D4037">月末入金予定</span><span style="color:#2E7D32;font-weight:700">＋${fmt(d.recv)}</span></div>
+        <div style="display:flex;justify-content:space-between;border-top:1px solid #DDD;margin-top:4px;padding-top:4px"><span style="color:#5D4037">入金後の見込み残高</span><span style="font-weight:700;color:${_cashAfterColor}">${_cashAfterStr}</span></div>
       </div>
-      <div style="margin-top:8px;font-size:11px;color:#5D4037;line-height:1.7">
-        💡 回避の目安：<strong>固定費（人件費・家賃）</strong>を月収の50%以下に抑えると安定しやすくなります
+      <div style="margin-top:8px;font-size:11px;color:#5D4037">💡 固定費（人件費・家賃）を月収の50%以下に抑えると安定しやすくなります</div>
+    </div>`;
+  } else if(cf.level === 'caution'){
+    const d = cf.data;
+    html += `<div style="background:#FFFDE7;border:1.5px solid #F9A825;border-radius:12px;padding:11px 14px;margin-bottom:10px;font-size:12px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+        <span style="font-size:16px">💰</span>
+        <div style="font-weight:700;font-size:12px;color:#B8860B">手元の現金に少し注意</div>
+      </div>
+      <div style="color:#5D4037;line-height:1.7;margin-bottom:7px">
+        月末までの支出に対して手元の現金の余裕が少なくなっています。<br>月末入金予定があるため、月全体では問題ありません。
+      </div>
+      <div style="background:rgba(0,0,0,.03);border-radius:8px;padding:8px 10px;font-size:11px;line-height:2">
+        <div style="display:flex;justify-content:space-between"><span style="color:#5D4037">手元の現金</span><span style="font-weight:700">${fmt(d.money)}</span></div>
+        <div style="display:flex;justify-content:space-between"><span style="color:#5D4037">月末までの支出見込み（あと${d.daysLeft}日）</span><span style="color:#C62828;font-weight:700">−${fmt(d.expNeeded)}</span></div>
+        <div style="display:flex;justify-content:space-between"><span style="color:#5D4037">月末入金予定</span><span style="color:#2E7D32;font-weight:700">＋${fmt(d.recv)}</span></div>
+        <div style="display:flex;justify-content:space-between;border-top:1px solid #EEE;margin-top:4px;padding-top:4px"><span style="color:#5D4037">入金後の見込み残高</span><span style="font-weight:700;color:#2E7D32">${fmt(d.cashAfter)}</span></div>
       </div>
     </div>`;
   }
-  // caution
-  return `<div style="background:#FFFDE7;border:1.5px solid #F9A825;border-radius:12px;padding:11px 14px;margin-bottom:10px;font-size:12px">
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
-      <span style="font-size:16px">🟡</span>
-      <div style="font-weight:700;font-size:12px;color:#B8860B">経営が少し苦しくなっています</div>
-    </div>
-    <div style="color:#5D4037;line-height:1.7">
-      現金が月次支出の目安より少なくなっています。<br>
-      売上を増やすか、不要な投資を抑えることで安定できます。
-    </div>
-    <div style="margin-top:5px;font-size:11px;color:#8D6E63">現金: ${fmt(G.money)} ／ 月末入金予定: +${fmt(G.receivables||0)}</div>
-  </div>`;
+
+  // ── 収益性カード（資金繰りとは独立して表示）─────────────────
+  if(prof.isNegative && (G.stores||[]).some(s => s.isOpen)){
+    const d = prof.data;
+    html += `<div style="background:#F3F3F3;border:1.5px solid #9E9E9E;border-radius:12px;padding:11px 14px;margin-bottom:10px;font-size:12px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+        <span style="font-size:16px">📉</span>
+        <div style="font-weight:700;font-size:12px;color:#4A4A4A">現在の営業では支出が収入を上回る見込みです</div>
+      </div>
+      <div style="color:#555;line-height:1.7;margin-bottom:7px">
+        現在の経営状態を続けると、収入より費用の方が大きくなります。
+      </div>
+      <div style="background:rgba(0,0,0,.04);border-radius:8px;padding:8px 10px;font-size:11px;line-height:2">
+        <div style="display:flex;justify-content:space-between"><span style="color:#555">1日あたりの収入見込み</span><span style="font-weight:700">${fmt(d.dailyRev)}</span></div>
+        <div style="display:flex;justify-content:space-between"><span style="color:#555">1日あたりの支出見込み</span><span style="color:#C62828;font-weight:700">${fmt(d.dailyExp)}</span></div>
+        <div style="display:flex;justify-content:space-between;border-top:1px solid #DDD;margin-top:4px;padding-top:4px"><span style="color:#555">差額（日次）</span><span style="font-weight:700;color:#C62828">−${fmt(-d.dailyProfit)}</span></div>
+      </div>
+      <div style="margin-top:7px;font-size:11px;color:#555">💡 客数を増やすか、固定費を見直すことで改善できます</div>
+    </div>`;
+  }
+
+  return html;
 }
 
 function renderCashWarningBanner(){
   if(!G.started) return '';
   if(G.tab !== 'home') return '';
-  if(G.money >= 200000) return '';
-  const isNeg = G.money < 0;
-  return `<div style="background:${isNeg?'#7B1A1A':'#7B4A00'};color:#fff;border-radius:12px;padding:12px 14px;margin-bottom:10px;font-size:12px">
+  // v1.3f: money < 0（現金マイナス）の critical 状態専用。
+  // danger/caution は renderEarlyWarningCard が担当するため重複しない。
+  if(G.money >= 0) return '';
+  return `<div style="background:#7B1A1A;color:#fff;border-radius:12px;padding:12px 14px;margin-bottom:10px;font-size:12px">
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
-      <span style="font-size:18px">${isNeg?'🚨':'⚠️'}</span>
+      <span style="font-size:18px">🚨</span>
       <div>
-        <div style="font-weight:700;font-size:13px">${isNeg?'🔴 現金が尽きています':'運転資金が少なくなっています'}</div>
+        <div style="font-weight:700;font-size:13px">🔴 現金が尽きています</div>
         <div style="opacity:.8;font-size:10px">銀行員・成田より</div>
       </div>
     </div>
     <div style="line-height:1.7;opacity:.95">
-      ${isNeg
-        ? '現金残高がマイナスです。<strong>「翌日へ進む」を押すと資金繰りの対応が必要になります。</strong>'
-        : '運転資金が20万円を切っています。このままでは<strong>給与・家賃の支払いが困難になります。</strong>'}
+      現金残高がマイナスです。<strong>「翌日へ進む」を押すと資金繰りの対応が必要になります。</strong>
     </div>
-    ${!isNeg?`<div style="margin-top:6px;opacity:.8;font-size:11px">現在の現金: ${fmt(G.money)} / 売掛金（月末入金）: ${fmt(G.receivables)}</div>`:''}
   </div>`;
 }
 

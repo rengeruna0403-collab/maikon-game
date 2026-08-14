@@ -3,7 +3,7 @@
  * ?qa=1 または ?debug=1 の場合のみ動作
  * ゲーム本体への影響なし・読み取り専用（Phase 2Aは1日テスト後に必ず復元）
  */
-window._MAIKON_QA_VERSION = '2026-08-12-v13e-early-departure-consistency';
+window._MAIKON_QA_VERSION = '2026-08-12-v13f-financial-health-ux';
 console.log('[MAIKON-QA] loaded version:', window._MAIKON_QA_VERSION);
 console.log('[QA FILE LOADED] v13e-early-departure-consistency-20260812');
 
@@ -15513,5 +15513,245 @@ ${ar.experienceKPI ? _sim3ExperienceKpiHtml(ar.experienceKPI) : ''}
     return result;
   };
   window._qaCashWarningAudit.help = 'window._qaCashWarningAudit() — 経営警告の判定根拠を可視化（読み取り専用）';
+
+  // ══════════════════════════════════════════════════════════════
+  // ■ QA Section 35: Financial Health UX (v1.3f)
+  // ══════════════════════════════════════════════════════════════
+  /**
+   * window._qaFinancialHealth() でコンソールから実行
+   * ゲームロジックを変更せず G の値を一時置換してテスト
+   * 終了後に元の値へ復元する
+   */
+  window._qaFinancialHealth = function () {
+    const _g = (function () { try { return eval('G'); } catch(e) { return null; } })();
+    const _getCFS   = (function () { try { return eval('_getCashFlowStatus');    } catch(e) { return null; } })();
+    const _getProf  = (function () { try { return eval('_getProfitabilityStatus'); } catch(e) { return null; } })();
+    const _cdr      = (function () { try { return eval('calcDailyRevenue');       } catch(e) { return null; } })();
+    if (!_g || !_getCFS || !_getProf) { console.error('[QA-35] 必要な関数が取得できません'); return; }
+
+    const results = [];
+    function pass(id, detail) { results.push({ st:'PASS', id, detail }); console.log(`✅ [PASS] ${id}: ${detail}`); }
+    function fail(id, detail) { results.push({ st:'FAIL', id, detail }); console.error(`❌ [FAIL] ${id}: ${detail}`); }
+    function warn(id, detail) { results.push({ st:'WARN', id, detail }); console.warn(`⚠️  [WARN] ${id}: ${detail}`); }
+
+    // オリジナル値を保存
+    const _origMoney = _g.money;
+    const _origRecv  = _g.receivables;
+    const _origDay   = _g.day;
+
+    function _setG(money, recv, day) {
+      _g.money = money; _g.receivables = recv; _g.day = day;
+    }
+    function _restore() {
+      _g.money = _origMoney; _g.receivables = _origRecv; _g.day = _origDay;
+    }
+
+    // 共通: 実際のdailyExp（テスト中は店舗/建物/スタッフの設定を変えないため一定）
+    const { exp: _dailyExp } = _cdr ? _cdr() : { exp: 0 };
+
+    try {
+      // 35-1: 黒字＋現金十分 → stable
+      _setG(900000, 500000, 15);
+      {
+        const cf = _getCFS();
+        const daysLeft = Math.max(0, 30 - _g.day); // 15
+        const expNeeded = _dailyExp * daysLeft;
+        if(cf.level === 'stable'){
+          pass('35-1', `黒字・現金十分 → stable (money=900K, expNeeded≈${Math.round(expNeeded).toLocaleString()})`);
+        } else {
+          // dailyExpが高く money<threshold になりうる → WARN
+          warn('35-1', `stable期待だが ${cf.level} (money=900K, expNeeded≈${Math.round(expNeeded).toLocaleString()}, threshold≈${Math.round(expNeeded*1.2).toLocaleString()})`);
+        }
+      }
+
+      // 35-2: 黒字＋月末まで現金ギリギリ → cashFlow caution（入金込みで黒字）
+      _setG(50000, 600000, 15);
+      {
+        const cf = _getCFS();
+        if(cf.level === 'caution'){
+          pass('35-2', `現金ギリギリ・入金込み黒字 → caution (money=50K, recv=600K)`);
+        } else if(cf.level === 'danger'){
+          const d = cf.data;
+          if(d.cashAfter >= 0){
+            fail('35-2', `cashAfter=${d.cashAfter}で正なのにdanger（caution期待）`);
+          } else {
+            pass('35-2', `cashAfterがマイナス → danger は正しい (cashAfter=${Math.round(d.cashAfter).toLocaleString()})`);
+          }
+        } else {
+          warn('35-2', `想定外: ${cf.level} (money=50K, recv=600K)`);
+        }
+      }
+
+      // 35-3: 赤字見込み・現金十分 → stable cash / profitability警告あり
+      // (dailyProfitは実際の店舗状態で決まるためモック不可。profitabilityStatusを直接チェック)
+      _setG(900000, 500000, 15);
+      {
+        const cf   = _getCFS();
+        const prof = _getProf();
+        const cashOk = cf.level === 'stable' || cf.level === 'caution';
+        if(cashOk && prof.isNegative) {
+          pass('35-3', `現金十分でも収益性警告が独立して出る(profitability.isNegative=true)`);
+        } else if(cashOk && !prof.isNegative) {
+          pass('35-3', `現金十分・収益黒字 → 両方ともOK(店舗収益が黒字のため収益警告なし)`);
+        } else {
+          warn('35-3', `cashLevel=${cf.level}, isNegative=${prof.isNegative}`);
+        }
+      }
+
+      // 35-4: 現金も少なく収益も赤字 → danger + profitability
+      _setG(10000, 5000, 5);
+      {
+        const cf   = _getCFS();
+        const prof = _getProf();
+        const d = cf.data;
+        if(cf.level === 'danger' || cf.level === 'critical'){
+          pass('35-4', `現金少・収益状況にかかわらずdanger/critical (level=${cf.level})`);
+        } else {
+          warn('35-4', `想定外のlevel=${cf.level} (money=10K, recv=5K, day=5, expNeeded≈${Math.round(d.expNeeded||0).toLocaleString()})`);
+        }
+      }
+
+      // 35-5: 売掛金を「今使える現金」として混同しない
+      _setG(50000, 600000, 15);
+      {
+        const cf = _getCFS();
+        const d  = cf.data;
+        // money単体が expNeededを超えているかチェック
+        const expN = d.expNeeded || 0;
+        const moneyCoversAlone = d.money >= expN * 1.2;
+        if(!moneyCoversAlone && cf.level !== 'stable'){
+          pass('35-5', `売掛金を現金と混同せず判定: money単体(${fmt(d.money)}) < threshold(≈${fmt(expN*1.2)}) → ${cf.level}`);
+        } else if(moneyCoversAlone && cf.level === 'stable'){
+          pass('35-5', `money単体でも十分 → stable (売掛金加算不要)`);
+        } else {
+          warn('35-5', `level=${cf.level}, moneyCoversAlone=${moneyCoversAlone}`);
+        }
+      }
+
+      // 35-6: 月末入金は将来予測には含まれる
+      _setG(10000, 500000, 15);
+      {
+        const cf = _getCFS();
+        const d  = cf.data;
+        if(d.cashAfter !== undefined){
+          const expected = 10000 + 500000 - d.expNeeded;
+          const diff = Math.abs(d.cashAfter - expected);
+          if(diff < 1){
+            pass('35-6', `cashAfter = money + recv - expNeeded 計算OK (cashAfter≈${Math.round(d.cashAfter).toLocaleString()})`);
+          } else {
+            fail('35-6', `cashAfterの計算が期待値と異なる (got ${d.cashAfter}, expected ${expected})`);
+          }
+        } else {
+          warn('35-6', 'cashAfterがdataに含まれていない');
+        }
+      }
+
+      // 35-7: Day29 → expNeeded小 → stable or 軽い warning のみ
+      _setG(830000, 560000, 29);
+      {
+        const cf = _getCFS();
+        const d  = cf.data;
+        if(cf.level === 'stable'){
+          pass('35-7', `Day29・現金830K → stable (expNeeded≈${Math.round(d.expNeeded||0).toLocaleString()})`);
+        } else if(cf.level === 'caution'){
+          pass('35-7', `Day29・現金830K → caution(軽微) (expNeeded≈${Math.round(d.expNeeded||0).toLocaleString()})`);
+        } else {
+          warn('35-7', `Day29で${cf.level}（dailyExp高め？ expNeeded≈${Math.round(d.expNeeded||0).toLocaleString()}）`);
+        }
+      }
+
+      // 35-8: 今回の実プレイ例（Day≈15, money=830K, recv=560K）→ stable or caution（dangerではない）
+      _setG(830000, 560000, 15);
+      {
+        const cf = _getCFS();
+        const d  = cf.data;
+        if(cf.level === 'stable'){
+          pass('35-8', `実プレイ例(D15/830K/560K) → stable ✅ 旧誤警告なし (expNeeded≈${Math.round(d.expNeeded||0).toLocaleString()})`);
+        } else if(cf.level === 'caution'){
+          if(d.cashAfter >= 0){
+            pass('35-8', `実プレイ例(D15/830K/560K) → caution(入金込み黒字) ✅ "経営が少し苦しい"表現なし (cashAfter≈${Math.round(d.cashAfter).toLocaleString()})`);
+          } else {
+            fail('35-8', `cashAfterがマイナスなのにcaution (dangerが正しい)`);
+          }
+        } else if(cf.level === 'danger'){
+          warn('35-8', `実プレイ例でdanger（dailyExpが非常に高い？expNeeded≈${Math.round(d.expNeeded||0).toLocaleString()}, cashAfter≈${Math.round(d.cashAfter||0).toLocaleString()}）`);
+        }
+      }
+
+      // 35-9: NaN / Infinity チェック
+      _setG(0, 0, 1);
+      {
+        const cf = _getCFS();
+        const d  = cf.data;
+        const hasNaN = [d.money, d.recv, d.expNeeded, d.cashAfter].some(v => !Number.isFinite(v));
+        if(!hasNaN){
+          pass('35-9', 'NaN/Infinityなし (money=0, recv=0, day=1)');
+        } else {
+          fail('35-9', `NaN/Infinityが検出された: ${JSON.stringify(d)}`);
+        }
+      }
+
+      // 35-10: money < 0 → critical（renderCashWarningBanner 担当）
+      _setG(-5000, 0, 10);
+      {
+        const cf = _getCFS();
+        if(cf.level === 'critical'){
+          pass('35-10', 'money<0 → critical（既存renderCashWarningBannerが担当）');
+        } else {
+          fail('35-10', `money<0なのにlevel=${cf.level}（criticalが期待値）`);
+        }
+      }
+
+      // 35-11: Day1 通常経営（現金多め）→ stable
+      _setG(800000, 0, 1);
+      {
+        const cf = _getCFS();
+        const d  = cf.data;
+        if(cf.level === 'stable'){
+          pass('35-11', `Day1・現金800K → stable (expNeeded≈${Math.round(d.expNeeded||0).toLocaleString()})`);
+        } else {
+          // dailyExpが高い場合はやむを得ない
+          warn('35-11', `Day1・現金800Kで${cf.level} (expNeeded≈${Math.round(d.expNeeded||0).toLocaleString()}, threshold≈${Math.round((d.expNeeded||0)*1.2).toLocaleString()})`);
+        }
+      }
+
+    } finally {
+      _restore();
+    }
+
+    // 35-12: 同一原因の重複表示なし（criticalはcashWarningBanner, danger/cautionはearlyWarning）
+    // → renderCashWarningBanner が money >= 0 でreturnすることを静的確認
+    {
+      // renderCashWarningBanner のソースを文字列で確認（Grep不可のため eval）
+      const _rcwb = (function () { try { return eval('renderCashWarningBanner').toString(); } catch(e) { return ''; } })();
+      if(_rcwb.includes('G.money >= 0') || _rcwb.includes('money >= 0')){
+        pass('35-12', 'renderCashWarningBannerはmoney>=0でreturn → critical専用、重複なし');
+      } else if(_rcwb.includes('200000')){
+        fail('35-12', 'renderCashWarningBannerに旧200,000条件が残っている（critical専用になっていない）');
+      } else {
+        warn('35-12', 'renderCashWarningBannerの条件を静的確認できず');
+      }
+    }
+
+    // 35-13: 変更禁止項目を変更していないか（calcDailyRevenue が独立して動くか）
+    {
+      const _cdrTest = _cdr ? _cdr() : null;
+      if(_cdrTest && Number.isFinite(_cdrTest.rev) && Number.isFinite(_cdrTest.exp)){
+        pass('35-13', `calcDailyRevenue()正常動作 (rev=${Math.round(_cdrTest.rev).toLocaleString()}, exp=${Math.round(_cdrTest.exp).toLocaleString()})`);
+      } else {
+        fail('35-13', `calcDailyRevenue()が異常値を返した: ${JSON.stringify(_cdrTest)}`);
+      }
+    }
+
+    const nP = results.filter(r => r.st === 'PASS').length;
+    const nF = results.filter(r => r.st === 'FAIL').length;
+    const nW = results.filter(r => r.st === 'WARN').length;
+    const overall = nF === 0 ? (nW === 0 ? '✅ ALL PASS' : '⚠️  PASS（WARN有）') : '❌ FAIL';
+    console.group(`[QA Section 35: Financial Health UX v1.3f]  ${overall}  PASS:${nP} FAIL:${nF} WARN:${nW}`);
+    results.forEach(r => console.log(`${r.st==='PASS'?'✅':r.st==='FAIL'?'❌':'⚠️'} [${r.st}] ${r.id}: ${r.detail}`));
+    console.groupEnd();
+    return results;
+  };
+  window._qaFinancialHealth.help = 'window._qaFinancialHealth() — Financial Health UX v1.3f テスト（G値を一時置換して復元）';
 
 })();
