@@ -15397,4 +15397,121 @@ ${ar.experienceKPI ? _sim3ExperienceKpiHtml(ar.experienceKPI) : ''}
   };
   window._qaEarlyDeparture.help = 'window._qaEarlyDeparture() — early_departure 退去案件整合チェック';
 
+  // ══════════════════════════════════════════════════════════════
+  // ■ 診断: 経営警告の根拠を可視化 (v1.3e 監査用)
+  // ══════════════════════════════════════════════════════════════
+  /**
+   * window._qaCashWarningAudit() でコンソールから実行
+   * ゲームロジックは変更しない（読み取り専用）
+   */
+  window._qaCashWarningAudit = function () {
+    const _g  = (function () { try { return eval('G'); } catch(e) { return null; } })();
+    const _cdr = (function () { try { return eval('calcDailyRevenue'); } catch(e) { return null; } })();
+    const _gfhl = (function () { try { return eval('getFinancialHealthLevel'); } catch(e) { return null; } })();
+    if (!_g || !_cdr) { console.error('[CashAudit] G または calcDailyRevenue 取得不可'); return null; }
+
+    const { rev: dailyRev, exp: dailyExp, profit: dailyProfit } = _cdr();
+    const monthlyExp    = dailyExp * 30;
+    const monthlyRev    = dailyRev * 30;
+    const cash          = _g.money;
+    const receivables   = _g.receivables || 0;
+    const projectedCash = cash + receivables;
+    const daysToEnd     = 30 - _g.day;
+    const level         = _gfhl ? _gfhl() : '(取得不可)';
+
+    // 各閾値
+    const dangerThresh1  = 0;                   // cash < 0
+    const dangerThresh2  = monthlyExp * 0.3;    // cash < 30%
+    const cautionThresh1 = monthlyExp * 1.5;    // cash < 150%
+    // caution2 = dailyProfit < 0
+
+    // どの条件で警告が出ているか
+    const triggerNegCash      = cash < 0;
+    const triggerNegProj      = projectedCash < 0;
+    const triggerDanger30pct  = cash < dangerThresh2;
+    const triggerCaution150pct = cash < cautionThresh1;
+    const triggerNegProfit    = dailyProfit < 0;
+    const triggerCashBanner   = cash < 200000;
+
+    const result = {
+      // 現在値
+      cash,
+      receivables,
+      projectedCash,
+      daysToMonthEnd: daysToEnd,
+
+      // 日次経済
+      dailyRev,
+      dailyExp,
+      dailyProfit,
+      monthlyExpEstimate: monthlyExp,
+      monthlyRevEstimate: monthlyRev,
+
+      // 警告レベル
+      healthLevel: level,
+
+      // 各閾値
+      thresholds: {
+        danger_cash_negative: dangerThresh1,
+        danger_30pct_monthly: Math.round(dangerThresh2),
+        caution_150pct_monthly: Math.round(cautionThresh1),
+        cashBanner_fixed: 200000,
+      },
+
+      // トリガー状態（どの条件が発火中か）
+      triggers: {
+        '危険_現金マイナス':    triggerNegCash,
+        '危険_入金込みマイナス': triggerNegProj,
+        '危険_30%未満':        triggerDanger30pct,
+        '注意_150%未満(cash)': triggerCaution150pct,
+        '注意_日次赤字':       triggerNegProfit,
+        '警告バナー_20万未満': triggerCashBanner,
+      },
+
+      // 現在の警告の根本原因
+      primaryTrigger: (
+        triggerNegCash      ? '現金マイナス（最深刻）' :
+        triggerNegProj      ? '現金+入金でもマイナス' :
+        triggerDanger30pct  ? `現金が月次支出30%未満（閾値 ¥${Math.round(dangerThresh2).toLocaleString()}）` :
+        triggerCaution150pct ? `現金が月次支出150%未満（閾値 ¥${Math.round(cautionThresh1).toLocaleString()}）` :
+        triggerNegProfit    ? `日次利益がマイナス（日次 ¥${dailyProfit.toLocaleString()}）` :
+        '警告なし'
+      ),
+
+      // receivables が判定に含まれているか
+      receivablesUsedIn: {
+        danger_check: '含む（projectedCash = cash + receivables）',
+        caution_check: '含まない（cash のみ）',
+      },
+
+      // 月末までの日数は判定に使われているか
+      daysToMonthEndUsed: '使われていない（変数は計算されるが判定式に登場しない）',
+
+      // 月次支出の内訳（日次 × 30）
+      dailyExpBreakdown: '※ calcDailyRevenue() の exp を参照（店舗固定費/30 + 材料費 + 建物維持費/30 + 給与/30 の合算）',
+    };
+
+    console.group('[CashWarningAudit]');
+    console.log('現金:           ', `¥${cash.toLocaleString()}`);
+    console.log('売掛金:         ', `¥${receivables.toLocaleString()}`);
+    console.log('現金+売掛金:    ', `¥${projectedCash.toLocaleString()}`);
+    console.log('月次支出目安:   ', `¥${Math.round(monthlyExp).toLocaleString()} （日次¥${Math.round(dailyExp).toLocaleString()} × 30）`);
+    console.log('月次売上目安:   ', `¥${Math.round(monthlyRev).toLocaleString()}`);
+    console.log('日次利益:       ', `¥${Math.round(dailyProfit).toLocaleString()}`);
+    console.log('経営レベル:     ', level);
+    console.log('');
+    console.log('【閾値】');
+    console.log('danger  30%閾値:', `¥${Math.round(dangerThresh2).toLocaleString()}`);
+    console.log('caution 150%閾値:', `¥${Math.round(cautionThresh1).toLocaleString()}`);
+    console.log('バナー固定閾値:', '¥200,000');
+    console.log('');
+    console.log('【トリガー状態】');
+    Object.entries(result.triggers).forEach(([k,v]) => console.log(`  ${v ? '🔴' : '⚪'} ${k}: ${v}`));
+    console.log('');
+    console.log('主トリガー:', result.primaryTrigger);
+    console.groupEnd();
+    return result;
+  };
+  window._qaCashWarningAudit.help = 'window._qaCashWarningAudit() — 経営警告の判定根拠を可視化（読み取り専用）';
+
 })();
