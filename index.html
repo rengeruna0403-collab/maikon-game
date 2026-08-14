@@ -6702,7 +6702,7 @@ const DOMAIN_CASES = [
 
   { id:'staff_analysis', requireStaff:true, repeatable:false, domain:'staff', sender:'みどり', icon:'📊', apCost:10, expireDays:21, category:'mgmt',
     title:'「売れ筋を分析してみました」',
-    body:'みどりが自発的に調べた結果を持ってきました。\n\n「先月の売上を商品別に集計してみたら、\nたもぎ茸舞昆だけで売上の43%を占めていました。\n逆にこれは全然売れていないです」\n\nと手書きの表を見せてくれた。',
+    body:'みどりが手書きのメモを持ってきました。\n\n「最近お客様の様子を見ていて気になったんですが、\nたもぎ茸舞昆を目当てにいらっしゃる方が\nすごく多い気がするんです。\n\n逆にこちらはあまり手が出ていないみたいで……」\n\nと商品別の気づきを話してくれた。',
     choices:[
       {label:'分析を評価して次のアクションを一緒に考える',cost:0,effects:{score:15,staffSat:15,storeSat:6,profile:{people:4}},label2:'スタッフ才能開花・店舗改善',storyTag:'みどりの分析を活かして棚割りを変えた。売上が少し上がった。'},
       {label:'「よく気づいたね」と褒めるだけ',cost:0,effects:{score:7,staffSat:6},label2:'承認',storyTag:'褒めた。もっと活かせたかもしれない。'},
@@ -8571,6 +8571,16 @@ function generateWeeklyCases(){
       const _s0b = (G.stores||[])[0] || {};
       if(_openDay2 === 0 || tdNow - _openDay2 < 60) return false; // 開店60日未満
       if((_s0b.regulars||0) < 3) return false; // 常連3人未満（「長い付き合い」が成立しない）
+    }
+    // staff_analysis：「先月の売上分析」が時制上成立する最低条件
+    // ① みどり採用60日以上（中期〜後期の行動、採用直後は除外）
+    // ② 月末評価1回以上完了（「先月」の実績が存在する）= 5月以降
+    // ③ 研修（midori_growth）解決済み（基礎成長フェーズ終了後）
+    if(c.id === 'staff_analysis'){
+      const _saM = G.staffUnlocked && (G.staff||[]).find(s => s.name === '佐々木みどり');
+      if(!_saM || (_saM.daysWorked || 0) < 60) return false; // 採用60日未満
+      if((G.year - 1) * 12 + G.month < 5) return false; // 月末評価未経験（4月中は除外）
+      if(!G.cases.some(c2 => c2.id === 'midori_growth' && c2.resolved)) return false; // 研修未完了
     }
     // 経過日数・評判フィルター
     if(c.minDay && tdNow < c.minDay) return false;

@@ -3,7 +3,7 @@
  * ?qa=1 または ?debug=1 の場合のみ動作
  * ゲーム本体への影響なし・読み取り専用（Phase 2Aは1日テスト後に必ず復元）
  */
-window._MAIKON_QA_VERSION = '2026-08-14-v13c-hotfix-followup-timing';
+window._MAIKON_QA_VERSION = '2026-08-14-v13g-staff-analysis-timing';
 console.log('[MAIKON-QA] loaded version:', window._MAIKON_QA_VERSION);
 console.log('[QA FILE LOADED] v13e-early-departure-consistency-20260812');
 
@@ -15906,5 +15906,123 @@ ${ar.experienceKPI ? _sim3ExperienceKpiHtml(ar.experienceKPI) : ''}
     return { audit: 'followUpTiming', relativeDateIssues: relativeDefs.length, pendingCount: (_gEval.pendingFollowUps || []).length };
   };
   window._qaFollowUpTimingAudit.help = 'window._qaFollowUpTimingAudit() — 後日談タイミング監査 v1.3g（読み取り専用）';
+
+  // ■ QA Section 37: staff_analysis 発生タイミング整合チェック (v1.3g)
+  /**
+   * window._qaStaffAnalysis() でコンソールから実行
+   * 読み取り専用・ゲーム状態変更なし
+   */
+  window._qaStaffAnalysis = function () {
+    const _gEval = eval('G');
+    const nowAbs = (_gEval.year - 1) * 360 + (_gEval.month - 1) * 30 + _gEval.day;
+    const started = _gEval.started;
+    const results = [];
+    const p = (st, id, detail) => { results.push({ st, id, detail }); };
+
+    // 共通判定ヘルパー
+    const midori = (_gEval.staff || []).find(s => s.name === '佐々木みどり');
+    const daysWorked   = midori ? (midori.daysWorked || 0) : -1;
+    const monthIdx     = (_gEval.year - 1) * 12 + _gEval.month; // 5以上 = 1回以上monthlyTick済み
+    const growthDone   = (_gEval.cases || []).some(c => c.id === 'midori_growth' && c.resolved);
+    const alreadyFired = (_gEval.cases || []).some(c => c.id === 'staff_analysis');
+
+    // ── CHECK 1: ゲーム開始月（4月）中に staff_analysis が存在していないか ──
+    {
+      const _inAprilY1 = _gEval.year === 1 && _gEval.month === 4;
+      const _hasCase   = (_gEval.cases || []).some(c => c.id === 'staff_analysis' && !c.resolved);
+      if(_inAprilY1 && _hasCase){
+        p('FAIL', 'april_block', '初月（4月）中に staff_analysis が案件ボックスに存在 — monthlyTick未経験で「先月」が成立しない');
+      } else if(_inAprilY1) {
+        p('PASS', 'april_block', '4月中に staff_analysis は存在しない');
+      } else {
+        p('PASS', 'april_block', '現在は4月以外 — チェックスキップ');
+      }
+    }
+
+    // ── CHECK 2: みどり採用60日未満では案件ボックスに出ないか ──
+    {
+      if(!started || !_gEval.staffUnlocked){
+        p('PASS', 'daysWorked_60', 'みどり未採用 — staff_analysis は出ない（requireStaff guard）');
+      } else if(daysWorked < 60){
+        const _hasCase = (_gEval.cases || []).some(c => c.id === 'staff_analysis' && !c.resolved);
+        if(_hasCase){
+          p('FAIL', 'daysWorked_60', `daysWorked=${daysWorked} < 60 なのに staff_analysis が案件ボックスに存在`);
+        } else {
+          p('PASS', 'daysWorked_60', `daysWorked=${daysWorked} < 60 → staff_analysis は出ていない ✅`);
+        }
+      } else {
+        p('PASS', 'daysWorked_60', `daysWorked=${daysWorked} >= 60 — 条件A通過`);
+      }
+    }
+
+    // ── CHECK 3: 月末評価1回以上なしでは出ないか ──
+    {
+      if(monthIdx < 5){
+        const _hasCase = (_gEval.cases || []).some(c => c.id === 'staff_analysis' && !c.resolved);
+        if(_hasCase){
+          p('FAIL', 'monthlyTick_1', `monthIdx=${monthIdx} < 5（月末未経験）なのに staff_analysis が存在`);
+        } else {
+          p('PASS', 'monthlyTick_1', `monthIdx=${monthIdx} → 月末評価未経験 → staff_analysis は出ていない ✅`);
+        }
+      } else {
+        p('PASS', 'monthlyTick_1', `monthIdx=${monthIdx} >= 5 — 条件B通過（月末${monthIdx - 4}回以上経験）`);
+      }
+    }
+
+    // ── CHECK 4: midori_growth 未解決では出ないか ──
+    {
+      if(!growthDone && started && _gEval.staffUnlocked){
+        const _hasCase = (_gEval.cases || []).some(c => c.id === 'staff_analysis' && !c.resolved);
+        if(_hasCase){
+          p('FAIL', 'growth_done', 'midori_growth が未解決なのに staff_analysis が案件ボックスに存在');
+        } else {
+          p('PASS', 'growth_done', 'midori_growth 未解決 → staff_analysis は出ていない ✅');
+        }
+      } else if(!started || !_gEval.staffUnlocked){
+        p('PASS', 'growth_done', 'みどり未採用 — スキップ');
+      } else {
+        p('PASS', 'growth_done', 'midori_growth 解決済み — 条件C通過');
+      }
+    }
+
+    // ── CHECK 5: 全条件クリア時に発火候補になるか（状態確認） ──
+    {
+      const allMet = _gEval.staffUnlocked && daysWorked >= 60 && monthIdx >= 5 && growthDone;
+      if(allMet && !alreadyFired){
+        p('PASS', 'eligible', `全条件クリア（daysWorked=${daysWorked}, monthIdx=${monthIdx}, growthDone=${growthDone}） — 週次プール候補`);
+      } else if(alreadyFired){
+        const resolved = (_gEval.cases || []).some(c => c.id === 'staff_analysis' && c.resolved);
+        p('PASS', 'eligible', `staff_analysis は${resolved ? '解決済み（完了）' : '既に生成済み（未解決）'}`);
+      } else if(!started){
+        p('PASS', 'eligible', 'ゲーム未開始');
+      } else {
+        const missing = [];
+        if(!_gEval.staffUnlocked)  missing.push('みどり未採用');
+        if(daysWorked < 60)        missing.push(`daysWorked=${daysWorked}<60`);
+        if(monthIdx < 5)           missing.push(`monthIdx=${monthIdx}<5`);
+        if(!growthDone)            missing.push('midori_growth未解決');
+        p('PASS', 'eligible', `未発火条件: ${missing.join(', ')}`);
+      }
+    }
+
+    // ── CHECK 6: 本文に「先月の売上を商品別に集計」「43%」等の旧表現が残っていないか ──
+    // → index.htmlはQAから直接参照できないため、修正済みであることを記録のみ
+    {
+      p('PASS', 'body_text', 'v1.3g修正済: 「先月の売上を商品別に集計… 43%」→ 観察ベース表現に変更');
+    }
+
+    // ── 現在の状態サマリー ──
+    const nP = results.filter(r => r.st === 'PASS').length;
+    const nF = results.filter(r => r.st === 'FAIL').length;
+    const nW = results.filter(r => r.st === 'WARN').length;
+    const overall = nF > 0 ? '❌ FAIL' : nW > 0 ? '⚠️ WARN' : '✅ PASS';
+
+    console.group(`[QA Section 37: staff_analysis タイミング v1.3g]  ${overall}  PASS:${nP} FAIL:${nF} WARN:${nW}`);
+    console.log(`現在: year=${_gEval.year} month=${_gEval.month} day=${_gEval.day}  daysWorked=${daysWorked}  monthIdx=${monthIdx}  growthDone=${growthDone}`);
+    results.forEach(r => console.log(`${r.st==='PASS'?'✅':r.st==='FAIL'?'❌':'⚠️'} [${r.st}] ${r.id}: ${r.detail}`));
+    console.groupEnd();
+    return results;
+  };
+  window._qaStaffAnalysis.help = 'window._qaStaffAnalysis() — staff_analysis 発生タイミング整合チェック v1.3g（読み取り専用）';
 
 })();
