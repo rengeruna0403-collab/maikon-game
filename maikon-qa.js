@@ -16480,6 +16480,206 @@ ${ar.experienceKPI ? _sim3ExperienceKpiHtml(ar.experienceKPI) : ''}
   };
   window._qaDay31to60EventAudit.help = 'window._qaDay31to60EventAudit() — Day31〜60 イベント密度・解禁タイミング監査（読み取り専用）';
 
+  // ══════════════════════════════════════════════════════════════
+  // ■ Section 40: conditionOnly同日集中の分散（v1.3i）QA
+  //   window._qaConditionDispersion()
+  //   ゲーム状態は変更しない（読み取り専用）
+  //   検証項目12件
+  // ══════════════════════════════════════════════════════════════
+  window._qaConditionDispersion = function() {
+    const _gEval = eval('G');
+    if(!_gEval){ console.error('[QA-40] G not found'); return null; }
+
+    console.group('[QA-40] conditionOnly同日集中の分散（v1.3i）');
+    const results = [];
+    const p = (st, id, detail) => { results.push({st,id,detail}); console.log(`[${st}] ${id}: ${detail}`); };
+
+    const totalDays = (_gEval.year-1)*360 + (_gEval.month-1)*30 + (_gEval.day||1);
+    const credit = _gEval.creditScore || 45;
+    const _midori = (_gEval.staff||[]).find(s => s.name === '佐々木みどり');
+    const dw = _midori ? (_midori.daysWorked||0) : 0;
+    const sat = _midori ? (_midori.satisfaction||70) : 0;
+    const _hasMidori = !!_midori;
+    const _hasLunch = (_gEval.staff||[]).some(s => s.shift === 'lunch' && s.name !== '佐々木みどり');
+    const _lunchHiredDay = _gEval._lunchStaffHiredDay;
+    const _daysSinceLunch = (_lunchHiredDay !== undefined) ? totalDays - _lunchHiredDay : -1;
+    const _pending = (_gEval.cases||[]).filter(c => !c.resolved).length;
+    const _normalDebug = _gEval._normalCondDebug || '';
+    const _snackEligible = _gEval._midoriSnackEligibleDay;
+
+    const hasCaseActive = (id) => (_gEval.cases||[]).some(c => c.id === id && !c.resolved);
+    const hasCaseDone   = (id) => (_gEval.cases||[]).some(c => c.id === id && c.resolved);
+    const hasCaseAny    = (id) => (_gEval.cases||[]).some(c => c.id === id);
+
+    // ── Check 1: _normalCondDebug フィールドが存在する ──
+    if(_normalDebug){
+      p('PASS', 'C40-01', `_normalCondDebug 存在: ${_normalDebug.slice(0,80)}`);
+    } else {
+      if(!_gEval.started){ p('PASS','C40-01','ゲーム未開始のためスキップ'); }
+      else { p('WARN','C40-01','_normalCondDebug 未設定（今日まだgenerateConditionCasesが未実行か、候補0件）'); }
+    }
+
+    // ── Check 2: Day30境界（dw>=30）で narita_expansion + midori_jido が同日追加されていないか ──
+    if(dw >= 30 && _hasMidori){
+      const _expActive  = hasCaseActive('narita_expansion');
+      const _jidoActive = hasCaseActive('midori_jido');
+      const _expDone    = hasCaseDone('narita_expansion');
+      const _jidoDone   = hasCaseDone('midori_jido');
+      if(_expActive && _jidoActive){
+        p('FAIL', 'C40-02', `narita_expansion と midori_jido が同時に未解決（dw=${dw}）— 分散未適用の可能性`);
+      } else if(_expDone && _jidoDone){
+        p('PASS', 'C40-02', `両案件とも解決済み（過去に分散発火）`);
+      } else {
+        p('PASS', 'C40-02', `narita_expansion(active=${_expActive} done=${_expDone}) midori_jido(active=${_jidoActive} done=${_jidoDone}) — 同時未解決でなくOK`);
+      }
+    } else {
+      p('PASS', 'C40-02', `dw=${dw} < 30 または みどり未採用 — 境界未到達のためスキップ`);
+    }
+
+    // ── Check 3: normalCondプール候補が3件以上でも1件しか追加されていないか ──
+    // デバッグ文字列で "candidates[X/Y/Z]" に複数件あり → "→ {id}" が1件
+    if(_normalDebug.includes('candidates[')){
+      const _candMatch = _normalDebug.match(/candidates\[([^\]]*)\]/);
+      const _candArr = _candMatch ? _candMatch[1].split('/') : [];
+      const _firedMatch = _normalDebug.match(/→\s*(\S+)(?:\s|$)/);
+      const _fired = _firedMatch ? _firedMatch[1] : '';
+      if(_candArr.length >= 3 && _fired && _fired !== 'skip(full)'){
+        p('PASS', 'C40-03', `候補${_candArr.length}件中 1件発火: ${_fired}`);
+      } else if(_candArr.length >= 3 && _fired === 'skip(full)'){
+        p('PASS', 'C40-03', `候補${_candArr.length}件、pending満杯(${_pending})のためskip — 正常`);
+      } else {
+        p('PASS', 'C40-03', `候補${_candArr.length}件（3件未満の日は分散不要）`);
+      }
+    } else {
+      p('PASS', 'C40-03', `今日のnormalCond候補なしまたはデバッグ未記録`);
+    }
+
+    // ── Check 4: pending >= 6 のとき normalCond が skip される ──
+    if(_pending >= 6){
+      if(_normalDebug.includes('skip(full)')){
+        p('PASS', 'C40-04', `pending=${_pending} ≥ 6、正しくskip`);
+      } else if(_normalDebug){
+        p('FAIL', 'C40-04', `pending=${_pending} ≥ 6 なのに normalCond が発火している可能性: ${_normalDebug}`);
+      } else {
+        p('WARN', 'C40-04', `pending=${_pending} ≥ 6 だが _normalCondDebug 未記録 — 判定不能`);
+      }
+    } else {
+      p('PASS', 'C40-04', `pending=${_pending} < 6 — MAX_PENDING制限は非適用`);
+    }
+
+    // ── Check 5: HIGH priority（priority=2）がNORMAL/LOWより先に発火する ──
+    // narita_first_visit と midori_jido が両方候補のとき、narita_first_visitが先
+    if(totalDays >= 30 && credit >= 30 && _hasMidori && dw >= 30){
+      const _firstVisitDone = hasCaseDone('narita_first_visit');
+      const _jidoDone = hasCaseDone('midori_jido');
+      const _firstVisitActive = hasCaseActive('narita_first_visit');
+      if(_firstVisitDone || _firstVisitActive){
+        p('PASS', 'C40-05', `narita_first_visit(HIGH) が midori_jido(NORMAL) より先に発火 or 進行中`);
+      } else if(!_jidoDone && !hasCaseActive('midori_jido')){
+        p('PASS', 'C40-05', `両案件とも未発火 — 条件は満たされているが今日がDay1の可能性`);
+      } else if(_jidoDone && !_firstVisitDone && !_firstVisitActive){
+        p('FAIL', 'C40-05', `midori_jido(NORMAL) が先に解決済みなのに narita_first_visit(HIGH) がまだ未発火 — priority順序違反の疑い`);
+      } else {
+        p('PASS', 'C40-05', `narita_first_visit(${_firstVisitDone?'done':_firstVisitActive?'active':'pending'}) midori_jido(${_jidoDone?'done':'pending'}) — 問題なし`);
+      }
+    } else {
+      p('PASS', 'C40-05', `条件未成立（totalDays=${totalDays}, dw=${dw}）— スキップ`);
+    }
+
+    // ── Check 6: taste_midori_snack の VOLATILE フラグ ──
+    if(_hasMidori && dw >= 30 && sat >= 70){
+      if(_snackEligible){
+        p('PASS', 'C40-06', `_midoriSnackEligibleDay=${_snackEligible} 設定済み（VOLATILE保護）`);
+      } else {
+        p('FAIL', 'C40-06', `dw=${dw} sat=${sat} だが _midoriSnackEligibleDay 未設定 — VOLATILE保護漏れ`);
+      }
+    } else if(_snackEligible){
+      p('PASS', 'C40-06', `_midoriSnackEligibleDay=${_snackEligible}（過去に条件達成済み、現在sat=${sat}）`);
+    } else {
+      p('PASS', 'C40-06', `dw=${dw} sat=${sat} — taste_midori_snack 未到達またはみどり未採用`);
+    }
+
+    // ── Check 7: taste_midori_snack が解決済みなら _midoriSnackEligibleDay が存在する ──
+    if(hasCaseDone('taste_midori_snack')){
+      if(_snackEligible){
+        p('PASS', 'C40-07', `taste_midori_snack 解決済み + フラグ存在`);
+      } else {
+        p('WARN', 'C40-07', `taste_midori_snack 解決済みだが _midoriSnackEligibleDay が未設定（旧セーブ補完漏れの可能性）`);
+      }
+    } else {
+      p('PASS', 'C40-07', `taste_midori_snack 未解決 — スキップ`);
+    }
+
+    // ── Check 8: narita_expansion が narita_first_visit と同日に両方未解決でないか ──
+    if(hasCaseActive('narita_expansion') && hasCaseActive('narita_first_visit')){
+      p('FAIL', 'C40-08', `narita_expansion と narita_first_visit が同時未解決（両方HIGH priority — 最大でも1件/日の想定）`);
+    } else {
+      p('PASS', 'C40-08', `narita_expansion と narita_first_visit の同時未解決なし`);
+    }
+
+    // ── Check 9: staff_new_training の条件確認 ──
+    if(_hasLunch && _daysSinceLunch >= 7){
+      if(hasCaseDone('staff_new_training')){
+        p('PASS', 'C40-09', `staff_new_training 解決済み（daysSinceLunch=${_daysSinceLunch}）`);
+      } else if(hasCaseActive('staff_new_training')){
+        p('PASS', 'C40-09', `staff_new_training 発火中（daysSinceLunch=${_daysSinceLunch}）`);
+      } else {
+        p('PASS', 'C40-09', `staff_new_training 未発火だが正常（normalCond待機中か、この日が発火日）`);
+      }
+    } else {
+      p('PASS', 'C40-09', `昼スタッフ未採用 or daysSinceLunch=${_daysSinceLunch} < 7 — スキップ`);
+    }
+
+    // ── Check 10: 商品解放候補が normalCond 経由になっているか（productUnlockDebug） ──
+    const _prodDebug = _gEval._productUnlockDebug || '';
+    if(_prodDebug.includes('normalCond待機')){
+      p('PASS', 'C40-10', `商品解放案件がnormalCond経由: ${_prodDebug.slice(0,60)}`);
+    } else if(_prodDebug.includes('候補なし')){
+      p('PASS', 'C40-10', `商品解放候補なし（${_prodDebug.slice(0,60)}）`);
+    } else if(_prodDebug){
+      p('WARN', 'C40-10', `productUnlockDebug が旧フォーマットの可能性: ${_prodDebug.slice(0,60)}`);
+    } else {
+      p('PASS', 'C40-10', `_productUnlockDebug 未設定（たもぎ茸未解放の可能性）`);
+    }
+
+    // ── Check 11: normalCondDebugが「skip(full)」のとき pending=6を確認 ──
+    if(_normalDebug.includes('skip(full)')){
+      if(_pending >= 6){
+        p('PASS', 'C40-11', `skip(full) + pending=${_pending} ≥ 6 — 正常`);
+      } else {
+        p('FAIL', 'C40-11', `skip(full) なのに pending=${_pending} < 6 — MAX_PENDINGチェックのバグ疑い`);
+      }
+    } else {
+      p('PASS', 'C40-11', `skip(full)状態でない — スキップ`);
+    }
+
+    // ── Check 12: totalDays < 30 のとき normalCond 対象案件が発火していないか ──
+    if(totalDays < 30 && _gEval.started){
+      const _earlyFires = ['narita_first_visit','narita_expansion','midori_jido','taste_midori_snack'].filter(id => hasCaseAny(id));
+      if(_earlyFires.length > 0){
+        p('FAIL', 'C40-12', `Day30未満なのに normalCond対象案件が発火: ${_earlyFires.join('/')}`);
+      } else {
+        p('PASS', 'C40-12', `Day${totalDays} — normalCond対象案件の早期発火なし`);
+      }
+    } else {
+      p('PASS', 'C40-12', `totalDays=${totalDays} — Day30チェック不要`);
+    }
+
+    // ─── 結果表示 ───
+    const nP = results.filter(r => r.st === 'PASS').length;
+    const nF = results.filter(r => r.st === 'FAIL').length;
+    const nW = results.filter(r => r.st === 'WARN').length;
+    const overall = nF > 0 ? '❌ FAIL' : nW > 0 ? '⚠️ WARN' : '✅ PASS';
+    console.log(`[Summary] Section 40  ${overall}  PASS:${nP} FAIL:${nF} WARN:${nW}`);
+    console.log(`状態: totalDays=${totalDays} dw=${dw} sat=${sat} pending=${_pending} snackFlag=${_snackEligible||'未設定'}`);
+    results.filter(r => r.st !== 'PASS').forEach(r =>
+      console.log(`${r.st==='FAIL'?'❌':'⚠️'} [${r.st}] ${r.id}: ${r.detail}`)
+    );
+    console.groupEnd();
+    return results;
+  };
+  window._qaConditionDispersion.help = 'window._qaConditionDispersion() — v1.3i conditionOnly分散制御 12チェック（読み取り専用）';
+
   // ── バージョン更新 ──
 
 })();

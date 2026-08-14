@@ -405,3 +405,51 @@ v1.3c (2026-08-11) 策定。「NPCが知り得ること／知り得ないこと�
 - 引き止め成功後90日は同じ部屋の入居者を `early_departure` 対象から除外する（`_departureHoldUntil` フィールド）
 - 入居者満足度（`r.satisfaction`）は `early_departure` の**発生確率**には影響しない。生成後の**対象選定**にのみ使われる（最低満足度の部屋を選ぶ）
 
+## conditionOnly案件の日次分散設計（v1.3i）
+
+`generateConditionCases()`は毎日実行され、条件を満たしたすべての案件が即時addCase()されていた。
+Day30境界（`midori.daysWorked === 30`）では複数案件が同日に発火し、ケースボックスが過密になる問題があった。
+
+### 基本方針
+
+条件がSTABLEな案件（翌日も同条件を満たし続けるもの）は**normalCondプール**に積み、1日1件だけaddCaseする。
+残りは翌日以降のgenerateConditionCases()で再評価される（条件が継続するため問題なし）。
+
+### 優先度分類
+
+| 優先度 | 値 | 対象案件 | 判断理由 |
+|--------|---|----------|----------|
+| HIGH | 2 | `narita_expansion`, `narita_first_visit`, `narita_site_visit` | 成田との主要ストーリー進行。プレイヤー体験への影響大 |
+| NORMAL | 1 | `midori_jido`, `staff_new_training` | スタッフ生活描写。重要だが緊急性なし |
+| LOW | 0 | `taste_midori_snack`, 商品解放案件 | 嗜好イベント・商品。遅延1〜2日は許容 |
+
+同優先度内の順序は**配列への追加順（定義順）**で安定している（ランダム化しない）。
+
+### CRITICAL（分散制御の対象外）
+
+以下は即時性・緊急性があるためnormalCondプールを経由しない：
+
+- **緊急閾値**: `midori_help`（sat<45）、`tenant_request`（入居率50%未満）、`narita_warning`（資金不足）
+- **チュートリアル・ゲーム進行**: `narita_first_ad`、`narita_fullhouse_goal`
+- **採用フロー**: `midori_apply`、`narita_suggest_hire`、`midori_apply_retry`
+- **即日マイルストーン**: `midori_growth`（dw=14）、`narita_review`（90日おき・当日のみ）
+- **季節・ランダム**: `midori_sick`、`midori_overtime`、`bento_request_*`、`menu_refresh`
+- **Eフェーズ**: `staff_promotion_discuss`、`staff_want_independent`、`staff_thanks`
+- **ゲーム後半**: `narita_next_location`、`narita_fork_choice`、哲学シリーズ
+
+### VOLATILE条件の扱い
+
+`taste_midori_snack`（`midori.satisfaction >= 70`）は翌日に満足度が低下する可能性がある（VOLATILE条件）。
+初めて条件を満たした日に`G._midoriSnackEligibleDay = totalDays`を保存し、以降は満足度の変動によらずnormalCondに積む。
+既存セーブデータは`_normalizeSaveData()`で補完される。
+
+### MAX_PENDING尊重
+
+`normalCond.dispatch`は`G.cases.filter(c => !c.resolved).length >= 6`（MAX_PENDING）のとき追加しない。
+翌日以降にpending数が減少すれば自動的に処理される。
+
+### デバッグ
+
+`G._normalCondDebug`に当日の候補リスト・pending数・発火結果を文字列で保存する。
+`G._productUnlockDebug`は商品解放候補がnormalCondに入ったことを記録する。
+

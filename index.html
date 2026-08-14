@@ -8700,6 +8700,16 @@ function generateWeeklyCases(){
 
 function generateConditionCases(){
   if(!G.started) return;
+  // ── v1.3i: 通常condition案件の日次分散制御 ──
+  // 条件がSTABLEな案件を _normalCond に積み、最優先の1件だけaddCase。
+  // 残りは翌日のgenerateConditionCases()で再評価（条件継続なので問題なし）。
+  // priority: HIGH=2（成田主要チェーン）| NORMAL=1（スタッフ生活）| LOW=0（嗜好・商品）
+  const _normalCond = [];
+  const _addNormal = (id, base, priority) => {
+    if(!base) return;
+    if(G.cases.some(c => c.id === id)) return;
+    _normalCond.push({ id, base, priority });
+  };
   // スタッフ疲弊
   if(G.staff.length > 0 && G.staff.some(s => (s.satisfaction||70) < 45)){
     addCase(CASE_POOL.find(c => c.id === 'midori_help'));
@@ -8752,9 +8762,9 @@ function generateConditionCases(){
     if(midori && midori.daysWorked >= 14 && !G.cases.some(c => c.id === 'midori_growth')){
       addCase(CASE_POOL.find(c => c.id === 'midori_growth'));
     }
-    // 成田の拡大提案（採用30日後・事業が軌道に乗ってから）
-    if(midori && midori.daysWorked >= 30 && !G.cases.some(c => c.id === 'narita_expansion')){
-      addCase(CASE_POOL.find(c => c.id === 'narita_expansion'));
+    // 成田の拡大提案（採用30日後・事業が軌道に乗ってから）→ 分散制御
+    if(midori && midori.daysWorked >= 30){
+      _addNormal('narita_expansion', CASE_POOL.find(c => c.id === 'narita_expansion'), 2);
     }
   }
   // 四半期の経営確認（90日ごと・3ヶ月経過後）
@@ -8844,10 +8854,10 @@ function generateConditionCases(){
           _candidates.push('unlock_karakuchi_maikon');
 
         if(_candidates.length > 0){
-          const _pick = _candidates[0]; // 最初の1件だけ追加
+          const _pick = _candidates[0]; // 最初の1件だけ追加（normalCond経由で分散制御）
           const _base = CASE_POOL.find(c => c.id === _pick);
-          if(_base) addCase(_base);
-          G._productUnlockDebug = `候補[${_candidates.join('/')}] → ${_pick} 追加`;
+          if(_base) _addNormal(_pick, _base, 0);
+          G._productUnlockDebug = `候補[${_candidates.join('/')}] → ${_pick} normalCond待機`;
         } else {
           G._productUnlockDebug = `候補なし（解放済み: ${_uProd.join(',')||'なし'}）`;
         }
@@ -8899,10 +8909,9 @@ function generateConditionCases(){
       // 採用直後14日間は家庭事情系案件をすべて抑制
       const _midoriProtected = dw < 14;
 
-      // 参観日早退（採用30日後・1回のみ）
-      if(!_midoriProtected && dw >= 30 && !G.cases.some(c => c.id === 'midori_jido')){
-        const base = DOMAIN_CASES.find(c => c.id === 'midori_jido');
-        if(base) addCase(base);
+      // 参観日早退（採用30日後・1回のみ）→ 分散制御
+      if(!_midoriProtected && dw >= 30){
+        _addNormal('midori_jido', DOMAIN_CASES.find(c => c.id === 'midori_jido'), 1);
       }
       // 夏休みの預け先（7〜8月 かつ 採用30日以上・クールダウン90日）
       const _summerCooldown = G._midoriSummerDay || 0;
@@ -8948,12 +8957,11 @@ function generateConditionCases(){
         const base = DOMAIN_CASES.find(c => c.id === 'staff_shortage');
         if(base) addCase(base);
       }
-      // ── みどり新人教育イベント（昼スタッフ採用14日後・未発火）──
+      // ── みどり新人教育イベント（昼スタッフ採用14日後・未発火）→ 分散制御
       if(_hasLunchStaff && G._lunchStaffHiredDay !== undefined){
         const _daysSinceLunch = totalDays - G._lunchStaffHiredDay;
-        if(_daysSinceLunch >= 7 && !G.cases.some(c => c.id === 'staff_new_training')){
-          const base = DOMAIN_CASES.find(c => c.id === 'staff_new_training');
-          if(base) addCase(base);
+        if(_daysSinceLunch >= 7){
+          _addNormal('staff_new_training', DOMAIN_CASES.find(c => c.id === 'staff_new_training'), 1);
         }
       }
 
@@ -9128,15 +9136,13 @@ function generateConditionCases(){
 
   // ── 成田フィロソフィー系トリガー ──
   const credit = G.creditScore || 45;
-  // 初回面談（開始30日後・信用度30以上）
-  if(totalDays >= 30 && credit >= 30 && !G.cases.some(c => c.id === 'narita_first_visit')){
-    const base = DOMAIN_CASES.find(c => c.id === 'narita_first_visit');
-    if(base) addCase(base);
+  // 初回面談（開始30日後・信用度30以上）→ 分散制御
+  if(totalDays >= 30 && credit >= 30){
+    _addNormal('narita_first_visit', DOMAIN_CASES.find(c => c.id === 'narita_first_visit'), 2);
   }
-  // 現場視察（60日後・信用度35以上）
-  if(totalDays >= 60 && credit >= 35 && !G.cases.some(c => c.id === 'narita_site_visit')){
-    const base = DOMAIN_CASES.find(c => c.id === 'narita_site_visit');
-    if(base) addCase(base);
+  // 現場視察（60日後・信用度35以上）→ 分散制御
+  if(totalDays >= 60 && credit >= 35){
+    _addNormal('narita_site_visit', DOMAIN_CASES.find(c => c.id === 'narita_site_visit'), 2);
   }
   // 資金繰り表（90日後・信用度40以上）
   if(totalDays >= 90 && credit >= 40 && !G.cases.some(c => c.id === 'narita_cashflow')){
@@ -9239,11 +9245,17 @@ function generateConditionCases(){
       addCase(DOMAIN_CASES.find(c=>c.id==='taste_takahashi_morning') || CASE_POOL.find(c=>c.id==='taste_takahashi_morning'));
     }
   }
-  // みどりのつまみ食い台詞（採用60日後・満足度70以上・未発火）
+  // みどりのつまみ食い台詞（採用30日後・満足度70以上・未発火）→ 分散制御
+  // VOLATILE: sat>=70は翌日に低下しうる。dw>=30&&sat>=70を初めて満たした日をフラグ保存。
   if(G.staffUnlocked){
     const midori2 = G.staff.find(s=>s.name==='佐々木みどり');
-    if(midori2 && (midori2.daysWorked||0) >= 30 && (midori2.satisfaction||70) >= 70 && !G.cases.some(c=>c.id==='taste_midori_snack')){
-      addCase(CASE_POOL.find(c=>c.id==='taste_midori_snack'));
+    if(midori2){
+      if((midori2.daysWorked||0) >= 30 && (midori2.satisfaction||70) >= 70){
+        G._midoriSnackEligibleDay = G._midoriSnackEligibleDay || totalDays;
+      }
+      if(G._midoriSnackEligibleDay){
+        _addNormal('taste_midori_snack', CASE_POOL.find(c=>c.id==='taste_midori_snack'), 0);
+      }
     }
   }
   // 季節限定セット提案（ギフトコーナー開設30日後・未解放・未提案）
@@ -9607,6 +9619,17 @@ function generateConditionCases(){
   G.launchedMenus = G.launchedMenus.filter(m => !m._expired);
   // 季節終了演出モーダル起動
   if((G._expiryNotifyQueue||[]).length > 0){ setTimeout(_showNextExpiryCard, 500); }
+
+  // ── v1.3i: normalCond dispatch（1件/日）──
+  // 優先度降順ソート（同優先度は配列定義順＝決定的）
+  if(_normalCond.length > 0){
+    const _pending = G.cases.filter(c => !c.resolved).length;
+    if(_pending < 6){
+      _normalCond.sort((a, b) => b.priority - a.priority);
+      addCase(_normalCond[0].base);
+    }
+    G._normalCondDebug = `v1.3i candidates[${_normalCond.map(x=>x.id+'('+x.priority+')').join('/')}] pending=${_pending} → ${_pending < 6 ? _normalCond[0].id : 'skip(full)'}`;
+  }
 
   // 期限切れ後は定番化案件を発火
   _expiredNow.forEach(m => {
@@ -17071,6 +17094,14 @@ function _normalizeSaveData(){
   if(G.currentChallenge && typeof G.currentChallenge.check !== 'function'){
     const found = MONTHLY_CHALLENGES.find(c => c.id === G.currentChallenge.id);
     G.currentChallenge = found || null;
+  }
+  // v1.3i 旧セーブ救済：_midoriSnackEligibleDay未設定のセーブでみどりが既にdw>=30&&sat>=70を
+  // 満たしている場合はフラグを補完（0=未到達、数値=到達totalDays）
+  if(!G._midoriSnackEligibleDay && G.started && G.staffUnlocked){
+    const _mNorm = (G.staff||[]).find(s => s.name === '佐々木みどり');
+    if(_mNorm && ((_mNorm.daysWorked||0) >= 30) && ((_mNorm.satisfaction||70) >= 70)){
+      G._midoriSnackEligibleDay = (G.year-1)*360 + (G.month-1)*30 + (G.day||1);
+    }
   }
 }
 
