@@ -16963,6 +16963,18 @@ function _normalizeSaveData(){
       }
     }
   }
+  // 旧セーブ救済：v1.3e以前の early_departure 案件（_targetBi未設定）をペナルティなし失効
+  // 理由：旧案件の本文に「来月末」「原状回復」が含まれ整合しない。
+  // 新案件はロード後に通常の週次生成で届く。
+  {
+    (G.cases||[]).forEach(c => {
+      if(c.id === 'early_departure' && !c.resolved && c._targetBi === undefined){
+        c.resolved = true;
+        c._autoSkipped = true;
+      }
+    });
+  }
+
   G.stores               ||= [];
   G.buildings            ||= [];
   G.staff                ||= [];
