@@ -453,3 +453,68 @@ Day30境界（`midori.daysWorked === 30`）では複数案件が同日に発火�
 `G._normalCondDebug`に当日の候補リスト・pending数・発火結果を文字列で保存する。
 `G._productUnlockDebug`は商品解放候補がnormalCondに入ったことを記録する。
 
+
+---
+
+## Day1〜30 世界時間ルール（v1.3j）
+
+Day1〜30は「開店直後〜スタッフ採用初月」の最も繊細な期間。イベント文中の時間表現・スタッフ人数・関係進行速度がリアリティに直結するため、以下ルールを徹底する。
+
+### A. スタッフ人数ガード
+
+| イベント | 必要条件 | 理由 |
+|---|---|---|
+| `staff_conflict` | staff.length >= 2 かつ 2人目 daysWorked >= 14 | 「新しいスタッフさんと」は2人いないと成立しない |
+| `midgame_staff_dream` | みどり daysWorked >= 60 | A/B相当で将来の話は早すぎる |
+| `midgame_staff_training` | みどり daysWorked >= 14 | 採用直後に「現場を任せる」研修は不自然 |
+| `elderly_absent` | minDay:14 かつ regulars >= 1 | 「毎日来る松田さん」は常連が存在する期間のみ成立 |
+
+### B. テキスト時間表現ルール
+
+- `charReady(key, gap)` のgap日数と本文の時間表現を揃える
+  - gap=14 → 「先日」「この前」（「先週」は7日を示唆するため禁止）
+  - gap=21 → 「少し前」「この前」
+  - gap=7 → 「最近」「先週」OK
+- 例: `chr_kimura_2` は charReady=14日 → 「先日食べた舞昆」に変更済み（v1.3j）
+
+### C. キャラクター関係進行速度
+
+`chr_nishimura` アーク各エピソード間の最小CD（v1.3j適用後）:
+
+| EP | 内容 | CD | 変更 |
+|---|---|---|---|
+| ep1 | 初対面 | — | — |
+| ep2 | 無視される | 14日 | 7→14 |
+| ep3 | 正面から文句 | 14日 | 7→14 |
+| ep4 | 浸水・協力依頼 | 21日 + totalDays>=30 | 7→21 |
+| ep5〜 | 以降 | 7日（変更なし） | — |
+
+上限速度: ep4完了は最短 Day30+21 = Day51以降。ep3までは Day1+14+14=Day29以降。
+
+### D. AP デッドロック防止
+
+「保留/後回し」相当の選択肢には必ず `noAP:true` を付ける:
+
+| イベント | 対象選択肢 | 対応 |
+|---|---|---|
+| `narita_first_ad` (apCost:10) | 「様子を見る」 | noAP:true 付与 (v1.3j) |
+| `narita_cashflow` (apCost:15) | 「まだいいかな」 | noAP:true 付与 (v1.3j) |
+| `midgame_staff_training` (apCost:15) | 「今は余裕がない」 | noAP:true 既存 |
+
+**原則**: apCost >= 10 のイベントに「延期系」選択肢がある場合、AP不足でも選べるよう `noAP:true` を付与する。
+
+### E. staff_conflict 管理方式
+
+`staff_conflict` は `conditionOnly:true` として週次プールから除外し、`generateConditionCases()` 内で直接制御。
+- 条件: `G.staff.filter(s => s.name !== '佐々木みどり').some(s => s.daysWorked >= 14)`
+- 分散制御: `_addNormal('staff_conflict', ..., 1)` 経由で normalCond に積む
+- 効果: みどりのみ在籍時は発火しない
+
+### F. midgame_staff_dream と staff_want_independent の差別化
+
+| イベント | 内容 | 発火時期 | sender |
+|---|---|---|---|
+| `midgame_staff_dream` | 「将来どんなふうに働いていたいか」漠然とした気持ち | dw >= 60 (C相当) | みどり |
+| `staff_want_independent` | 「いつかは自分でお店を持ちたい」明確な独立宣言 | dw >= 180 (E相当) | みどり |
+
+前者は夢の萌芽、後者は決意の表明。内容・タイミング共に差別化済み。

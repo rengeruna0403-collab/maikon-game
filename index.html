@@ -5370,7 +5370,7 @@ const CASE_POOL = [
       { label:'SNSで自分で発信する（¥0）', cost:0,
         effects:{ score:8, custUp:1, profile:{risk:2} },
         label2:'客数+1・自力路線', storyTag:'まずは自分でSNS発信を試みた。反応は少ないが、動き始めた。' },
-      { label:'もう少し様子を見る', cost:0,
+      { label:'もう少し様子を見る', cost:0, noAP:true,
         effects:{ score:2 },
         label2:'現状維持', storyTag:'広告はまだ早いと判断した。' },
     ]},
@@ -5791,12 +5791,12 @@ const CASE_POOL = [
       {label:'「今は余裕がない」と見送る',cost:0,noAP:true,effects:{score:2,staffSat:-2},label2:'',storyTag:''},
     ]},
 
-  { id:'midgame_staff_dream', repeatable:true, requireStaff:true, domain:'staff', sender:'スタッフ', icon:'🌿', apCost:5, expireDays:21, category:'ops',
-    expirePenalty:{staffSat:-5, news:''},
-    title:'スタッフから将来の夢を聞かされた',
-    body:'スタッフが少し照れながら話しかけてきました。\n\n「最近、自分のお店を持ちたいなって思うことがあって。\n……変ですよね、こんな話。」',
+  { id:'midgame_staff_dream', repeatable:true, requireStaff:true, domain:'staff', sender:'みどり', icon:'🌿', apCost:5, expireDays:21, category:'ops',
+    expirePenalty:{staffSat:-3, news:''},
+    title:'みどりが将来のことを話してくれた',
+    body:'みどりが少し照れながら話しかけてきました。\n\n「最近、将来どんなふうに働いていたいかなって\n考えることがあって。\n……変ですよね、こんな話。」',
     choices:[
-      {label:'「変じゃないよ。どんな店にしたいの？」と聞く',cost:0,effects:{score:12,staffSat:10,midoriTrust:5,profile:{people:4}},label2:'信頼+・人材育成',storyTag:'スタッフの夢を真剣に聞いた。「ここで学んだことを活かしたい」という言葉が嬉しかった。'},
+      {label:'「変じゃないよ。どんなふうに？」と聞く',cost:0,effects:{score:12,staffSat:10,midoriTrust:5,profile:{people:4}},label2:'信頼+・人材育成',storyTag:'みどりの話をゆっくり聞いた。「ちゃんと聞いてもらえてよかった」と少し照れていた。'},
       {label:'「まずは今の仕事を大切に」と答える',cost:0,effects:{score:4,staffSat:2},label2:'',storyTag:''},
     ]},
 
@@ -6432,7 +6432,7 @@ const DOMAIN_CASES = [
       {label:'おすすめ商品を丁寧に説明する',cost:0,effects:{score:7,storeSat:3},label2:'接客品質向上',storyTag:'丁寧に商品を説明した。'},
     ]},
 
-  { id:'elderly_absent', repeatable:true, domain:'store', requireStaff:true, sender:'スタッフ', icon:'🧓', apCost:10, expireDays:7, category:'mgmt',
+  { id:'elderly_absent', repeatable:true, minDay:14, domain:'store', requireStaff:true, sender:'スタッフ', icon:'🧓', apCost:10, expireDays:7, category:'mgmt',
     title:'毎日来るおばあさんが来ていない',
     body:'みどりから報告が来ました。\n\n「毎日来てくださる松田さんが\n3日間見えていません。\nご連絡すべきでしょうか…？」',
     choices:[
@@ -6760,7 +6760,7 @@ const DOMAIN_CASES = [
       {label:'「あともう少し実績を積もう」と伝える',cost:0,effects:{score:8,staffSat:3},label2:'次回に持ち越し',storyTag:'もう少し実績を積んでからと伝えた。'},
     ]},
 
-  { id:'staff_conflict', requireStaff:true, repeatable:true, domain:'staff', sender:'みどり', icon:'⚡', apCost:20, expireDays:7, category:'mgmt',
+  { id:'staff_conflict', conditionOnly:true, requireStaff:true, repeatable:true, domain:'staff', sender:'みどり', icon:'⚡', apCost:20, expireDays:7, category:'mgmt',
     expirePenalty:{staffSat:-10, news:'⚡ スタッフ間の対立を放置した。'},
     title:'スタッフ同士が対立しています',
     body:'みどりから深刻な相談が来ました。\n\n「新しいスタッフさんとうまくいっていなくて。\nシフトの組み方とか、接客スタイルの違いで\n何度かぶつかっていて……」',
@@ -6901,7 +6901,7 @@ const DOMAIN_CASES = [
     choices:[
       {label:'一緒に作る（AP追加-10）',cost:0,ap:10,effects:{score:14,credit:4,profile:{finance:3}},label2:'信用度+4・経営管理強化',storyTag:'成田と一緒に資金繰り表を作った。「こんなに見える化できるんですね」と感心した。'},
       {label:'自分でやってみる',cost:0,effects:{score:8,credit:2,profile:{finance:2}},label2:'信用度+2',storyTag:'自分で挑戦してみることにした。'},
-      {label:'「まだいいかな」と後回しにする',cost:0,effects:{score:3,profile:{risk:1}},label2:'現状維持',storyTag:'後回しにした。'},
+      {label:'「まだいいかな」と後回しにする',cost:0,noAP:true,effects:{score:3,profile:{risk:1}},label2:'現状維持',storyTag:'後回しにした。'},
     ]},
 
   { id:'narita_warning', conditionOnly:true, repeatable:false, domain:'bank', sender:'成田（銀行）', icon:'⚠️', apCost:15, expireDays:14, category:'strategy',
@@ -7364,7 +7364,7 @@ const DOMAIN_CASES = [
   { id:'chr_kimura_2', conditionOnly:true, repeatable:false, domain:'store', character:'kimura',
     sender:'木村さくら', icon:'🎓', apCost:5, expireDays:14, category:'ops',
     title:'木村さんが相談してきた',
-    body:'木村さんが困り顔で来店しました。\n\n「先週食べた舞昆、すごく美味しかったんですが……\n買ったらご飯のときに少しずつ使えますか？\n正直、一袋いくらくらいするのか気になって」',
+    body:'木村さんが困り顔で来店しました。\n\n「先日食べた舞昆、すごく美味しかったんですが……\n買ったらご飯のときに少しずつ使えますか？\n正直、一袋いくらくらいするのか気になって」',
     choices:[
       {label:'価格帯と使い方を丁寧に説明する',cost:0,effects:{score:8,custUp:1,charLevel:'kimura',charNote:'価格と使い方を聞いて「少量でも続けられそう」と言った',profile:{people:2}},label2:'ご縁+1・学生に届く',storyTag:'木村さんに使い方と価格を説明した。「少量でも大丈夫なんですね」と安心してくれた。'},
       {label:'「少量から試せますよ」と小さいサイズを紹介する',cost:0,effects:{score:9,custUp:1,charLevel:'kimura',charNote:'「小さいサイズから試してみる」と言った'},label2:'ご縁+1',storyTag:'小さいサイズを紹介した。'},
@@ -8611,6 +8611,21 @@ function generateWeeklyCases(){
       const _anDone = G.cases.some(c2 => c2.id === 'staff_analysis' && c2.resolved);
       if(!_anDone && (_ocM.daysWorked || 0) < 120) return false; // 分析未完了 & 120日未満
     }
+    // v1.3j: midgame_staff_dream — みどり採用60日以上（A/B相当で「お店を持ちたい」語りは早すぎる）
+    if(c.id === 'midgame_staff_dream'){
+      const _sdM = G.staffUnlocked && (G.staff||[]).find(s => s.name === '佐々木みどり');
+      if(!_sdM || (_sdM.daysWorked||0) < 60) return false;
+    }
+    // v1.3j: midgame_staff_training — みどり採用14日以上（採用直後に「研修を任せる」は不自然）
+    if(c.id === 'midgame_staff_training'){
+      const _stM = G.staffUnlocked && (G.staff||[]).find(s => s.name === '佐々木みどり');
+      if(!_stM || (_stM.daysWorked||0) < 14) return false;
+    }
+    // v1.3j: elderly_absent — 常連1人以上（「毎日来る松田さん」が存在するには常連が必要）
+    if(c.id === 'elderly_absent'){
+      const _s0ea = (G.stores||[])[0] || {};
+      if((_s0ea.regulars||0) < 1) return false;
+    }
     // 経過日数・評判フィルター
     if(c.minDay && tdNow < c.minDay) return false;
     if(c.minRep && (G.regions[0]?.reputation||0) < c.minRep) return false;
@@ -8963,6 +8978,12 @@ function generateConditionCases(){
         if(_daysSinceLunch >= 7){
           _addNormal('staff_new_training', DOMAIN_CASES.find(c => c.id === 'staff_new_training'), 1);
         }
+      }
+      // ── staff_conflict: 2人目スタッフが14日以上勤務後のみ（v1.3j）
+      // conditionOnly:true のため週次プールに出ない。ここで直接制御。
+      const _staff2nd = G.staff.filter(s => s.name !== '佐々木みどり');
+      if(_staff2nd.some(s => (s.daysWorked||0) >= 14)){
+        _addNormal('staff_conflict', DOMAIN_CASES.find(c => c.id === 'staff_conflict'), 1);
       }
 
       // ── お弁当開発フロー（季節循環型・動的生成） ──
@@ -9518,12 +9539,12 @@ function generateConditionCases(){
   if(!ch.nishimura) G.characters.nishimura = { met:false, level:0, notes:[], complete:false, lastCaseDay:0 };
   const _nishi = G.characters.nishimura;
   function nishiReady(){ return nowDay - (_nishi.lastCaseDay || 0) >= 7; }
-  // ep2: 無視（出会い後 level1）
-  if(_nishi.met && _nishi.level >= 1 && nishiReady() && !G.cases.some(c=>c.id==='chr_nishimura_2')) charCase('chr_nishimura_2');
-  // ep3: 正面から文句（level2）
-  if(_nishi.level >= 2 && nishiReady() && !G.cases.some(c=>c.id==='chr_nishimura_3')) charCase('chr_nishimura_3');
-  // ep4: 災害時協力（level3以上・30日以降）
-  if(_nishi.level >= 3 && totalDays >= 30 && nishiReady() && !G.cases.some(c=>c.id==='chr_nishimura_4')) charCase('chr_nishimura_4');
+  // ep2: 無視（出会い後 level1）— ep1解決から14日以上（v1.3j: 7→14）
+  if(_nishi.met && _nishi.level >= 1 && charReady('nishimura', 14) && !G.cases.some(c=>c.id==='chr_nishimura_2')) charCase('chr_nishimura_2');
+  // ep3: 正面から文句（level2）— ep2解決から14日以上（v1.3j: 7→14）
+  if(_nishi.level >= 2 && charReady('nishimura', 14) && !G.cases.some(c=>c.id==='chr_nishimura_3')) charCase('chr_nishimura_3');
+  // ep4: 災害時協力（level3以上・30日以降）— ep3解決から21日以上（v1.3j: 7→21）
+  if(_nishi.level >= 3 && totalDays >= 30 && charReady('nishimura', 21) && !G.cases.some(c=>c.id==='chr_nishimura_4')) charCase('chr_nishimura_4');
   // ep5: 地域イベント共闘（level4以上・7〜8月限定）
   if(_nishi.level >= 4 && (G.month >= 7 && G.month <= 8) && nishiReady() && !G.cases.some(c=>c.id==='chr_nishimura_5')) charCase('chr_nishimura_5');
   // ep6: 変化の兆し（level5以上）

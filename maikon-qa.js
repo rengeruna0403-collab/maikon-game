@@ -16680,6 +16680,633 @@ ${ar.experienceKPI ? _sim3ExperienceKpiHtml(ar.experienceKPI) : ''}
   };
   window._qaConditionDispersion.help = 'window._qaConditionDispersion() — v1.3i conditionOnly分散制御 12チェック（読み取り専用）';
 
+  // ══════════════════════════════════════════════════════════════
+  // ■ Section 41: Day1〜30 世界時間整合性監査
+  //   window._qaDay1to30WorldTimeAudit()
+  //   「コード上条件を満たす」ではなく
+  //   「この店が開いてまだ○日、このスタッフを雇ってまだ○日」
+  //   という世界でイベント内容が自然かを確認する。
+  //   ゲーム状態は変更しない（読み取り専用）
+  // ══════════════════════════════════════════════════════════════
+  window._qaDay1to30WorldTimeAudit = function() {
+    const _gEval = eval('G');
+    if(!_gEval){ console.error('[QA-41] G not found'); return null; }
+
+    console.group('[QA-41] Day1〜30 世界時間整合性監査');
+    const results = { fail:[], warn:[], ux:[], pass:[], summary:{} };
+    const fail = (id, cat, detail, recommend) => {
+      results.fail.push({id,cat,detail,recommend});
+      console.error(`[FAIL] [${cat}] ${id}: ${detail}`);
+    };
+    const warn = (id, cat, detail, recommend) => {
+      results.warn.push({id,cat,detail,recommend});
+      console.warn(`[WARN] [${cat}] ${id}: ${detail}`);
+    };
+    const ux = (id, cat, detail, recommend) => {
+      results.ux.push({id,cat,detail,recommend});
+      console.warn(`[UX] [${cat}] ${id}: ${detail}`);
+    };
+    const pass = (id, detail) => { results.pass.push({id,detail}); };
+
+    const totalDays = (_gEval.year-1)*360 + (_gEval.month-1)*30 + (_gEval.day||1);
+    const midori = (_gEval.staff||[]).find(s => s.name === '佐々木みどり');
+    const dw = midori ? (midori.daysWorked||0) : 0;
+    const staffCount = (_gEval.staff||[]).filter(s => !s._fired).length;
+    const credit = _gEval.creditScore || 45;
+    const ch = _gEval.characters || {};
+    const nishi = ch.nishimura || {};
+    const kimura = ch.kimura || {};
+    const hasCaseDone = (id) => (_gEval.cases||[]).some(c => c.id === id && c.resolved);
+    const hasCaseAny  = (id) => (_gEval.cases||[]).some(c => c.id === id);
+
+    // ══════════════════════════════════════
+    // ■ スタッフ人数ガード監査
+    // ══════════════════════════════════════
+
+    // [A1] staff_conflict — staff1人で「新しいスタッフさんとうまくいっていなくて」
+    // requireStaff:true はG.staffUnlocked(=1人以上)チェックのみ。staff.length>=2 guardなし。
+    {
+      const _exists = hasCaseAny('staff_conflict');
+      if(_exists && staffCount < 2){
+        fail('staff_conflict', 'スタッフ人数',
+          `staff_conflict がstaffCount=${staffCount}人で発生または発生歴あり。本文は「新しいスタッフさんとうまくいっていなくて」と2人前提の内容。`,
+          '修正案: _ok()フィルターに `if(c.id==="staff_conflict" && (G.staff||[]).length < 2) return false;` を追加');
+      } else {
+        pass('staff_conflict', `現在staffCount=${staffCount}、発生歴=${_exists} — staff_conflict guard未検証 (要staff>=2)`);
+      }
+    }
+
+    // ══════════════════════════════════════
+    // ■ スタッフ成長フェーズ早期発火監査
+    // ══════════════════════════════════════
+
+    // [A2] midgame_staff_dream — daysWorkedガードなし、採用直後に独立夢
+    // requireStaff:trueのみで週次プールに入る。Eフェーズ相当内容がAフェーズで出る。
+    {
+      const _exists = hasCaseAny('midgame_staff_dream');
+      if(_exists && dw < 90){
+        fail('midgame_staff_dream', 'スタッフ成長',
+          `dw=${dw}日で「自分のお店を持ちたいなって思うことがあって」が発生または発生歴あり。独立夢はEフェーズ相当（dw>=90以上）。`,
+          '修正案: _ok()に `if(c.id==="midgame_staff_dream" && midoriDW < 90) return false;`');
+      } else if(_gEval.staffUnlocked && dw < 90 && !_exists){
+        warn('midgame_staff_dream', 'スタッフ成長',
+          `dw=${dw}日、採用後${dw}日でstaffドメインに midgame_staff_dream が候補として存在する。週次でいつでも発火可能。`,
+          '修正案: daysWorked>=90のguardを追加');
+      } else {
+        pass('midgame_staff_dream', `dw=${dw}, 発生歴=${_exists} — OK or 未採用`);
+      }
+    }
+
+    // [A3] midgame_staff_training — "現場を任せるにも" が採用初期に出る
+    {
+      const _exists = hasCaseAny('midgame_staff_training');
+      if(_exists && dw < 14){
+        warn('midgame_staff_training', 'スタッフ成長',
+          `dw=${dw}日で「現場を任せるにも、ちょうど良い機会かもしれません」が発生。採用14日未満では"現場を任せる"は早い。`,
+          '修正案: daysWorked>=14 guard推奨');
+      } else {
+        pass('midgame_staff_training', `dw=${dw}, 発生歴=${_exists}`);
+      }
+    }
+
+    // ══════════════════════════════════════
+    // ■ ご縁人物 進行速度監査
+    // ══════════════════════════════════════
+
+    // [B1] chr_kimura_2 — "先週食べた舞昆" vs 実際の最短14日のギャップ
+    {
+      const _ep1done = hasCaseDone('chr_kimura_1');
+      const _ep2any  = hasCaseAny('chr_kimura_2');
+      // kimura_1はcharReady(kimura,14)なのでep2最短14日後に出現
+      // "先週" = 7日前のイメージ → ズレがある
+      if(_ep1done && _ep2any){
+        warn('chr_kimura_2', '時間表現',
+          '本文「先週食べた舞昆」。chr_kimura_1解決から最短14日後に出現するため「先週(7日前)」と実間隔(14日以上)が乖離する可能性がある。',
+          '修正案: 「先週」→「この前」または「先日」に変更。CDによって実間隔は変わるため固定の週表現は不適切。');
+      } else {
+        pass('chr_kimura_2', `kimura_1done=${_ep1done}, kimura_2any=${_ep2any} — 現在は未発生`);
+      }
+    }
+
+    // [B2] chr_nishimura 進行速度 — nishiReady() = 7日でep1→ep3が14-21日で到達可能
+    {
+      const _ep1done = hasCaseDone('chr_nishimura_1');
+      const _ep3any  = hasCaseAny('chr_nishimura_3');
+      const _nowDay  = (_gEval.year-1)*360 + (_gEval.month-1)*30 + (_gEval.day||1);
+      const _nishiMeetDay = _ep1done ? (nishi.lastCaseDay || 0) : 0;
+      const _daysSinceMeet = _nishiMeetDay > 0 ? Math.max(0, _nowDay - _nishiMeetDay) : 0;
+
+      if(_ep1done && _ep3any && _daysSinceMeet < 21){
+        warn('chr_nishimura_3', 'ご縁進行速度',
+          `西村ep3「正面から文句を言ってきた」が初対面から${_daysSinceMeet}日以内に到達。7日CDでep1→ep2→ep3が最短14日で完結。G3-G4（価値観対立）到達が早い。`,
+          '修正案: nishiReady()を ep2以降は14日に延長、またはchr_nishimura_3にminDay(初対面+21日)を設定');
+      } else {
+        pass('chr_nishimura_3', `ep1done=${_ep1done}, ep3any=${_ep3any}, daysSinceMeet=${_daysSinceMeet}`);
+      }
+    }
+
+    // [B3] chr_nishimura_4 — ep4(大雨浸水・個人的助け)はtotalDays>=30必須だが内容の深さ確認
+    {
+      const _ep4any = hasCaseAny('chr_nishimura_4');
+      const _nishiLevel = nishi.level || 0;
+      if(_ep4any && totalDays < 30){
+        fail('chr_nishimura_4', 'ご縁進行速度',
+          `chr_nishimura_4がtotalDays=${totalDays}で発生歴あり。条件にtotalDays>=30が必要だが守られていない可能性。`,
+          '修正案: generateConditionCases内のnishimura_4発火条件を確認');
+      } else {
+        pass('chr_nishimura_4', `ep4any=${_ep4any}, totalDays=${totalDays}, nishiLevel=${_nishiLevel}`);
+      }
+    }
+
+    // ══════════════════════════════════════
+    // ■ 時間表現と実経過日数の照合
+    // ══════════════════════════════════════
+
+    // [C1] midgame_repeat_customer — "長い付き合い" "昔みたいに" が60日未満で発生
+    // ガード: tutDay+60日以上 + 常連3人以上。正しく実装されていることを確認。
+    {
+      const _exists = hasCaseAny('midgame_repeat_customer');
+      const _tutDay = _gEval.tut ? (_gEval.tut.tutCompletedDay || 0) : 0;
+      const _daysSinceOpen = _tutDay > 0 ? totalDays - _tutDay : -1;
+      if(_exists && _daysSinceOpen >= 0 && _daysSinceOpen < 60){
+        fail('midgame_repeat_customer', '時間表現',
+          `開店${_daysSinceOpen}日で「長い付き合い」「昔みたいに」が発生歴あり。60日ガードが機能していない可能性。`,
+          '修正案: _ok()のmidgame_repeat_customerガードを確認');
+      } else {
+        pass('midgame_repeat_customer', `発生歴=${_exists}, 開店${_daysSinceOpen}日 — 60日ガード正常`);
+      }
+    }
+
+    // [C2] midgame_menu_renewal — "最近マンネリ" が30日未満で発生
+    {
+      const _exists = hasCaseAny('midgame_menu_renewal');
+      const _tutDay = _gEval.tut ? (_gEval.tut.tutCompletedDay || 0) : 0;
+      const _daysSinceOpen = _tutDay > 0 ? totalDays - _tutDay : -1;
+      if(_exists && _daysSinceOpen >= 0 && _daysSinceOpen < 30){
+        fail('midgame_menu_renewal', '時間表現',
+          `開店${_daysSinceOpen}日で「最近マンネリになってきた気がして」が発生歴あり。30日ガードが機能していない可能性。`,
+          '修正案: _ok()のmidgame_menu_renewalガードを確認');
+      } else {
+        pass('midgame_menu_renewal', `発生歴=${_exists}, 開店${_daysSinceOpen}日 — 30日ガード正常`);
+      }
+    }
+
+    // [C3] staff_analysis — "最近お客様の様子を見ていて気になった" が採用60日未満で発生
+    {
+      const _exists = hasCaseAny('staff_analysis');
+      if(_exists && dw < 60){
+        fail('staff_analysis', '時間表現',
+          `dw=${dw}日で「最近お客様の様子を見ていて気になった」売れ筋分析が発生歴あり。採用60日ガードが機能していない可能性。`,
+          '修正案: _ok()のstaff_analysisガードを確認');
+      } else {
+        pass('staff_analysis', `発生歴=${_exists}, dw=${dw} — 60日ガード正常`);
+      }
+    }
+
+    // ══════════════════════════════════════
+    // ■ AP不足による選択肢ロックアウト（UX）
+    // ══════════════════════════════════════
+
+    // [D1] narita_first_ad — 全選択肢に10AP必要。"様子を見る"もAP必要。
+    {
+      const _exists = hasCaseAny('narita_first_ad');
+      const _currentAP = _gEval.ap || 0;
+      if(_exists && !hasCaseDone('narita_first_ad') && _currentAP < 10){
+        ux('narita_first_ad', 'AP設計',
+          `narita_first_adが未解決でAP=${_currentAP}<10。全選択肢(apCost:10)が操作不能。「もう少し様子を見る」も10AP必要のため後回し不可。`,
+          '改善案: 「様子を見る」選択肢にnoAP:trueを設定するか、apCostを下げる');
+      } else {
+        pass('narita_first_ad', `発生歴=${_exists}, AP=${_currentAP}`);
+      }
+    }
+
+    // [D2] narita_cashflow — 全選択肢15AP必要。"後回し"もAP必要。
+    {
+      const _exists = hasCaseAny('narita_cashflow');
+      const _currentAP = _gEval.ap || 0;
+      if(_exists && !hasCaseDone('narita_cashflow') && _currentAP < 15){
+        ux('narita_cashflow', 'AP設計',
+          `narita_cashflowが未解決でAP=${_currentAP}<15。全選択肢(apCost:15)が操作不能。「まだいいかな」後回し択も15AP必要のため強制デッドロック。`,
+          '改善案: 「まだいいかな」にnoAP:true設定。スタッフと一緒に作る択の追加APを別表示にする');
+      } else {
+        pass('narita_cashflow', `発生歴=${_exists}, AP=${_currentAP}`);
+      }
+    }
+
+    // ══════════════════════════════════════
+    // ■ Day1〜30 発生確認
+    // ══════════════════════════════════════
+
+    // [E1] スタッフ独立イベント(E-phase)がDay30以内に発生していないか
+    {
+      const _ePhase = ['staff_want_independent','staff_promotion_discuss','staff_thanks','chr_midori_dream'];
+      const _earlyE = _ePhase.filter(id => hasCaseAny(id));
+      if(_earlyE.length > 0 && totalDays <= 30){
+        fail('E-phase-early', 'スタッフ成長',
+          `Day${totalDays}でEフェーズ案件が発生歴あり: ${_earlyE.join('/')}。条件(dw>=180等)が守られていない可能性。`,
+          '修正案: generateConditionCasesのE-phase条件を確認');
+      } else {
+        pass('E-phase', `Day${totalDays}でEフェーズ案件なし — OK`);
+      }
+    }
+
+    // [E2] narita_cashflow が Day90前に発生していないか
+    {
+      if(hasCaseAny('narita_cashflow') && totalDays < 90){
+        fail('narita_cashflow-early', 'ゲーム進行',
+          `Day${totalDays}でnarita_cashflowが発生歴あり。条件はtotalDays>=90かつcredit>=40のはず。`,
+          '修正案: generateConditionCasesのnarita_cashflow条件を確認');
+      } else {
+        pass('narita_cashflow-timing', `totalDays=${totalDays}, 発生歴=${hasCaseAny('narita_cashflow')} — OK`);
+      }
+    }
+
+    // [E3] midgame_narita_people が早期発火していないか (totalDays>=270想定)
+    {
+      if(hasCaseAny('midgame_narita_people') && totalDays < 180){
+        warn('midgame_narita_people', 'ゲーム進行',
+          `Day${totalDays}でmidgame_narita_peopleが発生歴あり。想定はtotalDays>=270。`,
+          '発火条件を確認');
+      } else {
+        pass('midgame_narita_people', `totalDays=${totalDays} — OK`);
+      }
+    }
+
+    // ══════════════════════════════════════
+    // ■ ご縁人物 Day30時点最大到達段階
+    // ══════════════════════════════════════
+    const charProgress = {
+      nishimura: nishi.level || 0,
+      kimura:    (kimura.level || 0),
+      takahashi: ((ch.takahashi||{}).level || 0),
+      tanaka:    ((ch.tanaka||{}).level || 0),
+      yamamoto:  ((ch.yamamoto||{}).level || 0),
+      suzuki:    ((ch.suzuki||{}).level || 0),
+    };
+
+    // 西村はlevel>=3(ep3)をDay30以内で到達していた場合WARN
+    if(charProgress.nishimura >= 3 && totalDays <= 30){
+      warn('nishimura-speed', 'ご縁進行速度',
+        `Day${totalDays}で西村level=${charProgress.nishimura}(ep${charProgress.nishimura+1}以降)。CD=7日でep1→ep3が最短14日で到達可能。G3-G4相当の対立が開店1ヶ月以内に起きている。`,
+        '修正案: nishimuraのCD最低14日に延長 or ep3にminDay:21を設定');
+    }
+
+    // ══════════════════════════════════════
+    // ■ 結果サマリー
+    // ══════════════════════════════════════
+    results.summary = {
+      totalDays, staffCount, dw,
+      failCount: results.fail.length,
+      warnCount: results.warn.length,
+      uxCount: results.ux.length,
+      passCount: results.pass.length,
+      charProgress,
+      staffConflictRisk: (_gEval.staffUnlocked && staffCount < 2),
+      staffDreamRisk: (_gEval.staffUnlocked && dw < 90),
+    };
+
+    console.group('[QA-41] サマリー');
+    const overall = results.fail.length > 0 ? '❌ FAIL' : results.warn.length > 0 ? '⚠️ WARN' : '✅ PASS';
+    console.log(`${overall}  FAIL:${results.fail.length}  WARN:${results.warn.length}  UX:${results.ux.length}  PASS:${results.pass.length}`);
+    console.log(`状態: Day${totalDays} staffCount=${staffCount} dw=${dw}`);
+    console.log('ご縁進行:', JSON.stringify(charProgress));
+    if(results.fail.length > 0){
+      console.group('FAILs');
+      results.fail.forEach(f => console.error(`[FAIL][${f.cat}] ${f.id}: ${f.detail}`));
+      console.groupEnd();
+    }
+    if(results.warn.length > 0){
+      console.group('WARNs');
+      results.warn.forEach(w => console.warn(`[WARN][${w.cat}] ${w.id}: ${w.detail}`));
+      console.groupEnd();
+    }
+    if(results.ux.length > 0){
+      console.group('UX');
+      results.ux.forEach(u => console.warn(`[UX][${u.cat}] ${u.id}: ${u.detail}`));
+      console.groupEnd();
+    }
+    console.groupEnd();
+    console.groupEnd();
+    return results;
+  };
+  window._qaDay1to30WorldTimeAudit.help = [
+    'window._qaDay1to30WorldTimeAudit() — Day1〜30 世界時間整合性監査（読み取り専用）',
+    '確認軸: スタッフ人数ガード / 成長フェーズ早期発火 / 時間表現 / ご縁進行速度 / AP設計 / Day30以前の早期発火',
+    '戻り値: { fail:[], warn:[], ux:[], pass:[], summary:{} }',
+  ].join('\n');
+
+  // ─────────────────────────────────────────────────
+  // § 42  v1.3j 世界時間整合 修正検証 (19 checks)
+  // ─────────────────────────────────────────────────
+  window._qaWorldTimeV13j = function(){
+    const _gEval = eval('G');
+    if(!_gEval || !_gEval.started){ console.warn('[QA-42] ゲーム未開始'); return null; }
+
+    const totalDays = (_gEval.year-1)*360 + (_gEval.month-1)*30 + (_gEval.day||1);
+    const midori = (_gEval.staff||[]).find(s => s.name === '佐々木みどり');
+    const dw = midori ? (midori.daysWorked||0) : 0;
+    const staffCount = (_gEval.staff||[]).length;
+    const staff2nd = (_gEval.staff||[]).filter(s => s.name !== '佐々木みどり');
+    const store0 = (_gEval.stores||[])[0] || {};
+    const regulars = store0.regulars || 0;
+
+    // ── helpers ──
+    function getCase(id){ return (_gEval.cases||[]).find(c => c.id === id); }
+    function isUnresolved(id){ const c = getCase(id); return c && !c.resolved; }
+
+    const results = { pass:[], fail:[], warn:[], ux:[] };
+    function P(id, detail){ results.pass.push({id, detail}); }
+    function F(id, detail){ results.fail.push({id, detail}); }
+    function W(id, detail){ results.warn.push({id, detail}); }
+    function U(id, detail){ results.ux.push({id, detail}); }
+
+    console.group('[QA-42] v1.3j 世界時間整合 検証');
+
+    // ── A. staff_conflict (Phase 1) ──
+
+    // A1: conditionOnly:true が付いているか（週次プール除外）
+    // CASE_POOL / DOMAIN_CASES をチェック
+    const allCaseDefs = [...(window.CASE_POOL||[]), ...(window.DOMAIN_CASES||[])];
+    const scDef = allCaseDefs.find(c => c.id === 'staff_conflict');
+    if(scDef && scDef.conditionOnly){
+      P('A1', 'staff_conflict conditionOnly:true 確認');
+    } else {
+      F('A1', 'staff_conflict に conditionOnly:true がない — 週次プールで単独スタッフ時に発火しうる');
+    }
+
+    // A2: スタッフ1人のとき staff_conflict が案件ボックスに存在しないか
+    if(staffCount <= 1){
+      if(isUnresolved('staff_conflict')){
+        F('A2', `staffCount=${staffCount} なのに staff_conflict が未解決で存在する`);
+      } else {
+        P('A2', `staffCount=${staffCount} → staff_conflict は案件ボックスにない`);
+      }
+    } else {
+      const sc2ndDW = staff2nd.length > 0 ? Math.max(...staff2nd.map(s => s.daysWorked||0)) : 0;
+      if(sc2ndDW < 14 && isUnresolved('staff_conflict')){
+        F('A2', `2人目スタッフ daysWorked=${sc2ndDW} (14日未満) なのに staff_conflict が存在する`);
+      } else {
+        P('A2', `staffCount=${staffCount} 2nd.dw=${sc2ndDW} — staff_conflict タイミング正常`);
+      }
+    }
+
+    // A3: staff_conflict の本文に「新しいスタッフさん」が含まれているか（2人前提テキスト確認）
+    if(scDef){
+      if(scDef.body && scDef.body.includes('新しいスタッフさん')){
+        P('A3', 'staff_conflict body テキストに「新しいスタッフさん」含む — 2人前提確認');
+      } else {
+        W('A3', 'staff_conflict body に「新しいスタッフさん」が見当たらない — テキスト確認要');
+      }
+    } else {
+      W('A3', 'staff_conflict 定義が見つからない (CASE_POOL/DOMAIN_CASES 参照不可)');
+    }
+
+    // ── B. midgame_staff_dream (Phase 2) ──
+    const sdDef = allCaseDefs.find(c => c.id === 'midgame_staff_dream');
+
+    // B1: body に「お店を持ちたい」が含まれないか (staff_want_independent と重複禁止)
+    if(sdDef){
+      if(sdDef.body && sdDef.body.includes('お店を持ちたい')){
+        F('B1', 'midgame_staff_dream body に「お店を持ちたい」が残っている — staff_want_independent と内容重複');
+      } else {
+        P('B1', 'midgame_staff_dream body: 「お店を持ちたい」フレーズなし — staff_want_independent と差別化OK');
+      }
+    } else {
+      W('B1', 'midgame_staff_dream 定義が見つからない');
+    }
+
+    // B2: dw<60 のとき midgame_staff_dream が案件に存在しないか
+    if(dw < 60){
+      if(isUnresolved('midgame_staff_dream')){
+        F('B2', `みどり daysWorked=${dw} (60日未満) なのに midgame_staff_dream が存在する`);
+      } else {
+        P('B2', `dw=${dw} (<60) → midgame_staff_dream は案件ボックスにない`);
+      }
+    } else {
+      P('B2', `dw=${dw} (>=60) → midgame_staff_dream の発火タイミング条件を満たす`);
+    }
+
+    // ── C. chr_kimura_2 テキスト (Phase 3) ──
+    const kimuraDef = allCaseDefs.find(c => c.id === 'chr_kimura_2');
+    if(kimuraDef){
+      if(kimuraDef.body && kimuraDef.body.includes('先週')){
+        F('C1', 'chr_kimura_2 body に「先週」が残っている — charReady 14日と不整合');
+      } else if(kimuraDef.body && (kimuraDef.body.includes('先日') || kimuraDef.body.includes('この前'))){
+        P('C1', 'chr_kimura_2 body: 「先日/この前」→ charReady 14日と整合');
+      } else {
+        W('C1', 'chr_kimura_2 body テキスト確認要');
+      }
+    } else {
+      W('C1', 'chr_kimura_2 定義が見つからない');
+    }
+
+    // ── D. chr_nishimura 進行速度 (Phase 4) ──
+    const ch = _gEval.characters || {};
+    const nishi = ch.nishimura || {};
+
+    // D1: ep2が ep1解決から7日以内に発火していないか
+    // (lastCaseDay は ep1解決日を記録。ep2は14日以上後に発火するはず)
+    const nishiLevel = nishi.level || 0;
+    const nishiLastDay = nishi.lastCaseDay || 0;
+    const ep2 = getCase('chr_nishimura_2');
+    if(ep2 && ep2.resolved && nishiLevel >= 2){
+      // ep2 発生日を直接知る手段はないが、lastCaseDayがep2解決後ならep3以降のCD確認
+      P('D1', `nishimura level=${nishiLevel} lastCaseDay=${nishiLastDay} — EP2以降到達`);
+    } else if(nishiLevel === 1 && nishiLastDay > 0){
+      const daysSinceEp1 = totalDays - nishiLastDay;
+      if(daysSinceEp1 < 14 && isUnresolved('chr_nishimura_2')){
+        W('D1', `ep1解決から${daysSinceEp1}日 (14日未満) で chr_nishimura_2 が存在 — CDが短すぎる可能性`);
+      } else {
+        P('D1', `ep1解決から${daysSinceEp1}日 — ep2 CD(14日)チェック正常`);
+      }
+    } else {
+      P('D1', '西村 ep1未到達 or ep2未確認 — スキップ');
+    }
+
+    // D2: totalDays<21 かつ nishimura level>=3（ep3まで完了）は速すぎる
+    if(totalDays < 21 && nishiLevel >= 3){
+      F('D2', `totalDays=${totalDays} (21日未満) で nishimura level=${nishiLevel} — EP2/3の進行が速すぎる`);
+    } else {
+      P('D2', `totalDays=${totalDays} nishiLevel=${nishiLevel} — 進行速度チェック正常`);
+    }
+
+    // D3: ep4は totalDays>=30 ガードが残っているか
+    // (generateConditionCases の条件は実行環境でしか確認できないが、定義で確認)
+    if(nishiLevel >= 3 && isUnresolved('chr_nishimura_4') && totalDays < 30){
+      F('D3', `totalDays=${totalDays} (<30) なのに chr_nishimura_4 が存在 — totalDays>=30 ガード欠落の疑い`);
+    } else {
+      P('D3', `chr_nishimura_4 のDay>=30ガード: 問題なし (totalDays=${totalDays})`);
+    }
+
+    // ── E. AP deadlock (Phase 5/6) ──
+
+    // E1: narita_cashflow「まだいいかな」に noAP:true があるか
+    const naDef = allCaseDefs.find(c => c.id === 'narita_cashflow');
+    if(naDef){
+      const deferChoice = naDef.choices && naDef.choices.find(ch2 => ch2.label && ch2.label.includes('まだいいかな'));
+      if(deferChoice && deferChoice.noAP){
+        P('E1', 'narita_cashflow 「まだいいかな」noAP:true 確認');
+      } else if(deferChoice){
+        F('E1', 'narita_cashflow 「まだいいかな」に noAP:true がない — AP deadlock 残存');
+      } else {
+        W('E1', 'narita_cashflow defer選択肢が見つからない');
+      }
+    } else {
+      W('E1', 'narita_cashflow 定義が見つからない');
+    }
+
+    // E2: narita_first_ad「様子を見る」に noAP:true があるか
+    const naAdDef = allCaseDefs.find(c => c.id === 'narita_first_ad');
+    if(naAdDef){
+      const deferAd = naAdDef.choices && naAdDef.choices.find(ch2 => ch2.label && ch2.label.includes('様子を見る'));
+      if(deferAd && deferAd.noAP){
+        P('E2', 'narita_first_ad 「様子を見る」noAP:true 確認');
+      } else if(deferAd){
+        F('E2', 'narita_first_ad 「様子を見る」に noAP:true がない — AP deadlock 残存');
+      } else {
+        W('E2', 'narita_first_ad defer選択肢が見つからない');
+      }
+    } else {
+      W('E2', 'narita_first_ad 定義が見つからない');
+    }
+
+    // E3: midgame_staff_training「見送る」に noAP:true があるか（既存確認）
+    const stTrDef = allCaseDefs.find(c => c.id === 'midgame_staff_training');
+    if(stTrDef){
+      const deferTr = stTrDef.choices && stTrDef.choices.find(ch2 => ch2.label && ch2.label.includes('見送る'));
+      if(deferTr && deferTr.noAP){
+        P('E3', 'midgame_staff_training 「見送る」noAP:true 確認');
+      } else if(deferTr){
+        F('E3', 'midgame_staff_training 「見送る」に noAP:true がない');
+      } else {
+        W('E3', 'midgame_staff_training defer選択肢が見つからない');
+      }
+    } else {
+      W('E3', 'midgame_staff_training 定義が見つからない');
+    }
+
+    // ── F. midgame_staff_training dw ガード (Phase 9) ──
+
+    // F1: dw<14 のとき midgame_staff_training が存在しないか
+    if(dw < 14 && _gEval.staffUnlocked){
+      if(isUnresolved('midgame_staff_training')){
+        F('F1', `みどり daysWorked=${dw} (14日未満) なのに midgame_staff_training が存在する`);
+      } else {
+        P('F1', `dw=${dw} (<14) → midgame_staff_training は案件ボックスにない`);
+      }
+    } else {
+      P('F1', `dw=${dw} or スタッフ未採用 — midgame_staff_training dw ガード対象外`);
+    }
+
+    // ── G. elderly_absent ガード (Phase 10) ──
+
+    // G1: minDay:14 が定義に存在するか
+    const eaDef = allCaseDefs.find(c => c.id === 'elderly_absent');
+    if(eaDef){
+      if(eaDef.minDay >= 14){
+        P('G1', `elderly_absent minDay=${eaDef.minDay} 確認`);
+      } else {
+        F('G1', `elderly_absent に minDay:14 がない (minDay=${eaDef.minDay||'undefined'})`);
+      }
+    } else {
+      W('G1', 'elderly_absent 定義が見つからない');
+    }
+
+    // G2: totalDays<14 のとき elderly_absent が存在しないか
+    if(totalDays < 14){
+      if(isUnresolved('elderly_absent')){
+        F('G2', `totalDays=${totalDays} (<14) なのに elderly_absent が存在する`);
+      } else {
+        P('G2', `totalDays=${totalDays} (<14) → elderly_absent は案件ボックスにない`);
+      }
+    } else {
+      P('G2', `totalDays=${totalDays} (>=14) → elderly_absent タイミング条件を満たす`);
+    }
+
+    // G3: regulars<1 のとき elderly_absent が存在しないか
+    if(regulars < 1 && _gEval.staffUnlocked){
+      if(isUnresolved('elderly_absent')){
+        F('G3', `regulars=${regulars} (<1) なのに elderly_absent が存在する`);
+      } else {
+        P('G3', `regulars=${regulars} (<1) → elderly_absent は案件ボックスにない`);
+      }
+    } else {
+      P('G3', `regulars=${regulars} or スタッフ未採用 — elderly_absent regulars ガード対象外`);
+    }
+
+    // ── H. リグレッション (Phase 11〜15) ──
+
+    // H1: narita_first_ad は conditionOnly のままか（週次プールに出ない）
+    const naFirst = allCaseDefs.find(c => c.id === 'narita_first_ad');
+    if(naFirst && naFirst.conditionOnly){
+      P('H1', 'narita_first_ad conditionOnly:true — 週次プール除外維持');
+    } else if(naFirst){
+      W('H1', 'narita_first_ad conditionOnly が失われた可能性');
+    }
+
+    // H2: chr_nishimura_1 は conditionOnly:false のまま（週次に含まれる初回会話）
+    const naFirst1 = allCaseDefs.find(c => c.id === 'chr_nishimura_1');
+    if(naFirst1 && naFirst1.conditionOnly === false){
+      P('H2', 'chr_nishimura_1 conditionOnly:false — 週次プール正常');
+    } else if(naFirst1 && naFirst1.conditionOnly){
+      W('H2', 'chr_nishimura_1 が conditionOnly:true になっている — 週次から除外されている');
+    } else {
+      P('H2', 'chr_nishimura_1: conditionOnly 未設定 → 週次対象');
+    }
+
+    // H3: midgame_staff_dream の sender が 'みどり' に変更されているか
+    if(sdDef && sdDef.sender === 'みどり'){
+      P('H3', "midgame_staff_dream sender='みどり' 確認");
+    } else if(sdDef){
+      W('H3', `midgame_staff_dream sender='${sdDef.sender}' — 'みどり'への変更確認`);
+    }
+
+    // H4: staff_want_independent は conditionOnly + dw>=180 が維持されているか
+    const swiDef = allCaseDefs.find(c => c.id === 'staff_want_independent');
+    if(swiDef){
+      if(swiDef.conditionOnly){
+        P('H4', 'staff_want_independent conditionOnly:true — dw>=180 制御維持');
+      } else {
+        W('H4', 'staff_want_independent conditionOnly が失われた可能性');
+      }
+    }
+
+    // H5: narita_cashflow は conditionOnly のまま
+    if(naDef && naDef.conditionOnly){
+      P('H5', 'narita_cashflow conditionOnly:true — 维持');
+    } else if(naDef){
+      W('H5', 'narita_cashflow conditionOnly が失われた可能性');
+    }
+
+    // ── サマリー ──
+    console.group('[QA-42] サマリー');
+    const overall = results.fail.length > 0 ? '❌ FAIL' : results.warn.length > 0 ? '⚠️ WARN' : '✅ PASS';
+    console.log(`${overall}  FAIL:${results.fail.length}  WARN:${results.warn.length}  UX:${results.ux.length}  PASS:${results.pass.length}`);
+    console.log(`状態: Day${totalDays} staffCount=${staffCount} dw=${dw} regulars=${regulars}`);
+    if(results.fail.length > 0){
+      console.group('FAILs');
+      results.fail.forEach(f => console.error(`[FAIL] ${f.id}: ${f.detail}`));
+      console.groupEnd();
+    }
+    if(results.warn.length > 0){
+      console.group('WARNs');
+      results.warn.forEach(w => console.warn(`[WARN] ${w.id}: ${w.detail}`));
+      console.groupEnd();
+    }
+    results.pass.forEach(p => console.log(`✅ ${p.id}: ${p.detail}`));
+    console.groupEnd();
+    console.groupEnd();
+
+    return { fail: results.fail, warn: results.warn, ux: results.ux, pass: results.pass,
+      summary: { failCount: results.fail.length, warnCount: results.warn.length, passCount: results.pass.length,
+        totalDays, staffCount, dw, regulars } };
+  };
+  window._qaWorldTimeV13j.help = [
+    'window._qaWorldTimeV13j() — v1.3j 世界時間整合 修正検証（読み取り専用）',
+    '検証軸: staff_conflict(A1-3) / staff_dream(B1-2) / kimura_2(C1) / nishimura(D1-3) / AP(E1-3) / staff_training(F1) / elderly_absent(G1-3) / regression(H1-5)',
+    '戻り値: { fail:[], warn:[], ux:[], pass:[], summary:{} }',
+  ].join('\n');
+
   // ── バージョン更新 ──
 
 })();
