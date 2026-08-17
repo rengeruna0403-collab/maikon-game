@@ -3,7 +3,7 @@
  * ?qa=1 または ?debug=1 の場合のみ動作
  * ゲーム本体への影響なし・読み取り専用（Phase 2Aは1日テスト後に必ず復元）
  */
-window._MAIKON_QA_VERSION = '2026-08-14-v13h-staff-growth-phase';
+window._MAIKON_QA_VERSION = '2026-08-17-v12b3-menu-impact-card-clarity';
 console.log('[MAIKON-QA] loaded version:', window._MAIKON_QA_VERSION);
 console.log('[QA FILE LOADED] v13e-early-departure-consistency-20260812');
 
@@ -14842,8 +14842,8 @@ ${ar.experienceKPI ? _sim3ExperienceKpiHtml(ar.experienceKPI) : ''}
       console.log('[sim5Diag]', JSON.stringify(summary));
     }
 
-    // ── Section 34: v1.2b3 メニュー営業結果 表示キュー 回帰チェック ──
-    console.group('Section 34: v1.2b3 メニュー営業結果 表示キューチェック');
+    // ── Section 34: v1.2b3 メニュー営業結果カード 回帰チェック ──
+    console.group('Section 34: v1.2b3 メニュー営業結果カードチェック');
 
     // 34-1: buyMenu が pendingMenuImpact を設定すること
     {
@@ -14858,9 +14858,10 @@ ${ar.experienceKPI ? _sim3ExperienceKpiHtml(ar.experienceKPI) : ''}
           const m = MENU_OPTIONS.find(mo => !mo.requireProduct) || MENU_OPTIONS[0];
           buyMenu(0, m.name, m.cost, m.sat, m.cust);
           const imp = eval('G').pendingMenuImpact;
-          (imp && imp.storeId === 0 && Array.isArray(imp.menuNames) && imp.menuNames.length > 0 && imp.baseline)
-            ? pass('34-1 buyMenu→pendingMenuImpact設定', `menuNames=${imp.menuNames.join(',')} baseline.customers=${imp.baseline.customers}`)
-            : fail('34-1 buyMenu→pendingMenuImpact設定', `imp=${JSON.stringify(imp)}`);
+          const imp1ok = imp && imp.storeId === 0 && Array.isArray(imp.menuNames) && imp.menuNames.length > 0 && imp.baseline && imp.hadMenuBefore === false;
+          imp1ok
+            ? pass('34-1 buyMenu→pendingMenuImpact設定', `menuNames=${imp.menuNames.join(',')} hadMenuBefore=${imp.hadMenuBefore} baseline.customers=${imp.baseline.customers}`)
+            : fail('34-1 buyMenu→pendingMenuImpact設定', `imp=${JSON.stringify(imp)} hadMenuBefore=${imp&&imp.hadMenuBefore}`);
         } else { warn('34-1 buyMenu→pendingMenuImpact設定', 'buyMenu/MENU_OPTIONS未定義'); }
       } catch(e){ fail('34-1 buyMenu→pendingMenuImpact設定', `例外: ${e.message}`); }
       finally { eval('G = origG'); }
@@ -14971,27 +14972,29 @@ ${ar.experienceKPI ? _sim3ExperienceKpiHtml(ar.experienceKPI) : ''}
       } else { warn('34-6 結果カードにNaN/undefined無し', 'showMenuImpactResultCard未定義'); }
     }
 
-    // 34-7: 初回営業（hasBefore=false）で差分ブロックが表示されないこと
+    // 34-7: 初回メニュー（hadMenuBefore=false）で比較ブロックが一切表示されないこと (v1.2b3)
     {
       if(typeof showMenuImpactResultCard === 'function'){
-        const mockImpact = { storeId:0, menuNames:['初回テスト'], baseline:{ customers:0, unitPrice:700, satisfaction:60, regulars:0 } };
-        const mockResult = { customers:8, unitPrice:800, satisfaction:80, regulars:0, lastDayRevenue:null };
+        // hadMenuBefore:false = 初回。チュートリアル内部customers値があってもhasBefore=false
+        const mockImpact = { storeId:0, menuNames:['初回テスト'], hadMenuBefore:false, baseline:{ customers:7, unitPrice:700, satisfaction:60, regulars:1 } };
+        const mockResult = { customers:9, unitPrice:800, satisfaction:65, regulars:2, lastDayRevenue:12000 };
         try {
           showMenuImpactResultCard(mockImpact, mockResult);
           const wrap = document.getElementById('arf-wrap');
           const html = wrap ? wrap.innerHTML : '';
-          !html.includes('前回の営業と比べて')
-            ? pass('34-7 初回営業で差分ブロック非表示', 'hasBefore=falseで差分非表示')
-            : fail('34-7 初回営業で差分ブロック非表示', '0→N の0比較差分が表示された');
+          const hasCompare = html.includes('メニュー追加前と比べて') || html.includes('前回の営業と比べて');
+          !hasCompare
+            ? pass('34-7 初回メニューで比較ブロック非表示', 'hadMenuBefore=falseで比較非表示')
+            : fail('34-7 初回メニューで比較ブロック非表示', '初回なのに比較ブロックが表示された');
           if(wrap) wrap.innerHTML = '';
-        } catch(e){ fail('34-7 初回営業で差分ブロック非表示', `例外: ${e.message}`); }
-      } else { warn('34-7 初回営業で差分ブロック非表示', 'showMenuImpactResultCard未定義'); }
+        } catch(e){ fail('34-7 初回メニューで比較ブロック非表示', `例外: ${e.message}`); }
+      } else { warn('34-7 初回メニューで比較ブロック非表示', 'showMenuImpactResultCard未定義'); }
     }
 
-    // 34-8: マイナス差分でも失敗スタイルが使われないこと
+    // 34-8: マイナス差分でも失敗スタイルが使われないこと（2品目以降）(v1.2b3)
     {
       if(typeof showMenuImpactResultCard === 'function'){
-        const mockImpact = { storeId:0, menuNames:['差分テスト'], baseline:{ customers:10, unitPrice:800, satisfaction:70, regulars:2 } };
+        const mockImpact = { storeId:0, menuNames:['差分テスト'], hadMenuBefore:true, baseline:{ customers:10, unitPrice:800, satisfaction:70, regulars:2 } };
         const mockResult = { customers:8, unitPrice:800, satisfaction:68, regulars:2, lastDayRevenue:null };
         try {
           showMenuImpactResultCard(mockImpact, mockResult);
@@ -15025,22 +15028,138 @@ ${ar.experienceKPI ? _sim3ExperienceKpiHtml(ar.experienceKPI) : ''}
       finally { eval('G = origG'); }
     }
 
-    // 34-10: 総売上ラベルが「店舗売上」と誤表記されないこと
+    // 34-10: 収入ラベルが「店舗売上」と誤表記されないこと、かつ「直近の総収入」が使われること (v1.2b3)
     {
       if(typeof showMenuImpactResultCard === 'function'){
-        const mockImpact = { storeId:0, menuNames:['ラベルテスト'], baseline:{ customers:5, unitPrice:700, satisfaction:60, regulars:0 } };
+        const mockImpact = { storeId:0, menuNames:['ラベルテスト'], hadMenuBefore:false, baseline:{ customers:5, unitPrice:700, satisfaction:60, regulars:0 } };
         const mockResult = { customers:7, unitPrice:800, satisfaction:65, regulars:1, lastDayRevenue:50000 };
         try {
           showMenuImpactResultCard(mockImpact, mockResult);
           const wrap = document.getElementById('arf-wrap');
           const html = wrap ? wrap.innerHTML : '';
-          const hasMisLabel = /店舗の売上|この店舗の売上|1号店の売上/.test(html);
-          !hasMisLabel
-            ? pass('34-10 総売上ラベルが店舗売上と誤表記なし', '「今日の総売上」で正しく表記')
-            : fail('34-10 総売上ラベルが店舗売上と誤表記なし', '店舗売上と断定する表記を検出');
+          const hasMisLabel = /店舗の売上|この店舗の売上|1号店の売上|今日の総売上/.test(html);
+          const hasCorrectLabel = html.includes('直近の総収入');
+          (!hasMisLabel && hasCorrectLabel)
+            ? pass('34-10 収入ラベル正確', '「直近の総収入」を使用・「今日の総売上」「店舗売上」なし')
+            : fail('34-10 収入ラベル正確', `misLabel=${hasMisLabel} correctLabel=${hasCorrectLabel}`);
           if(wrap) wrap.innerHTML = '';
-        } catch(e){ fail('34-10 総売上ラベルが店舗売上と誤表記なし', `例外: ${e.message}`); }
-      } else { warn('34-10 総売上ラベルが店舗売上と誤表記なし', 'showMenuImpactResultCard未定義'); }
+        } catch(e){ fail('34-10 収入ラベル正確', `例外: ${e.message}`); }
+      } else { warn('34-10 収入ラベル正確', 'showMenuImpactResultCard未定義'); }
+    }
+
+    // 34-11: 「今日のお店」見出しが残っていないこと (v1.2b3)
+    {
+      if(typeof showMenuImpactResultCard === 'function'){
+        const mockImpact = { storeId:0, menuNames:['見出しテスト'], hadMenuBefore:false, baseline:{ customers:5, unitPrice:700, satisfaction:60, regulars:0 } };
+        const mockResult = { customers:7, unitPrice:800, satisfaction:65, regulars:1, lastDayRevenue:40000 };
+        try {
+          showMenuImpactResultCard(mockImpact, mockResult);
+          const wrap = document.getElementById('arf-wrap');
+          const html = wrap ? wrap.innerHTML : '';
+          const hasBadLabel = /今日のお店|前回の営業と比べて|売上目安/.test(html);
+          const hasCorrect  = html.includes('直近の営業結果');
+          (!hasBadLabel && hasCorrect)
+            ? pass('34-11 旧見出し削除・新見出し確認', '「直近の営業結果」あり・旧表現なし')
+            : fail('34-11 旧見出し削除・新見出し確認', `badLabel=${hasBadLabel} correct=${hasCorrect}`);
+          if(wrap) wrap.innerHTML = '';
+        } catch(e){ fail('34-11 旧見出し削除・新見出し確認', `例外: ${e.message}`); }
+      } else { warn('34-11 旧見出し削除・新見出し確認', 'showMenuImpactResultCard未定義'); }
+    }
+
+    // 34-12: 「売上目安」差分が表示されないこと (v1.2b3)
+    {
+      if(typeof showMenuImpactResultCard === 'function'){
+        // hadMenuBefore:true でも売上目安は出ないはず
+        const mockImpact = { storeId:0, menuNames:['推定売上テスト'], hadMenuBefore:true, baseline:{ customers:7, unitPrice:700, satisfaction:60, regulars:1 } };
+        const mockResult = { customers:9, unitPrice:800, satisfaction:65, regulars:2, lastDayRevenue:45000 };
+        try {
+          showMenuImpactResultCard(mockImpact, mockResult);
+          const wrap = document.getElementById('arf-wrap');
+          const html = wrap ? wrap.innerHTML : '';
+          const hasSalesEst = /売上目安|売上推計/.test(html);
+          !hasSalesEst
+            ? pass('34-12 推定売上差分が表示されない', '「売上目安」「売上推計」未検出')
+            : fail('34-12 推定売上差分が表示されない', '推定売上差分が検出された');
+          if(wrap) wrap.innerHTML = '';
+        } catch(e){ fail('34-12 推定売上差分が表示されない', `例外: ${e.message}`); }
+      } else { warn('34-12 推定売上差分が表示されない', 'showMenuImpactResultCard未定義'); }
+    }
+
+    // 34-13: 2品目以降（hadMenuBefore=true）で比較ブロックが表示されること (v1.2b3)
+    {
+      if(typeof showMenuImpactResultCard === 'function'){
+        const mockImpact = { storeId:0, menuNames:['2品目テスト'], hadMenuBefore:true, baseline:{ customers:7, unitPrice:700, satisfaction:60, regulars:1 } };
+        const mockResult = { customers:9, unitPrice:800, satisfaction:65, regulars:2, lastDayRevenue:45000 };
+        try {
+          showMenuImpactResultCard(mockImpact, mockResult);
+          const wrap = document.getElementById('arf-wrap');
+          const html = wrap ? wrap.innerHTML : '';
+          html.includes('メニュー追加前と比べて')
+            ? pass('34-13 2品目以降で比較ブロック表示', '「メニュー追加前と比べて」を確認')
+            : fail('34-13 2品目以降で比較ブロック表示', '比較ブロックが表示されない');
+          if(wrap) wrap.innerHTML = '';
+        } catch(e){ fail('34-13 2品目以降で比較ブロック表示', `例外: ${e.message}`); }
+      } else { warn('34-13 2品目以降で比較ブロック表示', 'showMenuImpactResultCard未定義'); }
+    }
+
+    // 34-14: result.lastDayRevenueのスナップショットを使用（ライブG.lastDayRevenueに依存しない）(v1.2b3)
+    {
+      if(typeof showMenuImpactResultCard === 'function'){
+        const mockImpact = { storeId:0, menuNames:['スナップテスト'], hadMenuBefore:false, baseline:{ customers:5, unitPrice:700, satisfaction:60, regulars:0 } };
+        const snapshotRev = 33333;
+        const mockResult = { customers:7, unitPrice:800, satisfaction:65, regulars:1, lastDayRevenue:snapshotRev };
+        const origLastDay = eval('G').lastDayRevenue;
+        try {
+          eval('G').lastDayRevenue = 99999; // ライブ値を意図的にずらす
+          showMenuImpactResultCard(mockImpact, mockResult);
+          const wrap = document.getElementById('arf-wrap');
+          const html = wrap ? wrap.innerHTML : '';
+          const showsSnapshot = html.includes('33,333') || html.includes('33333');
+          const showsLive     = html.includes('99,999') || html.includes('99999');
+          (showsSnapshot && !showsLive)
+            ? pass('34-14 スナップショット値を使用', `result.lastDayRevenue(${snapshotRev})を表示・ライブ値(99999)は不使用`)
+            : fail('34-14 スナップショット値を使用', `snapshot=${showsSnapshot} live=${showsLive}`);
+          if(wrap) wrap.innerHTML = '';
+        } catch(e){ fail('34-14 スナップショット値を使用', `例外: ${e.message}`); }
+        finally { eval('G').lastDayRevenue = origLastDay; }
+      } else { warn('34-14 スナップショット値を使用', 'showMenuImpactResultCard未定義'); }
+    }
+
+    // 34-15: hadMenuBefore フィールドが buyMenu で設定されること (v1.2b3)
+    {
+      const origG = eval('G');
+      try {
+        // 初回（menu.length=0）→ hadMenuBefore=false
+        const mockG1 = JSON.parse(JSON.stringify(origG));
+        mockG1.money = 9999999; mockG1.ap = 100;
+        mockG1.stores[0].menu = []; mockG1.stores[0].menuAddedMonth = {};
+        mockG1.pendingMenuImpact = null;
+        eval('G = mockG1');
+        if(typeof buyMenu === 'function' && typeof MENU_OPTIONS !== 'undefined' && MENU_OPTIONS.length > 0){
+          const m = MENU_OPTIONS.find(mo => !mo.requireProduct) || MENU_OPTIONS[0];
+          buyMenu(0, m.name, m.cost, m.sat, m.cust);
+          const imp1 = eval('G').pendingMenuImpact;
+          imp1 && imp1.hadMenuBefore === false
+            ? pass('34-15a 初回buyMenu hadMenuBefore=false', `hadMenuBefore=${imp1.hadMenuBefore}`)
+            : fail('34-15a 初回buyMenu hadMenuBefore=false', `imp=${JSON.stringify(imp1)}`);
+        } else { warn('34-15a 初回buyMenu hadMenuBefore=false', '依存関数未定義'); }
+        eval('G = origG');
+        // 2品目（menu.length>0）→ hadMenuBefore=true
+        const mockG2 = JSON.parse(JSON.stringify(origG));
+        mockG2.money = 9999999; mockG2.ap = 100;
+        mockG2.stores[0].menu = ['既存メニュー']; mockG2.stores[0].menuAddedMonth = {};
+        mockG2.pendingMenuImpact = null;
+        eval('G = mockG2');
+        if(typeof buyMenu === 'function' && typeof MENU_OPTIONS !== 'undefined' && MENU_OPTIONS.length > 0){
+          const m2 = MENU_OPTIONS.find(mo => !mo.requireProduct && !mockG2.stores[0].menu.includes(mo.name)) || MENU_OPTIONS[0];
+          buyMenu(0, m2.name, m2.cost, m2.sat, m2.cust);
+          const imp2 = eval('G').pendingMenuImpact;
+          imp2 && imp2.hadMenuBefore === true
+            ? pass('34-15b 2品目buyMenu hadMenuBefore=true', `hadMenuBefore=${imp2.hadMenuBefore}`)
+            : fail('34-15b 2品目buyMenu hadMenuBefore=true', `imp=${JSON.stringify(imp2)}`);
+        } else { warn('34-15b 2品目buyMenu hadMenuBefore=true', '依存関数未定義'); }
+      } catch(e){ fail('34-15 hadMenuBefore設定', `例外: ${e.message}`); }
+      finally { eval('G = origG'); }
     }
 
     console.groupEnd();

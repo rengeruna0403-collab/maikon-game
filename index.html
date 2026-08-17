@@ -13046,11 +13046,12 @@ function buyMenu(si,name,cost,sat,cust){
     isFirst: _isFirstMenu,
     isAllDone: _isAllDone
   });
-  // 翌営業日フィードバック用ベースライン記録
+  // 翌営業日フィードバック用ベースライン記録 (v1.2b3: hadMenuBefore追加)
   if(!G.pendingMenuImpact || G.pendingMenuImpact.storeId !== si){
     G.pendingMenuImpact = {
       storeId: si,
       menuNames: [name],
+      hadMenuBefore: _bfMenuCnt > 0,  // 追加前にメニューが存在したか（初回判定）
       baseline: { customers: _bfCust, unitPrice: _bfUnitPrice, satisfaction: _bfSat, regulars: G.stores[si].regulars||0 }
     };
   } else {
@@ -13058,7 +13059,7 @@ function buyMenu(si,name,cost,sat,cust){
   }
   updateHeader();
 }
-// ─────────── メニュー追加翌営業日フィードバック (v1.2b) ────────────
+// ─────────── メニュー追加翌営業日フィードバック (v1.2b3) ────────────
 // 営業確定チェック：結果を G.pendingMenuImpactResult へ移し pendingMenuImpact をクリアする
 // 実際のカード表示は _tryShowMenuImpactResult() が担う
 function _checkMenuImpactResult(){
@@ -13148,25 +13149,14 @@ function _tryShowMenuImpactResult(){
   G.pendingMenuImpactResult = null;
   console.log('[MENU IMPACT RESULT SHOWN]');
   showMenuImpactResultCard(impact, result);
-  // ニュース記録
+  // ニュース記録 (v1.2b3: 推定差分を削除・スナップショット値を使用)
   const menuLabel = impact.menuNames.length > 1
     ? `新しいメニュー${impact.menuNames.length}品追加後`
     : `「${impact.menuNames[0]}」追加後`;
-  const _revNews   = Number.isFinite(result.lastDayRevenue) ? `今日の総売上¥${Math.round(result.lastDayRevenue).toLocaleString()}` : null;
-  const _custNews  = Number.isFinite(result.customers)   ? `来店客数${result.customers}人`                                : null;
-  const _priceNews = Number.isFinite(result.unitPrice)   ? `客単価¥${result.unitPrice.toLocaleString()}`                 : null;
-  const _bl = impact.baseline;
-  const _hasBl = Number.isFinite(_bl.customers) && _bl.customers > 0;
-  const _custDiffStr = (_hasBl && Number.isFinite(result.customers))
-    ? (result.customers - _bl.customers > 0
-        ? `前回より客数＋${result.customers - _bl.customers}人`
-        : result.customers - _bl.customers < 0
-          ? `前回より客数−${_bl.customers - result.customers}人`
-          : null)
-    : null;
-  const _newsBody = [_custNews, _revNews, _priceNews].filter(Boolean).join('・');
-  const _newsDiff = _custDiffStr ? ` / ${_custDiffStr}` : '';
-  addNews(`🍽 ${menuLabel}の最初の営業 / ${_newsBody}${_newsDiff}`);
+  const _revNews  = Number.isFinite(result.lastDayRevenue) ? `総収入¥${Math.round(result.lastDayRevenue).toLocaleString()}` : null;
+  const _custNews = Number.isFinite(result.customers) ? `来店${result.customers}人` : null;
+  const _newsBody = [_custNews, _revNews].filter(Boolean).join('、');
+  addNews(`🍽 ${menuLabel}の最初の営業 / ${_newsBody}`);
   saveGame();
 }
 
@@ -13184,51 +13174,50 @@ function showMenuImpactResultCard(impact, result){
     ? `<div style="margin:6px 0 2px">${impact.menuNames.map(n=>`<div style="font-size:11px;color:var(--gr3);line-height:1.8">・${n}</div>`).join('')}</div>`
     : '';
 
-  // ── 今日のお店の実績（主役）──
+  // ── 直近の営業結果（主役）v1.2b3 ──
+  // 全値をresultスナップショットから取得。ライブG参照なし。
+  // lastDayRevenue = 全店舗+建物賃料の日次合計（店舗単体売上ではない）
   const _safeNum = v => (Number.isFinite(v) && v >= 0) ? v : null;
-  const todayCust   = _safeNum(result.customers);
-  const todayPrice  = _safeNum(result.unitPrice);
-  const todaySat    = _safeNum(result.satisfaction);
-  const todayReg    = _safeNum(result.regulars);
-  // 売上は G.lastDayRevenue（全店舗合計）を参照
-  const todayRev    = _safeNum(typeof G !== 'undefined' && Number.isFinite(G.lastDayRevenue) ? G.lastDayRevenue : null);
+  const todayCust  = _safeNum(result.customers);
+  const todayPrice = _safeNum(result.unitPrice);
+  const todaySat   = _safeNum(result.satisfaction);
+  const todayReg   = _safeNum(result.regulars);
+  const todayRev   = _safeNum(result.lastDayRevenue);
   const _tdRow = (lbl, val, fmt) => {
     if(val === null) return '';
     return `<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid rgba(0,0,0,.05)"><span style="font-size:12px;color:var(--muted)">${lbl}</span><span style="font-size:13px;font-weight:700;color:var(--text)">${fmt(val)}</span></div>`;
   };
   const todayRows = [
-    _tdRow('来店客数',   todayCust,  v=>`${v}人`),
-    _tdRow('今日の総売上', todayRev, v=>`¥${Math.round(v).toLocaleString()}`),
-    _tdRow('客単価',     todayPrice, v=>`¥${v.toLocaleString()}`),
-    _tdRow('満足度',     todaySat,   v=>`${v}`),
-    _tdRow('常連数',     todayReg,   v=>`${v}人`),
+    _tdRow('来店客数',     todayCust,  v=>`${v}人`),
+    _tdRow('直近の総収入', todayRev,   v=>`¥${Math.round(v).toLocaleString()}`),
+    _tdRow('客単価',       todayPrice, v=>`¥${v.toLocaleString()}`),
+    _tdRow('満足度',       todaySat,   v=>`${v}`),
+    _tdRow('常連数',       todayReg,   v=>`${v}人`),
   ].join('');
 
-  // ── 前回との差分（補足・比較可能な場合のみ）──
-  const hasBefore = Number.isFinite(bl.customers) && bl.customers > 0;
+  // ── メニュー追加前との比較（2品目以降のみ）v1.2b3 ──
+  // hasBefore: hadMenuBefore===trueのときのみ（初回はチュートリアル内部値を「前回営業」と見なさない）
+  // 推定売上差は表示しない。客数・単価・満足度・常連数の前後比較のみ。
+  const hasBefore = impact.hadMenuBefore === true;
   let diffHtml = '';
   if(hasBefore && todayCust !== null){
-    const _diffRow = (lbl, bef, now, fmt) => {
+    const _arrowRow = (lbl, bef, now, fmt) => {
       if(!Number.isFinite(bef) || !Number.isFinite(now)) return '';
       const d = now - bef;
       if(d === 0) return '';
       const sign = d > 0 ? '＋' : '−';
       const abs = Math.abs(d);
-      return `<div style="display:flex;justify-content:space-between;padding:3px 0"><span style="font-size:11px;color:var(--muted)">${lbl}</span><span style="font-size:11px;color:var(--muted)">${sign}${fmt(abs)}</span></div>`;
+      return `<div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0"><span style="font-size:11px;color:var(--muted)">${lbl}</span><span style="font-size:11px;color:var(--muted)">${fmt(bef)} → ${fmt(now)}&ensp;<span style="opacity:.7">${sign}${fmt(abs)}</span></span></div>`;
     };
-    const revNow    = (todayCust !== null && todayPrice !== null) ? todayCust * todayPrice : null;
-    const revBefore = bl.customers * (bl.unitPrice || 700);
-    const diffCust = _diffRow('来店客数', bl.customers, todayCust, v=>`${v}人`);
-    const diffRev  = (revNow !== null) ? _diffRow('売上目安', revBefore, revNow, v=>`¥${Math.round(v).toLocaleString()}`) : '';
-    const diffBody = diffCust + diffRev;
+    const diffCust  = _arrowRow('来店客数', bl.customers,       todayCust,  v=>`${v}人`);
+    const diffPrice = _arrowRow('客単価',   bl.unitPrice || 700, todayPrice, v=>`¥${v.toLocaleString()}`);
+    const diffSat   = _arrowRow('満足度',   bl.satisfaction,     todaySat,   v=>`${v}`);
+    const diffReg   = _arrowRow('常連数',   bl.regulars || 0,    todayReg,   v=>`${v}人`);
+    const diffBody  = diffCust + diffPrice + diffSat + diffReg;
     if(diffBody){
-      const custDiff = todayCust - bl.customers;
-      const diffNote = custDiff < 0
-        ? '<div style="font-size:10px;color:var(--muted);margin-top:4px">1日だけでは判断できません。何日か営業しながら様子を見てみましょう。</div>'
-        : '';
       diffHtml = `<div style="margin-top:10px;padding:8px 12px;background:rgba(0,0,0,.03);border-radius:8px">
-        <div style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:4px">前回の営業と比べて</div>
-        ${diffBody}${diffNote}
+        <div style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:4px">メニュー追加前と比べて</div>
+        ${diffBody}
       </div>`;
     }
   }
@@ -13242,7 +13231,7 @@ function showMenuImpactResultCard(impact, result){
     <div style="font-size:13px;font-weight:700;color:var(--gr3);margin-bottom:6px">${title}</div>
     <div style="font-size:12px;color:var(--muted);line-height:1.7;margin-bottom:2px">${menuLead}</div>
     ${nameListHtml}
-    <div style="font-size:11px;font-weight:700;color:var(--muted);margin:8px 0 2px">今日のお店</div>
+    <div style="font-size:11px;font-weight:700;color:var(--muted);margin:8px 0 2px">直近の営業結果</div>
     <div style="background:rgba(255,255,255,.8);border-radius:10px;padding:6px 12px;margin-bottom:4px">${todayRows || '<div style="font-size:11px;color:var(--muted);padding:4px 0">データを取得中です</div>'}</div>
     ${diffHtml}
     <div style="font-size:11px;color:var(--muted);line-height:1.7;margin-top:8px">${closing}</div>
