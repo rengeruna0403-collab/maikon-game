@@ -13083,6 +13083,54 @@ function _checkMenuImpactResult(){
   _tryShowMenuImpactResult();
 }
 
+// ── 診断関数（ゲーム状態を変更しない）──
+window._qaMenuImpactAudit = function(){
+  const currentDay = (G.year-1)*360 + (G.month-1)*30 + G.day;
+  const imp = G.pendingMenuImpact || (G.pendingMenuImpactResult && G.pendingMenuImpactResult.impact) || null;
+  const res = G.pendingMenuImpactResult && G.pendingMenuImpactResult.result || null;
+  const bl = imp && imp.baseline || null;
+  const s0 = G.stores[0] || {};
+  const liveCustomers  = s0.customers;
+  const liveUnitPrice  = s0.unitPrice;
+  const liveSat        = s0.satisfaction;
+  const liveReg        = s0.regulars;
+  const liveRevenue    = G.lastDayRevenue;
+  const hasBefore = bl && Number.isFinite(bl.customers) && bl.customers > 0;
+  const revNow    = (res && Number.isFinite(res.customers) && Number.isFinite(res.unitPrice))
+    ? res.customers * res.unitPrice : null;
+  const revBefore = bl ? bl.customers * (bl.unitPrice || 700) : null;
+  const baselineType = bl
+    ? (bl.customers > 0 ? 'predicted_before_menu (G.stores.customers at buyMenu() call)' : 'zero_baseline')
+    : 'no_baseline';
+  const report = {
+    currentDay,
+    currentDateLabel: `${G.year}年${G.month}月${G.day}日`,
+    menuAddedDay: imp ? '（pendingMenuImpactに記録なし — 追加日はG側に未保存）' : 'n/a',
+    baselineCapturedTiming: 'buyMenu()呼び出し内・メニュー効果適用前',
+    baseline: bl || null,
+    liveStore: { customers: liveCustomers, unitPrice: liveUnitPrice, satisfaction: liveSat, regulars: liveReg },
+    result: res || null,
+    liveLastDayRevenue: liveRevenue,
+    delta: (bl && res) ? {
+      customers: res.customers - bl.customers,
+      revEstimate: revNow !== null && revBefore !== null ? revNow - revBefore : null,
+    } : null,
+    hasBefore,
+    baselineType,
+    notes: [
+      '「今日のお店」はカード表示日(currentDay)の1日前の営業結果',
+      '「売上目安」= result.customers × result.unitPrice  ─  G.lastDayRevenue(実売上)との差ではない',
+      '総売上(¥12,726)はG.lastDayRevenue(実売上)。売上目安の差分は clients×unitPrice の推定差',
+      'baseline.regularsはbuyMenu内で_bfではなくG.stores[si].regularsを直接参照(メニュー追加後値の可能性)',
+      'hasBefore=trueになるのはチュートリアル日送りでcustomers>0になっているため',
+    ],
+  };
+  console.group('[QA] _qaMenuImpactAudit');
+  console.log(JSON.stringify(report, null, 2));
+  console.groupEnd();
+  return report;
+};
+
 // 表示可能な状態になったらカードを1回だけ表示する
 // renderTab / closeMonthlyChallengeModal / 日送り後フラッシュ終了後から呼ばれる
 function _tryShowMenuImpactResult(){
