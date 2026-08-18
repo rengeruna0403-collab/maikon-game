@@ -14505,9 +14505,6 @@ function renderProgressCard(){
 
   // --- 次の予定アイテム ---
   const schedItems = [];
-  if(ap < 40){
-    schedItems.push({ icon:'⚡', label:`明日AP +5回復します`, sub:`現在 ${ap}/${G.apMax||100}`, daysLeft:1 });
-  }
   buildUpcomingEvents().slice(0, 3).forEach(ev => schedItems.push(ev));
   const topSched = schedItems.slice(0, 3);
 
