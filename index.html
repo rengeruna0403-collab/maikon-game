@@ -13211,7 +13211,12 @@ function showMenuImpactResultCard(impact, result){
     };
     const diffCust  = _arrowRow('来店客数', bl.customers,       todayCust,  v=>`${v}人`);
     const diffPrice = _arrowRow('客単価',   bl.unitPrice || 700, todayPrice, v=>`¥${v.toLocaleString()}`);
-    const diffSat   = _arrowRow('満足度',   bl.satisfaction,     todaySat,   v=>`${v}`);
+    const diffSat   = (()=>{
+      const rb = Math.round(bl.satisfaction), rn = Math.round(todaySat);
+      if(!Number.isFinite(rb) || !Number.isFinite(rn) || rb === rn) return '';
+      const d = rn - rb, sign = d > 0 ? '＋' : '−', abs = Math.abs(d);
+      return `<div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0"><span style="font-size:11px;color:var(--muted)">満足度</span><span style="font-size:11px;color:var(--muted)">${rb} → ${rn}&ensp;<span style="opacity:.7">${sign}${abs}</span></span></div>`;
+    })();
     const diffReg   = _arrowRow('常連数',   bl.regulars || 0,    todayReg,   v=>`${v}人`);
     const diffBody  = diffCust + diffPrice + diffSat + diffReg;
     if(diffBody){
@@ -15675,7 +15680,8 @@ function renderStaff(){
             const skillChecks = req.skills ? Object.entries(req.skills).map(([sk,mn])=>{
               const skName = {service:'接客',cooking:'調理',management:'管理'}[sk]||sk;
               const ok = (s.skills[sk]||0) >= mn;
-              return `<span style="color:${ok?'var(--gr)':'var(--orange)'}">${skName}${s.skills[sk]||0}/${mn}</span>`;
+              const cur = Math.round(s.skills[sk]||0);
+              return `<span style="color:${ok?'var(--gr)':'var(--orange)'}">${skName} ${cur}　${ok?'✓ 達成':`あと${mn - cur}`}</span>`;
             }) : [];
             const allOk   = _checkPromotionConditions(s, req);
             const pct     = Math.min(100, Math.round(s.daysWorked / req.daysWorked * 100));
@@ -15686,8 +15692,8 @@ function renderStaff(){
               </div>
               <div class="prog-bar"><div class="prog-fill" style="width:${pct}%;background:${allOk?'var(--gold)':'var(--gr)'}"></div></div>
               <div style="margin-top:4px;display:flex;gap:8px;flex-wrap:wrap">
-                <span style="color:${dayOk?'var(--gr)':'var(--orange)'}">在籍${s.daysWorked}/${req.daysWorked}日</span>
-                <span style="color:${satOk?'var(--gr)':'var(--orange)'}">満足${s.satisfaction||70}/${req.satisfaction}</span>
+                <span style="color:${dayOk?'var(--gr)':'var(--orange)'}">在籍 ${s.daysWorked}日　${dayOk?'✓ 達成':`あと${req.daysWorked - s.daysWorked}日`}</span>
+                <span style="color:${satOk?'var(--gr)':'var(--orange)'}">満足 ${Math.round(s.satisfaction||70)}　${satOk?'✓ 達成':`あと${Math.max(0,req.satisfaction - Math.round(s.satisfaction||70))}`}</span>
                 ${skillChecks.join('')}
               </div>`;
           })()}</div>
