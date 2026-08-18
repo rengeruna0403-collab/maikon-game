@@ -10926,8 +10926,8 @@ function showEventModal(ev){
         const _btnShortfall = Math.max(0, _btnTotalAp - G.ap);
         const _btnCanFatigue = _btnShortfall > 0 && ev.category === 'ops';
         const _btnBlocked = _btnShortfall > 0 && ev.category !== 'ops';
-        const _apNote = _btnExtraAp > 0
-          ? `<div style="font-size:10px;color:var(--muted);margin-top:3px">必要AP ${_btnTotalAp}（通常${apCost}＋追加${_btnExtraAp}）</div>`
+        const _apNote = _btnTotalAp > 0
+          ? `<div style="font-size:10px;color:var(--muted);margin-top:3px">必要AP ${_btnTotalAp}</div>`
           : '';
         return _btnBlocked ? `
         <button class="choice-btn" style="opacity:.4;pointer-events:none">
