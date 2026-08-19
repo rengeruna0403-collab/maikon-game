@@ -369,8 +369,8 @@ body.large-text #app{zoom:1.2;transform-origin:top center}
   padding:14px;border-radius:10px;margin:14px 0;text-align:left}
 /* キャラクター立ち絵 */
 .character-header{display:flex;align-items:center;gap:10px;margin-bottom:12px;padding:10px 12px;background:var(--bg2);border-radius:10px}
-.character-portrait{width:80px;height:80px;object-fit:cover;border-radius:50%;border:2px solid var(--border);flex-shrink:0;display:block}
-.character-portrait--small{width:56px;height:56px}
+.character-portrait{width:80px;height:80px;object-fit:cover;object-position:center center;border-radius:50%;border:2px solid var(--border);flex-shrink:0;display:block}
+.character-portrait--small{width:64px;height:64px}
 .character-portrait--staff{width:68px;height:68px}
 .character-hname{font-size:.95em;font-weight:700;color:var(--text)}
 .character-hrole{font-size:.72em;color:var(--muted);margin-top:2px}
@@ -6111,13 +6111,13 @@ const CHARACTERS = {
 };
 
 const CHARACTER_PORTRAITS = {
-  midori:     'assets/characters/midori.webp',
-  narita:     'assets/characters/narita.webp',
-  nishimura:  'assets/characters/nishimura.webp',
-  suzuki:     'assets/characters/suzuki.webp',
-  tanaka:     'assets/characters/tanaka.webp',
-  yamamoto:   'assets/characters/yamamoto.webp',
-  ochawanman: 'assets/characters/ochawanman.webp',
+  midori:     'assets/characters/midori_icon.webp',
+  narita:     'assets/characters/narita_icon.webp',
+  nishimura:  'assets/characters/nishimura_icon.webp',
+  suzuki:     'assets/characters/suzuki_icon.webp',
+  tanaka:     'assets/characters/tanaka_icon.webp',
+  yamamoto:   'assets/characters/yamamoto_icon.webp',
+  ochawanman: 'assets/characters/ochawanman_icon.webp',
 };
 const CHARACTER_ROLES = {
   midori:     'スタッフ',
