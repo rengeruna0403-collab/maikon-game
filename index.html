@@ -367,6 +367,13 @@ body.large-text #app{zoom:1.2;transform-origin:top center}
 .grad-modal .big{font-size:48px;margin:10px 0}
 .grad-story{font-size:13px;line-height:1.9;color:var(--text);background:var(--warm);
   padding:14px;border-radius:10px;margin:14px 0;text-align:left}
+/* キャラクター立ち絵 */
+.character-header{display:flex;align-items:center;gap:10px;margin-bottom:12px;padding:10px 12px;background:var(--bg2);border-radius:10px}
+.character-portrait{width:80px;height:80px;object-fit:cover;border-radius:50%;border:2px solid var(--border);flex-shrink:0;display:block}
+.character-portrait--small{width:56px;height:56px}
+.character-portrait--staff{width:68px;height:68px}
+.character-hname{font-size:.95em;font-weight:700;color:var(--text)}
+.character-hrole{font-size:.72em;color:var(--muted);margin-top:2px}
 </style>
 </head>
 <body>
@@ -3454,11 +3461,10 @@ function showGoEnNote(){
 
     return `<div style="border:2px solid ${state.complete?'#a5d6a7':'#c5ddb5'};border-radius:12px;padding:14px;margin-bottom:12px;background:${state.complete?'#f5f5f5':'#f6fbf2'}">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-        <span style="font-size:1.5em">🌿</span>
+        <img class="character-portrait character-portrait--small" src="${CHARACTER_PORTRAITS.midori}" alt="佐々木みどり" onerror="this.outerHTML='<span style=\\'font-size:1.5em\\'>🌿</span>'">
         <div style="flex:1">
           <b style="font-size:.95em">佐々木みどり</b>
-          <span style="font-size:.7em;color:#999;margin-left:5px">38歳</span>
-          <div style="font-size:.7em;color:#bbb">シングルマザー・接客担当</div>
+          <div style="font-size:.7em;color:#bbb">スタッフ</div>
         </div>
         <span style="font-size:.68em;color:${state.complete?'#81c784':'#6a9955'};white-space:nowrap;font-weight:700">${locLabel('midori',state)}</span>
       </div>
@@ -3504,13 +3510,16 @@ function showGoEnNote(){
             </div>`).join('')
         : `<div style="font-size:.76em;color:#ccc;padding:4px 0">まだ記録はありません</div>`;
       const hasMore = allNotes.length > 5;
+      const _gp = CHARACTER_PORTRAITS[key];
+      const _gpPortrait = _gp
+        ? `<img class="character-portrait character-portrait--small" src="${_gp}" alt="${info.name}" onerror="this.outerHTML='<span style=\\'font-size:1.4em\\'>${info.icon}</span>'">`
+        : `<span style="font-size:1.4em">${info.icon}</span>`;
       html += `<div style="border:1px solid ${cardBorder(state)};border-radius:10px;padding:12px;margin-bottom:12px;background:${cardBg(state)};${state.complete?'opacity:.85':''}">
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:5px">
-          <span style="font-size:1.4em">${info.icon}</span>
+          ${_gpPortrait}
           <div style="flex:1;min-width:0">
             <b style="font-size:.93em">${info.name}</b>
-            <span style="font-size:.7em;color:#999;margin-left:5px">${info.age}歳</span>
-            <div style="font-size:.7em;color:#bbb">${info.tag}</div>
+            <div style="font-size:.7em;color:#bbb">${CHARACTER_ROLES[key]||info.tag}</div>
           </div>
           <span style="font-size:.68em;color:${state.complete?'#bbb':'#888'};white-space:nowrap">${locLabel(key,state)}</span>
         </div>
@@ -6100,6 +6109,42 @@ const CHARACTERS = {
     intro: '商店街で30年以上、惣菜屋を続けてきた。\n後継者がなく、新参者に厳しい目を向けることで多くのものを守ってきた。',
   },
 };
+
+const CHARACTER_PORTRAITS = {
+  midori:     'assets/characters/midori.webp',
+  narita:     'assets/characters/narita.webp',
+  nishimura:  'assets/characters/nishimura.webp',
+  suzuki:     'assets/characters/suzuki.webp',
+  tanaka:     'assets/characters/tanaka.webp',
+  yamamoto:   'assets/characters/yamamoto.webp',
+  ochawanman: 'assets/characters/ochawanman.webp',
+};
+const CHARACTER_ROLES = {
+  midori:     'スタッフ',
+  narita:     '銀行の融資担当',
+  nishimura:  '商店街の古参店主',
+  suzuki:     '地元小学校の先生',
+  tanaka:     '一人暮らしの常連客',
+  yamamoto:   '子育て中の常連客',
+  ochawanman: 'ナビゲーター',
+};
+function getCharacterPortrait(ev){
+  if(!ev) return null;
+  const id = ev.id || '';
+  for(const key of Object.keys(CHARACTER_PORTRAITS)){
+    if(id.startsWith('chr_'+key+'_') || id.startsWith(key+'_')) return key;
+  }
+  const SENDER_MAP = {
+    '成田':'narita', 'みどり':'midori', '佐々木みどり':'midori',
+    '西村':'nishimura', '鈴木':'suzuki', '田中':'tanaka',
+    '山本':'yamamoto', 'お茶碗マン':'ochawanman',
+  };
+  const sender = ev.sender || '';
+  for(const [pat, key] of Object.entries(SENDER_MAP)){
+    if(sender.includes(pat)) return key;
+  }
+  return null;
+}
 
 const DOMAIN_CASES = [
 
@@ -10892,12 +10937,25 @@ function showEventModal(ev){
         : `🚫 AP不足（残${G.ap}／必要${apCost}）。明日以降にAPが回復したら対応できます。<br><span style="color:#8D6E63;display:block;margin-top:5px;font-style:italic">🥣「今日は少し考えすぎたみたいです。明日に備えましょう」</span>`}
     </div>` : '';
 
+  const _portraitKey = getCharacterPortrait(ev);
+  const _portraitInfo = _portraitKey ? CHARACTERS[_portraitKey] : null;
+  const _portraitUrl  = _portraitKey ? CHARACTER_PORTRAITS[_portraitKey] : null;
+  const _portraitRole = _portraitKey ? (CHARACTER_ROLES[_portraitKey] || '') : '';
+  const _portraitName = _portraitInfo ? _portraitInfo.name : (_portraitKey === 'ochawanman' ? 'お茶碗マン' : '');
+
   const body=document.getElementById('event-modal-body');
   body.innerHTML=`
     <div style="position:relative">
       <button onclick="dismissEventModal()" style="position:absolute;top:-4px;right:-4px;width:28px;height:28px;border-radius:50%;border:none;background:var(--bg2);color:var(--muted);font-size:16px;cursor:pointer;line-height:1;display:flex;align-items:center;justify-content:center">✕</button>
     </div>
-    <div class="modal-icon">${ev.icon}</div>
+    ${_portraitUrl ? `
+    <div class="character-header">
+      <img class="character-portrait" src="${_portraitUrl}" alt="${_portraitName}" onerror="this.style.display='none'">
+      <div>
+        <div class="character-hname">${_portraitName}</div>
+        <div class="character-hrole">${_portraitRole}</div>
+      </div>
+    </div>` : `<div class="modal-icon">${ev.icon}</div>`}
     <div class="modal-title">${ev.title}</div>
     ${ev.storyContext?`<div class="modal-story">${ev.storyContext}</div>`:''}
     <div class="modal-body">${ev.body}</div>
@@ -15641,10 +15699,15 @@ function renderStaff(){
       </div>` : ''}
     </div>
 
-    ${G.staff.map(s=>`
+    ${G.staff.map(s=>{
+      const _sPortraitUrl = s.name === '佐々木みどり' ? CHARACTER_PORTRAITS.midori : null;
+      const _sAvatarHtml = _sPortraitUrl
+        ? `<img class="character-portrait character-portrait--staff" src="${_sPortraitUrl}" alt="${s.name}" onerror="this.outerHTML='<div class=\\'staff-av\\'>${s.emoji}</div>'">`
+        : `<div class="staff-av">${s.emoji}</div>`;
+      return `
       <div class="staff-card">
         <div>
-          <div class="staff-av">${s.emoji}</div>
+          ${_sAvatarHtml}
         </div>
         <div style="flex:1">
           <div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap">
@@ -15717,7 +15780,7 @@ function renderStaff(){
           </div>
         </div>
       </div>
-    `).join('')}
+    `; }).join('')}
 
   `;
 }
