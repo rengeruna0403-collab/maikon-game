@@ -2913,6 +2913,7 @@ function monthlyTick(){
         if(r.satisfaction<45 && Math.random()<0.25){
           addNews(`🚪 ${r.tenant.name}が退去（満足度低下）`);
           addStory(`${r.tenant.name}が${b.name}を去った。`, 'normal');
+          _recordFormerTenant(r.tenant.name);
           r.tenant=null;
           scoreOwner(-3,'tenant_leave');
         } else {
@@ -2923,7 +2924,17 @@ function monthlyTick(){
           const types=['高齢単身','子育て世帯','学生','単身者','移住者'];
           const names=['中村','小林','加藤','吉田','渡辺','橋本','山口','清水'];
           const type=types[Math.floor(Math.random()*types.length)];
-          const nm=names[Math.floor(Math.random()*names.length)]+(type==='子育て世帯'?'ファミリー':'さん');
+          const _suffix = type==='子育て世帯'?'ファミリー':'さん';
+          const _autoTd = (G.year-1)*360 + (G.month-1)*30 + G.day;
+          const _ftc = G.formerTenantCooldowns || {};
+          const _curNames = new Set(G.buildings.flatMap(b2=>b2.rooms.filter(r2=>r2.tenant).map(r2=>r2.tenant.name)));
+          const _availSurnames = names.filter(sn => {
+            const candidate = sn + _suffix;
+            if(_curNames.has(candidate)) return false;
+            return !Object.entries(_ftc).some(([n, until]) => n.startsWith(sn) && _autoTd < until);
+          });
+          if(!_availSurnames.length) return;
+          const nm=_availSurnames[Math.floor(Math.random()*_availSurnames.length)]+_suffix;
           r.tenant={name:nm,age:30+Math.round(Math.random()*30),type,
             bio:'新しい入居者。まだ詳しいことはわからない。',
             dream:'「ここで新しい生活を始めたい」',event:null};
@@ -9818,12 +9829,21 @@ function generateRoomApplicationCases(){
   const rep = (G.regions && G.regions[0]) ? (G.regions[0].reputation || 0) : 0;
   // 評判ティアで申込者プールが変わる
   const APPLICANTS_BASE = [
-    {name:'田村 健二', age:38, type:'会社員', income:'月収28万', guarantee:'保証人あり'},
-    {name:'西田 美咲', age:24, type:'看護師', income:'月収22万', guarantee:'保証人あり'},
-    {name:'中川 達也', age:55, type:'自営業', income:'収入不安定', guarantee:'保証人なし'},
+    {name:'田村 健二', age:38, type:'会社員',     income:'月収28万',    guarantee:'保証人あり'},
+    {name:'西田 美咲', age:24, type:'看護師',     income:'月収22万',    guarantee:'保証人あり'},
+    {name:'中川 達也', age:55, type:'自営業',     income:'収入不安定',  guarantee:'保証人なし'},
     {name:'斎藤 幸子', age:67, type:'年金受給者', income:'年金12万/月', guarantee:'保証人あり'},
-    {name:'林 拓海', age:29, type:'IT企業勤務', income:'月収35万', guarantee:'保証人あり'},
-    {name:'山口 文子', age:43, type:'パート勤務', income:'月収15万', guarantee:'保証人なし'},
+    {name:'林 拓海',   age:29, type:'IT企業勤務', income:'月収35万',    guarantee:'保証人あり'},
+    {name:'山口 文子', age:43, type:'パート勤務', income:'月収15万',    guarantee:'保証人なし'},
+    {name:'福田 幸雄', age:48, type:'製造業勤務', income:'月収26万',    guarantee:'保証人あり'},
+    {name:'大野 千恵', age:35, type:'事務職',     income:'月収21万',    guarantee:'保証人あり'},
+    {name:'石原 修一', age:41, type:'運送業',     income:'月収24万',    guarantee:'保証人なし'},
+    {name:'菊池 陽子', age:29, type:'医療事務',   income:'月収18万',    guarantee:'保証人あり'},
+    {name:'浜田 正雄', age:62, type:'嘱託社員',   income:'月収20万',    guarantee:'保証人あり'},
+    {name:'今井 美穂', age:33, type:'保育士',     income:'月収19万',    guarantee:'保証人あり'},
+    {name:'原田 広志', age:45, type:'飲食業',     income:'月収23万',    guarantee:'保証人なし'},
+    {name:'小川 朋子', age:58, type:'パート勤務', income:'月収14万',    guarantee:'保証人あり'},
+    {name:'黒木 健太', age:26, type:'介護職',     income:'月収18万',    guarantee:'保証人あり'},
   ];
   const APPLICANTS_GOOD = [
     {name:'橋本 涼子', age:31, type:'医療従事者', income:'月収32万', guarantee:'保証人あり'},
@@ -9834,12 +9854,16 @@ function generateRoomApplicationCases(){
   const APPLICANTS = rep >= 60
     ? [...APPLICANTS_BASE, ...APPLICANTS_GOOD, ...APPLICANTS_GOOD] // 優良申込者2倍
     : APPLICANTS_BASE;
-  // 既入居者・申込中ケースに登場している名前を除外
+  // 既入居者・申込中ケース・cooldown中元入居者を除外
   const usedNames = new Set();
   G.buildings.forEach(b => b.rooms.forEach(r => { if(r.tenant) usedNames.add(r.tenant.name); }));
   G.cases.filter(c => !c.resolved && c.id && c.id.startsWith('apply_')).forEach(c => {
     const m = c.body && c.body.match(/申込者：([^\s（]+\s*[^\s（]+)/);
     if(m) usedNames.add(m[1].trim());
+  });
+  const _applyTd = (G.year-1)*360 + (G.month-1)*30 + G.day;
+  Object.entries(G.formerTenantCooldowns || {}).forEach(([name, until]) => {
+    if(_applyTd < until) usedNames.add(name);
   });
   const applyChance = rep >= 80 ? 0.75 : rep >= 60 ? 0.65 : 0.55;
   G.buildings.forEach((b, bi) => {
@@ -11894,6 +11918,7 @@ function chooseEvent(idx, useFatigue){
       const _edR = _edB ? (_edB.rooms||[])[ev._targetRi] : null;
       if(_edR && _edR.tenant && _edR.tenant.name === ev._targetTenantName){
         addNews(`🚪 ${_edR.tenant.name}が${_edB.name} ${_edR.num}号室を退去した`);
+        _recordFormerTenant(_edR.tenant.name);
         _edR.tenant = null; _edR.seeking = false;
         scoreOwner(-2, 'tenant_leave');
         removed = true;
@@ -11921,6 +11946,7 @@ function chooseEvent(idx, useFatigue){
       if(minBi >= 0){
         const _r = G.buildings[minBi].rooms[minRi];
         addNews(`🚪 ${_r.tenant.name}が${G.buildings[minBi].name} ${_r.num}号室を退去した`);
+        _recordFormerTenant(_r.tenant.name);
         _r.tenant = null; _r.seeking = false;
         scoreOwner(-2, 'tenant_leave');
         removed = true;
@@ -13508,6 +13534,19 @@ const APPLICANT_NAMES_M = ['田村','西川','中島','松田','渡辺','吉田'
 const APPLICANT_NAMES_F = ['川田','木村','石川','橋本','野田','上田','長谷川','坂田'];
 
 function _rnd(min, max){ return Math.floor(Math.random() * (max - min + 1)) + min; }
+
+// ── 退去者クールダウン管理 ──
+function _recordFormerTenant(name){
+  if(!name) return;
+  const td = (G.year-1)*360 + (G.month-1)*30 + G.day;
+  if(!G.formerTenantCooldowns) G.formerTenantCooldowns = {};
+  G.formerTenantCooldowns[name] = td + 180;
+}
+function isFormerTenantCoolingDown(name){
+  const until = (G.formerTenantCooldowns||{})[name] || 0;
+  const td = (G.year-1)*360 + (G.month-1)*30 + G.day;
+  return td < until;
+}
 
 function generateApplicants(count=3){
   const applicants = [];
@@ -17158,6 +17197,7 @@ function _normalizeSaveData(){
     const _s3ok = _allRoomsN.length > 0 && _allRoomsN.every(r => r.tenant || r.seeking);
     if(_s1ok && _s2ok && _s3ok) G.initialSetupCompleted = true;
   }
+  G.formerTenantCooldowns    ||= {};
   G.resolvedEvents          ||= {};
   G.eventCooldowns       ||= {};
   G.seasonalEventStatus  ||= {};
