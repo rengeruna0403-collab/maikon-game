@@ -2823,6 +2823,10 @@ function advanceDay(){
   updateHeader();
   if(!G._isMonthEnd) showDayFlash();
   G._isMonthEnd = false;
+  // メインストーリー解放条件を日次で評価（ホームタブ未表示でも通知を遅延させない）
+  if(G.tut && G.tut.phase === 'done'){
+    try { _evalMainStoryUnlock(); } catch(e){ console.error('[advanceDay] evalMainStoryUnlock:', e); }
+  }
   console.log('[advanceDay] render start');
   renderTab();
   saveGame();
@@ -12528,7 +12532,12 @@ const MAIN_STORY_CHAPTERS = [
     ],
     learningTheme: '常連客とご縁', reward: null
   },
-  { id:'chapter_3', chapter:3, title:'味をつくる人たち', subtitle:'', status:'planned', unlock:{}, scenes:[], learningTheme:'素材と製造', reward:null },
+  { id:'chapter_3', chapter:3, title:'味をつくる人たち', subtitle:'', status:'implemented',
+    unlock:{ all:[
+      { type:'storyCompleted', chapterId:'chapter_2' },
+      { type:'daysSinceChapterCompleted', chapterId:'chapter_2', minDays:12 }
+    ]},
+    scenes:[], learningTheme:'素材と製造', reward:null },
   { id:'chapter_4', chapter:4, title:'贈る気持ち', subtitle:'', status:'planned', unlock:{}, scenes:[], learningTheme:'贈り物とご縁', reward:null },
   { id:'chapter_5', chapter:5, title:'人に任せるということ', subtitle:'', status:'planned', unlock:{}, scenes:[], learningTheme:'育てる・任せる', reward:null },
   { id:'chapter_6', chapter:6, title:'町とのご縁', subtitle:'', status:'planned', unlock:{}, scenes:[], learningTheme:'地域との関係', reward:null },
@@ -12544,6 +12553,7 @@ function ensureMainStoryState(){
   if(!G.mainStory.completedChapters) G.mainStory.completedChapters=[];
   if(!('pendingChapterId' in G.mainStory)) G.mainStory.pendingChapterId=null;
   if(!G.mainStory.milestonesShown) G.mainStory.milestonesShown=[];
+  if(!G.mainStory.chapterCompletedDays) G.mainStory.chapterCompletedDays={};
 }
 
 function _evalMainStoryUnlock(){
@@ -12577,6 +12587,12 @@ function _evalChapterUnlockCond(c){
     return regs >= c.value;
   }
   if(c.type === 'totalRevenueAtLeast') return (G.totalRevenue || 0) >= c.value;
+  if(c.type === 'daysSinceChapterCompleted'){
+    const _ccd = (G.mainStory && G.mainStory.chapterCompletedDays) ? G.mainStory.chapterCompletedDays[c.chapterId] : undefined;
+    if(_ccd == null) return false;
+    const _nowD = (G.year-1)*360 + (G.month-1)*30 + G.day;
+    return (_nowD - _ccd) >= c.minDays;
+  }
   return false;
 }
 
@@ -12862,6 +12878,10 @@ function showMainStoryChapter(chId, replayMode){
         ensureMainStoryState();
         if(!G.mainStory.completedChapters.includes(chId)){
           G.mainStory.completedChapters.push(chId);
+          if(!G.mainStory.chapterCompletedDays) G.mainStory.chapterCompletedDays={};
+          if(G.mainStory.chapterCompletedDays[chId] == null){
+            G.mainStory.chapterCompletedDays[chId] = (G.year-1)*360 + (G.month-1)*30 + G.day;
+          }
           addHistory('📖', `第${ch.chapter}章「${ch.title}」を読んだ`);
         }
         G.mainStory.pendingChapterId = null;
@@ -17199,6 +17219,21 @@ function _normalizeSaveData(){
   }
   G.formerTenantCooldowns    ||= {};
   G.resolvedEvents          ||= {};
+  // 旧セーブ互換：chapterCompletedDays が存在しない場合に初期化
+  if(G.mainStory && !G.mainStory.chapterCompletedDays) G.mainStory.chapterCompletedDays = {};
+  // 旧セーブ救済：completedChapters に章があるが完了日がない場合は即解放可能にする
+  // (現在日 - 十分大きな値) を設定せず、currentDay そのものを使い minDays=0 で即通過させる。
+  // ただし daysSinceChapterCompleted は現在日との差分を見るため、
+  // 旧セーブに対しては minDays を差し引いた過去日を設定することで「既に経過済み」扱いにする。
+  if(G.mainStory && G.mainStory.completedChapters && G.mainStory.chapterCompletedDays){
+    const _normNowD = (G.year-1)*360 + (G.month-1)*30 + (G.day||1);
+    const _FALLBACK_MIN_DAYS = 999; // 十分大きな値 → 旧セーブは常に条件通過
+    G.mainStory.completedChapters.forEach(chId => {
+      if(G.mainStory.chapterCompletedDays[chId] == null){
+        G.mainStory.chapterCompletedDays[chId] = _normNowD - _FALLBACK_MIN_DAYS;
+      }
+    });
+  }
   G.eventCooldowns       ||= {};
   G.seasonalEventStatus  ||= {};
   G.seasonalBentoStatus  ||= {};
