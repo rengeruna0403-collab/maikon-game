@@ -4172,7 +4172,7 @@ function showStreetScene(){
   // 出会った人のセリフ（出会った場合のみ表示）
   const lines = [];
   if(ch.tanaka && ch.tanaka.met) lines.push({ icon:'🧓', name:'田中さん', line:'毎朝、ありがとう。' });
-  if(ch.yamamoto && ch.yamamoto.met) lines.push({ icon:'👩‍👧', name:'山本さん', line:'息子、\n今では自分でおにぎり作るんですよ。' });
+  if(ch.yamamoto && ch.yamamoto.met) lines.push({ icon:'👩‍👧', name:'山本さん', line:'子ども、\n今では自分でおにぎり作るんですよ。' });
   if(ch.suzuki && ch.suzuki.met) lines.push({ icon:'👨‍🏫', name:'鈴木先生', line:'遠くの学校でも、\n舞昆の話をしました。' });
   if(ch.takahashi && ch.takahashi.met) lines.push({ icon:'💼', name:'高橋さん', line:'出張のたび、\n持って行ってます。' });
   if(ch.kimura && ch.kimura.met) lines.push({ icon:'🎓', name:'木村さん', line:'就職しました。\n……舞昆のおかげで乗り切れた気がします。' });
@@ -4726,7 +4726,7 @@ function _renderStoreScene(s){
   const regularList = [];
   if(ch.tanaka   && ch.tanaka.relation   >= 2) regularList.push({icon:'👴', phrases:['今日もありがとう','また来るよ']});
   if(ch.takahashi && ch.takahashi.relation >= 2) regularList.push({icon:'👨‍💼', phrases:['まとめて注文します','贈り物にします']});
-  if(ch.yamamoto && ch.yamamoto.relation >= 2) regularList.push({icon:'👩', phrases:['また来ちゃった！','娘にも教えます']});
+  if(ch.yamamoto && ch.yamamoto.relation >= 2) regularList.push({icon:'👩', phrases:['また来ちゃった！','子どもにも教えます']});
   const defaultCusts = ['🙂','🧑','👩','👴'];
   const lvPhrases = lv >= 5
     ? ['ここは地域の名店ですね','贈り物はいつもここで','また来ます','法人注文したいんですが','ギフトですか？','ありがとうございました']
@@ -7343,10 +7343,10 @@ const DOMAIN_CASES = [
   { id:'chr_yamamoto_2', conditionOnly:true, repeatable:false, domain:'community', character:'yamamoto',
     sender:'山本真由美', icon:'👩', apCost:5, expireDays:21, category:'ops',
     title:'山本さんから「食べた」の一言',
-    body:'山本さんが小走りで来た。\n\n「……先生、食べたんです。\n\n昨日の朝ご飯、舞昆のおにぎり作ったら——\n全部、食べた。\n\n残さず、全部。\n\n「おかわり」って言ったんです。\nあの子が、ですよ？」\n\n彼女は少し声が震えていた。',
+    body:'山本さんが、いつもより少し明るい顔で入ってきた。\n\n「あれから家でも何度か出してみたんですけど——」\n\n彼女は少し間を置いた。\n\n「うちの子、朝はなかなか食べてくれないことが多いんですよ。\nでも最近、舞昆のおにぎりならちゃんと食べてくれるようになって。\n\nこの前なんて、おかわりまでしたんです。\nあの子が、ですよ？」\n\n「……なんか、うれしくて」',
     choices:[
       {label:'「よかった。またお口に合うものを一緒に探しましょう」と伝える',cost:0,effects:{score:10,rep:4,charLevel:'yamamoto',charNote:'「おかわりって言ったんですよ！」と山本さんが嬉しそうに教えてくれた。',custUp:1,profile:{people:3}},label2:'ご縁+1・来客+1',storyTag:'山本さんの子どもが舞昆おにぎりを全部食べた。「おかわり」と言ったと聞いた。'},
-      {label:'「お子さんの笑顔が見えるようですね」と答える',cost:0,effects:{score:7,charLevel:'yamamoto',rep:3,profile:{people:2}},label2:'ご縁+1',storyTag:'山本さんの喜びを一緒に感じた。'},
+      {label:'「気に入ってもらえたんですね」と答える',cost:0,effects:{score:7,charLevel:'yamamoto',rep:3,profile:{people:2}},label2:'ご縁+1',storyTag:'山本さんの喜びを一緒に感じた。'},
     ]},
 
   { id:'chr_yamamoto_3', conditionOnly:true, repeatable:false, domain:'community', character:'yamamoto',
@@ -7585,10 +7585,10 @@ const DOMAIN_CASES = [
   { id:'chr_yamamoto_shokutaku', conditionOnly:true, repeatable:false, domain:'store', character:'yamamoto',
     sender:'山本真由美', icon:'🌙', apCost:0, category:'ops',
     title:'夜に届いたメッセージ',
-    body:'夜、スマホに短いメッセージが届いた。\n\n「今日も食べられない、って。\n\nため息ついてたら、\nお友達からもらった舞昆おにぎり、出してみたんです。\n\n子どもが、食べた。\n\n「これなら食べる」って。\n\nそしたら私、急に泣けてきて。\n\n……ありがとうございます」',
+    body:'夜、スマホに短いメッセージが届いた。\n\n「今日、子どもがちょっと元気なくて。\n夕飯も全然食べなくて……」\n\n「ため息ついてたら、\n冷蔵庫にあった舞昆おにぎり、出してみたんです。\n\n子どもが、食べた。\n\n「これなら食べる」って。\n\n……ほっとしました。\nありがとうございます」',
     choices:[
       {label:'既読にする',cost:0,effects:{score:18,charLevel:'yamamoto',charNote:'「これなら食べる」「ありがとうございます」夜に届いたメッセージ',customerLoyalty:8,communityBond:8,storeBrand:4,profile:{people:5,community:3}},
-       storyTag:'山本さんから夜にメッセージが届いた。「これなら食べる」と子どもが言った。それだけで、泣けてきたそうだ。'},
+       storyTag:'山本さんから夜にメッセージが届いた。元気がなかった子どもが、舞昆おにぎりだけ食べてくれた。'},
     ]},
 
   // 高橋さん：東京出張に持って行ったら同僚が「それ何？」（転勤前・大阪在住のまま）
