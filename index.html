@@ -2339,6 +2339,20 @@ function getNaritaAgeComment(){
 // ─────────── START GAME ───────────
 function startGame(){
   document.getElementById('intro-modal').style.display='none';
+  // 新規ゲーム: 前周回の状態が引き継がれないようにリセット
+  G.totalRevenue = 0;
+  G.mainStory = null;  // ensureMainStoryState() が再生成する
+  G.tut.phase = 'opening';
+  G.characters = {
+    tanaka:    { met:false, level:0, notes:[], location:null, complete:false },
+    yamamoto:  { met:false, level:0, notes:[], complete:false },
+    suzuki:    { met:false, level:0, notes:[], complete:false },
+    takahashi: { met:false, level:0, notes:[], complete:false },
+    kimura:    { met:false, level:0, notes:[], complete:false },
+    nishimura: { met:false, level:0, notes:[], complete:false },
+    narita:    { met:true,  level:1, notes:[], complete:false },
+    midori:    { met:false, level:0, notes:[], complete:false },
+  };
   addHistory('🌱', '創業 — 舞昆茶屋・桜橋ハイツを引き継ぐ');
   // 初期状態：入居率50%・メニューなし・スタッフなし
   G.buildings[0].rooms[2].tenant=null; // 103空室
@@ -12532,7 +12546,8 @@ const MAIN_STORY_CHAPTERS = [
     unlock: {
       all: [
         { type: 'storyCompleted', chapterId: 'chapter_1' },
-        { type: 'tutDone' }
+        { type: 'tutDone' },
+        { type: 'daysSinceChapterCompleted', chapterId: 'chapter_1', minDays: 12 }
       ],
       any: [
         { type: 'regularCustomersAtLeast', value: 5 },
