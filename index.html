@@ -5518,7 +5518,7 @@ const CASE_POOL = [
        followUp:{days:45, icon:'🤝', sender:'石川（地域）', title:'NPO連携の効果が出てきています',
          body:'石川さんから連絡が来ました。\n\n「連携を始めてからの変化、気づいていますか？\n\n「あのお店が高齢者の昼食を支えている」という話が\n地域の間で広まっています。\n\n口コミや紹介で、\n新しいお客様が少しずつ増えてきていますよ。\n\n地域に根を張る、というのは\nこういうことかもしれませんね」',
          effects:{custRegular:2, rep:5, communityBond:8}}},
-      {label:'様子を見てから判断する',cost:0,effects:{score:3,profile:{finance:2}},label2:'検討中',storyTag:'NPO連携は保留にした。'},
+      {label:'様子を見てから判断する',cost:0,noAP:true,effects:{score:3,profile:{finance:2}},label2:'検討中',storyTag:'NPO連携は保留にした。'},
     ]},
   { id:'narita_diagnosis', conditionOnly:true, sender:'成田（銀行）', icon:'🔍', apCost:15, expireDays:30, category:'mgmt',
     expirePenalty:{credit:-2, news:'🔍 成田との経営者診断の機会を逃した。'},
@@ -6126,10 +6126,12 @@ const CHARACTERS = {
 };
 
 const CHARACTER_PORTRAITS = {
+  kimura:     'assets/characters/kimura_icon.webp',
   midori:     'assets/characters/midori_icon.webp',
   narita:     'assets/characters/narita_icon.webp',
   nishimura:  'assets/characters/nishimura_icon.webp',
   suzuki:     'assets/characters/suzuki_icon.webp',
+  takahashi:  'assets/characters/takahashi_icon.webp',
   tanaka:     'assets/characters/tanaka_icon.webp',
   yamamoto:   'assets/characters/yamamoto_icon.webp',
   ochawanman: 'assets/characters/ochawanman_icon.webp',
@@ -6153,6 +6155,8 @@ function getCharacterPortrait(ev){
     '成田':'narita', 'みどり':'midori', '佐々木みどり':'midori',
     '西村':'nishimura', '鈴木':'suzuki', '田中':'tanaka',
     '山本':'yamamoto', 'お茶碗マン':'ochawanman',
+    '高橋亮':'takahashi', '高橋':'takahashi',
+    '木村さくら':'kimura', '木村':'kimura',
   };
   const sender = ev.sender || '';
   for(const [pat, key] of Object.entries(SENDER_MAP)){
@@ -6561,14 +6565,14 @@ const DOMAIN_CASES = [
       {label:'今回は見送る',cost:0,noAP:true,effects:{score:2,profile:{finance:2}},label2:'機会は次回に',storyTag:'今回は見送った。'},
     ]},
 
-  { id:'ec_start', repeatable:true, domain:'store', sender:'成田（銀行）', icon:'🛒', apCost:25, expireDays:30, category:'strategy',
+  { id:'ec_start', repeatable:true, domain:'store', sender:'成田（銀行）', icon:'🛒', apCost:15, expireDays:30, category:'strategy',
     expirePenalty:{credit:-2, _setCooldown:{id:'ec_start',extra:150}, news:'🛒 オンライン販売の提案を放置した。事業開始が半年遅れる。'},
     title:'オンライン販売の開始提案',
     body:'成田から提案が届きました。\n\n「舞昆は贈答需要が高い商品です。\nEC（ネット通販）を始めれば\n遠方の顧客も取り込めます。\n初期費用は¥300,000程度です」',
     choices:[
-      {label:'EC販売を開始する（¥300,000）',cost:300000,effects:{score:25,credit:3,custUp:10,profile:{risk:4}},label2:'客数+10・信用度+3・拡大路線',storyTag:'オンライン販売を開始した。初月から全国からの注文が届いた。'},
+      {label:'EC販売を開始する（¥300,000）',cost:300000,ap:10,effects:{score:25,credit:3,custUp:10,profile:{risk:4}},label2:'客数+10・信用度+3・拡大路線',storyTag:'オンライン販売を開始した。初月から全国からの注文が届いた。'},
       {label:'まずSNS強化から始める',cost:0,effects:{score:10,custUp:3,profile:{risk:1}},label2:'段階的拡大',storyTag:'SNSを強化してから判断することにした。'},
-      {label:'今は地域密着で行く',cost:0,effects:{score:6,profile:{finance:3,community:2}},label2:'地域集中',storyTag:'地域密着路線を続けることにした。'},
+      {label:'今は地域密着で行く',cost:0,noAP:true,effects:{score:6,profile:{finance:3,community:2}},label2:'地域集中',storyTag:'地域密着路線を続けることにした。'},
     ]},
 
   // ④ スタッフ（mgmt AP10-20）
@@ -7389,7 +7393,7 @@ const DOMAIN_CASES = [
   { id:'chr_takahashi_1', conditionOnly:false, repeatable:false, domain:'store', character:'takahashi',
     sender:'お客様', icon:'👔', apCost:5, expireDays:14, category:'ops',
     title:'急いでいるお客様が来店した',
-    body:'昼前、スーツ姿の男性が慌てた様子で来店しました。\n\n「すみません、急いでて。\n朝早くて何も食べられなくて。\n\nおにぎりだけ持って新幹線に飛び乗らないといけないんですが、\n何かありますか？」',
+    body:'昼前、スーツ姿の男性が慌てた様子で来店しました。\n\n「すみません、急いでて。\n朝早くて何も食べられなくて。\n\nおにぎりだけ持って新幹線に飛び乗らないといけないんですが、\n何かありますか？」\n\n棚の舞昆を手に取りながら、\n「これ、昆布なんですか？」と尋ねました。\n\n会計のとき、\n「高橋といいます。また近くに来たら寄ります」\nと名乗って、足早に出ていきました。',
     choices:[
       {label:'「舞昆のおにぎりをすぐ用意します」と対応する',cost:0,effects:{score:8,custUp:1,charMeet:'takahashi',charNote:'「出張前に舞昆おにぎりを食べた」'},label2:'ご縁スタート',storyTag:'急いでいる高橋さんに、舞昆おにぎりを素早く出した。'},
       {label:'「持ち帰り用もありますよ」と案内する',cost:0,effects:{score:7,custUp:1,charMeet:'takahashi',charNote:'「持ち帰り用があると聞いた」'},label2:'ご縁スタート',storyTag:'持ち帰り案内をした。'},
@@ -7397,8 +7401,8 @@ const DOMAIN_CASES = [
 
   { id:'chr_takahashi_2', conditionOnly:true, repeatable:false, domain:'store', character:'takahashi',
     sender:'高橋亮', icon:'👔', apCost:5, expireDays:14, category:'ops',
-    title:'高橋さんがまた来てくれた',
-    body:'出張帰りらしい高橋さんが疲れた顔で来店しました。\n\n「また来てしまいました。出張が続いていて。\n外食ばかりで胃が疲れるんですよね。\n\n……東京の同僚に、「新幹線で食べてた昆布なんだ？」\nって聞かれまして。\n\n説明しようとしたんですが、うまく言えなくて。\n昆布の佃煮、ということでいいんですか？」',
+    title:'出張帰りの高橋さんが立ち寄った',
+    body:'出張帰りらしい高橋さんが疲れた顔で来店しました。\n\n「出張が続いていて、外食ばかりで胃が疲れるんですよね。\n\n……東京の同僚に、「新幹線で食べてた昆布なんだ？」\nって聞かれまして。\n\n説明しようとしたんですが、うまく言えなくて。\n昆布の佃煮、ということでいいんですか？」',
     choices:[
       {label:'「そうです。ご飯さえ炊けば食べられます」と伝える',cost:0,effects:{score:10,custUp:1,charLevel:'takahashi',charNote:'「ご飯と舞昆があれば食べられると知った」',profile:{people:2}},label2:'ご縁+1・使い方が伝わる',storyTag:'高橋さんに舞昆の使い方を伝えた。「ご飯さえ炊けばいい」という言葉に「それは助かる」と言ってくれた。'},
     ]},
@@ -8027,7 +8031,7 @@ const DOMAIN_CASES = [
          body:'みどりから報告がありました。\n\n「先日の研修で、「聴く」ということを改めて学びました。\n\nお客様が「まあ聞いてよ」と言い出したとき、\n以前の私なら次の接客が気になっていた。\n\n今は「ちゃんと聴けている」という感覚があります。\n\n常連のお客様から「みどりさん、変わったね、いい意味で」\nって言ってもらいました」',
          effects:{storeSat:8, customerLoyalty:5}}},
       {label:'今月は貯めておく',
-       cost:0,
+       cost:0, noAP:true,
        effects:{score:3},
        label2:'キャッシュ維持・長期投資なし',
        storyTag:'今月は貯えておくことにした。成田は「堅実ですね」と言った。'},
