@@ -5844,14 +5844,14 @@ const CASE_POOL = [
       {label:'「まず規模を広げてから考えます」と答える',cost:0,effects:{score:4,naritaTrust:-2},label2:'成田の信頼やや低下',storyTag:''},
     ]},
 
-  { id:'gift_seasonal_proposal', conditionOnly:true, repeatable:false, domain:'store', sender:'常連客', icon:'🌸', apCost:10, expireDays:21, category:'mgmt',
+  { id:'gift_seasonal_proposal', conditionOnly:true, repeatable:true, domain:'store', sender:'常連客', icon:'🌸', apCost:10, expireDays:21, category:'mgmt',
     expirePenalty:{storeBrand:-2, news:'🌸 季節限定ギフトセットの提案を見送った。'},
     title:'「季節ごとのギフトがあると嬉しいんですが」',
     body:'ギフトを購入していただいた常連のお客様から、ひと言いただきました。\n\n「木箱のギフト、先日贈ったらとても喜ばれて。\n\n欲を言えば——\nお中元やお歳暮、季節ごとの贈り物にも\n対応してもらえると嬉しいんです。\n\n「この時期にしか買えない」ものって\n特別感がありますよね。\n\n季節限定のセットとか、いつか出してもらえますか？」',
     choices:[
       {label:'「ぜひ始めます。季節ごとの限定セットを作ります」',cost:30000,effects:{score:15,rep:6,storeBrand:8,communityBond:3,custUp:2,unlockSeasonalGift:true,profile:{finance:1,community:2}},label2:'🌸 季節限定セット販売開始・ブランド+8',storyTag:'季節限定ギフトセットの取り扱いを始めた。「この時期にしか買えない」という特別感が喜ばれた。'},
-      {label:'「少し先になりますが、検討します」',cost:0,effects:{score:5,profile:{finance:1}},label2:'将来の課題として持ち越し',storyTag:'季節限定ギフトの提案は持ち越した。いつか形にしたい。'},
-      {label:'「今は難しいです」と正直に伝える',cost:0,noAP:true,effects:{score:2,storeBrand:-2},label2:'ブランド微減',storyTag:'季節限定ギフトの提案を断った。'},
+      {label:'「少し先になりますが、検討します」',cost:0,effects:{score:5,_setGiftSeasonalRetry:30,profile:{finance:1}},label2:'将来の課題として持ち越し',storyTag:'季節限定ギフトの提案は持ち越した。いつか形にしたい。'},
+      {label:'「今は難しいです」と正直に伝える',cost:0,noAP:true,effects:{score:2,storeBrand:-2,_setGiftSeasonalRetry:30},label2:'ブランド微減',storyTag:'季節限定ギフトの提案を断った。'},
     ]},
 
   { id:'midgame_narita_people', conditionOnly:true, repeatable:false, domain:'bank', sender:'成田（銀行）', icon:'🤝', apCost:5, expireDays:21, category:'strategy',
@@ -8317,6 +8317,11 @@ function checkCaseExpiry(){
     }
     // みどり申し出が期限切れ→再応募フラグリセット
     if(c.id === 'midori_apply') G.tut.midoriShown = false;
+    // 季節限定セット提案が期限切れ→30日後に再提案可能にする
+    if(c.id === 'gift_seasonal_proposal' && G.stores && G.stores[0]){
+      const _expNow = (G.year-1)*360 + (G.month-1)*30 + G.day;
+      G.stores[0].giftSeasonalRetryDay = _expNow + 30;
+    }
   });
 }
 
@@ -9339,14 +9344,23 @@ function generateConditionCases(){
       }
     }
   }
-  // 季節限定セット提案（ギフトコーナー開設30日後・未解放・未提案）
+  // 季節限定セット提案（初回：ギフトコーナー開設30日後、再提案：retryDay経過後）
   {
     const _s0g = G.stores[0];
-    if((_s0g?.giftLevel||0) >= 1 && !_s0g.seasonalGiftUnlocked && !G.cases.some(c => c.id === 'gift_seasonal_proposal')){
-      const _giftOpenDay = _s0g._giftCornerDay || 0;
-      if(totalDays >= _giftOpenDay + 30 && _giftOpenDay > 0){
+    if((_s0g?.giftLevel||0) >= 1 && !_s0g.seasonalGiftUnlocked){
+      const _hasPending = G.cases.some(c => c.id === 'gift_seasonal_proposal' && !c.resolved);
+      if(!_hasPending){
         const _sgBase = CASE_POOL.find(c => c.id === 'gift_seasonal_proposal');
-        if(_sgBase) addCase(_sgBase);
+        const _wasProposed = G.cases.some(c => c.id === 'gift_seasonal_proposal');
+        if(!_wasProposed){
+          // 初回：ギフトコーナー展開後30日
+          const _giftOpenDay = _s0g._giftCornerDay || 0;
+          if(_giftOpenDay > 0 && totalDays >= _giftOpenDay + 30 && _sgBase) addCase(_sgBase);
+        } else {
+          // 再提案：retryDay経過後
+          const _retryDay = _s0g.giftSeasonalRetryDay || 0;
+          if(_retryDay > 0 && totalDays >= _retryDay && _sgBase) addCase(_sgBase);
+        }
       }
     }
   }
@@ -11592,6 +11606,10 @@ function chooseEvent(idx, useFatigue){
     notify('🌸 季節限定ギフトセットの販売を開始しました！', 'gold');
     addStory('季節ごとの限定ギフトセット（お中元・お歳暮など）の取り扱いを始めた。', 'highlight');
     addHistory('🌸', '季節限定ギフトセット販売開始');
+  }
+  if(fx._setGiftSeasonalRetry && G.stores && G.stores[0]){
+    const _srd = (G.year-1)*360 + (G.month-1)*30 + G.day + fx._setGiftSeasonalRetry;
+    G.stores[0].giftSeasonalRetryDay = _srd;
   }
   if(fx.unlockProduct){
     G.unlockedProducts = G.unlockedProducts || [];
@@ -15368,11 +15386,28 @@ function renderStore(){
           <button class="btn btn-gr" style="width:100%;padding:9px;font-size:12px" onclick="expandGiftCorner(${si})">
             🎁 ギフトコーナーを展開する（¥50,000・AP-10）
           </button>`:
-          giftLevel===1?(s.seasonalGiftUnlocked?`
-          <button class="act-btn" style="width:100%;padding:9px;font-size:12px" onclick="strengthenGiftCorner(${si})">
-            ✨ ギフトラインを強化する（¥80,000・法人対応UP）
-          </button>`:`
-          <div style="font-size:11px;color:var(--muted);text-align:center;padding:8px">🔒 季節限定セットを展開するとギフトラインを強化できます</div>`):''}
+          giftLevel===1?(()=>{
+            if(s.seasonalGiftUnlocked){
+              return `<button class="act-btn" style="width:100%;padding:9px;font-size:12px" onclick="strengthenGiftCorner(${si})">
+                ✨ ギフトラインを強化する（¥80,000・法人対応UP）
+              </button><div style="font-size:10px;color:var(--muted);text-align:center;margin-top:6px">ギフトラインを強化すると頒布会を展開できます</div>`;
+            }
+            const _uiNowD = (G.year-1)*360 + (G.month-1)*30 + G.day;
+            const _uiOpenDay = s._giftCornerDay || 0;
+            const _uiRetryDay = s.giftSeasonalRetryDay || 0;
+            const _uiWasPrpsd = (G.cases||[]).some(c => c.id === 'gift_seasonal_proposal');
+            const _uiHasPend  = (G.cases||[]).some(c => c.id === 'gift_seasonal_proposal' && !c.resolved);
+            if(_uiHasPend){
+              return `<div style="font-size:11px;color:var(--accent,#c084fc);text-align:center;padding:8px">🌸 季節限定ギフトの提案が届いています</div>`;
+            }
+            if(_uiWasPrpsd && _uiRetryDay > 0 && _uiNowD < _uiRetryDay){
+              return `<div style="font-size:11px;color:var(--muted);text-align:center;padding:8px">季節限定ギフトは今少し見送り中です。<br>またご相談が届くと思います</div>`;
+            }
+            if(!_uiWasPrpsd && _uiOpenDay > 0 && _uiNowD < _uiOpenDay + 30){
+              return `<div style="font-size:11px;color:var(--muted);text-align:center;padding:8px">ギフト販売を続けていると、<br>新しいギフトの提案が届きそうです</div>`;
+            }
+            return `<div style="font-size:11px;color:var(--muted);text-align:center;padding:8px">🌸 季節限定ギフトの提案が届きそうです</div>`;
+          })():''}
       </div>`;
     })()}
 
@@ -17289,6 +17324,19 @@ function _normalizeSaveData(){
   G.eventCooldowns       ||= {};
   G.seasonalEventStatus  ||= {};
   G.seasonalBentoStatus  ||= {};
+  // ギフトコーナー：旧セーブ互換 + 永久ロック救済
+  if(G.stores && G.stores[0]){
+    G.stores[0].giftSeasonalRetryDay ??= 0;
+    // 旧セーブ救済：提案を見送ったまま retryDay が未設定 → 永久ロック状態を解除
+    const _s0n = G.stores[0];
+    if((_s0n.giftLevel||0) >= 1 && !_s0n.seasonalGiftUnlocked && _s0n.giftSeasonalRetryDay === 0){
+      const _prevProposed = (G.cases||[]).some(c => c.id === 'gift_seasonal_proposal');
+      if(_prevProposed){
+        // 再提案可能日を現在日に設定（次のgenerateConditionCasesで即提案対象になる）
+        _s0n.giftSeasonalRetryDay = (G.year-1)*360 + (G.month-1)*30 + (G.day||1);
+      }
+    }
+  }
   G.cases                ||= [];
   // 旧セーブ救済：met=trueだがlastCaseDayが未定義の場合は現在日を設定
   // （lastCaseDay=0のままだとcharReady(30)が起動初日から満たされてしまう）
