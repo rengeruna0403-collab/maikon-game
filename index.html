@@ -12532,12 +12532,35 @@ const MAIN_STORY_CHAPTERS = [
     ],
     learningTheme: '常連客とご縁', reward: null
   },
-  { id:'chapter_3', chapter:3, title:'味をつくる人たち', subtitle:'', status:'implemented',
+  { id:'chapter_3', chapter:3, title:'ひとりでやらなくていい', subtitle:'店は、ひとりでは育たない',
+    status:'implemented',
     unlock:{ all:[
       { type:'storyCompleted', chapterId:'chapter_2' },
-      { type:'daysSinceChapterCompleted', chapterId:'chapter_2', minDays:12 }
+      { type:'daysSinceChapterCompleted', chapterId:'chapter_2', minDays:12 },
+      { type:'resolvedCasesAtLeast', value:8 }
     ]},
-    scenes:[], learningTheme:'素材と製造', reward:null },
+    scenes:[
+      {
+        speaker:'ナレーション',
+        text:'経営を始めたばかりの頃、\n一日の仕事は単純だった。\n\n店を開ける。\nお客様を迎える。\n閉める。\n\nそれだけで精一杯だった。\n\nあれからしばらく経って、\nやることの種類が増えていた。\n\n注文の確認、物件のやり取り、\n地域からの連絡、案件の対応。\n\n気づけば、\n一日の中で考えることが\n随分と増えていた。'
+      },
+      {
+        speaker:'あなた',
+        text:'最初は店だけ見ていればよかったのに——\n\nそう思いながら、\nそれでも悪い気はしなかった。\n\nふと店のほうに目をやると、\n誰かがお客様に声をかけていた。\n\nスタッフか、なじみのお客様か。\n地域の誰かかもしれない。\n\nいずれにしても、\n自分ひとりの場所ではなくなっていた。'
+      },
+      {
+        speaker:'成田（銀行員）',
+        portrait:'narita',
+        text:'最初の頃と比べて、\nずいぶん関わる方が増えましたね。\n\n「全部、ご自分でやるつもりですか？」\n\n成田さんはそう言った。\nいつもどおりの、穏やかな口調で。\n\n「経営者の仕事は、\n全部ひとりでこなすことだけでは\nないと思いますよ。\n\n任せられるところは、\n少し任せてみてもいいのかもしれません。」'
+      },
+      {
+        speaker:'あなた',
+        text:'スタッフ。\nお客様。\n入居者。\n地域の人。\n\n気づいたら、\nここには自分ひとりではなかった。\n\n祖父が残した「ご縁」は、\n過去の話ではなかった。\n\n今、自分の周りにも\n少しずつ新しいご縁ができている。\n\n「全部、自分でやらなくてもいいのか」\n\n店も、アパートも——\nひとりで育てるものではないのかもしれない。',
+        isLast:true,
+        nextGoal:'周りの人たちと一緒に、\n店もアパートもつくっていきましょう。\n誰に何を任せるか、少しずつ考えてみましょう。'
+      }
+    ],
+    learningTheme:'任せることと人と育てること', reward:null },
   { id:'chapter_4', chapter:4, title:'贈る気持ち', subtitle:'', status:'planned', unlock:{}, scenes:[], learningTheme:'贈り物とご縁', reward:null },
   { id:'chapter_5', chapter:5, title:'人に任せるということ', subtitle:'', status:'planned', unlock:{}, scenes:[], learningTheme:'育てる・任せる', reward:null },
   { id:'chapter_6', chapter:6, title:'町とのご縁', subtitle:'', status:'planned', unlock:{}, scenes:[], learningTheme:'地域との関係', reward:null },
@@ -12587,6 +12610,10 @@ function _evalChapterUnlockCond(c){
     return regs >= c.value;
   }
   if(c.type === 'totalRevenueAtLeast') return (G.totalRevenue || 0) >= c.value;
+  if(c.type === 'resolvedCasesAtLeast'){
+    const _rcv = (G.cases||[]).filter(x => x.resolved).length;
+    return _rcv >= c.value;
+  }
   if(c.type === 'daysSinceChapterCompleted'){
     const _ccd = (G.mainStory && G.mainStory.chapterCompletedDays) ? G.mainStory.chapterCompletedDays[c.chapterId] : undefined;
     if(_ccd == null) return false;
@@ -12602,12 +12629,15 @@ const MAIN_STORY_GROWTH_STAGES = [
   { id:'afterChapter1', icon:'🌿', title:'舞昆を知り始めた経営者',
     description:'舞昆を売るだけでなく、\nお客様の食卓へ届ける仕事だと気づきました。' },
   { id:'afterChapter2', icon:'🌿', title:'ご縁を見つめ始めた経営者',
-    description:'売上や常連数の向こうに、\n一人ひとりのお客様がいることに気づきました。' }
+    description:'売上や常連数の向こうに、\n一人ひとりのお客様がいることに気づきました。' },
+  { id:'afterChapter3', icon:'🌳', title:'ひとりではない経営者',
+    description:'全部ひとりでやらなくていい。\n周りの人たちと一緒に、店もアパートも育てていけます。' }
 ];
 
 function getMainStoryGrowthStage(){
   ensureMainStoryState();
   const completed = G.mainStory.completedChapters;
+  if(completed.includes('chapter_3')) return MAIN_STORY_GROWTH_STAGES[3];
   if(completed.includes('chapter_2')) return MAIN_STORY_GROWTH_STAGES[2];
   if(completed.includes('chapter_1')) return MAIN_STORY_GROWTH_STAGES[1];
   return MAIN_STORY_GROWTH_STAGES[0];
@@ -12629,14 +12659,20 @@ function getMainStoryProgressMetrics(){
     ];
   }
 
-  // 第2章完了済み → 第3章への目安（準備中メッセージ）
-  if(completed.includes('chapter_2')){
+  // 第2章完了済み・第3章未完了 → 第3章解放条件を表示
+  if(completed.includes('chapter_2') && !completed.includes('chapter_3')){
     const resolvedCases = (G.cases||[]).filter(c=>c.resolved).length;
     return [
-      { label:'月間売上の安定', value:totalRev, target:1000000, unit:'円', isMoney:true,
-        note:'お店を安定させながら、\n次の物語を待ちましょう。' },
-      { label:'お客様とのご縁', value:resolvedCases, target:10, unit:'件', isMoney:false,
-        note:'相談に向き合うことで、\nお店への理解が深まります。' },
+      { label:'これまでの案件対応', value:resolvedCases, target:8, unit:'件', isMoney:false,
+        note:'相談やご縁に向き合うことで、\n周囲との関わりが深まっていきます。' },
+    ];
+  }
+
+  // 第3章完了済み
+  if(completed.includes('chapter_3')){
+    return [
+      { label:'累計売上', value:totalRev, target:1000000, unit:'円', isMoney:true,
+        note:'お店と地域を一緒に育てながら、\n次の物語を待ちましょう。' },
     ];
   }
 
@@ -12717,9 +12753,20 @@ function _renderMsProgressBlock(){
   ensureMainStoryState();
   const _completedNow = G.mainStory.completedChapters;
   const _isAwaitingCh2 = _completedNow.includes('chapter_1') && !_completedNow.includes('chapter_2');
-  const _progressNote = _isAwaitingCh2
-    ? '常連客5人、または累計売上30万円で\n次の物語が開きます。どちらか達成で解放。'
-    : 'お客様とのご縁を増やし、\nお店を少しずつ成長させましょう。';
+  const _isAwaitingCh3 = _completedNow.includes('chapter_2') && !_completedNow.includes('chapter_3');
+  let _progressNote;
+  if(_isAwaitingCh2){
+    _progressNote = '常連客5人、または累計売上30万円で\n次の物語が開きます。どちらか達成で解放。';
+  } else if(_isAwaitingCh3){
+    const _ch2Day = (G.mainStory.chapterCompletedDays||{}).chapter_2;
+    const _nowD3 = (G.year-1)*360 + (G.month-1)*30 + G.day;
+    const _sinceC2 = _ch2Day != null ? (_nowD3 - _ch2Day) : 999;
+    _progressNote = _sinceC2 >= 12
+      ? '次の物語の準備が整いつつあります。'
+      : '店や地域との関わりを続けてみましょう。\n日々の経営の中で、新しい気づきが生まれそうです。';
+  } else {
+    _progressNote = 'お客様とのご縁を増やし、\nお店を少しずつ成長させましょう。';
+  }
   return `<div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border)">
     <div style="font-size:10px;color:var(--muted);font-weight:700;margin-bottom:6px">次の物語へ向けた目安</div>
     <div style="font-size:11px;color:var(--text);line-height:1.7;margin-bottom:8px;white-space:pre-line">${_progressNote}</div>
@@ -12845,7 +12892,8 @@ function showMainStoryChapter(chId, replayMode){
     const dots = ch.scenes.map((_,i) => `<div class="ms-dot ${i===sceneIdx?'active':''}"></div>`).join('');
     const _learningByChapter = {
       'chapter_1': 'あなたは、<br>舞昆を「売るもの」ではなく<br>「食卓へ届けるもの」と考え始めました。',
-      'chapter_2': '常連客を、<br>ただの人数ではなく、<br>店を選び続けてくれる一人ひとりとして<br>見るようになりました。'
+      'chapter_2': '常連客を、<br>ただの人数ではなく、<br>店を選び続けてくれる一人ひとりとして<br>見るようになりました。',
+      'chapter_3': '全部ひとりでやらなくてもいい。<br>店もアパートも、<br>周りの人たちと一緒に育てていけると<br>気づきました。'
     };
     const _learningText = _learningByChapter[chId] || '';
     const nextGoalHtml = (isLast && sc.nextGoal && !replayMode) ? `
@@ -12859,9 +12907,13 @@ function showMainStoryChapter(chId, replayMode){
       </div>` : '';
     const btnLabel = replayMode ? (isLast ? '閉じる' : '次へ') : (isLast ? '物語を閉じる' : '次へ');
     let el = document.getElementById('_ms-modal');
+    const _scPortrait = sc.portrait
+      ? `<img src="assets/characters/${sc.portrait}_icon.webp" class="character-portrait character-portrait--small" alt="" style="margin-bottom:6px">`
+      : '';
     el.innerHTML = `<div class="ms-modal-box">
       <div style="font-size:12px;color:var(--muted);font-weight:600;margin-bottom:10px">第${ch.chapter}章　${ch.title}</div>
       <div class="ms-scene-progress">${dots}</div>
+      ${_scPortrait}
       ${sc.speaker !== 'ナレーション' ? `<div class="ms-scene-speaker">${sc.speaker}</div>` : ''}
       <div class="ms-scene-text" style="white-space:pre-line">${sc.text}</div>
       ${nextGoalHtml}
