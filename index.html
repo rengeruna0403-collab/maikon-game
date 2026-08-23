@@ -264,6 +264,15 @@ body{font-family:'Noto Sans JP',sans-serif;background:var(--bg);color:var(--text
 .ms-scene-progress{display:flex;gap:5px;justify-content:center;margin-bottom:16px}
 .ms-dot{width:6px;height:6px;border-radius:50%;background:var(--border)}
 .ms-dot.active{background:var(--gr)}
+.ms-chapter-header{margin-bottom:12px}
+.ms-chapter-label{font-size:11px;color:var(--muted);font-weight:700;letter-spacing:.08em}
+.ms-chapter-title{margin-top:2px;font-family:'Noto Serif JP',serif;font-size:20px;font-weight:700;line-height:1.4;color:var(--text)}
+.ms-chapter-subtitle{margin-top:3px;font-size:12px;color:var(--muted);line-height:1.6}
+.ms-chapter-hero{display:block;width:100%;aspect-ratio:2/1;object-fit:cover;border-radius:10px;margin-bottom:12px}
+.ms-scene-meta{display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:16px}
+.ms-scene-meta .ms-scene-progress{margin-bottom:0}
+.ms-scene-count{font-size:10px;color:var(--muted);font-weight:700}
+.ms-scene-title{font-family:'Noto Serif JP',serif;font-size:13px;font-weight:700;color:var(--text);margin-bottom:6px}
 /* ACTION INFO CARD (v0.9c) */
 .act-info-card{background:var(--bg2);border-radius:10px;padding:10px 12px;margin-bottom:10px;font-size:12px}
 .act-info-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-top:8px}
@@ -12521,18 +12530,19 @@ const MAIN_STORY_CHAPTERS = [
   {
     id: 'chapter_1', chapter: 1, title: '舞昆って何？',
     subtitle: '引き継いだけれど、知らないことが多い',
+    heroImage: 'assets/story/chapter1_hero.webp',
     status: 'implemented',
     unlock: { all: [
       { type: 'tutDone' },
       { type: 'menuSet' }
     ]},
     scenes: [
-      { speaker: 'あなた', text: 'お客様が舞昆を手にとって、そのまま帰っていく。\n祖父が長年続けてきた光景が、また動き始めた。\nそれだけで、少し胸が温かくなった。' },
-      { speaker: 'あなた', text: 'ところで——\n舞昆って、どんなものなんだろう。\n子どもの頃から身近にあったけれど、改めて聞かれると答えられない。' },
-      { speaker: '成田（銀行員）', text: 'いい質問ですね。\n商品を売るより先に、まずお客様の反応を見てみてください。\nそこに答えがありますよ。' },
-      { speaker: 'ナレーション', text: 'その日の午後、一人のお客様が舞昆をお買い上げになった。\n「これ、ごはんと一緒に食べるのが好きでね。\n毎日の食卓に欠かせないんですよ」' },
-      { speaker: 'あなた', text: '商品を売るだけじゃなくて、\n誰かの食卓へ届ける仕事なんだ。\n——そう気がついた気がした。' },
-      { speaker: 'あなた', text: '次は、舞昆がどうやって作られているのか知りたい。\nこの店を続ければ、もっと見えてくるものがあるかもしれない。',
+      { sceneTitle:'動き始めた光景', speaker: 'あなた', text: 'お客様が舞昆を手にとって、そのまま帰っていく。\n祖父が長年続けてきた光景が、また動き始めた。\nそれだけで、少し胸が温かくなった。' },
+      { sceneTitle:'知っているようで知らない', speaker: 'あなた', text: 'ところで——\n舞昆って、どんなものなんだろう。\n子どもの頃から身近にあったけれど、改めて聞かれると答えられない。' },
+      { sceneTitle:'成田さんの言葉', speaker: '成田（銀行員）', text: 'いい質問ですね。\n商品を売るより先に、まずお客様の反応を見てみてください。\nそこに答えがありますよ。' },
+      { sceneTitle:'食卓のこと', speaker: 'ナレーション', text: 'その日の午後、一人のお客様が舞昆をお買い上げになった。\n「これ、ごはんと一緒に食べるのが好きでね。\n毎日の食卓に欠かせないんですよ」' },
+      { sceneTitle:'届ける仕事', speaker: 'あなた', text: '商品を売るだけじゃなくて、\n誰かの食卓へ届ける仕事なんだ。\n——そう気がついた気がした。' },
+      { sceneTitle:'もっと知りたい', speaker: 'あなた', text: '次は、舞昆がどうやって作られているのか知りたい。\nこの店を続ければ、もっと見えてくるものがあるかもしれない。',
         isLast: true,
         nextGoal: 'お客様とのご縁を増やし、\nお店の売上を伸ばしてみましょう。'
       }
@@ -12542,6 +12552,7 @@ const MAIN_STORY_CHAPTERS = [
   {
     id: 'chapter_2', chapter: 2, title: '祖父が残したご縁',
     subtitle: '数字の向こうに、人がいる',
+    heroImage: 'assets/story/chapter2_hero.webp',
     status: 'implemented',
     unlock: {
       all: [
@@ -12555,14 +12566,14 @@ const MAIN_STORY_CHAPTERS = [
       ]
     },
     scenes: [
-      { speaker: 'ナレーション', text: '店の奥を片づけていると、\n棚の隙間から古い帳面が出てきた。\n\n表紙には、\n祖父の字で「ご注文控え」と書かれている。' },
-      { speaker: 'あなた', text: '注文の数だけが\n書かれているわけじゃない。\n\n名前の横に、\n小さなメモが残っている。' },
-      { speaker: 'ナレーション', text: '「黒舞昆をいつもの数」\n「娘さんが帰省する頃に」\n「固いものは少なめに」\n\n商品の記録というよりも、\nまるで、その人のことを覚えておくための\nメモのようだった。' },
-      { speaker: 'お客様', text: 'この店がまた開いて、\n本当によかった。\n\nおじいさんは、\n私が何を買うかだけじゃなくて、\n家族のことまで覚えてくれていたの。' },
-      { speaker: 'あなた', text: '自分に、\n祖父と同じことができるだろうか。\n\n商品も、お客様のことも、\nまだ知らないことばかりだ。' },
-      { speaker: '成田（銀行員）', text: '同じやり方をする必要はありません。\n\nまずは、\n目の前のお客様が何を望んでいるか、\n少しずつ知っていけばいいと思います。' },
-      { speaker: 'あなた', text: '常連客という数字の向こうに、\n一人ひとりの暮らしがある。\n\n祖父が残したのは、\n売上だけじゃなかったんだ。' },
-      { speaker: 'あなた', text: 'まずは、\nもっとお客様のことを知ろう。\n\nまた来たいと思ってもらえる店を、\n自分なりにつくっていこう。',
+      { sceneTitle:'棚の隙間から', speaker: 'ナレーション', text: '店の奥を片づけていると、\n棚の隙間から古い帳面が出てきた。\n\n表紙には、\n祖父の字で「ご注文控え」と書かれている。' },
+      { sceneTitle:'数ではなく名前', speaker: 'あなた', text: '注文の数だけが\n書かれているわけじゃない。\n\n名前の横に、\n小さなメモが残っている。' },
+      { sceneTitle:'覚えておくためのメモ', speaker: 'ナレーション', text: '「黒舞昆をいつもの数」\n「娘さんが帰省する頃に」\n「固いものは少なめに」\n\n商品の記録というよりも、\nまるで、その人のことを覚えておくための\nメモのようだった。' },
+      { sceneTitle:'また開いて、よかった', speaker: 'お客様', text: 'この店がまた開いて、\n本当によかった。\n\nおじいさんは、\n私が何を買うかだけじゃなくて、\n家族のことまで覚えてくれていたの。' },
+      { sceneTitle:'自分に、できるだろうか', speaker: 'あなた', text: '自分に、\n祖父と同じことができるだろうか。\n\n商品も、お客様のことも、\nまだ知らないことばかりだ。' },
+      { sceneTitle:'成田さんの答え', speaker: '成田（銀行員）', text: '同じやり方をする必要はありません。\n\nまずは、\n目の前のお客様が何を望んでいるか、\n少しずつ知っていけばいいと思います。' },
+      { sceneTitle:'数字の向こう', speaker: 'あなた', text: '常連客という数字の向こうに、\n一人ひとりの暮らしがある。\n\n祖父が残したのは、\n売上だけじゃなかったんだ。' },
+      { sceneTitle:'自分なりのご縁', speaker: 'あなた', text: 'まずは、\nもっとお客様のことを知ろう。\n\nまた来たいと思ってもらえる店を、\n自分なりにつくっていこう。',
         isLast: true,
         nextGoal: '常連客を10人にする、\nまたはお店の安定した売上をつくりましょう。'
       }
@@ -12570,6 +12581,7 @@ const MAIN_STORY_CHAPTERS = [
     learningTheme: '常連客とご縁', reward: null
   },
   { id:'chapter_3', chapter:3, title:'ひとりでやらなくていい', subtitle:'店は、ひとりでは育たない',
+    heroImage:'assets/story/chapter3_hero.webp',
     status:'implemented',
     unlock:{ all:[
       { type:'storyCompleted', chapterId:'chapter_2' },
@@ -12578,19 +12590,23 @@ const MAIN_STORY_CHAPTERS = [
     ]},
     scenes:[
       {
+        sceneTitle:'最初は単純だった',
         speaker:'ナレーション',
         text:'経営を始めたばかりの頃、\n一日の仕事は単純だった。\n\n店を開ける。\nお客様を迎える。\n閉める。\n\nそれだけで精一杯だった。\n\nあれからしばらく経って、\nやることの種類が増えていた。\n\n注文の確認、物件のやり取り、\n地域からの連絡、案件の対応。\n\n気づけば、\n一日の中で考えることが\n随分と増えていた。'
       },
       {
+        sceneTitle:'誰かが声をかけていた',
         speaker:'あなた',
         text:'最初は店だけ見ていればよかったのに——\n\nそう思いながら、\nそれでも悪い気はしなかった。\n\nふと店のほうに目をやると、\n誰かがお客様に声をかけていた。\n\nスタッフか、なじみのお客様か。\n地域の誰かかもしれない。\n\nいずれにしても、\n自分ひとりの場所ではなくなっていた。'
       },
       {
+        sceneTitle:'成田さんの問い',
         speaker:'成田（銀行員）',
         portrait:'narita',
         text:'最初の頃と比べて、\nずいぶん関わる方が増えましたね。\n\n「全部、ご自分でやるつもりですか？」\n\n成田さんはそう言った。\nいつもどおりの、穏やかな口調で。\n\n「経営者の仕事は、\n全部ひとりでこなすことだけでは\nないと思いますよ。\n\n任せられるところは、\n少し任せてみてもいいのかもしれません。」'
       },
       {
+        sceneTitle:'ひとりではない',
         speaker:'あなた',
         text:'スタッフ。\nお客様。\n入居者。\n地域の人。\n\n気づいたら、\nここには自分ひとりではなかった。\n\n祖父が残した「ご縁」は、\n過去の話ではなかった。\n\n今、自分の周りにも\n少しずつ新しいご縁ができている。\n\n「全部、自分でやらなくてもいいのか」\n\n店も、アパートも——\nひとりで育てるものではないのかもしれない。',
         isLast:true,
@@ -12945,11 +12961,26 @@ function showMainStoryChapter(chId, replayMode){
     const btnLabel = replayMode ? (isLast ? '閉じる' : '次へ') : (isLast ? '物語を閉じる' : '次へ');
     let el = document.getElementById('_ms-modal');
     const _scPortrait = sc.portrait
-      ? `<img src="assets/characters/${sc.portrait}_icon.webp" class="character-portrait character-portrait--small" alt="" style="margin-bottom:6px">`
+      ? `<img src="assets/characters/${sc.portrait}_icon.webp" class="character-portrait" alt="" style="margin-bottom:8px">`
+      : '';
+    const _heroHtml = (sceneIdx === 0 && ch.heroImage)
+      ? `<img class="ms-chapter-hero" src="${ch.heroImage}" alt="" onerror="this.style.display='none'">`
+      : '';
+    const _sceneTitleHtml = sc.sceneTitle
+      ? `<div class="ms-scene-title">${sc.sceneTitle}</div>`
       : '';
     el.innerHTML = `<div class="ms-modal-box">
-      <div style="font-size:12px;color:var(--muted);font-weight:600;margin-bottom:10px">第${ch.chapter}章　${ch.title}</div>
-      <div class="ms-scene-progress">${dots}</div>
+      <div class="ms-chapter-header">
+        <div class="ms-chapter-label">第${ch.chapter}章</div>
+        <div class="ms-chapter-title">${ch.title}</div>
+        ${ch.subtitle ? `<div class="ms-chapter-subtitle">${ch.subtitle}</div>` : ''}
+      </div>
+      ${_heroHtml}
+      <div class="ms-scene-meta">
+        <span class="ms-scene-count">${sceneIdx + 1} / ${total}</span>
+        <div class="ms-scene-progress">${dots}</div>
+      </div>
+      ${_sceneTitleHtml}
       ${_scPortrait}
       ${sc.speaker !== 'ナレーション' ? `<div class="ms-scene-speaker">${sc.speaker}</div>` : ''}
       <div class="ms-scene-text" style="white-space:pre-line">${sc.text}</div>
@@ -12972,6 +13003,7 @@ function showMainStoryChapter(chId, replayMode){
             G.mainStory.chapterCompletedDays[chId] = (G.year-1)*360 + (G.month-1)*30 + G.day;
           }
           addHistory('📖', `第${ch.chapter}章「${ch.title}」を読んだ`);
+          notify(`📖 第${ch.chapter}章「${ch.title}」完了`, 'gold');
         }
         G.mainStory.pendingChapterId = null;
         saveGame();
