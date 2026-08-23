@@ -275,17 +275,17 @@ body{font-family:'Noto Sans JP',sans-serif;background:var(--bg);color:var(--text
 .ms-scene-title{font-family:'Noto Serif JP',serif;font-size:13px;font-weight:700;color:var(--text);margin-bottom:6px}
 .ms-story-cover{position:relative;width:100%;aspect-ratio:2/1;overflow:hidden;border-radius:12px;margin-bottom:12px}
 .ms-story-cover-img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
-.ms-story-cover-shade{position:absolute;inset:0;background:linear-gradient(90deg,rgba(18,48,30,.96) 0%,rgba(18,48,30,.84) 38%,rgba(18,48,30,.32) 68%,rgba(18,48,30,0) 100%)}
-.ms-story-cover-copy{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;width:58%;padding:18px}
+.ms-story-cover-shade{position:absolute;inset:0;background:linear-gradient(90deg,rgba(18,48,30,.96) 0%,rgba(18,48,30,.92) 28%,rgba(18,48,30,.68) 38%,rgba(18,48,30,.18) 48%,rgba(18,48,30,0) 58%)}
+.ms-story-cover-copy{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;width:43%;padding:14px}
 .ms-story-cover-label{font-size:11px;color:#e3c575;font-weight:700}
-.ms-story-cover-title{margin-top:4px;font-family:'Noto Serif JP',serif;font-size:23px;font-weight:700;color:#fff;line-height:1.35}
+.ms-story-cover-title{margin-top:4px;font-family:'Noto Serif JP',serif;font-size:21px;font-weight:700;color:#fff;line-height:1.35}
 .ms-story-cover-subtitle{margin-top:7px;font-size:11px;line-height:1.6;color:#ead89a}
-.ms-story-mini-banner{position:relative;width:100%;height:78px;overflow:hidden;border-radius:10px;margin-bottom:10px}
-.ms-story-mini-img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
-.ms-story-mini-shade{position:absolute;inset:0;background:linear-gradient(90deg,rgba(18,48,30,.94) 0%,rgba(18,48,30,.76) 50%,rgba(18,48,30,.12) 100%)}
-.ms-story-mini-copy{position:absolute;inset:0;display:flex;align-items:center;gap:8px;padding:0 14px;color:#fff}
-.ms-story-mini-copy span{font-size:10px;color:#e3c575}
-.ms-story-mini-copy strong{font-family:'Noto Serif JP',serif;font-size:15px}
+.ms-story-mini-banner{display:flex;width:100%;height:78px;overflow:hidden;border-radius:10px;margin-bottom:10px}
+.ms-story-mini-copy{flex:1;min-width:0;display:flex;flex-direction:column;justify-content:center;padding:0 12px;background:var(--gr3)}
+.ms-story-mini-label{font-size:10px;color:#e3c575;font-weight:700}
+.ms-story-mini-title{font-family:'Noto Serif JP',serif;font-size:14px;font-weight:700;color:#fff;line-height:1.4;margin-top:2px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.ms-story-mini-visual{flex-shrink:0;width:156px;height:78px;overflow:hidden;background:var(--bg2)}
+.ms-story-mini-visual img{width:156px;height:78px;object-fit:contain;display:block}
 /* ACTION INFO CARD (v0.9c) */
 .act-info-card{background:var(--bg2);border-radius:10px;padding:10px 12px;margin-bottom:10px;font-size:12px}
 .act-info-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-top:8px}
@@ -12995,12 +12995,13 @@ function showMainStoryChapter(chId, replayMode){
           </div>
         </div>`;
       } else {
-        _bannerHtml = `<div class="ms-story-mini-banner" style="background:var(--gr3)">
-          <img class="ms-story-mini-img" src="${ch.heroImage}" alt="" onerror="this.style.display='none'">
-          <div class="ms-story-mini-shade"></div>
+        _bannerHtml = `<div class="ms-story-mini-banner">
           <div class="ms-story-mini-copy">
-            <span>第${ch.chapter}章</span>
-            <strong>${ch.title}</strong>
+            <span class="ms-story-mini-label">第${ch.chapter}章</span>
+            <strong class="ms-story-mini-title">${ch.title}</strong>
+          </div>
+          <div class="ms-story-mini-visual">
+            <img src="${ch.heroImage}" alt="" onerror="this.style.display='none'">
           </div>
         </div>`;
       }
