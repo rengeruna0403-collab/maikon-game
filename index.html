@@ -5259,7 +5259,7 @@ const DAILY_EVENTS = [
    body:'松本翼さんが就活の悩みを相談してきました。「地元に帰るか、都市で働くか決められない」と打ち明けました。',
    choices:[
      {label:'一緒に話を聞く（時間を使う）',cost:0,ap:15,effects:{score:12,roomSat:{building:0,room:3,val:18}},
-      label2:'松本さんの満足度UP・オーナー度+12　AP-15',storyTag:'松本翼さんの就活相談に乗った。「支配人が話を聞いてくれた」と喜ばれた。'},
+      label2:'松本さんの満足度UP・オーナー度+12',storyTag:'松本翼さんの就活相談に乗った。「支配人が話を聞いてくれた」と喜ばれた。'},
      {label:'「頑張れ」と声をかけるだけ',cost:0,effects:{score:2},label2:'わずかなつながり',storyTag:'松本さんに声をかけた。'},
    ]},
   {id:'rojiura', prob:.04, icon:'🏚️', title:'空き家オーナーからの相談',
@@ -5314,7 +5314,7 @@ const SERVE_EVENTS = [
     storyContext:'「先週と味が違う。こういうのはちゃんとしてほしい」',
     body:'お客様から「たもぎ茸舞昆定食の味がばらついている」とクレームがありました。',
     choices:[
-      {label:'謝罪してレシピを見直す（AP-10）',cost:0,ap:10,effects:{score:10,storeSat:5},
+      {label:'謝罪してレシピを見直す',cost:0,ap:10,effects:{score:10,storeSat:5},
        label2:'店舗満足度+5・オーナー度+10',storyTag:'クレームを真摯に受け止め、レシピを統一した。'},
       {label:'「ご意見ありがとうございます」と伝える',cost:0,effects:{score:3,storeSat:-2},
        label2:'その場しのぎ',storyTag:'クレームをやり過ごした。'},
@@ -5325,7 +5325,7 @@ const SERVE_EVENTS = [
     storyContext:'スマホを見ていたスタッフが「投稿されましたよ」と教えてくれた。',
     body:'地域の口コミサイトに「静かで落ち着ける」と書かれました。評価は星4つ。',
     choices:[
-      {label:'返信して感謝を伝える（AP-5）',cost:0,ap:5,effects:{score:6,rep:4,custUp:2},
+      {label:'返信して感謝を伝える',cost:0,ap:5,effects:{score:6,rep:4,custUp:2},
        label2:'評判+4・客数+2',storyTag:'口コミに丁寧に返信した。誠実な対応が好評だった。'},
       {label:'そのままにしておく',cost:0,effects:{rep:2},
        label2:'評判が自然に広がる',storyTag:'口コミをそのまま活かした。'},
@@ -5336,7 +5336,7 @@ const SERVE_EVENTS = [
     choices:[
       {label:'「いいね、続けてみて」と任せる',cost:0,effects:{score:12,staffSat:8},
        label2:'スタッフ満足+8・オーナー度+12',storyTag:'スタッフの自主性を認めた。任せることで成長が加速した。'},
-      {label:'「一緒に考えよう」と話し合う（AP-10）',cost:0,ap:10,effects:{score:8,staffSat:12},
+      {label:'「一緒に考えよう」と話し合う',cost:0,ap:10,effects:{score:8,staffSat:12},
        label2:'スタッフ満足+12',storyTag:'スタッフと一緒に接客の改善を考えた。'},
     ]},
 ];
@@ -5381,7 +5381,7 @@ const ISSUE_CARDS = [
     body:'先月と比べて来客数が減少しています。原因を考え、対応策を選んでください。',
     choices:[
       {label:'広告を打つ（¥30,000）',cost:30000,effects:{score:8,custUp:5,rep:3},label2:'客数+5・評判+3',storyTag:'客数減少に対し広告で対応した。'},
-      {label:'メニューを見直す（AP-15）',cost:0,ap:15,effects:{score:10,storeSat:8},label2:'店舗満足+8',storyTag:'メニューを改善して客足を呼び戻した。',
+      {label:'メニューを見直す',cost:0,ap:15,effects:{score:10,storeSat:8},label2:'店舗満足+8',storyTag:'メニューを改善して客足を呼び戻した。',
        followUp:{days:3,icon:'🍱',sender:'スタッフ',title:'メニュー見直しの手ごたえがありました',body:'スタッフから報告がありました。\n\n「人気商品の配置を変えたり、\n試食の出し方を工夫してみたところ——\n\nお客様が以前より商品をじっくり\n見てくださるようになりました。\n\n「これ、美味しそうですね」という声も\n少し増えた気がします。\n\n地道な改善が、少しずつ伝わっているようです。」',effects:{custBonusPerDay:1, custBonusDays:21, rep:2, score:5, source:'menu_review'}}},
       {label:'しばらく様子を見る',cost:0,effects:{score:-3},label2:'現状維持',storyTag:'客数減少を一時的なものと判断した。'},
     ]},
@@ -5389,13 +5389,13 @@ const ISSUE_CARDS = [
     body:'スタッフの表情が暗くなっています。「最近、少し辛くて…」と打ち明けてくれました。',
     choices:[
       {label:'シフトを減らして休ませる',cost:0,effects:{score:12,staffSat:15},label2:'スタッフ満足+15',storyTag:'スタッフの休養を優先した。少し表情が戻ってきた。'},
-      {label:'面談して話を聞く（AP-15）',cost:0,ap:15,effects:{score:15,staffSat:20},label2:'スタッフ満足+20・オーナー度+15',storyTag:'スタッフと面談した。「聞いてもらえただけで楽になりました」と言ってくれた。'},
+      {label:'面談して話を聞く',cost:0,ap:15,effects:{score:15,staffSat:20},label2:'スタッフ満足+20・オーナー度+15',storyTag:'スタッフと面談した。「聞いてもらえただけで楽になりました」と言ってくれた。'},
       {label:'「もう少し頑張ってほしい」と伝える',cost:0,effects:{score:-5,staffSat:-10},label2:'スタッフ満足-10',storyTag:'無理をお願いした。しばらく不満が続きそうだ。'},
     ]},
   { id:'competitor', icon:'🏪', title:'近隣に競合店が出来た',
     body:'近くに新しい定食屋がオープンしました。価格は少し安め。どう対応しますか？',
     choices:[
-      {label:'価格はそのまま、質で差別化する（AP-10）',cost:0,ap:10,effects:{score:12,storeSat:6},label2:'店舗満足+6・差別化',storyTag:'価格競争には乗らず、舞昆の強みを磨くことにした。'},
+      {label:'価格はそのまま、質で差別化する',cost:0,ap:10,effects:{score:12,storeSat:6},label2:'店舗満足+6・差別化',storyTag:'価格競争には乗らず、舞昆の強みを磨くことにした。'},
       {label:'メニューを増やして対抗する（¥80,000〜）',cost:80000,effects:{score:8,custUp:3},label2:'客数+3',storyTag:'新メニューで対抗した。'},
       {label:'地域との関係で乗り越える',cost:0,effects:{score:10,rep:5},label2:'評判+5・地域密着',storyTag:'地域のつながりが競合への防御になると判断した。'},
     ]},
@@ -5409,7 +5409,7 @@ const ISSUE_CARDS = [
   { id:'summer_event', conditionOnly:true, minMonth:7, maxMonth:8, icon:'🎆', title:'夏祭りへの出店依頼',
     body:'地域の夏祭り実行委員会から「舞昆茶屋も屋台を出してほしい」と連絡がありました。',
     choices:[
-      {label:'出店する（¥50,000・AP-20）',cost:50000,ap:20,effects:{score:20,rep:12,custUp:5},label2:'評判+12・客数+5',storyTag:'夏祭りに出店した。地域の人に顔を覚えてもらえた。'},
+      {label:'出店する（¥50,000）',cost:50000,ap:20,effects:{score:20,rep:12,custUp:5},label2:'評判+12・客数+5',storyTag:'夏祭りに出店した。地域の人に顔を覚えてもらえた。'},
       {label:'今年は見学だけする',cost:0,effects:{score:3,rep:2},label2:'評判+2',storyTag:'夏祭りを見学した。来年は出店できるかもしれない。'},
       {label:'今回は断る',cost:0,noAP:true,effects:{score:-3},label2:'地域とのつながり薄れる',storyTag:'出店を断った。'},
     ]},
@@ -5470,32 +5470,32 @@ const CASE_POOL = [
     title:'地域イベントの協力依頼',
     body:'地区の石川さんから連絡がありました。\n「来月の桜まつりに舞昆茶屋として出店してもらえませんか？」',
     choices:[
-      {label:'出店する（¥50,000・AP-15）',cost:50000,ap:15,effects:{score:20,rep:12,custUp:3,profile:{community:4}},label2:'地域評判+12・客数+3',storyTag:'桜まつりに出店。地域に顔が売れた。'},
+      {label:'出店する（¥50,000）',cost:50000,ap:15,effects:{score:20,rep:12,custUp:3,profile:{community:4}},label2:'地域評判+12・客数+3',storyTag:'桜まつりに出店。地域に顔が売れた。'},
       {label:'今年は協賛だけする（¥20,000）',cost:20000,effects:{score:8,rep:5,profile:{community:2}},label2:'地域評判+5',storyTag:'桜まつりに協賛した。'},
       {label:'今回は見送る',cost:0,noAP:true,effects:{score:-3,profile:{finance:1}},label2:'地域との距離が少し開く',storyTag:'地域イベントを断った。'},
     ]},
-  { id:'ishikawa_parking', sender:'石川（地域）', icon:'🚗', apCost:15, expireDays:30, category:'mgmt',
+  { id:'ishikawa_parking', sender:'石川（地域）', icon:'🚗', apCost:5, expireDays:30, category:'mgmt',
     title:'駐車場の整備提案',
     body:'石川さんから「空き地を駐車場にすれば入居者が増えるかもしれない」と提案がありました。',
     choices:[
-      {label:'駐車場を整備する（¥200,000）',cost:200000,effects:{score:12,rep:6,profile:{community:2,risk:1}},label2:'物件価値UP・評判+6',storyTag:'駐車場を整備した。利便性が上がった。'},
-      {label:'必要になったら検討する',cost:0,effects:{score:2,profile:{finance:2}},label2:'現状維持',storyTag:'駐車場整備は保留にした。'},
+      {label:'駐車場を整備する（¥200,000）',cost:200000,ap:10,effects:{score:12,rep:6,profile:{community:2,risk:1}},label2:'物件価値UP・評判+6',storyTag:'駐車場を整備した。利便性が上がった。'},
+      {label:'必要になったら検討する',cost:0,noAP:true,effects:{score:2,profile:{finance:2}},label2:'現状維持',storyTag:'駐車場整備は保留にした。'},
     ]},
-  { id:'midori_help', conditionOnly:true, sender:'みどり（スタッフ）', icon:'👩', apCost:10, expireDays:14, category:'mgmt',
+  { id:'midori_help', conditionOnly:true, sender:'みどり（スタッフ）', icon:'👩', apCost:3, expireDays:14, category:'mgmt',
     expirePenalty:{staffSat:-15, news:'👩 みどりの不満が限界に達した。放置した結果、満足度-15'},
     title:'人手が足りていません',
     body:'みどりから相談が来ました。\n「最近お客様が増えてきて、一人では少し大変です。\n誰か入れてもらえませんか？」',
     choices:[
-      {label:'求人を出す（¥30,000）',cost:30000,effects:{score:10,staffSat:10,profile:{people:3}},label2:'スタッフ満足+10',storyTag:'みどりの要望を受けて求人を出した。'},
-      {label:'「もう少し様子を見よう」と伝える',cost:0,effects:{score:-3,staffSat:-8,profile:{finance:1}},label2:'スタッフ不満',storyTag:'みどりの要望を先送りにした。'},
+      {label:'求人を出す（¥30,000）',cost:30000,ap:7,effects:{score:10,staffSat:10,profile:{people:3}},label2:'スタッフ満足+10',storyTag:'みどりの要望を受けて求人を出した。'},
+      {label:'「もう少し様子を見よう」と伝える',cost:0,noAP:true,effects:{score:-3,staffSat:-8,profile:{finance:1}},label2:'スタッフ不満',storyTag:'みどりの要望を先送りにした。'},
     ]},
-  { id:'midori_growth', conditionOnly:true, sender:'みどり（スタッフ）', icon:'🌱', apCost:15, expireDays:21, category:'mgmt',
+  { id:'midori_growth', conditionOnly:true, sender:'みどり（スタッフ）', icon:'🌱', apCost:5, expireDays:21, category:'mgmt',
     expirePenalty:{staffSat:-10, news:'🌱 みどりの研修の機会を見送った。やる気が少し下がった。'},
     title:'研修を受けたい',
     body:'みどりから連絡が来ました。\n「接客の研修を受けてみたいんですが、費用を出してもらえますか？」',
     choices:[
-      {label:'研修を受けさせる（¥50,000）',cost:50000,effects:{score:15,staffSat:15,profile:{people:4}},label2:'スタッフ成長・満足+15',storyTag:'みどりの研修費用を負担した。意欲が高まっている。'},
-      {label:'「自己負担でお願いしたい」と伝える',cost:0,effects:{score:-5,staffSat:-10,profile:{finance:1}},label2:'スタッフ不満',storyTag:'研修費用を断った。みどりは少しがっかりした様子だった。'},
+      {label:'研修を受けさせる（¥50,000）',cost:50000,ap:10,effects:{score:15,staffSat:15,profile:{people:4}},label2:'スタッフ成長・満足+15',storyTag:'みどりの研修費用を負担した。意欲が高まっている。'},
+      {label:'「自己負担でお願いしたい」と伝える',cost:0,noAP:true,effects:{score:-5,staffSat:-10,profile:{finance:1}},label2:'スタッフ不満',storyTag:'研修費用を断った。みどりは少しがっかりした様子だった。'},
     ]},
   { id:'tenant_request', sender:'入居者', icon:'🏠', apCost:5, expireDays:10, category:'ops',
     expirePenalty:{roomSat:{building:0,room:0,val:-15}, news:'🏠 田中さんの要望を放置した。満足度が大幅低下。'},
@@ -5512,7 +5512,7 @@ const CASE_POOL = [
     body:'見知らぬ女性がドアをノックしてきた。\n\n「あの……舞昆茶屋で働かせてもらえませんか。\n\n小学3年生の娘がいて、\n子どもが帰ってくる15時までなら働けます。\n週4日でもいいですか。\n\n接客の経験はあります。\n少しでもお役に立てたら、と思って」\n\n佐々木みどり、38歳。シングルマザー。',
     choices:[
       {label:'採用する（週4日・9〜15時・月給 ¥95,000）',cost:0,effects:{score:15,hireStaff:'midori',profile:{people:3}},label2:'午前〜昼の営業を支えてもらう',storyTag:'佐々木みどりを採用した。「週4日・9〜15時」という条件で、翌週から店に立ってくれることになった。'},
-      {label:'一度面談してから決める（AP-10）',cost:0,ap:10,effects:{score:5,showMidoriInterview:true,profile:{people:2}},label2:'詳しく話を聞いてから判断する',storyTag:'みどりと面談の時間を取ることにした。'},
+      {label:'一度面談してから決める',cost:0,ap:10,effects:{score:5,showMidoriInterview:true,profile:{people:2}},label2:'詳しく話を聞いてから判断する',storyTag:'みどりと面談の時間を取ることにした。'},
       {label:'今は難しい',cost:0,noAP:true,effects:{score:-2,profile:{finance:2}},label2:'引き続き一人で続ける',storyTag:'みどりの申し出を断った。一人で続けることにした。'},
     ]},
 
@@ -5530,14 +5530,14 @@ const CASE_POOL = [
     body:'みどりから再び連絡が来た。\n\n「以前お断りされたんですが、\nまた来てしまいました。\n\n最近、舞昆茶屋さんがとても忙しそうで……\n一人では大変ではないかと思って。\n\n娘が学校に行っている間だけで構いません。\n9時から15時、週4日。\n\nもう一度だけ考えていただけませんか？」',
     choices:[
       {label:'「採用します」と答える（週4日・9〜15時・月給 ¥95,000）',cost:0,effects:{score:18,hireStaff:'midori',profile:{people:4}},label2:'午前〜昼の営業を支えてもらう',storyTag:'みどりの再応募を受け入れた。「ありがとうございます」と深く頭を下げた。'},
-      {label:'面談してから決める（AP-10）',cost:0,ap:10,effects:{score:6,showMidoriInterview:true,profile:{people:2}},label2:'面談して判断',storyTag:'みどりともう一度面談することにした。'},
+      {label:'面談してから決める',cost:0,ap:10,effects:{score:6,showMidoriInterview:true,profile:{people:2}},label2:'面談して判断',storyTag:'みどりともう一度面談することにした。'},
       {label:'「まだ難しい」と伝える',cost:0,noAP:true,effects:{score:-4,profile:{finance:2}},label2:'疲労は続く',storyTag:'再度断った。みどりは「わかりました」と静かに去った。'},
     ]},
   { id:'regular_feedback', sender:'常連客代表', icon:'☕', apCost:10, expireDays:21, category:'ops',
     title:'常連さんからの意見',
     body:'常連のお客様から手紙が届きました。\n「舞昆茶屋は好きですが、夜も営業してほしいです。夜にしか来られないお客様もいると思うので」',
     choices:[
-      {label:'夜間営業を検討する（AP-10）',cost:0,ap:10,effects:{score:12,custUp:4,rep:4,profile:{community:2,risk:1}},label2:'客数+4・評判+4',storyTag:'常連客の意見を受けて夜間営業を検討した。'},
+      {label:'夜間営業を検討する',cost:0,ap:10,effects:{score:12,custUp:4,rep:4,profile:{community:2,risk:1}},label2:'客数+4・評判+4',storyTag:'常連客の意見を受けて夜間営業を検討した。'},
       {label:'昼間営業で質を高める方針を続ける',cost:0,effects:{score:5,profile:{finance:2}},label2:'方針維持',storyTag:'昼間営業の質を高めることで応えることにした。'},
     ]},
   { id:'community_collab', sender:'石川（地域）', icon:'🤝', apCost:25, expireDays:21, category:'strategy', minDay:60,
@@ -5663,25 +5663,25 @@ const CASE_POOL = [
   // ════════════════════════════════════
 
   // ── 店舗 ──
-  { id:'midgame_menu_renewal', repeatable:true, domain:'store', sender:'常連客', icon:'🍱', apCost:15, expireDays:21, category:'ops', minDay:30,
+  { id:'midgame_menu_renewal', repeatable:true, domain:'store', sender:'常連客', icon:'🍱', apCost:5, expireDays:21, category:'ops', minDay:30,
     expirePenalty:{rep:-2, news:'🍱 メニュー刷新の提案を放置した。常連の声が届いていない印象に。'},
     title:'メニューを見直してほしいとの声',
     body:'常連のお客さまから声がかかりました。\n\n「最近、ちょっとマンネリになってきた気がして。\n季節の食材とか、新しいものを試してもらえたら嬉しいな」',
     choices:[
-      {label:'季節メニューのアイデアを一緒に考える',cost:0,effects:{score:12,storeSat:8,custUp:2,storeBrand:3,profile:{community:2}},label2:'顧客満足+・ブランド+',storyTag:'常連さんと一緒に季節メニューを考えた。「こういう店、好きです」と言ってもらえた。'},
-      {label:'「検討します」と答えてそのまま',cost:0,effects:{score:3,storeSat:-2},label2:'信頼やや低下',storyTag:''},
+      {label:'季節メニューのアイデアを一緒に考える',cost:0,ap:10,effects:{score:12,storeSat:8,custUp:2,storeBrand:3,profile:{community:2}},label2:'顧客満足+・ブランド+',storyTag:'常連さんと一緒に季節メニューを考えた。「こういう店、好きです」と言ってもらえた。'},
+      {label:'「検討します」と答えてそのまま',cost:0,noAP:true,effects:{score:3,storeSat:-2},label2:'信頼やや低下',storyTag:''},
     ]},
 
-  { id:'midgame_peak_day', repeatable:true, domain:'store', sender:'スタッフ', requireStaff:true, icon:'🔥', apCost:10, expireDays:7, category:'ops',
+  { id:'midgame_peak_day', repeatable:true, domain:'store', sender:'スタッフ', requireStaff:true, icon:'🔥', apCost:3, expireDays:7, category:'ops',
     expirePenalty:{staffSat:-5, news:'🔥 繁忙期の対応を放置した。スタッフの疲弊が増している。'},
     title:'繁忙期の対応をどうするか',
     body:'スタッフから相談が来ました。\n\n「来週、地域のイベントと重なって、いつもの3倍近い来客が予想されます。\n臨時対応はどうしますか？」',
     choices:[
-      {label:'臨時シフトを組んでしっかり対応する（AP-5）',cost:10000,effects:{score:15,staffSat:5,custUp:5,storeSat:8,profile:{finance:2}},label2:'売上+・スタッフ評価+',storyTag:'臨時シフトを組んだ。繁忙を乗り越え、スタッフが「やりきりました」と言ってくれた。'},
+      {label:'臨時シフトを組んでしっかり対応する',cost:10000,ap:7,effects:{score:15,staffSat:5,custUp:5,storeSat:8,profile:{finance:2}},label2:'売上+・スタッフ評価+',storyTag:'臨時シフトを組んだ。繁忙を乗り越え、スタッフが「やりきりました」と言ってくれた。'},
       {label:'通常通り、できる範囲で対応する',cost:0,effects:{score:5,custUp:1},label2:'無理しない経営',storyTag:'通常通りで対応した。行列にはなったが、なんとか回せた。'},
     ]},
 
-  { id:'midgame_hygiene_check', repeatable:true, domain:'store', sender:'保健所', icon:'🧹', apCost:20, expireDays:14, category:'mgmt', minDay:21,
+  { id:'midgame_hygiene_check', repeatable:true, domain:'store', sender:'保健所', icon:'🧹', apCost:10, expireDays:14, category:'mgmt', minDay:21,
     expirePenalty:{rep:-5, credit:-2, news:'🧹 衛生管理の指摘を放置した。行政からの評価が下がった。'},
     title:'保健所から衛生管理の確認通知',
     bodyVariants:[
@@ -5691,7 +5691,7 @@ const CASE_POOL = [
       '保健所から通知が来ました。\n\n「手洗い設備の衛生チェックを実施しています。\n石けんの設置・手洗いマニュアルの掲示状況を\n写真で報告いただけますか？」',
     ],
     choices:[
-      {label:'記録を整えてきちんと提出する（AP-15）',cost:0,effects:{score:10,rep:4,credit:2,profile:{finance:2}},label2:'評判+・信用+',storyTag:'衛生管理記録を整えて提出した。「模範的な店舗です」と担当者に言われた。'},
+      {label:'記録を整えてきちんと提出する',cost:0,ap:10,effects:{score:10,rep:4,credit:2,profile:{finance:2}},label2:'評判+・信用+',storyTag:'衛生管理記録を整えて提出した。「模範的な店舗です」と担当者に言われた。'},
       {label:'最低限だけ対応して提出する',cost:0,effects:{score:3,rep:0},label2:'義務を果たした',storyTag:''},
     ]},
 
@@ -5747,7 +5747,7 @@ const CASE_POOL = [
     title:'隣室の騒音が気になるとのクレーム',
     body:'入居者の方から相談がありました。\n\n「隣の部屋の音が深夜まで続いていて、眠れない日が続いています。\n一度、注意していただけないでしょうか」',
     choices:[
-      {label:'両方に話を聞いてから丁寧に仲裁する（AP-10）',cost:0,effects:{score:14,rep:5,roomSat:10,communityBond:2,profile:{people:4}},label2:'コミュニティ信頼+',storyTag:'両方の話を丁寧に聞いた。「大家さんが動いてくれた」と評価が上がった。'},
+      {label:'両方に話を聞いてから丁寧に仲裁する',cost:0,effects:{score:14,rep:5,roomSat:10,communityBond:2,profile:{people:4}},label2:'コミュニティ信頼+',storyTag:'両方の話を丁寧に聞いた。「大家さんが動いてくれた」と評価が上がった。'},
       {label:'文書で注意する',cost:0,effects:{score:6,rep:2,roomSat:4},label2:'',storyTag:''},
     ]},
 
@@ -5772,7 +5772,7 @@ const CASE_POOL = [
       return '商店街の組合から声がかかりました。\n\n「今月末に「桜橋マルシェ」を開きます。\n舞昆茶屋さんにも出店していただけると、賑わいが全然違いますので——」';
     },
     choices:[
-      {label:'出店して舞昆を振る舞う（AP-15・¥30,000）',
+      {label:'出店して舞昆を振る舞う（¥30,000）',
        cost:30000,
        effects:{score:14,rep:8,communityBond:6,storeBrand:5,fatigue:15,storeSat:-5,profile:{community:4}},
        label2:'評判+8 / 当日疲労+15・接客遅れ-5',
@@ -5798,13 +5798,13 @@ const CASE_POOL = [
     title:'地域紙の記者が取材に来ました',
     body:'地域の情報誌の記者が訪ねてきました。\n\n「「桜橋の味を守る人々」という特集を組んでいまして。\n舞昆茶屋さんのことを取り上げさせていただけませんか？」',
     choices:[
-      {label:'取材を受ける（AP-10）',
+      {label:'取材を受ける',
        cost:0, ap:7,
        effects:{score:13,rep:8,communityBond:5,storeBrand:6,fatigue:10,storeSat:-3,profile:{community:3}},
        label2:'評判+8・ブランド+6 / 取材対応で当日接客遅れ-3',
        storyTag:'地域紙の取材を受けた。写真撮影や質問対応で半日が過ぎたが、「伝えてもらえる」という手応えがあった。',
        followUp:{days:18,icon:'📰',sender:'地域紙・記者',title:'掲載号が出ました。反響が来ています',body:'記者の方からメッセージが届きました。\n\n「先日の特集号が出ました。\n\n読者から「舞昆茶屋に行ってみたい」という\n反響が届いています。\n\nあと、他紙の記者からも\n「うちでも取り上げたい」と問い合わせがありました。\n\n桜橋の味を守る人、として\n皆さんに届いているようです」',effects:{custBonusPerDay:1,custBonusDays:21,source:'local_paper'}}},
-      {label:'コメントだけ提供する（短時間・AP-3）',
+      {label:'コメントだけ提供する（短時間）',
        cost:0,
        effects:{score:6,rep:3,storeBrand:2,profile:{community:1}},
        label2:'評判+3 / 負担小・効果も小',
@@ -5821,7 +5821,7 @@ const CASE_POOL = [
     title:'小学校から食育授業の依頼',
     body:'地元の小学校から連絡がありました。\n\n「3年生の食育授業で、地元の食材を学ぶ機会を設けています。\n舞昆についてお話しいただけませんか？\n子どもたちが楽しみにしています」',
     choices:[
-      {label:'授業に参加して舞昆の話をする（AP-10）',
+      {label:'授業に参加して舞昆の話をする',
        cost:0,
        effects:{score:14,rep:8,communityBond:8,storeBrand:4,fatigue:12,storeSat:-4,profile:{community:5,people:3}},
        label2:'評判+8・絆+8 / 半日不在で接客遅れ-4・疲労+12',
@@ -5993,7 +5993,7 @@ const CASE_POOL = [
       { label:'看板商品として前面に出す', cost:0, ap:5,
         effects:{ score:12, storeBrand:3, customerLoyalty:2,
                   unlockProduct:'tamogitake_maikon' },
-        label2:'たもぎ茸舞昆が商品コーナーに加わります・AP-5',
+        label2:'たもぎ茸舞昆が商品コーナーに加わります',
         storyTag:'「たもぎ茸舞昆」を看板商品として前面に出すことにした。' },
       { label:'まず試食で反応を見る', cost:0, ap:3,
         effects:{ score:6, storeBrand:1, tamogitakeTastingPending:true },
@@ -6755,7 +6755,7 @@ const DOMAIN_CASES = [
     body:'近隣のスーパーが弁当を大幅値下げしました。\n昼食目当ての客が減る可能性があります。',
     choices:[
       {label:'価格を下げて対抗する',cost:0,effects:{score:5,custUp:2,monthlyBonus:-5000,profile:{risk:2}},label2:'客数+2 / 月利益-5,000',storyTag:'価格競争に参入した。'},
-      {label:'質とサービスで差別化する（AP-10追加）',cost:0,ap:10,effects:{score:12,storeSat:8,profile:{finance:2,community:1}},label2:'店舗満足+8・長期優位',storyTag:'価格ではなく質で勝負することにした。'},
+      {label:'質とサービスで差別化する',cost:0,ap:10,effects:{score:12,storeSat:8,profile:{finance:2,community:1}},label2:'店舗満足+8・長期優位',storyTag:'価格ではなく質で勝負することにした。'},
       {label:'独自の顧客層に集中する',cost:0,effects:{score:8,profile:{finance:2}},label2:'ターゲット絞り込み',storyTag:'スーパーとは違う客層に集中した。'},
     ]},
 
@@ -6776,7 +6776,7 @@ const DOMAIN_CASES = [
     title:'「接客マニュアルが欲しいです」',
     body:'みどりから相談が来ました。\n\n「お客様への声のかけ方や\n試食の出し方、お断りのされ方など……\n基本的なことを確認したくて。\nマニュアルはありますか？」',
     choices:[
-      {label:'一緒に作る（AP追加-10）',cost:0,ap:10,effects:{score:15,staffSat:12,profile:{people:4}},label2:'スタッフ育成・長期的な財産',storyTag:'みどりとマニュアルを一緒に作った。「自分で作ると覚えやすい」とみどりが言った。'},
+      {label:'一緒に作る',cost:0,ap:10,effects:{score:15,staffSat:12,profile:{people:4}},label2:'スタッフ育成・長期的な財産',storyTag:'みどりとマニュアルを一緒に作った。「自分で作ると覚えやすい」とみどりが言った。'},
       {label:'口頭で説明する',cost:0,effects:{score:8,staffSat:5},label2:'即日対応',storyTag:'口頭で説明した。'},
       {label:'「自分で工夫してみて」と伝える',cost:0,effects:{score:3,staffSat:-8},label2:'スタッフ萎縮',storyTag:'任せることにした。みどりは不安そうだった。'},
     ]},
@@ -6850,21 +6850,21 @@ const DOMAIN_CASES = [
       {label:'「確認してから動いて」と注意する',cost:0,effects:{score:5,staffSat:-6},label2:'萎縮リスク',storyTag:'事前確認を求めた。みどりは少し萎縮した。'},
     ]},
 
-  { id:'staff_promotion_discuss', conditionOnly:true, repeatable:false, domain:'staff', sender:'みどり', icon:'⭐', apCost:20, expireDays:21, category:'mgmt',
+  { id:'staff_promotion_discuss', conditionOnly:true, repeatable:false, domain:'staff', sender:'みどり', icon:'⭐', apCost:8, expireDays:21, category:'mgmt',
     title:'主任昇格のご相談',
     body:'みどりが改まって話しかけてきました。\n\n「……あのう、ずっと考えていたんですが。\n私、主任を目指してもいいですか？\n正直、自分に自信がなくて。\nでも、ここで頑張りたいと思っていて」',
     choices:[
-      {label:'「もうその力はある」と伝えて昇格を決める',cost:0,effects:{score:20,staffSat:20,profile:{people:5}},label2:'みどり大成長・店が変わる',storyTag:'みどりの主任昇格を決めた。翌週から表情がまるで違った。'},
+      {label:'「もうその力はある」と伝えて昇格を決める',cost:0,ap:12,effects:{score:20,staffSat:20,profile:{people:5}},label2:'みどり大成長・店が変わる',storyTag:'みどりの主任昇格を決めた。翌週から表情がまるで違った。'},
       {label:'「あともう少し実績を積もう」と伝える',cost:0,effects:{score:8,staffSat:3},label2:'次回に持ち越し',storyTag:'もう少し実績を積んでからと伝えた。'},
     ]},
 
-  { id:'staff_conflict', conditionOnly:true, requireStaff:true, repeatable:true, domain:'staff', sender:'みどり', icon:'⚡', apCost:20, expireDays:7, category:'mgmt',
+  { id:'staff_conflict', conditionOnly:true, requireStaff:true, repeatable:true, domain:'staff', sender:'みどり', icon:'⚡', apCost:10, expireDays:7, category:'mgmt',
     expirePenalty:{staffSat:-10, news:'⚡ スタッフ間の対立を放置した。'},
     title:'スタッフ同士が対立しています',
     body:'みどりから深刻な相談が来ました。\n\n「新しいスタッフさんとうまくいっていなくて。\nシフトの組み方とか、接客スタイルの違いで\n何度かぶつかっていて……」',
     choices:[
-      {label:'両者と個別に話を聞いて場を整える',cost:0,effects:{score:18,staffSat:12,profile:{people:5}},label2:'スタッフ満足+12・組織改善',storyTag:'双方と丁寧に向き合った。「間に入ってもらえて助かった」と言われた。'},
-      {label:'「大人なんだから自分たちで解決して」と伝える',cost:0,effects:{score:3,staffSat:-12},label2:'問題悪化のリスク',storyTag:'自分たちで解決するよう求めた。関係が硬直化した。'},
+      {label:'両者と個別に話を聞いて場を整える',cost:0,ap:10,effects:{score:18,staffSat:12,profile:{people:5}},label2:'スタッフ満足+12・組織改善',storyTag:'双方と丁寧に向き合った。「間に入ってもらえて助かった」と言われた。'},
+      {label:'「大人なんだから自分たちで解決して」と伝える',cost:0,noAP:true,effects:{score:3,staffSat:-12},label2:'問題悪化のリスク',storyTag:'自分たちで解決するよう求めた。関係が硬直化した。'},
     ]},
 
   // TEMPORARILY_DISABLED: 採用直後の早期昇給要求は不自然なため停止中。
@@ -6882,13 +6882,13 @@ const DOMAIN_CASES = [
       {label:'「今は難しい」とだけ伝える',cost:0,noAP:true,effects:{score:-3,staffSat:-12},label2:'不満蓄積・離職リスク',storyTag:'難しいと伝えた。みどりの表情が曇った。'},
     ]},
 
-  { id:'staff_want_independent', conditionOnly:true, repeatable:false, domain:'staff', sender:'みどり', icon:'🌟', apCost:20, expireDays:21, category:'strategy',
+  { id:'staff_want_independent', conditionOnly:true, repeatable:false, domain:'staff', sender:'みどり', icon:'🌟', apCost:8, expireDays:21, category:'strategy',
     title:'「独立してみたいと思っています」',
     body:'みどりから重大な打ち明けがありました。\n\n「……実は、いつかは自分でも\n小さなお店を持ってみたいと思っています。\nここで学んだことを活かして。\nこんなこと言ってすみません」',
     choices:[
-      {label:'「その夢は応援する。ここで磨いて」と伝える',cost:0,effects:{score:25,staffSat:20,profile:{people:5,community:3}},label2:'スタッフの夢を支援・物語の伏線',storyTag:'みどりの夢を応援した。「ここで学んでから独立します」と言ってくれた。'},
+      {label:'「その夢は応援する。ここで磨いて」と伝える',cost:0,ap:12,effects:{score:25,staffSat:20,profile:{people:5,community:3}},label2:'スタッフの夢を支援・物語の伏線',storyTag:'みどりの夢を応援した。「ここで学んでから独立します」と言ってくれた。'},
       {label:'「考え直してほしい」と引き止める',cost:0,effects:{score:5,staffSat:-10},label2:'みどりがっかり',storyTag:'引き止めた。みどりは複雑な表情をした。'},
-      {label:'「面白いね、一緒に計画を立てようか」と提案',cost:0,effects:{score:20,staffSat:15,profile:{people:4,risk:2}},label2:'育成型経営者として',storyTag:'一緒に事業計画を考え始めた。'},
+      {label:'「面白いね、一緒に計画を立てようか」と提案',cost:0,ap:12,effects:{score:20,staffSat:15,profile:{people:4,risk:2}},label2:'育成型経営者として',storyTag:'一緒に事業計画を考え始めた。'},
     ]},
 
   { id:'staff_thanks', conditionOnly:true, repeatable:false, domain:'staff', sender:'みどり', icon:'💌', apCost:5, expireDays:30, category:'ops',
@@ -6981,7 +6981,7 @@ const DOMAIN_CASES = [
     title:'開業後、初めての面談',
     body:'成田から連絡が届きました。\n\n「改めて事業の内容をお伺いできればと思います。\n融資のためというより、\nどんな経営をされたいのかを聞かせてください。\n少しお時間をいただけますか？」',
     choices:[
-      {label:'じっくり話を聞いてもらう（AP追加-10）',cost:0,ap:10,effects:{score:12,credit:3,profile:{finance:1}},label2:'信用度+3・関係構築',storyTag:'成田と初めて腰を据えて話した。「あなたの経営を長く見ていきたい」と言われた。'},
+      {label:'じっくり話を聞いてもらう',cost:0,ap:10,effects:{score:12,credit:3,profile:{finance:1}},label2:'信用度+3・関係構築',storyTag:'成田と初めて腰を据えて話した。「あなたの経営を長く見ていきたい」と言われた。'},
       {label:'概要だけ伝える',cost:0,effects:{score:6,credit:1},label2:'信用度+1',storyTag:'概要を伝えた。'},
     ]},
 
@@ -6997,7 +6997,7 @@ const DOMAIN_CASES = [
     title:'「資金繰り表を作ってみませんか」',
     body:'成田からアドバイスが届きました。\n\n「売上はあるのに現金が少ないことがあります。\n資金繰り表を作ると、\n3か月先の資金状況が見えるようになります。\nお手伝いしますよ」',
     choices:[
-      {label:'一緒に作る（AP追加-10）',cost:0,ap:10,effects:{score:14,credit:4,profile:{finance:3}},label2:'信用度+4・経営管理強化',storyTag:'成田と一緒に資金繰り表を作った。「こんなに見える化できるんですね」と感心した。'},
+      {label:'一緒に作る',cost:0,ap:10,effects:{score:14,credit:4,profile:{finance:3}},label2:'信用度+4・経営管理強化',storyTag:'成田と一緒に資金繰り表を作った。「こんなに見える化できるんですね」と感心した。'},
       {label:'自分でやってみる',cost:0,effects:{score:8,credit:2,profile:{finance:2}},label2:'信用度+2',storyTag:'自分で挑戦してみることにした。'},
       {label:'「まだいいかな」と後回しにする',cost:0,noAP:true,effects:{score:3,profile:{risk:1}},label2:'現状維持',storyTag:'後回しにした。'},
     ]},
@@ -7185,11 +7185,11 @@ const DOMAIN_CASES = [
        storyTag:'今回は見送った。'},
     ]},
 
-  { id:'com_empty_shop', repeatable:false, domain:'community', sender:'商店街会長', icon:'🏚️', apCost:20, expireDays:21, category:'strategy', minDay:90, minRep:30,
+  { id:'com_empty_shop', repeatable:false, domain:'community', sender:'商店街会長', icon:'🏚️', apCost:8, expireDays:21, category:'strategy', minDay:90, minRep:30,
     title:'空き店舗活用会議に招かれた',
     body:'商店街会長から招待が来ました。\n\n「商店街の空き店舗問題を\n一緒に考えてほしいんです。\nあなたのような若い経営者の意見が聞きたい」',
     choices:[
-      {label:'参加して積極的に意見を出す',cost:0,effects:{score:18,rep:10,credit:2,profile:{community:5,risk:1}},label2:'評判+10・信用度+2',storyTag:'会議で積極的に発言した。「あなたに動いてもらいたい」と言われた。',
+      {label:'参加して積極的に意見を出す',cost:0,ap:12,effects:{score:18,rep:10,credit:2,profile:{community:5,risk:1}},label2:'評判+10・信用度+2',storyTag:'会議で積極的に発言した。「あなたに動いてもらいたい」と言われた。',
        followUp:{days:30,icon:'🏚️',sender:'商店街会長',title:'会議での発言が評判を呼んでいます',
          body:'商店街会長から連絡が来ました。\n\n「先日の会議でのあなたの意見、\nほかの事業者にも広まっています。\n\n「若いのにしっかりしてる」って評判でね。\n\n信頼って、こういうところから積み上がるんですよ。」',
          effects:{rep:4,credit:1,source:'empty_shop_active'}}},
@@ -7275,12 +7275,12 @@ const DOMAIN_CASES = [
        storyTag:'今回は難しいと断った。'},
     ]},
 
-  { id:'com_elderly_network', repeatable:false, domain:'community', sender:'地域包括支援センター', icon:'🤲', apCost:20, expireDays:21, category:'strategy', minDay:90, minRep:30,
+  { id:'com_elderly_network', repeatable:false, domain:'community', sender:'地域包括支援センター', icon:'🤲', apCost:8, expireDays:21, category:'strategy', minDay:90, minRep:30,
     title:'高齢者見守りネットワークへの参加依頼',
     body:'地域包括支援センターから連絡が来ました。\n\n「お店に来られる高齢のお客様の\n様子を見守っていただけませんか？\n変化があれば連絡をいただくだけでいいです」\n\n舞昆茶屋が地域インフラになる第一歩です。',
     choices:[
       {label:'参加する（スタッフにも共有する）',
-       cost:0,
+       cost:0,ap:12,
        effects:{score:20,rep:11,communityBond:6,staffSat:-3,profile:{community:6,people:2}},
        label2:'評判+11・絆+6 / みどりにも周知・負担増',
        storyTag:'見守りネットワークに参加し、みどりにも伝えた。「こういうお店が地域に1軒あるだけで違う」と言われた。みどりは「うちのお店って、そういうお店なんですね」と言っていた。',
@@ -8022,7 +8022,7 @@ const DOMAIN_CASES = [
     title:'「この秋、どちらに力を入れますか？」',
     body:'成田さんが珍しく迷いを含んだ声で言いました。\n\n「この秋は、集中する先を一つ決めた方が良いと思っています。\n\n地域との関係をもっと深めるか。\n商品のラインを充実させるか。\n\n両方に少しずつ、では中途半端になりがちです。\nどちらを選びますか？」',
     choices:[
-      {label:'地域活動に集中する（AP-20）',
+      {label:'地域活動に集中する',
        cost:0,
        effects:{score:12, rep:6, communityBond:8, fatigue:10, storeSat:-5},
        label2:'地域評判+6・絆+8 / 商品開発は後回し',
@@ -8030,7 +8030,7 @@ const DOMAIN_CASES = [
        followUp:{days:30, icon:'🌸', sender:'石川（地域）', title:'地域活動が実を結んでいます',
          body:'石川さんから連絡が来ました。\n\n「あなたが地域に出てくれているおかげで、\n商店街の皆さんの見る目が変わってきましたよ。\n\n「あの舞昆のお店」から「桜橋の人」へ。\n\n来月、自治会の懇親会に招待状を出しますね」',
          effects:{custRegular:2, communityBond:5}}},
-      {label:'商品ラインの充実に集中する（¥50,000・AP-20）',
+      {label:'商品ラインの充実に集中する（¥50,000）',
        cost:50000,
        effects:{score:12, storeBrand:8, custUp:3, fatigue:10},
        label2:'ブランド+8・新規客+3 / 地域活動は後回し',
@@ -8077,7 +8077,7 @@ const DOMAIN_CASES = [
     title:'「地域の縁か、隣町への一歩か」',
     body:'石川さんから珍しく込み入った連絡が来ました。\n\n「来月末に「桜橋秋祭り」があります。\n今年は地域の人みんなで作るお祭りで、ぜひあなたにも参加してほしい。\n\nただ——同じ日に、隣町商工会から\n「合同フェアに出店しませんか？」というお誘いも来ているみたいですね。\n\nどちらも大切な機会です。\nでも、どちらかしか行けない。\n何を選びますか？」',
     choices:[
-      {label:'地域の秋祭りに参加する（¥20,000・AP-20）',
+      {label:'地域の秋祭りに参加する（¥20,000）',
        cost:20000,
        effects:{score:14, rep:8, communityBond:10, fatigue:15, custRegular:2, profile:{community:5}},
        label2:'評判+8・絆+10・常連+2 / 体力消耗',
@@ -8085,7 +8085,7 @@ const DOMAIN_CASES = [
        followUp:{days:21, icon:'🌾', sender:'石川（地域）', title:'お祭りのご縁が続いています',
          body:'石川さんから連絡が来ました。\n\n「お祭りでのあなたの姿、みんなが覚えていますよ。\n\n「あの舞昆のお店の方、また出てほしい」\nという声が来ています。\n\n地域に根付いてきましたね」',
          effects:{rep:5, communityBond:5, custRegular:1}}},
-      {label:'隣町フェアに出店する（¥40,000・AP-20）',
+      {label:'隣町フェアに出店する（¥40,000）',
        cost:40000,
        effects:{score:14, custUp:5, storeBrand:7, fatigue:12, profile:{risk:2}},
        label2:'新規客+5・ブランド+7（商圏拡大）',
@@ -8107,7 +8107,7 @@ const DOMAIN_CASES = [
     title:'「近所に競合になりそうなお店が来ます」',
     body:'商店街の組合長から電話が来ました。\n\n「実は——隣の空き店舗に、こだわりの発酵食品を扱うお店が入るそうです。\n\nSNSにも力を入れるとか。\n\nあなたのお店が地域でどれだけ根を張っているかが、勝負になりそうです。\n\n最近、地域のイベントにあまり顔を出せていなかったとしたら——\nこれは少し危ないかもしれません」',
     choices:[
-      {label:'差別化と地域活動を強化する（¥60,000・AP-20）',
+      {label:'差別化と地域活動を強化する（¥60,000）',
        cost:60000,
        effects:{score:15, rep:8, communityBond:8, storeBrand:5, fatigue:15},
        label2:'評判+8・ブランド+5 / 今から巻き返し',
@@ -9002,10 +9002,10 @@ function generateConditionCases(){
         title:'「最近ずっと同じメニューですね」',
         body:`常連の方が少し遠慮がちに言いました。\n\n「${staleMenus[0]}、美味しいんですけど——\nそろそろ新しいものも食べてみたくて。\n\n近所にランチの選択肢が増えてきましたし……」`,
         choices:[
-          { label:'季節メニューを開発する（AP-15・¥20,000）', cost:20000, ap:15,
+          { label:'季節メニューを開発する（¥20,000）', cost:20000, ap:15,
             effects:{ score:15, storeSat:10, custRegular:3, profile:{ community:2 }, pendingMenuId:'__seasonal__' },
             label2:'常連+3・満足度+10・3日後に新メニュー追加', storyTag:'季節の新メニューの開発を始めた。3日後に販売開始予定。' },
-          { label:'試食販売会で反応を見る（AP-10・¥10,000）', cost:10000, ap:10,
+          { label:'試食販売会で反応を見る（¥10,000）', cost:10000, ap:10,
             effects:{ score:8, storeSat:5, custRegular:1 },
             label2:'常連+1・様子見', storyTag:'試食会で新メニューの反応を確認した。' },
           { label:'現状のまま続ける', cost:0,
