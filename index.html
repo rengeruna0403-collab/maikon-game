@@ -13013,7 +13013,7 @@ function showMainStoryChapter(chId, replayMode){
       </div>
       ${_sceneTitleHtml}
       ${_scPortrait}
-      ${sc.speaker !== 'ナレーション' ? `<div class="ms-scene-speaker">${sc.speaker}</div>` : ''}
+      ${sc.speaker !== 'ナレーション' && sc.speaker !== 'あなた' ? `<div class="ms-scene-speaker">${sc.speaker}</div>` : ''}
       <div class="ms-scene-text" style="white-space:pre-line">${sc.text}</div>
       ${nextGoalHtml}
       <button onclick="_msNext()" style="width:100%;padding:12px;background:${isLast?'var(--gr3)':'var(--bg2)'};color:${isLast?'#fff':'var(--text)'};border:${isLast?'none':'1px solid var(--border)'};border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">${btnLabel}</button>
