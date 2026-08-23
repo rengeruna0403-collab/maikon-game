@@ -5432,13 +5432,13 @@ const CASE_POOL = [
         effects:{ score:2 },
         label2:'現状維持', storyTag:'広告はまだ早いと判断した。' },
     ]},
-  { id:'narita_expansion', conditionOnly:true, caseType:'relationship', sender:'成田（銀行）', icon:'💼', apCost:30, expireDays:30, category:'strategy',
+  { id:'narita_expansion', conditionOnly:true, caseType:'relationship', sender:'成田（銀行）', icon:'💼', apCost:20, expireDays:30, category:'strategy',
     expirePenalty:{credit:-3, charNote:'narita', charNoteText:'拡大提案を1ヶ月放置した。少し残念そうだった。', news:'💼 成田からの拡大提案を放置した。「また機会があれば」と言っていた。'},
     title:'「事業拡大のご相談」',
     body:'成田から連絡が入りました。\n\n「みどりさんの採用で、オーナーご自身の時間が増えたようですね。\n\n実は、次の一手を考えてみませんか。\n近隣に空き家が一棟あります。取得すれば賃貸収入が増えます。融資も出せます。」',
     choices:[
       {label:'話を聞く（新目標：空き家取得）', cost:0, effects:{score:10, credit:3, unlockExpansion:true, profile:{risk:3}}, label2:'拡大フェーズへ移行', storyTag:'成田の提案を聞いた。次のステップが見えてきた。'},
-      {label:'今は現状維持でいきます', cost:0, effects:{score:3, profile:{finance:2}}, label2:'いつでも再検討できます', storyTag:'拡大の提案は保留にした。今の経営を固める。'},
+      {label:'今は現状維持でいきます', cost:0, noAP:true, effects:{score:3, profile:{finance:2}}, label2:'いつでも再検討できます', storyTag:'拡大の提案は保留にした。今の経営を固める。'},
     ]},
   { id:'narita_store2_proposal', conditionOnly:true, repeatable:false, domain:'bank', sender:'成田（銀行）', icon:'🏪', apCost:15, expireDays:30, category:'strategy',
     expirePenalty:{credit:-2, news:'🏪 成田からの2号店提案を放置した。'},
@@ -10179,7 +10179,7 @@ function renderCasesBox(){
   function caseRow(c){
     const realIdx = G.cases.indexOf(c);
     const rawAp = c.apCost || 0;
-    const ap = (rawAp > 0 && G.staffUnlocked) ? Math.ceil(rawAp * 0.5) : rawAp;
+    const ap = rawAp;
     const apShort = ap > 0 && G.ap < ap;
     const canFatigue = apShort && (c.category || 'ops') === 'ops';
     const apColor = apShort ? (canFatigue ? 'var(--orange)' : '#e53935') : 'var(--muted)';
@@ -10230,7 +10230,7 @@ function renderCasesBox(){
       </div>
     </div>
     <div style="font-size:10px;color:${apColor};margin-bottom:8px;font-weight:600">
-      🧠 AP ${G.ap} / ${G.apMax}${G.staffUnlocked ? '（割引中）' : ''}${fatigueHtml}
+      🧠 AP ${G.ap} / ${G.apMax}${fatigueHtml}
     </div>
     ${bizItems}
     ${toggleBtn}
@@ -11005,7 +11005,7 @@ function getChoiceImpactIcons(choice){
 function showEventModal(ev){
   if(G.autoTesting){ _autoResolveEvent(); return; }
   const apCostRaw = ev.apCost || 0;
-  const apCost = apCostRaw > 0 && G.staffUnlocked ? Math.ceil(apCostRaw * 0.5) : apCostRaw;
+  const apCost = apCostRaw;
   const apShortfall = apCost > 0 ? Math.max(0, apCost - G.ap) : 0;
   const canUseFatigue = apShortfall > 0 && ev.category === 'ops';
   const apBlocked = apShortfall > 0 && ev.category !== 'ops';
@@ -11424,7 +11424,7 @@ function chooseEvent(idx, useFatigue){
   }
   // AP合算：基本AP + 選択肢追加APを事前に合算し、足りなければ何も消費しない
   const apCostRaw = ev.apCost || 0;
-  const baseCaseAp = apCostRaw > 0 && G.staffUnlocked ? Math.ceil(apCostRaw * 0.5) : apCostRaw;
+  const baseCaseAp = apCostRaw;
   const choiceExtraAp = (choice.noAP || !choice.ap) ? 0 : (choice.ap || 0);
   const totalApNeeded = (choice.noAP ? 0 : baseCaseAp) + choiceExtraAp;
   if(totalApNeeded > 0){
@@ -12349,7 +12349,7 @@ function hireMidori(){
     daysWorked:0, salary:95000, growthPts:0, nextLevel:50, burden:10, satisfaction:75,
   });
   G.stores[0].policy = 'staff'; // 自動的にスタッフ方針へ
-  G.staffUnlocked = true;       // 人材タブ解放（案件AP半減）
+  G.staffUnlocked = true;       // 人材タブ解放
   addStory('佐々木みどりを採用した。週4日・9〜15時のパート勤務。午前から昼の時間帯を支えてもらえる。15時以降はまだ一人だが、これで少し息ができる。','highlight');
   addNews('👩 佐々木みどり 採用（週4日・9〜15時・月給¥95,000）');
   notify('みどりを採用！人材タブが解放されました','gold');
