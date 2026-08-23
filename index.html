@@ -273,6 +273,19 @@ body{font-family:'Noto Sans JP',sans-serif;background:var(--bg);color:var(--text
 .ms-scene-meta .ms-scene-progress{margin-bottom:0}
 .ms-scene-count{font-size:10px;color:var(--muted);font-weight:700}
 .ms-scene-title{font-family:'Noto Serif JP',serif;font-size:13px;font-weight:700;color:var(--text);margin-bottom:6px}
+.ms-story-cover{position:relative;width:100%;aspect-ratio:2/1;overflow:hidden;border-radius:12px;margin-bottom:12px}
+.ms-story-cover-img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.ms-story-cover-shade{position:absolute;inset:0;background:linear-gradient(90deg,rgba(18,48,30,.96) 0%,rgba(18,48,30,.84) 38%,rgba(18,48,30,.32) 68%,rgba(18,48,30,0) 100%)}
+.ms-story-cover-copy{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;width:58%;padding:18px}
+.ms-story-cover-label{font-size:11px;color:#e3c575;font-weight:700}
+.ms-story-cover-title{margin-top:4px;font-family:'Noto Serif JP',serif;font-size:23px;font-weight:700;color:#fff;line-height:1.35}
+.ms-story-cover-subtitle{margin-top:7px;font-size:11px;line-height:1.6;color:#ead89a}
+.ms-story-mini-banner{position:relative;width:100%;height:78px;overflow:hidden;border-radius:10px;margin-bottom:10px}
+.ms-story-mini-img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.ms-story-mini-shade{position:absolute;inset:0;background:linear-gradient(90deg,rgba(18,48,30,.94) 0%,rgba(18,48,30,.76) 50%,rgba(18,48,30,.12) 100%)}
+.ms-story-mini-copy{position:absolute;inset:0;display:flex;align-items:center;gap:8px;padding:0 14px;color:#fff}
+.ms-story-mini-copy span{font-size:10px;color:#e3c575}
+.ms-story-mini-copy strong{font-family:'Noto Serif JP',serif;font-size:15px}
 /* ACTION INFO CARD (v0.9c) */
 .act-info-card{background:var(--bg2);border-radius:10px;padding:10px 12px;margin-bottom:10px;font-size:12px}
 .act-info-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-top:8px}
@@ -12539,7 +12552,7 @@ const MAIN_STORY_CHAPTERS = [
     scenes: [
       { sceneTitle:'動き始めた光景', speaker: 'あなた', text: 'お客様が舞昆を手にとって、そのまま帰っていく。\n祖父が長年続けてきた光景が、また動き始めた。\nそれだけで、少し胸が温かくなった。' },
       { sceneTitle:'知っているようで知らない', speaker: 'あなた', text: 'ところで——\n舞昆って、どんなものなんだろう。\n子どもの頃から身近にあったけれど、改めて聞かれると答えられない。' },
-      { sceneTitle:'成田さんの言葉', speaker: '成田（銀行員）', text: 'いい質問ですね。\n商品を売るより先に、まずお客様の反応を見てみてください。\nそこに答えがありますよ。' },
+      { sceneTitle:'成田さんの言葉', portrait:'narita', speaker: '成田（銀行員）', text: 'いい質問ですね。\n商品を売るより先に、まずお客様の反応を見てみてください。\nそこに答えがありますよ。' },
       { sceneTitle:'食卓のこと', speaker: 'ナレーション', text: 'その日の午後、一人のお客様が舞昆をお買い上げになった。\n「これ、ごはんと一緒に食べるのが好きでね。\n毎日の食卓に欠かせないんですよ」' },
       { sceneTitle:'届ける仕事', speaker: 'あなた', text: '商品を売るだけじゃなくて、\n誰かの食卓へ届ける仕事なんだ。\n——そう気がついた気がした。' },
       { sceneTitle:'もっと知りたい', speaker: 'あなた', text: '次は、舞昆がどうやって作られているのか知りたい。\nこの店を続ければ、もっと見えてくるものがあるかもしれない。',
@@ -12571,7 +12584,7 @@ const MAIN_STORY_CHAPTERS = [
       { sceneTitle:'覚えておくためのメモ', speaker: 'ナレーション', text: '「黒舞昆をいつもの数」\n「娘さんが帰省する頃に」\n「固いものは少なめに」\n\n商品の記録というよりも、\nまるで、その人のことを覚えておくための\nメモのようだった。' },
       { sceneTitle:'また開いて、よかった', speaker: 'お客様', text: 'この店がまた開いて、\n本当によかった。\n\nおじいさんは、\n私が何を買うかだけじゃなくて、\n家族のことまで覚えてくれていたの。' },
       { sceneTitle:'自分に、できるだろうか', speaker: 'あなた', text: '自分に、\n祖父と同じことができるだろうか。\n\n商品も、お客様のことも、\nまだ知らないことばかりだ。' },
-      { sceneTitle:'成田さんの答え', speaker: '成田（銀行員）', text: '同じやり方をする必要はありません。\n\nまずは、\n目の前のお客様が何を望んでいるか、\n少しずつ知っていけばいいと思います。' },
+      { sceneTitle:'成田さんの答え', portrait:'narita', speaker: '成田（銀行員）', text: '同じやり方をする必要はありません。\n\nまずは、\n目の前のお客様が何を望んでいるか、\n少しずつ知っていけばいいと思います。' },
       { sceneTitle:'数字の向こう', speaker: 'あなた', text: '常連客という数字の向こうに、\n一人ひとりの暮らしがある。\n\n祖父が残したのは、\n売上だけじゃなかったんだ。' },
       { sceneTitle:'自分なりのご縁', speaker: 'あなた', text: 'まずは、\nもっとお客様のことを知ろう。\n\nまた来たいと思ってもらえる店を、\n自分なりにつくっていこう。',
         isLast: true,
@@ -12963,19 +12976,42 @@ function showMainStoryChapter(chId, replayMode){
     const _scPortrait = sc.portrait
       ? `<img src="assets/characters/${sc.portrait}_icon.webp" class="character-portrait" alt="" style="margin-bottom:8px">`
       : '';
-    const _heroHtml = (sceneIdx === 0 && ch.heroImage)
-      ? `<img class="ms-chapter-hero" src="${ch.heroImage}" alt="" onerror="this.style.display='none'">`
-      : '';
     const _sceneTitleHtml = sc.sceneTitle
       ? `<div class="ms-scene-title">${sc.sceneTitle}</div>`
       : '';
+    // scene1 → cover、scene2以降 → mini banner、heroImageなし → fallback header
+    let _bannerHtml = '';
+    let _showHeader = true;
+    if(ch.heroImage){
+      _showHeader = false;
+      if(sceneIdx === 0){
+        _bannerHtml = `<div class="ms-story-cover" style="background:var(--gr3)">
+          <img class="ms-story-cover-img" src="${ch.heroImage}" alt="" onerror="this.style.display='none'">
+          <div class="ms-story-cover-shade"></div>
+          <div class="ms-story-cover-copy">
+            <div class="ms-story-cover-label">第${ch.chapter}章</div>
+            <div class="ms-story-cover-title">${ch.title}</div>
+            ${ch.subtitle ? `<div class="ms-story-cover-subtitle">${ch.subtitle}</div>` : ''}
+          </div>
+        </div>`;
+      } else {
+        _bannerHtml = `<div class="ms-story-mini-banner" style="background:var(--gr3)">
+          <img class="ms-story-mini-img" src="${ch.heroImage}" alt="" onerror="this.style.display='none'">
+          <div class="ms-story-mini-shade"></div>
+          <div class="ms-story-mini-copy">
+            <span>第${ch.chapter}章</span>
+            <strong>${ch.title}</strong>
+          </div>
+        </div>`;
+      }
+    }
     el.innerHTML = `<div class="ms-modal-box">
-      <div class="ms-chapter-header">
+      ${_showHeader ? `<div class="ms-chapter-header">
         <div class="ms-chapter-label">第${ch.chapter}章</div>
         <div class="ms-chapter-title">${ch.title}</div>
         ${ch.subtitle ? `<div class="ms-chapter-subtitle">${ch.subtitle}</div>` : ''}
-      </div>
-      ${_heroHtml}
+      </div>` : ''}
+      ${_bannerHtml}
       <div class="ms-scene-meta">
         <span class="ms-scene-count">${sceneIdx + 1} / ${total}</span>
         <div class="ms-scene-progress">${dots}</div>
