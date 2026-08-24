@@ -5507,13 +5507,12 @@ const CASE_POOL = [
       {label:'来月対応すると伝える',cost:0,effects:{score:2,roomSat:{building:0,room:0,val:-3}},label2:'満足度わずかに低下',storyTag:'対応を来月に先送りした。'},
     ]},
   { id:'midori_apply', conditionOnly:true, character:'midori', sender:'佐々木みどり', icon:'👩', apCost:5, expireDays:14, category:'mgmt',
-    expirePenalty:{score:-3, news:'👩 みどりは別の職場を見つけたようだ。一人で続けることになった。'},
+    expirePenalty:{score:-3, news:'👩 今回はみどりとのご縁がつながらなかったようです。'},
     title:'「働かせていただけませんか」',
-    body:'見知らぬ女性がドアをノックしてきた。\n\n「あの……舞昆茶屋で働かせてもらえませんか。\n\n小学3年生の娘がいて、\n子どもが帰ってくる15時までなら働けます。\n週4日でもいいですか。\n\n接客の経験はあります。\n少しでもお役に立てたら、と思って」\n\n佐々木みどり、38歳。シングルマザー。',
+    body:'見知らぬ女性が店を訪ねてきました。\n\n「あの……こちらでスタッフを募集していると聞いたんですが。\n\n子どもの迎えがあるので15時までになりますが、\n週4日くらいなら働けます。\n\n接客の仕事をしていたこともあります。\n\n少しでもお役に立てたら、と思って」\n\n少し緊張した様子で、こちらの返事を待っています。',
     choices:[
-      {label:'採用する（週4日・9〜15時・月給 ¥95,000）',cost:0,effects:{score:15,hireStaff:'midori',profile:{people:3}},label2:'午前〜昼の営業を支えてもらう',storyTag:'佐々木みどりを採用した。「週4日・9〜15時」という条件で、翌週から店に立ってくれることになった。'},
-      {label:'一度面談してから決める',cost:0,ap:10,effects:{score:5,showMidoriInterview:true,profile:{people:2}},label2:'詳しく話を聞いてから判断する',storyTag:'みどりと面談の時間を取ることにした。'},
-      {label:'今は難しい',cost:0,noAP:true,effects:{score:-2,profile:{finance:2}},label2:'引き続き一人で続ける',storyTag:'みどりの申し出を断った。一人で続けることにした。'},
+      {label:'「詳しく話を聞かせてください」',cost:0,effects:{score:5,showMidoriInterview:true,profile:{people:2}},label2:'面談して採用を判断する',storyTag:'スタッフ候補の女性と、詳しく話を聞くことにした。'},
+      {label:'「今は募集が難しいです」',cost:0,noAP:true,effects:{score:-2,profile:{finance:2}},label2:'引き続き一人で続ける',storyTag:'スタッフ募集は難しいと伝えた。一人で続けることにした。',onResolve:'_midoriDecline'},
     ]},
 
   { id:'narita_suggest_hire', conditionOnly:true, sender:'成田（銀行）', icon:'💼', apCost:5, expireDays:21, category:'mgmt',
@@ -5525,13 +5524,12 @@ const CASE_POOL = [
     ]},
 
   { id:'midori_apply_retry', conditionOnly:true, character:'midori', sender:'佐々木みどり', icon:'👩', apCost:5, expireDays:14, category:'mgmt',
-    expirePenalty:{score:-2, news:'👩 みどりは再応募を諦めたようだ。'},
+    expirePenalty:{score:-2, news:'👩 今回もみどりとのご縁がつながらなかったようです。'},
     title:'「もう一度、お願いできませんか」',
     body:'みどりから再び連絡が来た。\n\n「以前お断りされたんですが、\nまた来てしまいました。\n\n最近、舞昆茶屋さんがとても忙しそうで……\n一人では大変ではないかと思って。\n\n娘が学校に行っている間だけで構いません。\n9時から15時、週4日。\n\nもう一度だけ考えていただけませんか？」',
     choices:[
-      {label:'「採用します」と答える（週4日・9〜15時・月給 ¥95,000）',cost:0,effects:{score:18,hireStaff:'midori',profile:{people:4}},label2:'午前〜昼の営業を支えてもらう',storyTag:'みどりの再応募を受け入れた。「ありがとうございます」と深く頭を下げた。'},
-      {label:'面談してから決める',cost:0,ap:10,effects:{score:6,showMidoriInterview:true,profile:{people:2}},label2:'面談して判断',storyTag:'みどりともう一度面談することにした。'},
-      {label:'「まだ難しい」と伝える',cost:0,noAP:true,effects:{score:-4,profile:{finance:2}},label2:'疲労は続く',storyTag:'再度断った。みどりは「わかりました」と静かに去った。'},
+      {label:'「詳しく話を聞かせてください」',cost:0,effects:{score:6,showMidoriInterview:true,profile:{people:2}},label2:'面談して採用を判断する',storyTag:'みどりともう一度詳しく話を聞くことにした。'},
+      {label:'「今はまだ難しいです」',cost:0,noAP:true,effects:{score:-4,profile:{finance:2}},label2:'また一人で続ける',storyTag:'再度断った。みどりは「わかりました」と静かに去った。',onResolve:'_midoriDecline'},
     ]},
   { id:'regular_feedback', sender:'常連客代表', icon:'☕', apCost:10, expireDays:21, category:'ops',
     title:'常連さんからの意見',
@@ -8356,6 +8354,10 @@ function checkCaseExpiry(){
     }
     // みどり申し出が期限切れ→再応募フラグリセット
     if(c.id === 'midori_apply') G.tut.midoriShown = false;
+    // みどり申し出・再応募が期限切れ→30日後に再応募可能
+    if(c.id === 'midori_apply' || c.id === 'midori_apply_retry'){
+      G._midoriRetryDay = (G.year-1)*360+(G.month-1)*30+G.day+30;
+    }
     // 季節限定セット提案が期限切れ→30日後に再提案可能にする
     if(c.id === 'gift_seasonal_proposal' && G.stores && G.stores[0]){
       const _expNow = (G.year-1)*360 + (G.month-1)*30 + G.day;
@@ -8855,8 +8857,9 @@ function generateConditionCases(){
     const fatigue = G.fatigue || 0;
     const alreadyApply      = G.cases.some(c => c.id === 'midori_apply');
     const alreadySuggest    = G.cases.some(c => c.id === 'narita_suggest_hire');
-    const alreadyRetry      = G.cases.some(c => c.id === 'midori_apply_retry');
+    const alreadyRetryActive = G.cases.some(c => c.id === 'midori_apply_retry' && !c.resolved);
     const applyClosed = G.cases.some(c => c.id === 'midori_apply' && c.resolved);
+    const retryDay    = G._midoriRetryDay || 0;
 
     // 第1段階：1年目4月9日相当（totalDays≥99）以降ならいつでもトリガー
     // G.month===4 のみに限定すると、スケジューラ遅延でバックログ期限切れ後に
@@ -8869,8 +8872,8 @@ function generateConditionCases(){
     if(applyClosed && fatigue >= 50 && !alreadySuggest){
       addCase(CASE_POOL.find(c => c.id === 'narita_suggest_hire'));
     }
-    // 第3段階：疲労80以上 → みどり再応募
-    if(fatigue >= 80 && (applyClosed || alreadySuggest) && !alreadyRetry){
+    // 第3段階：30日クールダウン後に再応募（疲労条件不要・旧セーブはretryDay=0で即解放）
+    if(applyClosed && (retryDay === 0 || today >= retryDay) && !alreadyRetryActive){
       addCase(CASE_POOL.find(c => c.id === 'midori_apply_retry'));
     }
   }
@@ -11890,6 +11893,9 @@ function chooseEvent(idx, useFatigue){
       G.futureFlags = G.futureFlags || {};
       G.futureFlags[choice.futureFlag] = (G.year-1)*360 + (G.month-1)*30 + G.day;
     }
+    if(choice.onResolve === '_midoriDecline'){
+      G._midoriRetryDay = (G.year-1)*360+(G.month-1)*30+G.day+30;
+    }
     if(choice.onResolve === '_midoriDreamTold'){
       G._midoriDreamTold = true;
     }
@@ -12160,11 +12166,13 @@ function showMidoriInterviewModal(){
       <div style="text-align:center;font-size:32px;margin-bottom:6px">👩</div>
       <div style="font-size:16px;font-weight:700;text-align:center;margin-bottom:10px;font-family:'Noto Serif JP',serif">面談 — 佐々木みどり</div>
       <div style="background:var(--warm);border-radius:10px;padding:12px 14px;margin-bottom:10px;font-size:13px;line-height:2">
-        「娘が小学3年生で、学校に行っている間は働けます。<br>
-        9時から15時、週4日でお願いできますか。<br>
+        「佐々木みどり、といいます。38歳です。<br>
+        シングルマザーで……子どもが小学3年生で。<br><br>
+        学校に行っている間なら働けます。<br>
+        9時から15時、週4日でお願いできますか。<br><br>
         接客は前の職場で5年やっていました。<br>
-        お客様の顔を覚えるのが得意で……」<br><br>
-        「給料は月9万5千、いただければ。<br>
+        顔を覚えるのが得意で、お客様にもすぐ覚えてもらえるほうで。<br><br>
+        給料は……月9万5千、いただければ助かります。<br>
         よろしくお願いします。」
       </div>
       <div style="background:var(--bg2);border-radius:8px;padding:8px 12px;margin-bottom:14px;font-size:11px;color:var(--muted)">
@@ -12176,7 +12184,7 @@ function showMidoriInterviewModal(){
           <div class="choice-lbl">👩 採用する（週4日・9〜15時・月給 ¥95,000）</div>
           <div class="choice-eff">午前〜昼の接客をカバー・人材タブ解放</div>
         </button>
-        <button class="choice-btn" onclick="document.getElementById('event-modal').style.display='none';addStory('みどりとの面談を終えた。今回は採用を見送ることにした。','normal');renderTab()">
+        <button class="choice-btn" onclick="document.getElementById('event-modal').style.display='none';G._midoriRetryDay=(G.year-1)*360+(G.month-1)*30+G.day+30;addStory('みどりとの面談を終えた。今回は採用を見送ることにした。','normal');renderTab()">
           <div class="choice-lbl">今回は見送る</div>
           <div class="choice-eff">引き続き自分で営業を続ける</div>
         </button>
