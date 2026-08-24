@@ -5714,9 +5714,9 @@ const CASE_POOL = [
        storyTag:'SNSへの投稿を快諾した。どれくらい反応があるかは、しばらく後にわかる。'},
       {label:'「商品のみでお願いします」と条件をつける',
        cost:0,
-       effects:{score:4,custUp:1},
-       label2:'最低限の拡散・効果は小',
-       storyTag:'商品のみという条件で承諾した。'},
+       effects:{score:4,custUp:1,snsProductPost:true},
+       label2:'商品のみ掲載OK・小さな宣伝効果が後日届く',
+       storyTag:'商品のみという条件で承諾した。大きくは広がらなくても、少し知ってもらえるかもしれない。'},
       {label:'「すみません、今日は遠慮させてください」と断る',
        cost:0, noAP:true,
        effects:{score:2},
@@ -9064,11 +9064,13 @@ function generateConditionCases(){
         if(base) addCase(base);
       }
 
-      // ── Phase 1.5：昼の人手不足（顧客18人超・みどり採用済み・昼スタッフ未採用）──
+      // ── Phase 1.5：昼の人手不足（顧客18人超・みどり採用21日後・昼スタッフ未採用）──
       const _hasLunchStaff = G.staff.some(s => s.type === 'lunchStaff');
       const _hasArubaito   = G.staff.some(s => s.type === 'arubaito');
       const _totalGuestsP2 = (G.stores[0].newCustomers||0) + (G.stores[0].regulars||0);
-      if(_totalGuestsP2 >= 18 && !_hasLunchStaff
+      // dw = midori.daysWorked（毎日加算）→ 採用後経過日数として使用
+      // 21日ガード：採用メリット体験 → midori_growth(14日) → 昼問題 の順序を保証
+      if(_totalGuestsP2 >= 18 && dw >= 21 && !_hasLunchStaff
           && !G.cases.some(c => c.id === 'lunch_staff_shortage')){
         const base = DOMAIN_CASES.find(c => c.id === 'lunch_staff_shortage');
         if(base) addCase(base);
@@ -11571,8 +11573,10 @@ function chooseEvent(idx, useFatigue){
     const _roll  = Math.random() * 100;
     const _nowDay = (G.year-1)*360 + (G.month-1)*30 + G.day;
     G.pendingFollowUps = G.pendingFollowUps || [];
+    // 確率設計：bonus=0 → 鳴かず15% / それなり60% / 大成功25%
+    //           bonus=12 → 鳴かず11.4% / それなり50.4% / 大成功38.2%
     if(_roll < 15 - _bonus * 0.3){
-      // ③ 反応なし（約15%、評判高いと少し減る）
+      // 鳴かず飛ばず（約15%、評判高いと少し減る）
       G.pendingFollowUps.push({
         triggerDay: _nowDay + 7,
         icon:'📱', sender:'SNSに投稿してくれたお客さん',
@@ -11581,8 +11585,8 @@ function chooseEvent(idx, useFatigue){
         effects: null,
       });
       addStory('SNSに投稿してもらった。今回はあまり広がらなかったようだ。', 'normal');
-    } else if(_roll < 40 - _bonus * 0.5){
-      // ① 普通に伸びる（約60%）
+    } else if(_roll < 75 - _bonus * 1.1){
+      // それなり（約60%、評判高いと大成功に転換されやすくなる）
       G.pendingFollowUps.push({
         triggerDay: _nowDay + 10,
         icon:'📱', sender:'SNSに投稿してくれたお客さん',
@@ -11592,7 +11596,7 @@ function chooseEvent(idx, useFatigue){
       });
       addStory('SNSに投稿してもらった。じわじわと反応が来ている。', 'normal');
     } else {
-      // ② 大きく伸びる（約25%、評判高いと増える）
+      // 大成功・バズる（約25%、評判・ブランドが育つと起こりやすくなる）
       G.pendingFollowUps.push({
         triggerDay: _nowDay + 8,
         icon:'🔥', sender:'SNSに投稿してくれたお客さん',
@@ -11603,6 +11607,19 @@ function chooseEvent(idx, useFatigue){
       addStory('SNSへの投稿が大きく広がった。来週から新規来店が増えそうだ。', 'highlight');
       notify('🔥 SNS投稿が広がっています！来店が増えそうです', 'gold');
     }
+  }
+  // ── SNS商品のみ投稿（snsProductPost）── 小さな確定宣伝効果
+  if(fx.snsProductPost){
+    const _nowDay2 = (G.year-1)*360 + (G.month-1)*30 + G.day;
+    G.pendingFollowUps = G.pendingFollowUps || [];
+    G.pendingFollowUps.push({
+      triggerDay: _nowDay2 + 9,
+      icon:'📱', sender:'SNSに投稿してくれたお客さん',
+      title:'商品がSNSで紹介された',
+      body:'先日のお客様が、商品の写真をSNSに載せてくれたようです。\n\n大きく広がったわけではないけれど、\n「これ気になる」「食べてみたい」という\nコメントがいくつか付いていたそうです。\n\n少しずつ、舞昆茶屋を知ってくれる人が増えているようだ。',
+      effects:{ storeBrand:1, source:'sns_product' },
+    });
+    addStory('商品のみの掲載を承諾した。大きくはないが、少し知ってもらえたようだ。', 'normal');
   }
   // ── 広告投資抽選（adRoll）──
   // 「大反響」30% / 「普通」55% / 「不発」15% の3段階。地域評判・ブランドで確率補正。
