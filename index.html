@@ -12163,30 +12163,44 @@ function showMidoriInterviewModal(){
   const body = document.getElementById('event-modal-body');
   body.innerHTML = `
     <div style="padding:4px">
-      <div style="text-align:center;font-size:32px;margin-bottom:6px">👩</div>
-      <div style="font-size:16px;font-weight:700;text-align:center;margin-bottom:10px;font-family:'Noto Serif JP',serif">面談 — 佐々木みどり</div>
-      <div style="background:var(--warm);border-radius:10px;padding:12px 14px;margin-bottom:10px;font-size:13px;line-height:2">
-        「佐々木みどり、といいます。38歳です。<br>
-        シングルマザーで……子どもが小学3年生で。<br><br>
-        学校に行っている間なら働けます。<br>
-        9時から15時、週4日でお願いできますか。<br><br>
-        接客は前の職場で5年やっていました。<br>
-        顔を覚えるのが得意で、お客様にもすぐ覚えてもらえるほうで。<br><br>
-        給料は……月9万5千、いただければ助かります。<br>
-        よろしくお願いします。」
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
+        <img class="character-portrait" src="${CHARACTER_PORTRAITS.midori}" alt="佐々木みどり"
+             style="width:72px;height:72px;flex:0 0 72px;border-radius:50%;object-fit:cover"
+             onerror="this.outerHTML='<div style=\\'width:72px;height:72px;border-radius:50%;background:var(--bg2);display:flex;align-items:center;justify-content:center;font-size:2em;flex:0 0 72px\\'>🌿</div>'">
+        <div>
+          <div style="font-size:15px;font-weight:700;font-family:'Noto Serif JP',serif">佐々木みどり</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:2px">スタッフ候補</div>
+        </div>
       </div>
-      <div style="background:var(--bg2);border-radius:8px;padding:8px 12px;margin-bottom:14px;font-size:11px;color:var(--muted)">
-        接客経験5年 ／ 勤務：週4日 9:00〜15:00 ／ 希望月給 ¥95,000<br>
-        ※ 15時以降・定休日はオーナー対応が必要です
+      <div style="background:var(--warm);border-radius:10px;padding:14px 16px;margin-bottom:12px;font-size:13px;line-height:2.1">
+        「佐々木みどりといいます。よろしくお願いします」<br><br>
+        少し緊張した様子で、みどりさんが話し始めました。<br><br>
+        「子どもが小学3年生で、<br>
+        学校に行っている間なら働けます。<br>
+        9時から15時まで、週4日くらいでお願いできたらと思っています」<br><br>
+        「前の職場では、5年ほど接客をしていました。<br>
+        顔を覚えるのは得意な方で……<br>
+        お客様にも、よく覚えてもらえるんです」<br><br>
+        希望する働き方や給与についても確認しました。
+      </div>
+      <div style="background:var(--bg2);border-radius:8px;padding:10px 14px;margin-bottom:16px">
+        <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">勤務条件</div>
+        <div style="display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:12px">
+          <span style="color:var(--muted)">接客経験</span><span>5年</span>
+          <span style="color:var(--muted)">勤務日数</span><span>週4日</span>
+          <span style="color:var(--muted)">勤務時間</span><span>9:00〜15:00</span>
+          <span style="color:var(--muted)">希望月給</span><span>¥95,000</span>
+        </div>
+        <div style="margin-top:8px;font-size:10px;color:var(--muted)">※ 15時以降・定休日はオーナー対応が必要です</div>
       </div>
       <div style="display:flex;flex-direction:column;gap:8px">
         <button class="choice-btn" onclick="hireMidoriFromInterview()">
-          <div class="choice-lbl">👩 採用する（週4日・9〜15時・月給 ¥95,000）</div>
-          <div class="choice-eff">午前〜昼の接客をカバー・人材タブ解放</div>
+          <div class="choice-lbl">佐々木さんにお願いする</div>
+          <div class="choice-eff">午前〜昼の接客を任せられるようになります</div>
         </button>
         <button class="choice-btn" onclick="document.getElementById('event-modal').style.display='none';G._midoriRetryDay=(G.year-1)*360+(G.month-1)*30+G.day+30;addStory('みどりとの面談を終えた。今回は採用を見送ることにした。','normal');renderTab()">
           <div class="choice-lbl">今回は見送る</div>
-          <div class="choice-eff">引き続き自分で営業を続ける</div>
+          <div class="choice-eff">また次の機会に考える</div>
         </button>
       </div>
     </div>`;
