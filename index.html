@@ -7435,10 +7435,11 @@ const DOMAIN_CASES = [
 
   { id:'chr_takahashi_2', conditionOnly:true, repeatable:false, domain:'store', character:'takahashi',
     sender:'高橋亮', icon:'👔', apCost:5, expireDays:14, category:'ops',
-    title:'出張帰りの高橋さんが立ち寄った',
-    body:'出張帰りらしい高橋さんが疲れた顔で来店しました。\n\n「出張が続いていて、外食ばかりで胃が疲れるんですよね。\n\n……東京の同僚に、「新幹線で食べてた昆布なんだ？」\nって聞かれまして。\n\n説明しようとしたんですが、うまく言えなくて。\n昆布の佃煮、ということでいいんですか？」',
+    title:'高橋さんが疲れた顔で来てくれた',
+    body:'高橋さんが少し疲れた顔で来店しました。\n\n「出張が続いていて、外食ばかりで胃が疲れるんですよね。\n\n……東京の同僚に、「新幹線で食べてた昆布なんだ？」\nって聞かれまして。\n\n説明しようとしたんですが、うまく言えなくて。\n昆布の佃煮、ということでいいんですか？」',
     choices:[
       {label:'「そうです。ご飯さえ炊けば食べられます」と伝える',cost:0,effects:{score:10,custUp:1,charLevel:'takahashi',charNote:'「ご飯と舞昆があれば食べられると知った」',profile:{people:2}},label2:'ご縁+1・使い方が伝わる',storyTag:'高橋さんに舞昆の使い方を伝えた。「ご飯さえ炊けばいい」という言葉に「それは助かる」と言ってくれた。'},
+      {label:'「昆布を、舞昆ならではの製法で炊いているんです」と伝える',cost:0,effects:{score:8,custUp:1,charLevel:'takahashi',charNote:'「大阪の昆布文化と製法を聞いた」',profile:{community:1}},label2:'ご縁+1・背景が伝わる',storyTag:'高橋さんに舞昆の由来と製法を話した。「なるほど、大阪らしい」と言ってくれた。'},
     ]},
 
   { id:'chr_takahashi_3', conditionOnly:true, repeatable:false, domain:'store', character:'takahashi',
