@@ -8319,6 +8319,13 @@ function checkCaseExpiry(){
     // ── キャラクターご縁案件は永久保存・失効しない ──
     if(c.character) return;
 
+    // ── requireVacancy案件：満室になった時点でペナルティなし静消去 ──
+    // 生成後に入居が完了した場合、最大21日間表示され続けるバグを防ぐ
+    if(c.requireVacancy && !G.buildings.some(b => b.rooms.some(r => !r.tenant))){
+      c.resolved = true;
+      return;
+    }
+
     // ── 通常の期限切れ処理 ──
     if(!c.expireDays) return;
     if(age < c.expireDays) return;
