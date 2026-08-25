@@ -12302,26 +12302,38 @@ function showLunchStaffModal(){
   const body = document.getElementById('event-modal-body');
   body.innerHTML = `
     <div style="padding:4px">
-      <div style="text-align:center;font-size:32px;margin-bottom:8px">👩‍🍳</div>
-      <div style="font-size:16px;font-weight:700;text-align:center;margin-bottom:6px;font-family:'Noto Serif JP',serif">田村 さくら（28歳）</div>
-      <div style="background:var(--warm);border-radius:10px;padding:12px;margin-bottom:12px;font-size:13px;line-height:1.9">
-        「子どもが幼稚園に通いはじめたので、<br>
-        午前中から昼過ぎなら働けるんです。<br>
-        飲食の経験はカフェで2年ほど。<br>
-        <strong>みどりさんに教えてもらいながら、頑張ります</strong>」
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
+        <div style="width:72px;height:72px;border-radius:50%;background:var(--bg2);display:flex;align-items:center;justify-content:center;font-size:2em;flex:0 0 72px">👩‍🍳</div>
+        <div>
+          <div style="font-size:15px;font-weight:700;font-family:'Noto Serif JP',serif">田村さくら</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:2px">スタッフ候補</div>
+        </div>
       </div>
-      <div style="background:var(--bg2);border-radius:8px;padding:8px 12px;margin-bottom:14px;font-size:11px;color:var(--muted)">
-        28歳・主婦 ／ 勤務：週4日 10:00〜15:00 ／ 希望月給 ¥75,000<br>
-        ※ 昼のピーク時間帯をカバー。みどりの負担が減り、接客品質が上がります
+      <div style="background:var(--warm);border-radius:10px;padding:12px 14px;margin-bottom:10px;font-size:13px;line-height:2">
+        「子どもが幼稚園に通いはじめたので、<br>
+        午前中から昼過ぎまでなら働けます。<br><br>
+        前はカフェで、2年ほど働いていました」<br><br>
+        「みどりさんに教えてもらいながら、<br>
+        頑張りたいと思っています」
+      </div>
+      <div style="background:var(--bg2);border-radius:8px;padding:10px 14px;margin-bottom:12px">
+        <div style="font-size:10px;font-weight:700;color:var(--muted);letter-spacing:.05em;margin-bottom:8px">勤務条件</div>
+        <div style="display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:12px">
+          <span style="color:var(--muted)">勤務</span><span>週4日</span>
+          <span style="color:var(--muted)">時間</span><span>10:00〜15:00</span>
+          <span style="color:var(--muted)">接客経験</span><span>カフェ2年</span>
+          <span style="color:var(--muted)">人件費</span><span style="font-weight:700">月 ¥75,000</span>
+        </div>
+        <div style="margin-top:8px;font-size:10px;color:var(--muted)">※ 昼のピーク時間帯をカバーできます</div>
       </div>
       <div style="display:flex;flex-direction:column;gap:8px">
         <button class="choice-btn" onclick="hireLunchStaff()">
-          <div class="choice-lbl">👩‍🍳 採用する（週4日・10〜15時・月給 ¥75,000）</div>
-          <div class="choice-eff" style="color:var(--gr)">昼の体制が整う・みどりが新人教育に専念できる・月次固定費 +¥75,000</div>
+          <div class="choice-lbl">田村さんにお願いする</div>
+          <div class="choice-eff">昼のピークを任せられる　人件費：月 ¥75,000</div>
         </button>
         <button class="choice-btn" onclick="rejectLunchStaff()">
           <div class="choice-lbl">今回は見送る</div>
-          <div class="choice-eff" style="color:var(--orange)">昼のピーク対応はみどりとオーナーで継続・スタッフ負担が続く</div>
+          <div class="choice-eff">今の体制で営業を続ける</div>
         </button>
       </div>
     </div>`;
