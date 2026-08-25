@@ -278,7 +278,7 @@ body{font-family:'Noto Sans JP',sans-serif;background:var(--bg);color:var(--text
 .ms-story-cover-shade{position:absolute;inset:0;background:linear-gradient(90deg,rgba(15,45,30,.65) 0%,rgba(15,45,30,.35) 48%,rgba(15,45,30,0) 70%)}
 .ms-story-cover-copy{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;width:44%;padding:14px}
 .ms-story-cover-label{font-size:11px;color:#e3c575;font-weight:700;letter-spacing:.06em;text-shadow:0 1px 2px rgba(0,0,0,.5)}
-.ms-story-cover-title{margin-top:4px;font-family:'Noto Serif JP',serif;font-size:21px;font-weight:700;color:#fff;line-height:1.35;text-shadow:0 1px 3px rgba(0,0,0,.7),0 0 8px rgba(0,0,0,.25)}
+.ms-story-cover-title{margin-top:4px;font-family:'Noto Serif JP',serif;font-size:19px;font-weight:700;color:#fff;line-height:1.35;text-shadow:0 1px 3px rgba(0,0,0,.7),0 0 8px rgba(0,0,0,.25)}
 .ms-story-cover-subtitle{margin-top:7px;font-size:11px;line-height:1.6;color:#ead89a;white-space:pre-line;text-shadow:0 1px 2px rgba(0,0,0,.6)}
 .ms-story-chapter-bar{display:flex;align-items:center;gap:10px;background:var(--gr3);border-radius:8px;padding:0 14px;height:46px;margin-bottom:10px}
 .ms-story-chapter-bar-label{font-size:10px;color:#e3c575;font-weight:700;white-space:nowrap}
@@ -6391,7 +6391,7 @@ const DOMAIN_CASES = [
     ]},
 
   // ⑦ 設備故障（ops AP5-20）
-  { id:'equip_ac', repeatable:true, domain:'landlord', sender:'入居者', icon:'❄️', apCost:10, expireDays:7, category:'ops',
+  { id:'equip_ac', repeatable:true, domain:'landlord', sender:'入居者', icon:'❄️', apCost:10, expireDays:7, category:'ops', minMonth:6, maxMonth:9,
     expirePenalty:{rep:-8, news:'❄️ エアコン故障を放置した。入居者の不満が大幅増大。'},
     title:'エアコンが故障しました',
     body:'103号室から連絡が届きました。\n\n「エアコンがまったく動きません。\nこの時期は本当に困ります」\n\n修理か交換の判断が必要です。',
@@ -6820,7 +6820,7 @@ const DOMAIN_CASES = [
       {label:'「まだ早い」と伝える',cost:0,effects:{score:3,staffSat:-8},label2:'みどりがっかり',storyTag:'まだ早いと伝えた。みどりはがっかりした様子だった。'},
     ]},
 
-  { id:'staff_new_training', requireStaff:true, repeatable:false, domain:'staff', sender:'みどり', icon:'🎓', apCost:15, expireDays:21, category:'mgmt',
+  { id:'staff_new_training', requireStaff:true, conditionOnly:true, repeatable:false, domain:'staff', sender:'みどり', icon:'🎓', apCost:15, expireDays:21, category:'mgmt',
     title:'「さくらさんの力になれたら、と思って」',
     body:'みどりが少し遠慮がちに話しかけてきた。\n\n「あの……さくらさん、昼ピークのときに少し不安そうにしているなと思って。\n\n私も最初は全然わからなくて。\n自分が教えてもらったことを、少し伝えてみてもいいですか？\n\n……教える側は初めてで、うまくできるかわからないんですが」\n\n少し先輩になろうとしている。',
     choices:[
@@ -6988,7 +6988,7 @@ const DOMAIN_CASES = [
     body:'成田から連絡が来ました。\n\n「一度、現場を見させていただけますか？\n決算書ではわからないものが、\n現場には必ずあります」',
     choices:[
       {label:'喜んで案内する',cost:0,effects:{score:12,credit:4,profile:{community:1}},label2:'信用度+4・銀行との信頼深化',storyTag:'成田を店に案内した。「活気がある」と言われた。信用度が上がった。'},
-      {label:'準備を整えてから招く（2週間後）',cost:0,effects:{score:7,credit:2},label2:'信用度+2',storyTag:'準備を整えてから案内することにした。'},
+      {label:'準備を整えてから招く（2週間後）',cost:0,noAP:true,effects:{score:7,credit:2},label2:'信用度+2・AP消費なし',storyTag:'準備を整えてから案内することにした。'},
     ]},
 
   { id:'narita_cashflow', conditionOnly:true, repeatable:false, domain:'bank', sender:'成田（銀行）', icon:'📈', apCost:15, expireDays:21, category:'mgmt',
@@ -7425,10 +7425,10 @@ const DOMAIN_CASES = [
   { id:'chr_takahashi_1', conditionOnly:false, repeatable:false, domain:'store', character:'takahashi',
     sender:'お客様', icon:'👔', apCost:5, expireDays:14, category:'ops',
     title:'急いでいるお客様が来店した',
-    body:'昼前、スーツ姿の男性が慌てた様子で来店しました。\n\n「すみません、急いでて。\n朝早くて何も食べられなくて。\n\nおにぎりだけ持って新幹線に飛び乗らないといけないんですが、\n何かありますか？」\n\n棚の舞昆を手に取りながら、\n「これ、昆布なんですか？」と尋ねました。\n\n会計のとき、\n「高橋といいます。また近くに来たら寄ります」\nと名乗って、足早に出ていきました。',
+    body:'昼前、スーツ姿の男性が慌てた様子で来店しました。\n\n「すみません、急いでて。\n朝早くて何も食べられなくて。\n\nおにぎりだけ持って新幹線に飛び乗らないといけないんですが、\n何かありますか？」\n\n棚の舞昆を手に取りながら、\n「これ、昆布なんですか？」と尋ねました。',
     choices:[
-      {label:'「舞昆のおにぎりをすぐ用意します」と対応する',cost:0,effects:{score:8,custUp:1,charMeet:'takahashi',charNote:'「出張前に舞昆おにぎりを食べた」'},label2:'ご縁スタート',storyTag:'急いでいる高橋さんに、舞昆おにぎりを素早く出した。'},
-      {label:'「持ち帰り用もありますよ」と案内する',cost:0,effects:{score:7,custUp:1,charMeet:'takahashi',charNote:'「持ち帰り用があると聞いた」'},label2:'ご縁スタート',storyTag:'持ち帰り案内をした。'},
+      {label:'「舞昆のおにぎりをすぐ用意します」と対応する',cost:0,effects:{score:8,custUp:1,charMeet:'takahashi',charNote:'「出張前に舞昆おにぎりを食べた」'},label2:'ご縁スタート',storyTag:'急いでいる高橋さんに、舞昆おにぎりを素早く出した。会計のとき「高橋といいます。また近くに来たら寄ります」と名乗って、足早に出ていった。'},
+      {label:'「持ち帰り用もありますよ」と案内する',cost:0,effects:{score:7,custUp:1,charMeet:'takahashi',charNote:'「持ち帰り用があると聞いた」'},label2:'ご縁スタート',storyTag:'持ち帰り用を案内した。会計のとき「高橋といいます。また近くに来たら寄ります」と名乗って、足早に出ていった。'},
     ]},
 
   { id:'chr_takahashi_2', conditionOnly:true, repeatable:false, domain:'store', character:'takahashi',
