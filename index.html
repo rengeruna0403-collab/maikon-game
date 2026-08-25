@@ -6173,8 +6173,8 @@ const CHARACTER_ROLES = {
   narita:     '銀行の融資担当',
   nishimura:  '商店街の古参店主',
   suzuki:     '地元小学校の先生',
-  tanaka:     '一人暮らしの常連客',
-  yamamoto:   '子育て中の常連客',
+  tanaka:     '一人暮らしのお客様',
+  yamamoto:   '子育て中のお客様',
   ochawanman: 'ナビゲーター',
 };
 function getCharacterPortrait(ev){
@@ -11033,7 +11033,11 @@ function showEventModal(ev){
   const _portraitKey = getCharacterPortrait(ev);
   const _portraitInfo = _portraitKey ? CHARACTERS[_portraitKey] : null;
   const _portraitUrl  = _portraitKey ? CHARACTER_PORTRAITS[_portraitKey] : null;
-  const _portraitRole = _portraitKey ? (CHARACTER_ROLES[_portraitKey] || '') : '';
+  const _portraitRole = _portraitKey
+    ? (_portraitKey === 'midori' && !G.staffUnlocked
+        ? 'スタッフ候補'
+        : (CHARACTER_ROLES[_portraitKey] || ''))
+    : '';
   const _portraitName = _portraitInfo ? _portraitInfo.name : (_portraitKey === 'ochawanman' ? 'お茶碗マン' : '');
 
   const body=document.getElementById('event-modal-body');
