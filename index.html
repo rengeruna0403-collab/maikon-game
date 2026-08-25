@@ -5497,7 +5497,7 @@ const CASE_POOL = [
       {label:'研修を受けさせる（¥50,000）',cost:50000,ap:10,effects:{score:15,staffSat:15,profile:{people:4}},label2:'スタッフ成長・満足+15',storyTag:'みどりの研修費用を負担した。意欲が高まっている。'},
       {label:'「自己負担でお願いしたい」と伝える',cost:0,noAP:true,effects:{score:-5,staffSat:-10,profile:{finance:1}},label2:'スタッフ不満',storyTag:'研修費用を断った。みどりは少しがっかりした様子だった。'},
     ]},
-  { id:'tenant_request', sender:'入居者', icon:'🏠', apCost:5, expireDays:10, category:'ops',
+  { id:'tenant_request', conditionOnly:true, sender:'入居者', icon:'🏠', apCost:5, expireDays:10, category:'ops',
     expirePenalty:{roomSat:{building:0,room:0,val:-15}, news:'🏠 田中さんの要望を放置した。満足度が大幅低下。'},
     autoResolveLevel:2, autoResolveChoice:0, autoResolveCost:15000,
     title:'入居者からの要望',
@@ -6416,6 +6416,7 @@ const DOMAIN_CASES = [
     choices:[
       {label:'今すぐ業者を呼ぶ（¥50,000〜）',cost:50000,effects:{score:15,rep:8},label2:'被害最小化・評判+8',storyTag:'即日業者を呼び、被害を最小限に抑えた。'},
       {label:'自分で確認してから判断',cost:0,effects:{score:6,rep:-2},label2:'対応遅延・評判-2',storyTag:'自分で確認に行ったが、対応が遅れた。'},
+      {label:'管理会社に緊急連絡して手配を依頼する（追加費用 ¥5,000）',cost:5000,noAP:true,effects:{score:5,rep:3},label2:'AP消費なし・即日手配・追加費用¥5,000',storyTag:'APが足りず自分では動けないため、管理会社に緊急連絡して業者を手配してもらった。追加費用はかかったが即日対応できた。'},
     ]},
 
   { id:'equip_toilet', repeatable:true, domain:'landlord', sender:'入居者', icon:'🚽', apCost:15, expireDays:5, category:'ops',
