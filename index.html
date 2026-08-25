@@ -12305,7 +12305,7 @@ function showLunchStaffModal(){
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
         <div style="width:72px;height:72px;border-radius:50%;background:var(--bg2);display:flex;align-items:center;justify-content:center;font-size:2em;flex:0 0 72px">👩‍🍳</div>
         <div>
-          <div style="font-size:15px;font-weight:700;font-family:'Noto Serif JP',serif">田村さくら</div>
+          <div style="font-size:15px;font-weight:700;font-family:'Noto Serif JP',serif">田村あかり</div>
           <div style="font-size:11px;color:var(--muted);margin-top:2px">スタッフ候補</div>
         </div>
       </div>
@@ -12342,7 +12342,7 @@ function showLunchStaffModal(){
 
 function rejectLunchStaff(){
   document.getElementById('event-modal').style.display = 'none';
-  addStory('田村さくらの採用を見送った。昼のピーク対応はしばらくみどりとオーナーで乗り切ることになる。', 'normal');
+  addStory('田村あかりの採用を見送った。昼のピーク対応はしばらくみどりとオーナーで乗り切ることになる。', 'normal');
   renderTab();
 }
 
@@ -12350,7 +12350,7 @@ function hireLunchStaff(){
   document.getElementById('event-modal').style.display = 'none';
   const nextId = (G.staff.length > 0 ? Math.max(...G.staff.map(s => s.id)) : 1) + 1;
   G.staff.push({
-    id: nextId, name:'田村 さくら', emoji:'👩‍🍳', age:28, level:1, title:'新人', type:'lunchStaff',
+    id: nextId, name:'田村 あかり', emoji:'👩‍🍳', age:28, level:1, title:'新人', type:'lunchStaff',
     store:'舞昆茶屋1号店',
     bio:'28歳・主婦。週4日・10〜15時勤務。カフェ経験2年。みどりの指導のもと昼の接客を担う。',
     dream:'「自分でもいつかカフェをやってみたい」',
@@ -12360,9 +12360,9 @@ function hireLunchStaff(){
   G._lunchStaffHiredDay = (G.year-1)*360 + (G.month-1)*30 + G.day;
   G.stores[0].newCustomers = (G.stores[0].newCustomers||0) + 1;
   G.stores[0].customers = (G.stores[0].newCustomers||0) + (G.stores[0].regulars||0);
-  addStory('田村さくらを昼スタッフとして採用した。週4日・10〜15時。みどりと二人で昼のピークを支えてもらえる体制になった。','highlight');
-  addNews('👩‍🍳 田村さくら 採用（週4日・10〜15時・月給¥75,000）');
-  notify('田村さくらを採用！昼のピーク対応が安定します', 'gold');
+  addStory('田村あかりを昼スタッフとして採用した。週4日・10〜15時。みどりと二人で昼のピークを支えてもらえる体制になった。','highlight');
+  addNews('👩‍🍳 田村あかり 採用（週4日・10〜15時・月給¥75,000）');
+  notify('田村あかりを採用！昼のピーク対応が安定します', 'gold');
   renderTab();
 }
 
