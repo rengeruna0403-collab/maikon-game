@@ -9545,7 +9545,7 @@ function generateConditionCases(){
   if(G.cases.some(c=>c.id==='chr_yamamoto_pta' && c.resolved) && !ch.yamamoto.complete && G.year >= 2 && charReady('yamamoto',60) && !G.cases.some(c=>c.id==='chr_yamamoto_ending')) charCase('chr_yamamoto_ending');
 
   // ── 鈴木アーク ──
-  if(ch.suzuki.met && ch.suzuki.level >= 1 && charReady('suzuki',21) && !G.cases.some(c=>c.id==='chr_suzuki_2')) charCase('chr_suzuki_2');
+  if(ch.suzuki.met && ch.suzuki.level >= 1 && charReady('suzuki',30) && !G.cases.some(c=>c.id==='chr_suzuki_2')) charCase('chr_suzuki_2');
   if(ch.suzuki.level >= 2 && charReady('suzuki',21) && !G.cases.some(c=>c.id==='chr_suzuki_3')) charCase('chr_suzuki_3');
 
   // ── 高橋アーク ──
