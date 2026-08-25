@@ -9272,19 +9272,20 @@ function generateConditionCases(){
   }
 
   // ── 成田フィロソフィー系トリガー ──
+  // ゲームは4月1日（Year 1）開始 = totalDays 91。
+  // 「開始N日後」は totalDays >= 91 + N で判定（旧: >= N は初日から全件満たすため集中発火）
   const credit = G.creditScore || 45;
-  // 初回面談（開始30日後・信用度30以上）→ 分散制御
-  if(totalDays >= 30 && credit >= 30){
+  // 初回面談（開始30日後 = 5月1日相当・信用度30以上）→ 分散制御
+  if(totalDays >= 121 && credit >= 30){
     _addNormal('narita_first_visit', DOMAIN_CASES.find(c => c.id === 'narita_first_visit'), 2);
   }
-  // 現場視察（60日後・信用度35以上）→ 分散制御
-  if(totalDays >= 60 && credit >= 35){
+  // 現場視察（開始60日後 = 6月1日相当・信用度35以上）→ 分散制御
+  if(totalDays >= 151 && credit >= 35){
     _addNormal('narita_site_visit', DOMAIN_CASES.find(c => c.id === 'narita_site_visit'), 2);
   }
-  // 資金繰り表（90日後・信用度40以上）
-  if(totalDays >= 90 && credit >= 40 && !G.cases.some(c => c.id === 'narita_cashflow')){
-    const base = DOMAIN_CASES.find(c => c.id === 'narita_cashflow');
-    if(base) addCase(base);
+  // 資金繰り表（開始90日後 = 7月1日相当・信用度40以上）→ 分散制御
+  if(totalDays >= 181 && credit >= 40){
+    _addNormal('narita_cashflow', DOMAIN_CASES.find(c => c.id === 'narita_cashflow'), 2);
   }
   // 資金警告（現金が目標の20%以下）
   if((G.money || 0) < (G.monthlyGoal || 50000) * 0.2 && !G.cases.some(c => c.id === 'narita_warning' && !c.resolved)){
@@ -12609,7 +12610,7 @@ const MAIN_STORY_CHAPTERS = [
     learningTheme: '舞昆への最初の興味', reward: null
   },
   {
-    id: 'chapter_2', chapter: 2, title: '祖父が残したご縁',
+    id: 'chapter_2', chapter: 2, title: '祖父が残した​ご縁',
     subtitle: '数字の向こうに、人がいる',
     heroImage: 'assets/story/chapter2_hero.webp',
     status: 'implemented',
