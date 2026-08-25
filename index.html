@@ -5814,7 +5814,7 @@ const CASE_POOL = [
        storyTag:'今回は断った。機会を逃した気がした。'},
     ]},
 
-  { id:'midgame_school_visit', repeatable:true, oncePerYear:true, domain:'community', sender:'地元小学校', icon:'🏫', apCost:15, expireDays:14, category:'ops',
+  { id:'midgame_school_visit', repeatable:true, oncePerYear:true, domain:'community', sender:'地元小学校', icon:'🏫', apCost:15, expireDays:14, category:'ops', minDay:60, minRep:25,
     expirePenalty:{rep:-2, communityBond:-2, news:'🏫 地元小学校の訪問授業を断った。'},
     title:'小学校から食育授業の依頼',
     body:'地元の小学校から連絡がありました。\n\n「3年生の食育授業で、地元の食材を学ぶ機会を設けています。\n舞昆についてお話しいただけませんか？\n子どもたちが楽しみにしています」',
@@ -6652,7 +6652,7 @@ const DOMAIN_CASES = [
     body:'地域のスーパーが発酵食品コーナーを大幅に拡充し、\nに似た商品も並び始めました。',
     choices:[
       {label:'舞昆の独自性・ストーリーで対抗する',cost:0,effects:{score:12,storeSat:8,profile:{community:2,finance:2}},label2:'ブランド強化',storyTag:'大手との違いを強みにした。「本物を求める人はここへ来る」と評判になった。'},
-      {label:'価格を少し見直す',cost:0,effects:{score:5,custUp:2,profile:{risk:1}},label2:'客数+2',storyTag:'価格を見直した。'},
+      {label:'価格を少し見直す',cost:0,noAP:true,effects:{score:5,custUp:2,profile:{risk:1}},label2:'客数+2・AP不要',storyTag:'価格を見直した。'},
     ]},
 
   // ⑥ 行政・地域（admin、低頻度）
@@ -6671,7 +6671,7 @@ const DOMAIN_CASES = [
     body:'自治会から防災訓練への参加依頼が届きました。\n「地域の事業者にも参加していただきたいです」',
     choices:[
       {label:'参加する（半日）',cost:0,effects:{score:8,rep:6,profile:{community:3}},label2:'評判+6・地域信頼',storyTag:'防災訓練に参加した。地域との連携が深まった。'},
-      {label:'今回は欠席',cost:0,effects:{score:-2,profile:{finance:1}},label2:'評判-2',storyTag:'防災訓練を欠席した。'},
+      {label:'今回は欠席',cost:0,noAP:true,effects:{score:-2,profile:{finance:1}},label2:'評判-2',storyTag:'防災訓練を欠席した。'},
     ]},
 
   { id:'noise_general', repeatable:true, domain:'landlord', sender:'入居者', icon:'🔊', apCost:5, expireDays:7, category:'ops',
@@ -7380,7 +7380,7 @@ const DOMAIN_CASES = [
   { id:'chr_yamamoto_2', conditionOnly:true, repeatable:false, domain:'community', character:'yamamoto',
     sender:'山本真由美', icon:'👩', apCost:5, expireDays:21, category:'ops',
     title:'山本さんから「食べた」の一言',
-    body:'山本さんが、いつもより少し明るい顔で入ってきた。\n\n「あれから家でも何度か出してみたんですけど——」\n\n彼女は少し間を置いた。\n\n「うちの子、朝はなかなか食べてくれないことが多いんですよ。\nでも最近、舞昆のおにぎりならちゃんと食べてくれるようになって。\n\nこの前なんて、おかわりまでしたんです。\nあの子が、ですよ？」\n\n「……なんか、うれしくて」',
+    body:'山本さんが、いつもより少し明るい顔で入ってきた。\n\n「あれから家でも何度か出してみたんですけど——」\n\n彼女は少し間を置いた。\n\n「うちの子、朝はなかなか食べてくれないことが多いんですよ。\nでも最近、舞昆のおにぎりならちゃんと食べてくれるようになって。\n\nこの前なんて、おかわりまでしたんです。\n\n……なんか、うれしくて」',
     choices:[
       {label:'「よかった。またお口に合うものを一緒に探しましょう」と伝える',cost:0,effects:{score:10,rep:4,charLevel:'yamamoto',charNote:'「おかわりって言ったんですよ！」と山本さんが嬉しそうに教えてくれた。',custUp:1,profile:{people:3}},label2:'ご縁+1・来客+1',storyTag:'山本さんの子どもが舞昆おにぎりを全部食べた。「おかわり」と言ったと聞いた。'},
       {label:'「気に入ってもらえたんですね」と答える',cost:0,effects:{score:7,charLevel:'yamamoto',rep:3,profile:{people:2}},label2:'ご縁+1',storyTag:'山本さんの喜びを一緒に感じた。'},
@@ -8413,6 +8413,7 @@ const CASE_COOLDOWN_DAYS = {
   resident_meeting:   90,
   wifi_request:       90,
   equip_roof:         60,
+  equip_water_heater: 60,
   // 行政系
   subsidy_info:     120,
   disaster_drill:   60,
@@ -8751,6 +8752,7 @@ function generateWeeklyCases(){
       const cd = CASE_COOLDOWN_DAYS[c.id] || 30;
       if(tdNow - G.caseCooldowns[c.id] < cd) return false;
     }
+    if(!c.repeatable && G.cases.some(x => x.id === c.id && x.resolved)) return false;
     return true;
   };
 
@@ -11912,6 +11914,7 @@ function chooseEvent(idx, useFatigue){
       const d = (G.year-1)*360 + (G.month-1)*30 + G.day;
       G.caseCooldowns = G.caseCooldowns || {};
       G.caseCooldowns[ev.id] = d;
+      if(ev.id === 'midgame_repair_request') G.caseCooldowns['equip_water_heater'] = d;
     }
     // onResolveフラグ処理
     if(choice.onResolve === '_suzukiGiftDone'){
