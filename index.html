@@ -9560,14 +9560,15 @@ function generateConditionCases(){
   if(ch.takahashi.complete && !G.cases.some(c=>c.id==='chr_takahashi_referral')) { /* 転勤後は別途口コミのみ */ }
 
   // ── 木村アーク（卒業は2年目3月以降のみ）──
-  if(ch.kimura.met && ch.kimura.level >= 1 && charReady('kimura',14) && !G.cases.some(c=>c.id==='chr_kimura_2')) charCase('chr_kimura_2');
-  if(ch.kimura.level >= 2 && charReady('kimura',21) && !G.cases.some(c=>c.id==='chr_kimura_3')) charCase('chr_kimura_3');
+  // 0b: 昆布苦手→食べてみたら違った（kimura_1後・kimura_2の前）
+  if(ch.kimura.met && ch.kimura.level >= 1 && ch.kimura.level < 2 && charReady('kimura',14) && !G.cases.some(c=>c.id==='chr_kimura_0b')) charCase('chr_kimura_0b');
+  // kimura_2: 試食会の舞昆が美味しかった（0b解決後）
+  if(G.cases.some(c=>c.id==='chr_kimura_0b' && c.resolved) && charReady('kimura',14) && !G.cases.some(c=>c.id==='chr_kimura_2')) charCase('chr_kimura_2');
+  if(ch.kimura.level >= 2 && G.cases.some(c=>c.id==='chr_kimura_2' && c.resolved) && charReady('kimura',21) && !G.cases.some(c=>c.id==='chr_kimura_3')) charCase('chr_kimura_3');
   if(ch.kimura.level >= 3 && !ch.kimura.complete && !G.cases.some(c=>c.id==='chr_kimura_graduate') && G.year >= 2 && G.month === 3) charCase('chr_kimura_graduate');
   if(ch.kimura.complete && !G.cases.some(c=>c.id==='chr_kimura_referral')) charCase('chr_kimura_referral');
 
   // ── 舞昆ストーリー深掘りエピソード ──
-  // 木村：昆布苦手→食べてみたら違った（出会い直後、kimura_2の前）
-  if(ch.kimura.met && ch.kimura.level >= 1 && ch.kimura.level < 2 && charReady('kimura',14) && !G.cases.some(c=>c.id==='chr_kimura_0b')) charCase('chr_kimura_0b');
   // 木村：実家の母に送る（level3以上、卒業前）
   if(ch.kimura.level >= 3 && !ch.kimura.complete && charReady('kimura',21) && !G.cases.some(c=>c.id==='chr_kimura_4')) charCase('chr_kimura_4');
   // 高橋：東京出張で同僚が「それ何？」（転勤前・level2以上・45日間隔）
@@ -9577,7 +9578,7 @@ function generateConditionCases(){
   // 高橋：大阪出張のたびに同僚の分も買う（転勤後・hotel解決後・60日間隔）
   if(G.cases.some(c=>c.id==='chr_takahashi_hotel' && c.resolved) && charReady('takahashi',60) && !G.cases.some(c=>c.id==='chr_takahashi_5')) charCase('chr_takahashi_5');
   // 木村：「ご飯と舞昆だけで乗り切った」（level2以上・21日間隔）
-  if(ch.kimura.level >= 2 && charReady('kimura',21) && !G.cases.some(c=>c.id==='chr_kimura_jiason2')) charCase('chr_kimura_jiason2');
+  if(ch.kimura.level >= 2 && G.cases.some(c=>c.id==='chr_kimura_2' && c.resolved) && charReady('kimura',21) && !G.cases.some(c=>c.id==='chr_kimura_jiason2')) charCase('chr_kimura_jiason2');
   // 老人会おにぎりシーン（みどりがいる・60日以上経過）
   const _hasMidoriForOnigiri = G.staff.some(s => s.name === '佐々木みどり');
   const _totalDaysForOnigiri = (G.year-1)*360 + (G.month-1)*30 + G.day;
@@ -9635,7 +9636,7 @@ function generateConditionCases(){
 
   // ── 木村 追加エピソード ──
   // 一人暮らしの話（kimura_2解決後・21日間隔）
-  if(ch.kimura.level >= 2 && charReady('kimura',21) && !G.cases.some(c=>c.id==='chr_kimura_hitorigurashi')) charCase('chr_kimura_hitorigurashi');
+  if(ch.kimura.level >= 2 && G.cases.some(c=>c.id==='chr_kimura_2' && c.resolved) && charReady('kimura',21) && !G.cases.some(c=>c.id==='chr_kimura_hitorigurashi')) charCase('chr_kimura_hitorigurashi');
   // SNS投稿（level3以上・21日間隔）
   if(ch.kimura.level >= 3 && charReady('kimura',21) && !G.cases.some(c=>c.id==='chr_kimura_sns')) charCase('chr_kimura_sns');
   // バズる（SNS投稿解決後・14日間隔）
@@ -9668,10 +9669,10 @@ function generateConditionCases(){
   if(!ch.nishimura) G.characters.nishimura = { met:false, level:0, notes:[], complete:false, lastCaseDay:0 };
   const _nishi = G.characters.nishimura;
   function nishiReady(){ return nowDay - (_nishi.lastCaseDay || 0) >= 7; }
-  // ep2: 無視（出会い後 level1）— ep1解決から14日以上（v1.3j: 7→14）
-  if(_nishi.met && _nishi.level >= 1 && charReady('nishimura', 14) && !G.cases.some(c=>c.id==='chr_nishimura_2')) charCase('chr_nishimura_2');
-  // ep3: 正面から文句（level2）— ep2解決から14日以上（v1.3j: 7→14）
-  if(_nishi.level >= 2 && charReady('nishimura', 14) && !G.cases.some(c=>c.id==='chr_nishimura_3')) charCase('chr_nishimura_3');
+  // ep2: 無視（出会い後 level1）— ep1解決から21日以上
+  if(_nishi.met && _nishi.level >= 1 && charReady('nishimura', 21) && !G.cases.some(c=>c.id==='chr_nishimura_2')) charCase('chr_nishimura_2');
+  // ep3: 正面から文句（level2）— ep2解決から30日以上・6月以降
+  if(_nishi.level >= 2 && G.month >= 6 && charReady('nishimura', 30) && !G.cases.some(c=>c.id==='chr_nishimura_3')) charCase('chr_nishimura_3');
   // ep4: 災害時協力（level3以上・30日以降）— ep3解決から21日以上（v1.3j: 7→21）
   if(_nishi.level >= 3 && totalDays >= 30 && charReady('nishimura', 21) && !G.cases.some(c=>c.id==='chr_nishimura_4')) charCase('chr_nishimura_4');
   // ep5: 地域イベント共闘（level4以上・7〜8月限定）
