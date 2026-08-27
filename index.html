@@ -9619,8 +9619,8 @@ function generateConditionCases(){
   // （chr_yamamoto_5はアーク整理により孤立イベントとして残存、トリガーなし）
 
   // ── 鈴木 追加エピソード ──
-  // PTAイベント（level2以上・30日間隔）
-  if(ch.suzuki.level >= 2 && charReady('suzuki',30) && !G.cases.some(c=>c.id==='chr_suzuki_pta')) charCase('chr_suzuki_pta');
+  // PTAイベント（授業後反応・解決後・30日間隔）「保護者も興味を持った」がPTAへの伏線
+  if(G.cases.some(c=>c.id==='chr_suzuki_3' && c.resolved) && charReady('suzuki',30) && !G.cases.some(c=>c.id==='chr_suzuki_pta')) charCase('chr_suzuki_pta');
   // 食育授業（level3以上・30日間隔）
   if(ch.suzuki.level >= 3 && charReady('suzuki',30) && !G.cases.some(c=>c.id==='chr_suzuki_shokuiku')) charCase('chr_suzuki_shokuiku');
   // 地域新聞（食育授業解決後・21日間隔）
