@@ -7405,6 +7405,15 @@ const DOMAIN_CASES = [
       {label:'「こちらこそ、よろしくお願いします」と答える',cost:0,effects:{score:6,rep:3,charMeet:'suzuki',charNote:'地域清掃で鈴木先生と出会った。「よろしくお願いします」と挨拶した。'},label2:'ご縁スタート',storyTag:'鈴木先生と挨拶した。地元の小学校の先生だった。'},
     ]},
 
+  { id:'chr_suzuki_1b', conditionOnly:true, repeatable:false, domain:'community', character:'suzuki',
+    sender:'鈴木先生', icon:'👨‍🏫', apCost:0, expireDays:30, category:'ops',
+    title:'鈴木先生が立ち寄ってくれた',
+    body:'鈴木先生が来店してくれました。\n\n「近くに来たのでついでに。\n試食していいですか？」\n\nいくつか試しながら、先生は舞昆の話に耳を傾けた。\n\n「昆布の食べ方って、こんなにあるんですね。\n子どもたちに話せそうな気がしてきました」',
+    choices:[
+      {label:'舞昆と地域の話をする',cost:0,effects:{score:8,rep:3,charLevel:'suzuki',charNote:'来店して舞昆を試食してくれた。「子どもたちに話せそう」と言っていた。',profile:{community:2,people:1}},label2:'ご縁+1・関係が深まる',storyTag:'鈴木先生が来店してくれた。舞昆を試しながら、少し長く話せた。'},
+      {label:'「いつでも寄ってください」と伝える',cost:0,effects:{score:5,charLevel:'suzuki',charNote:'来店してくれた。「いつでも寄ってください」と伝えた。'},label2:'ご縁+1',storyTag:'鈴木先生が立ち寄ってくれた。'},
+    ]},
+
   { id:'chr_suzuki_2', conditionOnly:true, repeatable:false, domain:'community', character:'suzuki',
     sender:'鈴木先生', icon:'👨‍🏫', apCost:10, expireDays:21, category:'mgmt',
     title:'鈴木先生から授業への協力依頼',
@@ -9550,9 +9559,12 @@ function generateConditionCases(){
   // ── 鈴木アーク ──
   // ep1: 地域清掃で初対面（met前のみ・開業30日以降・評判20以上）
   if(!ch.suzuki.met && totalDays >= 121 && (G.regions[0]?.reputation||0) >= 20 && !G.cases.some(c=>c.id==='chr_suzuki_1')) charCase('chr_suzuki_1');
-  // ep2: 授業依頼（試食会/地域清掃どちらのルートでも met後30日以上）
-  if(ch.suzuki.met && ch.suzuki.level >= 1 && charReady('suzuki',30) && !G.cases.some(c=>c.id==='chr_suzuki_2')) charCase('chr_suzuki_2');
-  if(ch.suzuki.level >= 2 && charReady('suzuki',21) && !G.cases.some(c=>c.id==='chr_suzuki_3')) charCase('chr_suzuki_3');
+  // ep1b: 共通再会（試食会/地域清掃どちらのルートでも met後・level==1のうちに・14日以上）
+  if(ch.suzuki.met && ch.suzuki.level === 1 && charReady('suzuki',14) && !G.cases.some(c=>c.id==='chr_suzuki_1b')) charCase('chr_suzuki_1b');
+  // ep2: 授業依頼（共通再会イベント解決後・21日以上）
+  if(G.cases.some(c=>c.id==='chr_suzuki_1b' && c.resolved) && charReady('suzuki',21) && !G.cases.some(c=>c.id==='chr_suzuki_2')) charCase('chr_suzuki_2');
+  // ep3: 授業後反応（授業依頼解決後・21日以上）
+  if(G.cases.some(c=>c.id==='chr_suzuki_2' && c.resolved) && charReady('suzuki',21) && !G.cases.some(c=>c.id==='chr_suzuki_3')) charCase('chr_suzuki_3');
 
   // ── 高橋アーク ──
   // 間隔：序盤30日、中盤45日。転勤は6か月後（180日）以降のみ。独立は1年後（360日）以降
@@ -13597,6 +13609,7 @@ function doTastingEvent(si){
     const ch = G.characters[key];
     const info = CHARACTERS[key];
     ch.met = true; ch.level = 1;
+    ch.lastCaseDay = (G.year-1)*360 + (G.month-1)*30 + G.day;
     const lines = {
       tanaka:   '田中さん（72歳）が試食して「懐かしい味だな」とつぶやいた。',
       yamamoto: '山本さんが子どもを連れて来て「これだけは食べるんです」と笑っていた。',
