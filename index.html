@@ -6703,7 +6703,7 @@ const DOMAIN_CASES = [
     ]},
 
   // ② 大家業：設備故障系（repeatable, category:'ops', AP 5-15）
-  { id:'ac_broken', repeatable:true, domain:'landlord', sender:'入居者', icon:'❄️', apCost:10, expireDays:7, category:'ops',
+  { id:'ac_broken', repeatable:true, domain:'landlord', sender:'入居者', icon:'❄️', apCost:10, expireDays:7, category:'ops', minMonth:7, maxMonth:8,
     expirePenalty:{roomSat:{building:0,room:1,val:-20}, news:'❄️ エアコン故障を放置した。入居者の満足度が大幅低下。'},
     title:'エアコン故障の連絡',
     body:'103号室から緊急連絡が届きました。\n\n「エアコンが壊れています。\nこの時期は本当に困ります……」',
@@ -6822,17 +6822,17 @@ const DOMAIN_CASES = [
     ]},
 
   { id:'staff_new_training', requireStaff:true, conditionOnly:true, repeatable:false, domain:'staff', sender:'みどり', icon:'🎓', apCost:15, expireDays:21, category:'mgmt',
-    title:'「さくらさんの力になれたら、と思って」',
-    body:'みどりが少し遠慮がちに話しかけてきた。\n\n「あの……さくらさん、昼ピークのときに少し不安そうにしているなと思って。\n\n私も最初は全然わからなくて。\n自分が教えてもらったことを、少し伝えてみてもいいですか？\n\n……教える側は初めてで、うまくできるかわからないんですが」\n\n少し先輩になろうとしている。',
+    title:'「あかりさんの力になれたら、と思って」',
+    body:'みどりが少し遠慮がちに話しかけてきた。\n\n「あの……あかりさん、昼ピークのときに少し不安そうにしているなと思って。\n\n私も最初は全然わからなくて。\n自分が教えてもらったことを、少し伝えてみてもいいですか？\n\n……教える側は初めてで、うまくできるかわからないんですが」\n\n少し先輩になろうとしている。',
     choices:[
       {label:'「任せてみよう」と伝える',
        cost:0,
        effects:{score:18,staffSat:15,midoriTrust:4,profile:{people:5}},
        label2:'みどりが少し先輩になる',
-       storyTag:'みどりにさくらへの声がけを任せた。さくらさんが少しずつ独り立ちし始め、みどりの表情が変わった。「責任感が全然違います」と自分でも感じているようだった。',
+       storyTag:'みどりにあかりへの声がけを任せた。あかりさんが少しずつ独り立ちし始め、みどりの表情が変わった。「責任感が全然違います」と自分でも感じているようだった。',
        followUp:{days:14,icon:'🎓',sender:'みどり',
-         title:'さくらさん、戦力になってきました',
-         body:'みどりから報告がありました。\n\n「さくらさん、すごく早く覚えてくれて。\n\n今日、私が手を離しても\n昼のレジと接客を一人でこなしてくれました。\n\n教えるって、こんなに嬉しいものなんですね。\n……私、主任になりたいって、思い始めています」\n\nみどりの中で、何かが変わった。',
+         title:'あかりさん、戦力になってきました',
+         body:'みどりから報告がありました。\n\n「あかりさん、すごく早く覚えてくれて。\n\n今日、私が手を離しても\n昼のレジと接客を一人でこなしてくれました。\n\n教えるって、こんなに嬉しいものなんですね。\n……私、主任になりたいって、思い始めています」\n\nみどりの中で、何かが変わった。',
          effects:{midoriTrust:3,staffSat:5}}},
       {label:'「まずは自分の仕事を磨いてから」と伝える',
        cost:0,
@@ -7396,8 +7396,8 @@ const DOMAIN_CASES = [
     ]},
 
   // ── 鈴木先生（38歳・小学校教員）アーク ──
-  { id:'chr_suzuki_1', conditionOnly:false, repeatable:false, domain:'community', character:'suzuki',
-    sender:'地域活動', icon:'👨‍🏫', apCost:5, expireDays:21, category:'ops', minDay:60, minRep:20,
+  { id:'chr_suzuki_1', conditionOnly:true, repeatable:false, domain:'community', character:'suzuki',
+    sender:'地域活動', icon:'👨‍🏫', apCost:5, expireDays:21, category:'ops',
     title:'地域清掃で先生と出会った',
     body:'地域清掃の後、一人の男性が話しかけてきました。\n\n「鈴木といいます。地元の小学校で教えています」\n\n「舞昆茶屋さんですよね。\n子どもたちから名前を聞くことがあって」\n\n鈴木先生は少し笑った。\n\n「今度、近くを通ったら寄ってみます」',
     choices:[
@@ -7408,9 +7408,9 @@ const DOMAIN_CASES = [
   { id:'chr_suzuki_2', conditionOnly:true, repeatable:false, domain:'community', character:'suzuki',
     sender:'鈴木先生', icon:'👨‍🏫', apCost:10, expireDays:21, category:'mgmt',
     title:'鈴木先生から授業への協力依頼',
-    body:'鈴木先生から連絡が来ました。\n\n「「地域で働く人」という授業があります。\n30分でいいので、お店のことや働くことについて\n話してもらえませんか？\n\n先日、子どもたちが外を歩いているときに\nお店の前を通って「舞昆って何？」って\n興味津々で聞いてきたんです」',
+    body:'鈴木先生から連絡が来ました。\n\n「「地域で働く人」という授業があります。\n30分でいいので、お店のことや働くことについて\n話してもらえませんか？\n\n子どもたちにお店の話をしたら、\n「行ってみたい！」という子が何人もいて」',
     choices:[
-      {label:'「喜んで行きます」と承諾する',cost:0,effects:{score:15,rep:8,charLevel:'suzuki',charNote:'小学校で授業をした。子どもたちが熱心に聞いてくれた',profile:{community:4,people:2}},label2:'ご縁+1・評判+8',storyTag:'小学校で授業をした。「舞昆って何？」と素直に聞く子どもたちに、一から説明した。'},
+      {label:'「喜んで行きます」と承諾する',cost:0,effects:{score:15,rep:8,charLevel:'suzuki',charNote:'授業の依頼を引き受けた。来週、小学校へ伺う予定だ。',profile:{community:4,people:2}},label2:'ご縁+1・評判+8',storyTag:'鈴木先生の授業依頼を引き受けた。子どもたちが「行ってみたい」と言っているとのことで、少し緊張した。'},
       {label:'「今回は難しいですが次回に」と伝える',cost:0,noAP:true,effects:{score:4,charLevel:'suzuki',charNote:'「次の機会にぜひ」と伝えた。鈴木先生は「楽しみにしています」と言ってくれた。'},label2:'ご縁+1',storyTag:'次回参加することを伝えた。'},
     ]},
 
@@ -9548,6 +9548,9 @@ function generateConditionCases(){
   if(G.cases.some(c=>c.id==='chr_yamamoto_pta' && c.resolved) && !ch.yamamoto.complete && G.year >= 2 && charReady('yamamoto',60) && !G.cases.some(c=>c.id==='chr_yamamoto_ending')) charCase('chr_yamamoto_ending');
 
   // ── 鈴木アーク ──
+  // ep1: 地域清掃で初対面（met前のみ・開業30日以降・評判20以上）
+  if(!ch.suzuki.met && totalDays >= 121 && (G.regions[0]?.reputation||0) >= 20 && !G.cases.some(c=>c.id==='chr_suzuki_1')) charCase('chr_suzuki_1');
+  // ep2: 授業依頼（試食会/地域清掃どちらのルートでも met後30日以上）
   if(ch.suzuki.met && ch.suzuki.level >= 1 && charReady('suzuki',30) && !G.cases.some(c=>c.id==='chr_suzuki_2')) charCase('chr_suzuki_2');
   if(ch.suzuki.level >= 2 && charReady('suzuki',21) && !G.cases.some(c=>c.id==='chr_suzuki_3')) charCase('chr_suzuki_3');
 
@@ -9809,7 +9812,7 @@ function generateConditionCases(){
   // ── 戦略パスマイルストーン解放 ──
   const _pp = G._pathPts || {};
   // 地域路線（community 8pt・60日経過）
-  if((_pp.community||0) >= 8 && totalDays >= 60 && !G.cases.some(c=>c.id==='path_community_milestone')){
+  if((_pp.community||0) >= 8 && totalDays >= 451 && !G.cases.some(c=>c.id==='path_community_milestone')){
     const _b = DOMAIN_CASES.find(c=>c.id==='path_community_milestone');
     if(_b) addCase(_b);
   }
