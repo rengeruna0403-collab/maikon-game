@@ -602,8 +602,8 @@ body.large-text #app{zoom:1.2;transform-origin:top center}
   <div class="modal" style="text-align:center;padding:24px 20px">
     <div style="font-size:32px;margin-bottom:10px">🏪</div>
     <div style="font-size:16px;font-weight:700;font-family:'Noto Serif JP',serif;margin-bottom:12px">お店を開店しました！</div>
-    <div style="font-size:13px;color:var(--gr3);line-height:2;margin-bottom:18px">次はホームへ戻って、<br>1日の流れを確認しましょう。</div>
-    <button class="btn btn-gr" style="width:100%;padding:12px;font-size:14px" onclick="document.getElementById('tutOpenStoreComplete').style.display='none';setTab('home');">ホームへ戻る</button>
+    <div style="font-size:13px;color:var(--gr3);line-height:2;margin-bottom:18px">次はメニューを設定して、<br>はじめてのお客様を迎えましょう。</div>
+    <button class="btn btn-gr" style="width:100%;padding:12px;font-size:14px" onclick="document.getElementById('tutOpenStoreComplete').style.display='none';setTimeout(()=>{ const el=document.getElementById('store-menu-anchor'); if(el) el.scrollIntoView({behavior:'smooth',block:'center'}); },150);">メニューを設定する →</button>
   </div>
 </div>
 
@@ -1031,7 +1031,7 @@ function addNews(msg){
 let _arfTimer = null;
 
 // ─────────── メニュー完成専用カード (v1.2a) ───────────
-function showMenuSuccessCard({ name, si, menuBefore, custDiff, satDiff, isFirst, isAllDone }){
+function showMenuSuccessCard({ name, si, menuBefore, custDiff, satDiff, isFirst, isAllDone, tutorialGuest }){
   let wrap = document.getElementById('arf-wrap');
   if(!wrap){ wrap=document.createElement('div'); wrap.id='arf-wrap'; wrap.className='arf-wrap'; document.body.appendChild(wrap); }
   if(_arfTimer){ clearTimeout(_arfTimer); _arfTimer=null; }
@@ -1048,7 +1048,11 @@ function showMenuSuccessCard({ name, si, menuBefore, custDiff, satDiff, isFirst,
     btnsHtml = `<div style="display:flex;flex-direction:column;gap:8px;margin-top:12px"><button onclick="document.getElementById('arf-wrap').innerHTML='';setTab('home');setTimeout(()=>document.getElementById('post-menu-growth-card')?.scrollIntoView({behavior:'smooth',block:'center'}),150)" style="width:100%;padding:10px;background:var(--gr);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;touch-action:manipulation">次の成長を見る →</button><button onclick="document.getElementById('arf-wrap').innerHTML=''" style="width:100%;padding:8px;background:none;border:1px solid var(--border);border-radius:8px;font-size:12px;color:var(--muted);cursor:pointer;touch-action:manipulation">閉じる</button></div>`;
   } else if(isFirst){
     titleHtml = `<div style="text-align:center;padding-top:4px"><div style="font-size:28px;margin-bottom:8px">🎉</div><div style="font-size:15px;font-weight:700;color:var(--gr3);font-family:'Noto Serif JP',serif;margin-bottom:4px">最初のメニューが完成しました！</div><div style="font-size:12px;color:var(--muted);margin-bottom:2px">「${name}」が${storeName}のメニューに加わりました。</div></div>`;
-    btnsHtml = `<div style="margin-top:12px"><button onclick="document.getElementById('arf-wrap').innerHTML='';setTab('home')" style="width:100%;padding:10px;background:var(--gr);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;touch-action:manipulation">ホームへ戻って次の準備へ →</button></div>`;
+    if(tutorialGuest){
+      btnsHtml = `<div style="margin-top:12px"><button onclick="document.getElementById('arf-wrap').innerHTML=''" style="width:100%;padding:10px;background:var(--gr);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;touch-action:manipulation">はじめてのお客様を接客する →</button></div>`;
+    } else {
+      btnsHtml = `<div style="margin-top:12px"><button onclick="document.getElementById('arf-wrap').innerHTML='';setTab('home')" style="width:100%;padding:10px;background:var(--gr);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;touch-action:manipulation">ホームへ戻って次の準備へ →</button></div>`;
+    }
   } else {
     titleHtml = `<div style="padding-top:4px"><div style="font-size:24px;margin-bottom:6px">🎉</div><div style="font-size:14px;font-weight:700;color:var(--gr3);font-family:'Noto Serif JP',serif;margin-bottom:4px">新メニュー完成！</div><div style="font-size:12px;color:var(--muted)">「${name}」が${storeName}のメニューに加わりました。</div></div>`;
     btnsHtml = `<div style="display:flex;gap:8px;margin-top:12px"><button onclick="document.getElementById('arf-wrap').innerHTML='';setTab('store')" style="flex:1;padding:9px;background:var(--gr);color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;touch-action:manipulation">お店の変化を見る</button><button onclick="document.getElementById('arf-wrap').innerHTML='';setTab('home')" style="flex:1;padding:9px;background:none;border:1.5px solid var(--gr);border-radius:8px;font-size:12px;font-weight:700;color:var(--gr3);cursor:pointer;touch-action:manipulation">ホームへ戻る</button></div>`;
@@ -1473,6 +1477,16 @@ function markTutDone(){ localStorage.setItem('maikon_tut_done','1'); }
 function resetTutDone(){ localStorage.removeItem('maikon_tut_done'); }
 
 // ─── 最初の案件（チュートリアル用greeting case） ───
+function _showStorePartCompleteOverlay(){
+  let wrap = document.getElementById('arf-wrap');
+  if(!wrap){ wrap=document.createElement('div'); wrap.id='arf-wrap'; wrap.className='arf-wrap'; document.body.appendChild(wrap); }
+  wrap.innerHTML = `<div class="arf-card" style="pointer-events:auto;background:linear-gradient(135deg,#EEF6EE,#FAFFF8);border:2px solid var(--gr2);text-align:center">
+    <div style="font-size:32px;margin-bottom:10px">✅</div>
+    <div style="font-size:15px;font-weight:700;color:var(--gr3);font-family:'Noto Serif JP',serif;margin-bottom:8px">店舗パート完了！</div>
+    <div style="font-size:12px;color:var(--muted);line-height:1.8;margin-bottom:14px">開店・メニュー設定・はじめてのお客様<br>すべて終わりました。<br>次はホームで物件の入居募集へ進みましょう。</div>
+    <button onclick="document.getElementById('arf-wrap').innerHTML='';setTab('home')" style="width:100%;padding:10px;background:var(--gr);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;touch-action:manipulation">ホームへ戻る →</button>
+  </div>`;
+}
 function _injectFirstCase(){
   addCase({
     id: 'tutorial_greeting',
@@ -12051,6 +12065,7 @@ function chooseEvent(idx, useFatigue){
   const caseIdx = G.cases.findIndex(c => c === G.activeEvent);
   if(caseIdx >= 0){
     G.cases[caseIdx].resolved = true;
+    if(ev.id === 'tutorial_greeting') setTimeout(_showStorePartCompleteOverlay, 400);
     _checkCasesAllDoneHint();
     if(ev.repeatable){
       const d = (G.year-1)*360 + (G.month-1)*30 + G.day;
@@ -12275,7 +12290,6 @@ function closeActionModal(){
 function openStore(si){
   if(!useAP(10, '開店準備', ()=>openStore(si))) return;
   G.stores[si].isOpen = true;
-  if(si === 0 && !G.cases.some(c => c.id === 'tutorial_greeting')) _injectFirstCase();
   addNews(`🏪 ${G.stores[si].name} 営業再開！`);
   addStory('閉まっていたシャッターを開けた。光が差し込んだ。ここから始まる。','highlight');
   notify('舞昆茶屋を再開しました！','gold');
@@ -13502,13 +13516,20 @@ function buyMenu(si,name,cost,sat,cust){
   const _isFirstMenu = _bfMenuCnt === 0;
   const _isAllDone = G.tut.phase === 'done' && _isAllMenusPurchased(si) && !G.stores[si]._menuAllPurchasedNotified;
   if(_isAllDone) G.stores[si]._menuAllPurchasedNotified = true;
+  let _tutorialGuest = false;
+  if(_isFirstMenu && si === 0 && !G.cases.some(c => c.id === 'tutorial_greeting')){
+    _injectFirstCase();
+    _tutorialGuest = true;
+    renderTab();
+  }
   showMenuSuccessCard({
     name, si,
     menuBefore: _bfMenuCnt,
     custDiff: G.stores[si].customers - _bfCust,
     satDiff: G.stores[si].satisfaction - _bfSat,
     isFirst: _isFirstMenu,
-    isAllDone: _isAllDone
+    isAllDone: _isAllDone,
+    tutorialGuest: _tutorialGuest
   });
   // 翌営業日フィードバック用ベースライン記録 (v1.2b3: hadMenuBefore追加)
   if(!G.pendingMenuImpact || G.pendingMenuImpact.storeId !== si){
@@ -17650,6 +17671,13 @@ function _normalizeSaveData(){
     const _allRoomsN = (G.buildings||[]).flatMap(b => b.rooms||[]);
     const _s3ok = _allRoomsN.length > 0 && _allRoomsN.every(r => r.tenant || r.seeking);
     if(_s1ok && _s2ok && _s3ok) G.initialSetupCompleted = true;
+  }
+  // 旧セーブ救済：store開店+メニュー設定済みのセーブにtutorial_greetingが残っていた場合は解決済みに
+  if(G.cases){
+    const _tgIdx = G.cases.findIndex(c => c.id === 'tutorial_greeting' && !c.resolved);
+    if(_tgIdx >= 0 && G.stores && G.stores[0] && G.stores[0].isOpen && (G.stores[0].menu||[]).length > 0){
+      G.cases[_tgIdx].resolved = true;
+    }
   }
   G.formerTenantCooldowns    ||= {};
   G.resolvedEvents          ||= {};
