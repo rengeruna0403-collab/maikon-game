@@ -1754,7 +1754,6 @@ function _nextTutScene(){
     if(sc.type==='tut3_step3' || sc.action==='start_playing'){
       markTutDone();
       G.tut.phase='done'; G.started=true;
-      _injectFirstCase();
       updateHeader(); setTab('home');
       startBgm();
     }
@@ -12276,6 +12275,7 @@ function closeActionModal(){
 function openStore(si){
   if(!useAP(10, '開店準備', ()=>openStore(si))) return;
   G.stores[si].isOpen = true;
+  if(si === 0 && !G.cases.some(c => c.id === 'tutorial_greeting')) _injectFirstCase();
   addNews(`🏪 ${G.stores[si].name} 営業再開！`);
   addStory('閉まっていたシャッターを開けた。光が差し込んだ。ここから始まる。','highlight');
   notify('舞昆茶屋を再開しました！','gold');
