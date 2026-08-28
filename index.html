@@ -10050,6 +10050,20 @@ function getCaseType(c){
   return 'opportunity';
 }
 
+function getCaseSummaryUrgency(cases){
+  let maxLevel = 0;
+  for(const c of cases){
+    const age = _caseAge(c);
+    const expire = c.expireDays || 0;
+    const level = c._escalateLevel || 0;
+    if(level >= 2 || (expire > 0 && expire - age <= 3)) maxLevel = Math.max(maxLevel, 2);
+    else if(age >= 3 || level >= 1)                     maxLevel = Math.max(maxLevel, 1);
+  }
+  if(maxLevel >= 2) return 'urgent';
+  if(maxLevel >= 1) return 'waiting';
+  return 'normal';
+}
+
 function _caseAge(c){
   const nowTotal = (G.year-1)*360 + (G.month-1)*30 + G.day;
   if(c.createdTotalDays !== undefined) return nowTotal - c.createdTotalDays;
@@ -10313,29 +10327,76 @@ function renderCasesBox(){
     ${toggleBtn}
   </div>` : '';
 
-  // ─── 店舗・物件サマリー（ホームへの通知） ───
-  const storeSummary = storePending.length > 0
-    ? `<div onclick="setTab('store')" style="cursor:pointer;background:linear-gradient(135deg,#F3F9FF,#E8F4FF);border:1.5px solid #90CAF9;border-radius:12px;padding:12px 14px;margin-bottom:8px;display:flex;align-items:center;gap:10px">
-        <span style="font-size:22px">🏪</span>
-        <div style="flex:1">
-          <div style="font-size:13px;font-weight:700;color:#1565C0">店舗で対応が必要な案件があります</div>
-          <div style="font-size:12px;color:#5C6BC0;margin-top:2px">${storePending.map(c=>c.title).slice(0,2).join('・')}${storePending.length>2?`…他${storePending.length-2}件`:''}</div>
-        </div>
-        <div style="font-size:12px;color:#1565C0;font-weight:700;white-space:nowrap">${storePending.length}件 →</div>
-      </div>`
-    : '';
-  const aptSummary = aptPending.length > 0
-    ? `<div onclick="setTab('apt')" style="cursor:pointer;background:linear-gradient(135deg,#F5FFF5,#EAFFE8);border:1.5px solid #A5D6A7;border-radius:12px;padding:12px 14px;margin-bottom:8px;display:flex;align-items:center;gap:10px">
-        <span style="font-size:22px">🏠</span>
-        <div style="flex:1">
-          <div style="font-size:13px;font-weight:700;color:#2E7D32">物件で対応が必要な案件があります</div>
-          <div style="font-size:12px;color:#388E3C;margin-top:2px">${aptPending.map(c=>c.title).slice(0,2).join('・')}${aptPending.length>2?`…他${aptPending.length-2}件`:''}</div>
-        </div>
-        <div style="font-size:12px;color:#2E7D32;font-weight:700;white-space:nowrap">${aptPending.length}件 →</div>
-      </div>`
-    : '';
+  // ─── 対応BOX（店舗・物件を1枚に統合） ───
+  function _storeSummaryText(cases){
+    if(cases.length === 1){
+      const c = cases[0];
+      if(c.character){
+        const info = CHARACTERS[c.character] || {};
+        const cs = G.characters[c.character] || {};
+        const name = cs.met ? (info.name || c.sender) : c.sender;
+        return `${name}が来ています`;
+      }
+      const t = c.title || '';
+      return t.length > 14 ? t.slice(0,14)+'…' : t;
+    }
+    return '店舗で対応待ちがあります';
+  }
+  function _aptSummaryText(cases){
+    if(cases.length === 1){
+      const c = cases[0];
+      if((c.id||'').startsWith('apply_')) return '入居申込があります';
+      const t = c.title || '';
+      return t.length > 14 ? t.slice(0,14)+'…' : t;
+    }
+    const allApply = cases.every(c => (c.id||'').startsWith('apply_'));
+    return allApply ? '入居申込があります' : '入居者・物件から連絡があります';
+  }
 
-  return storeSummary + aptSummary + renderGoEnSection() + bizSection;
+  const _totalOutbox = storePending.length + aptPending.length;
+  let _actionBox = '';
+  if(_totalOutbox > 0){
+    const _urgency = getCaseSummaryUrgency([...storePending, ...aptPending]);
+    const _UMAP = {
+      normal:  { icon:'📬', text:'対応が必要です',               border:'#BDBDBD', bg:'var(--bg)',  hcolor:'var(--text)' },
+      waiting: { icon:'🟠', text:'返事を待っている案件があります', border:'#FF8A00', bg:'#FFF9F3',   hcolor:'#E65100'     },
+      urgent:  { icon:'🔴', text:'至急対応が必要です',           border:'#e53935', bg:'#FFF5F5',   hcolor:'#c62828'     },
+    };
+    const _u = _UMAP[_urgency];
+    const hasBoth = storePending.length > 0 && aptPending.length > 0;
+
+    const _storeRow = storePending.length > 0 ? `
+      <div onclick="setTab('store')" style="cursor:pointer;display:flex;align-items:center;gap:8px;padding:9px 0;${hasBoth?'border-bottom:1px solid var(--bg2);':''}">
+        <div style="border-left:3px solid #1565C0;padding-left:8px;display:flex;align-items:center;gap:6px;flex-shrink:0">
+          <span style="font-size:15px">🏪</span>
+          <span style="font-size:12px;font-weight:700;color:#1565C0">店舗</span>
+          <span style="font-size:11px;color:#1565C0;font-weight:700">${storePending.length}件</span>
+        </div>
+        <div style="flex:1;min-width:0;font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_storeSummaryText(storePending)}</div>
+        <div style="flex-shrink:0;font-size:12px;color:#1565C0;font-weight:700">確認 →</div>
+      </div>` : '';
+
+    const _aptRow = aptPending.length > 0 ? `
+      <div onclick="setTab('apt')" style="cursor:pointer;display:flex;align-items:center;gap:8px;padding:9px 0;">
+        <div style="border-left:3px solid #2E7D32;padding-left:8px;display:flex;align-items:center;gap:6px;flex-shrink:0">
+          <span style="font-size:15px">🏠</span>
+          <span style="font-size:12px;font-weight:700;color:#2E7D32">物件</span>
+          <span style="font-size:11px;color:#2E7D32;font-weight:700">${aptPending.length}件</span>
+        </div>
+        <div style="flex:1;min-width:0;font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_aptSummaryText(aptPending)}</div>
+        <div style="flex-shrink:0;font-size:12px;color:#2E7D32;font-weight:700">確認 →</div>
+      </div>` : '';
+
+    _actionBox = `<div style="border:1.5px solid ${_u.border};border-radius:12px;background:${_u.bg};padding:10px 12px;margin-bottom:8px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+        <div style="font-size:13px;font-weight:700;color:${_u.hcolor}">${_u.icon} ${_u.text}</div>
+        <span style="background:${_u.border};color:#fff;font-size:10px;font-weight:700;border-radius:99px;padding:1px 8px">${_totalOutbox}件</span>
+      </div>
+      ${_storeRow}${_aptRow}
+    </div>`;
+  }
+
+  return _actionBox + renderGoEnSection() + bizSection;
 }
 
 function getMonthlyChallenge(){
