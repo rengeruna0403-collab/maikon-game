@@ -13355,7 +13355,7 @@ function scrollToIncomingSection(){
 }
 
 function renderIncomingSection(){
-  const cnt = G.cases.filter(c => !c.resolved).length;
+  const cnt = G.cases.filter(c => !c.resolved && isCaseStillApplicable(c)).length;
   if(cnt === 0) return '';
   const badge = `<span style="background:var(--blue);color:#fff;font-size:11px;font-weight:700;border-radius:99px;padding:1px 8px;margin-left:6px">${cnt}件</span>`;
   return `<div id="home-incoming-section" style="margin-bottom:2px">
