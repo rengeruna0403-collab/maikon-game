@@ -1298,6 +1298,19 @@ function clearTabHighlight(tabKey){
   updateTabHighlights();
 }
 
+function syncCaseTabHighlights(){
+  if(!G.cases) return;
+  const pending = G.cases.filter(c => !c.resolved && isCaseStillApplicable(c));
+  const hasStore = pending.some(c => getCaseLocation(c) === 'store');
+  const hasApt   = pending.some(c => getCaseLocation(c) === 'apt');
+  if(!G.tabHighlights) G.tabHighlights = {};
+  if(hasStore) G.tabHighlights['store'] = true;
+  else delete G.tabHighlights['store'];
+  if(hasApt)   G.tabHighlights['apt'] = true;
+  else delete G.tabHighlights['apt'];
+  updateTabHighlights();
+}
+
 // ─── ディスカバリートリガー（毎日チェック）───
 function checkDiscovery(){
   if(!G.started) return;
@@ -2040,7 +2053,7 @@ function renderTutMissionCard(){
     goalTab = 'home';
   } else if(G.buildings.length < 2){
     goalTitle = '空き家を取得して2棟目へ';
-    goalHint = `融資条件を整えましょう — まずは実績を積み重ねることが先決です`;
+    goalHint = `物件タブで空き家候補を確認できます。小型物件は80万円から購入可能です`;
     goalColor = '#5c6bc0';
     goalTab = 'apt';
   } else {
@@ -2072,13 +2085,15 @@ function renderTutMissionCard(){
     }
   }
 
-  return `<div class="card" style="border:2px solid ${goalColor};margin-bottom:10px">
+  const _goalOnclick = goalTab ? `onclick="setTab('${goalTab}')" style="cursor:pointer;border:2px solid ${goalColor};margin-bottom:10px"` : `style="border:2px solid ${goalColor};margin-bottom:10px"`;
+  return `<div class="card" ${_goalOnclick}>
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
       <span style="font-size:22px">🍚</span>
-      <div>
+      <div style="flex:1">
         <div style="font-size:12px;font-weight:700;color:var(--muted)">💡 次の目標</div>
         <div style="font-size:13px;font-weight:700;color:${goalColor}">${goalTitle}</div>
       </div>
+      ${goalTab ? `<div style="font-size:12px;color:${goalColor};font-weight:700;flex-shrink:0">→</div>` : ''}
     </div>
     <div style="font-size:12px;color:var(--muted);line-height:1.7">${goalHint}</div>
   </div>`;
@@ -5435,7 +5450,7 @@ const CASE_POOL = [
   { id:'narita_expansion', conditionOnly:true, caseType:'relationship', sender:'成田（銀行）', icon:'💼', apCost:20, expireDays:30, category:'strategy',
     expirePenalty:{credit:-3, charNote:'narita', charNoteText:'拡大提案を1ヶ月放置した。少し残念そうだった。', news:'💼 成田からの拡大提案を放置した。「また機会があれば」と言っていた。'},
     title:'「事業拡大のご相談」',
-    body:'成田から連絡が入りました。\n\n「みどりさんの採用で、オーナーご自身の時間が増えたようですね。\n\n実は、次の一手を考えてみませんか。\n近隣に空き家が一棟あります。取得すれば賃貸収入が増えます。融資も出せます。」',
+    body:'成田から連絡が入りました。\n\n「みどりさんの採用で、オーナーご自身の時間が増えたようですね。\n\n実は、次の一手を考えてみませんか。\n近隣に空き家が一棟あります。取得すれば賃貸収入が増えます。購入資金の一部もお手伝いできますよ。」',
     choices:[
       {label:'話を聞く（新目標：空き家取得）', cost:0, effects:{score:10, credit:3, unlockExpansion:true, profile:{risk:3}}, label2:'拡大フェーズへ移行', storyTag:'成田の提案を聞いた。次のステップが見えてきた。'},
       {label:'今は現状維持でいきます', cost:0, noAP:true, effects:{score:3, profile:{finance:2}}, label2:'いつでも再検討できます', storyTag:'拡大の提案は保留にした。今の経営を固める。'},
@@ -9993,6 +10008,30 @@ function generateRoomApplicationCases(){
   });
 }
 
+// ─── 案件表示先 マッピング ───────────────────────────────────────
+// domain:'community' 内で内容が店舗来店の案件を個別上書き
+const CASE_LOCATION_OVERRIDE = {
+  'chr_tanaka_1':'store','chr_tanaka_2':'store','chr_tanaka_3':'store',
+  'chr_yamamoto_1':'store','chr_yamamoto_2':'store','chr_yamamoto_3':'store',
+  'chr_suzuki_1b':'store',
+};
+
+function getCaseLocation(c){
+  if(CASE_LOCATION_OVERRIDE[c.id]) return CASE_LOCATION_OVERRIDE[c.id];
+  const d = c.domain;
+  if(d === 'store')    return 'store';
+  if(d === 'landlord') return 'apt';
+  if(d === 'bank')     return 'home';
+  if(d === 'community') return 'home';
+  if(d === 'staff')    return 'home';
+  // domain未設定 — IDで判定可能な物件案件のみaptへ
+  if(!d){
+    if((c.id||'').startsWith('apply_')) return 'apt'; // 動的入居申込 apply_bi_ri
+    if(c.id === 'vacancy_spike' || c.id === 'tenant_request') return 'apt';
+  }
+  return 'home'; // 不明はhomeへ（案件消失を防ぐ安全弁）
+}
+
 function resolveCase(idx){
   const c = G.cases[idx];
   if(!c || c.resolved) return;
@@ -10158,9 +10197,14 @@ function renderCasesBox(){
   if(!G.started) return '';
   const pending = G.cases.filter(c => !c.resolved).filter(isCaseStillApplicable);
 
-  // ─── ご縁ケースと業務ケースを分離 ───
-  const goEnCases  = pending.filter(c => !!c.character);
-  const bizCases   = pending.filter(c => !c.character);
+  // ─── 表示先で振り分け ───
+  const homePending  = pending.filter(c => getCaseLocation(c) === 'home');
+  const storePending = pending.filter(c => getCaseLocation(c) === 'store');
+  const aptPending   = pending.filter(c => getCaseLocation(c) === 'apt');
+
+  // ─── ご縁ケースと業務ケースを分離（home案件のみ） ───
+  const goEnCases  = homePending.filter(c => !!c.character);
+  const bizCases   = homePending.filter(c => !c.character);
 
   // ─── ご縁セクション ───
   function renderGoEnSection(){
@@ -10269,7 +10313,29 @@ function renderCasesBox(){
     ${toggleBtn}
   </div>` : '';
 
-  return renderGoEnSection() + bizSection;
+  // ─── 店舗・物件サマリー（ホームへの通知） ───
+  const storeSummary = storePending.length > 0
+    ? `<div onclick="setTab('store')" style="cursor:pointer;background:linear-gradient(135deg,#F3F9FF,#E8F4FF);border:1.5px solid #90CAF9;border-radius:12px;padding:12px 14px;margin-bottom:8px;display:flex;align-items:center;gap:10px">
+        <span style="font-size:22px">🏪</span>
+        <div style="flex:1">
+          <div style="font-size:13px;font-weight:700;color:#1565C0">店舗で対応が必要な案件があります</div>
+          <div style="font-size:12px;color:#5C6BC0;margin-top:2px">${storePending.map(c=>c.title).slice(0,2).join('・')}${storePending.length>2?`…他${storePending.length-2}件`:''}</div>
+        </div>
+        <div style="font-size:12px;color:#1565C0;font-weight:700;white-space:nowrap">${storePending.length}件 →</div>
+      </div>`
+    : '';
+  const aptSummary = aptPending.length > 0
+    ? `<div onclick="setTab('apt')" style="cursor:pointer;background:linear-gradient(135deg,#F5FFF5,#EAFFE8);border:1.5px solid #A5D6A7;border-radius:12px;padding:12px 14px;margin-bottom:8px;display:flex;align-items:center;gap:10px">
+        <span style="font-size:22px">🏠</span>
+        <div style="flex:1">
+          <div style="font-size:13px;font-weight:700;color:#2E7D32">物件で対応が必要な案件があります</div>
+          <div style="font-size:12px;color:#388E3C;margin-top:2px">${aptPending.map(c=>c.title).slice(0,2).join('・')}${aptPending.length>2?`…他${aptPending.length-2}件`:''}</div>
+        </div>
+        <div style="font-size:12px;color:#2E7D32;font-weight:700;white-space:nowrap">${aptPending.length}件 →</div>
+      </div>`
+    : '';
+
+  return storeSummary + aptSummary + renderGoEnSection() + bizSection;
 }
 
 function getMonthlyChallenge(){
@@ -14473,6 +14539,7 @@ function renderTab(){
   }
   m.innerHTML=_html;
   _updateAdvFixed();
+  syncCaseTabHighlights();
   if(G.tab === 'home' && G.tut && G.tut.phase === 'done') requestAnimationFrame(focusInitialSetupTarget);
   // モーダルが閉じてrenderTabが走るタイミングで表示待ち結果を消化する
   try { _tryShowMenuImpactResult(); } catch(_e){ /* ignore */ }
@@ -15409,8 +15476,36 @@ function renderStore(){
     : 0;
   const dailyExp=s.staffCost+s.ingredientCost+Math.round(s.rent/30)+G.staff.filter(st=>st.store===s.name).reduce((a,st)=>a+Math.round(st.salary/30),0);
   const satColor=s.satisfaction>70?'#4CAF50':s.satisfaction>45?'#FFC107':'#F44336';
+  // ─── 店舗案件セクション ───
+  const _storeIdx = si; // 現在選択中の店舗インデックス（クロージャ用）
+  const _storeName = s.name;
+  const _storeCases = G.cases.filter(c => !c.resolved && isCaseStillApplicable(c) && getCaseLocation(c) === 'store');
+  const _storeCaseHtml = _storeCases.length === 0 ? '' : `<div class="card" style="margin-bottom:8px;border:1.5px solid #90CAF9;background:linear-gradient(135deg,#F3F9FF,#FAFEFF)">
+    <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
+      <span style="font-size:14px;font-weight:700;color:#1565C0">📋 店舗の対応案件</span>
+      <span style="background:#1565C0;color:#fff;font-size:10px;font-weight:700;border-radius:99px;padding:1px 7px">${_storeCases.length}件</span>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:6px">${_storeCases.map(c=>{
+      const ri=G.cases.indexOf(c);
+      const cat=c.category||'ops';
+      const CAT_L={ops:'🛠 業務',mgmt:'💼 経営',strategy:'🏦 戦略'};
+      const isChar=!!c.character;
+      const icon=isChar?(CHARACTERS[c.character]&&CHARACTERS[c.character].icon||'👤'):c.icon;
+      const labelHtml=isChar?`<span style="font-size:11px;color:#B8860B;font-weight:700">👤 ご縁</span>`:`<span style="font-size:11px;color:#1565C0;font-weight:700">${CAT_L[cat]||''}</span>`;
+      return `<div onclick="resolveCase(${ri})" style="cursor:pointer;display:flex;align-items:center;gap:10px;padding:10px 12px;background:#fff;border-radius:10px;border:1px solid #BBDEFB">
+        <span style="font-size:20px;flex-shrink:0">${icon}</span>
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;align-items:center;gap:5px;margin-bottom:2px">${labelHtml}<span style="font-size:11px;color:var(--muted)">${c.sender}</span></div>
+          <div style="font-size:15px;font-weight:700;color:#1A237E;line-height:1.3">${c.title}</div>
+        </div>
+        <div style="font-size:12px;color:#1565C0;font-weight:700;flex-shrink:0">対応 →</div>
+      </div>`;
+    }).join('')}</div>
+  </div>`;
+
   return `
     ${renderTutBanner()}
+    ${_storeCaseHtml}
     <div class="sel-tabs">${tabs}<button class="sel-tab" onclick="openNewStoreModal()">+ 新店舗</button></div>
     ${!s.isOpen ? `<div id="store-reopen-anchor" style="background:#FFF3E0;border:2px solid #FF8F00;border-radius:12px;padding:14px 16px;margin-bottom:10px">
       <div style="font-size:13px;font-weight:700;color:#E65100;margin-bottom:4px">🔒 このお店は現在閉店中です</div>
@@ -15839,8 +15934,35 @@ function renderApt(){
   `).join('');
   const occ=b.rooms.filter(r=>r.tenant).length;
   const monthly=b.rooms.filter(r=>r.tenant).reduce((s,r)=>s+r.rent,0);
+
+  // ─── 物件案件セクション ───
+  const _aptCases = G.cases.filter(c => !c.resolved && isCaseStillApplicable(c) && getCaseLocation(c) === 'apt');
+  const _aptCaseHtml = _aptCases.length === 0 ? '' : `<div class="card" style="margin-bottom:8px;border:1.5px solid #A5D6A7;background:linear-gradient(135deg,#F5FFF5,#FAFFFA)">
+    <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
+      <span style="font-size:14px;font-weight:700;color:#2E7D32">📋 物件の対応案件</span>
+      <span style="background:#2E7D32;color:#fff;font-size:10px;font-weight:700;border-radius:99px;padding:1px 7px">${_aptCases.length}件</span>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:6px">${_aptCases.map(c=>{
+      const ri=G.cases.indexOf(c);
+      const cat=c.category||'ops';
+      const CAT_L={ops:'🛠 業務',mgmt:'💼 経営',strategy:'🏦 戦略'};
+      const isChar=!!c.character;
+      const icon=isChar?(CHARACTERS[c.character]&&CHARACTERS[c.character].icon||'👤'):c.icon;
+      const labelHtml=isChar?`<span style="font-size:11px;color:#B8860B;font-weight:700">👤 ご縁</span>`:`<span style="font-size:11px;color:#2E7D32;font-weight:700">${CAT_L[cat]||''}</span>`;
+      return `<div onclick="resolveCase(${ri})" style="cursor:pointer;display:flex;align-items:center;gap:10px;padding:10px 12px;background:#fff;border-radius:10px;border:1px solid #C8E6C9">
+        <span style="font-size:20px;flex-shrink:0">${icon}</span>
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;align-items:center;gap:5px;margin-bottom:2px">${labelHtml}<span style="font-size:11px;color:var(--muted)">${c.sender}</span></div>
+          <div style="font-size:15px;font-weight:700;color:#1B5E20;line-height:1.3">${c.title}</div>
+        </div>
+        <div style="font-size:12px;color:#2E7D32;font-weight:700;flex-shrink:0">対応 →</div>
+      </div>`;
+    }).join('')}</div>
+  </div>`;
+
   return `
     ${renderTutBanner()}
+    ${_aptCaseHtml}
     ${_renderAptTutorialCard()}
     <div class="sel-tabs">${tabs}<button class="sel-tab" onclick="openBuyBldModal()">+ 物件購入</button></div>
     <div class="card">
