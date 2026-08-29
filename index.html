@@ -1049,7 +1049,7 @@ function showMenuSuccessCard({ name, si, menuBefore, custDiff, satDiff, isFirst,
   } else if(isFirst){
     titleHtml = `<div style="text-align:center;padding-top:4px"><div style="font-size:28px;margin-bottom:8px">🎉</div><div style="font-size:15px;font-weight:700;color:var(--gr3);font-family:'Noto Serif JP',serif;margin-bottom:4px">最初のメニューが完成しました！</div><div style="font-size:12px;color:var(--muted);margin-bottom:2px">「${name}」が${storeName}のメニューに加わりました。</div></div>`;
     if(tutorialGuest){
-      btnsHtml = `<div style="margin-top:12px"><button onclick="document.getElementById('arf-wrap').innerHTML=''" style="width:100%;padding:10px;background:var(--gr);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;touch-action:manipulation">はじめてのお客様を接客する →</button></div>`;
+      btnsHtml = `<div style="margin-top:12px"><button onclick="document.getElementById('arf-wrap').innerHTML='';setTimeout(()=>{ const el=document.getElementById('store-cases-section'); if(el) el.scrollIntoView({behavior:'smooth',block:'start'}); },150);" style="width:100%;padding:10px;background:var(--gr);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;touch-action:manipulation">はじめてのお客様を接客する →</button></div>`;
     } else {
       btnsHtml = `<div style="margin-top:12px"><button onclick="document.getElementById('arf-wrap').innerHTML='';setTab('home')" style="width:100%;padding:10px;background:var(--gr);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;touch-action:manipulation">ホームへ戻って次の準備へ →</button></div>`;
     }
@@ -15562,7 +15562,7 @@ function renderStore(){
   const _storeIdx = si; // 現在選択中の店舗インデックス（クロージャ用）
   const _storeName = s.name;
   const _storeCases = G.cases.filter(c => !c.resolved && isCaseStillApplicable(c) && getCaseLocation(c) === 'store');
-  const _storeCaseHtml = _storeCases.length === 0 ? '' : `<div class="card" style="margin-bottom:8px;border:1.5px solid #90CAF9;background:linear-gradient(135deg,#F3F9FF,#FAFEFF)">
+  const _storeCaseHtml = _storeCases.length === 0 ? '' : `<div id="store-cases-section" class="card" style="margin-bottom:8px;border:1.5px solid #90CAF9;background:linear-gradient(135deg,#F3F9FF,#FAFEFF)">
     <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
       <span style="font-size:14px;font-weight:700;color:#1565C0">📋 店舗の対応案件</span>
       <span style="background:#1565C0;color:#fff;font-size:10px;font-weight:700;border-radius:99px;padding:1px 7px">${_storeCases.length}件</span>
