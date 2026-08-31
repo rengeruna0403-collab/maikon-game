@@ -8778,6 +8778,16 @@ function generateWeeklyCases(){
       const _s0ea = (G.stores||[])[0] || {};
       if((_s0ea.regulars||0) < 1) return false;
     }
+    // noise_kids: 初期物件（桜橋ハイツ）は除外。追加取得物件に入居者2室以上 + 子育て世帯が必要
+    // 注: 現状すべての物件室番は101〜104/106（1Fのみ）で上下階データが存在しないため
+    //     「追加物件 + 入居複数 + 子育て世帯あり」を現在判定可能な上限条件とする
+    if(c.id === 'noise_kids'){
+      const _eligibleB = G.buildings.slice(1).find(b =>
+        (b.rooms||[]).filter(r => r.tenant).length >= 2 &&
+        (b.rooms||[]).some(r => r.tenant && r.tenant.type === '子育て世帯')
+      );
+      if(!_eligibleB) return false;
+    }
     // 経過日数・評判フィルター
     if(c.minDay && tdNow < c.minDay) return false;
     if(c.minRep && (G.regions[0]?.reputation||0) < c.minRep) return false;
@@ -11409,7 +11419,7 @@ function _injectEffectCSS(){
     '#_efx-overlay{position:fixed;bottom:32%;left:50%;transform:translateX(-50%);z-index:9999;pointer-events:none;display:flex;flex-direction:column;align-items:center;gap:5px}' +
     '.efx-line{font-size:14px;font-weight:700;padding:5px 16px;border-radius:20px;white-space:nowrap;animation:_fxUp 2s ease-out forwards;text-shadow:0 1px 2px rgba(0,0,0,.1)}' +
     '.efx-line.pos{background:rgba(255,255,255,.93);color:#2e7d32;border:1.5px solid #a5d6a7}' +
-    '.efx-line.neg{background:rgba(255,255,255,.93);color:#b71c1c;border:1.5px solid #ef9a9a}' +
+    '.efx-line.neg{background:rgba(255,255,255,.93);color:var(--orange);border:1.5px solid #FFCC80}' +
     '.efx-line.neu{background:rgba(255,255,255,.90);color:#555;border:1.5px solid #ddd}' +
     '.efx-toast{position:fixed;bottom:20%;left:50%;z-index:9998;background:rgba(255,255,255,.96);border-radius:14px;padding:9px 20px;font-size:14px;font-weight:600;color:#333;border:1.5px solid #f0d070;box-shadow:0 3px 12px rgba(0,0,0,.12);white-space:nowrap;animation:_fxToast 2.5s ease-out forwards;pointer-events:none}' +
     '.efx-heart{position:fixed;z-index:9997;pointer-events:none;animation:_fxUp 1.8s ease-out forwards}';
