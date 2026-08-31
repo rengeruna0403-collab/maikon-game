@@ -13988,7 +13988,7 @@ function generateApplicants(count=3){
 }
 
 function postJobAd(){
-  if(!G.staffUnlocked){ notify('まずみどりを採用してから一般募集ができます','warn'); return; }
+  if((G.staff||[]).length < 3){ notify('スタッフが3人になると求人募集が解放されます','warn'); return; }
   const cost = 30000;
   if(G.money < cost){ notify('資金不足','warn'); return; }
   if(!useAP(5, '求人広告掲載', ()=>postJobAd())) return;
@@ -16212,21 +16212,6 @@ function renderStaff(){
       </div>
     </div>
 
-    <div class="card">
-      <div class="card-ttl">👥 求人募集</div>
-      <div style="font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.7">
-        求人広告を出すと応募者3人が集まります。スキルや希望給与を見て採用を判断してください。
-      </div>
-      ${G.staffUnlocked ? `<button class="btn btn-gr" style="width:100%;padding:10px;font-size:13px" onclick="postJobAd()">
-        📋 求人広告を出す <span style="font-size:11px;opacity:.8;margin-left:6px">AP-5 ・ ¥30,000</span>
-      </button>` : `<div style="background:var(--bg2);border-radius:8px;padding:10px 12px;font-size:12px;color:var(--muted);text-align:center">🔒 みどりを採用すると一般募集ができるようになります</div>`}
-      ${G._applicants && G._applicants.length ? `
-      <div style="margin-top:10px;background:#E8F5E9;border-radius:8px;padding:8px 10px;font-size:12px;color:var(--gr3)">
-        📬 未対応の応募者が${G._applicants.length}名います
-        <button class="btn btn-gr" style="padding:4px 10px;font-size:11px;margin-left:8px" onclick="showApplicantModal()">確認する</button>
-      </div>` : ''}
-    </div>
-
     ${G.staff.map(s=>{
       const _sPortraitUrl = s.name === '佐々木みどり' ? CHARACTER_PORTRAITS.midori : null;
       const _sAvatarHtml = _sPortraitUrl
@@ -16309,6 +16294,40 @@ function renderStaff(){
         </div>
       </div>
     `; }).join('')}
+
+    ${(()=>{
+      const _sc = (G.staff||[]).length;
+      const _unlocked = _sc >= 3;
+      const _applicantNote = G._applicants && G._applicants.length ? `
+      <div style="margin-top:10px;background:#E8F5E9;border-radius:8px;padding:8px 10px;font-size:12px;color:var(--gr3)">
+        📬 未対応の応募者が${G._applicants.length}名います
+        <button class="btn btn-gr" style="padding:4px 10px;font-size:11px;margin-left:8px" onclick="showApplicantModal()">確認する</button>
+      </div>` : '';
+      if(_unlocked){
+        return `<div class="card">
+          <div class="card-ttl">👥 求人募集</div>
+          <div style="font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.7">
+            求人広告を出すと応募者3人が集まります。スキルや希望給与を見て採用を判断してください。
+          </div>
+          <button class="btn btn-gr" style="width:100%;padding:10px;font-size:13px" onclick="postJobAd()">
+            📋 求人広告を出す <span style="font-size:11px;opacity:.8;margin-left:6px">AP-5 ・ ¥30,000</span>
+          </button>
+          ${_applicantNote}
+        </div>`;
+      } else {
+        return `<div class="card" style="border-color:var(--border);opacity:.85">
+          <div class="card-ttl" style="color:var(--muted)">👥 求人募集</div>
+          <div style="font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.7">
+            今は、ご縁を通じた仲間との出会いを大切にしましょう。<br>
+            スタッフが3人になると求人募集が解放されます。
+          </div>
+          <div style="background:var(--bg2);border-radius:8px;padding:10px 12px;font-size:12px;color:var(--muted);text-align:center;cursor:not-allowed">
+            🔒 求人募集　スタッフ ${_sc} / 3
+          </div>
+          ${_applicantNote}
+        </div>`;
+      }
+    })()}
 
   `;
 }
