@@ -14654,7 +14654,11 @@ function _updateAdvFixed(){
     el.innerHTML = `<button onclick="advanceDay()" style="opacity:.75">🌱 まずは開店準備を進めましょう　<span style="font-size:10px;font-weight:400;opacity:.85">（日送りもできます）</span></button>`;
   } else {
     const _apNote2 = (G.ap||0) <= 25 ? `<div style="font-size:10px;font-weight:400;opacity:.85;margin-top:2px">APを残して経営を進めましょう</div>` : '';
-    el.innerHTML = `<button onclick="advanceDay()">🌿 明日へ進む　<span style="font-size:11px;font-weight:400;opacity:.85">${getNextDayLabel()}へ</span>${_apNote2}</button>`;
+    const _pendingCnt = G.cases ? G.cases.filter(c => !c.resolved && isCaseStillApplicable(c)).length : 0;
+    const _pendingNote = _pendingCnt > 0
+      ? `<div onclick="event.stopPropagation();(function(){const hdr=document.querySelector('.hdr');const el=document.getElementById('home-incoming-section')||document.getElementById('home-cases-anchor');if(!el)return;const offset=hdr?hdr.getBoundingClientRect().height:0;const top=el.getBoundingClientRect().top+window.scrollY-offset-8;window.scrollTo({top,behavior:'smooth'});})()" style="pointer-events:auto;cursor:pointer;font-size:10px;font-weight:500;color:rgba(255,255,255,.8);margin-top:4px;text-decoration:underline;text-underline-offset:2px">📬 対応待ち ${_pendingCnt}件</div>`
+      : '';
+    el.innerHTML = `<button onclick="advanceDay()">🌿 明日へ進む　<span style="font-size:11px;font-weight:400;opacity:.85">${getNextDayLabel()}へ</span>${_apNote2}${_pendingNote}</button>`;
   }
   el.style.display = _isModalOpen() ? 'none' : '';
 }
