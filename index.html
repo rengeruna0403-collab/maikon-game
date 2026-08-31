@@ -5842,7 +5842,7 @@ const CASE_POOL = [
        storyTag:'今回は断った。機会を逃した気がした。'},
     ]},
 
-  { id:'midgame_school_visit', repeatable:true, oncePerYear:true, domain:'community', sender:'地元小学校', icon:'🏫', apCost:15, expireDays:14, category:'ops', minDay:60, minRep:25,
+  { id:'midgame_school_visit', repeatable:true, oncePerYear:true, domain:'community', sender:'地元小学校', icon:'🏫', apCost:15, expireDays:14, category:'ops', minDay:151, minRep:35,
     expirePenalty:{rep:-2, communityBond:-2, news:'🏫 地元小学校の訪問授業を断った。'},
     title:'小学校から食育授業の依頼',
     body:'地元の小学校から連絡がありました。\n\n「3年生の食育授業で、地元の食材を学ぶ機会を設けています。\n舞昆についてお話しいただけませんか？\n子どもたちが楽しみにしています」',
@@ -10225,6 +10225,11 @@ function isCaseStillApplicable(c){
   if(c._DISABLED_TEMPORARILY || _DISABLED_CASE_IDS.includes(c.id)){
     c.resolved = true;
     c._autoSkipped = true;
+    return false;
+  }
+  // requireVacancy案件：満室なら即時非表示（day advance前でも）
+  if(c.requireVacancy && !G.buildings.some(b => b.rooms.some(r => !r.tenant))){
+    c.resolved = true;
     return false;
   }
   return true;
