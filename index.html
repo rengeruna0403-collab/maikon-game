@@ -6295,7 +6295,7 @@ const DOMAIN_CASES = [
   { id:'rent_late_1', requireTenant:true, repeatable:true, domain:'landlord', sender:'入居者', icon:'💰', apCost:5, expireDays:10, category:'ops',
     expirePenalty:{score:-3, news:'💰 家賃未払いを放置した。'},
     title:'家賃の振込が確認できません',
-    body:'今月の家賃が振り込まれていません。\n\n{{TENANT_ROOM}}の{{TENANT_NAME}}へ確認の連絡が必要です。\n（3日が支払日、現在5日）',
+    body:'今月の家賃が振り込まれていません。\n\n{{TENANT_ROOM}}の{{TENANT_NAME}}へ確認の連絡が必要です。\n（今月の支払期日を過ぎています）',
     choices:[
       {label:'すぐに連絡する',cost:0,effects:{score:7,credit:1},label2:'迅速対応',storyTag:'すぐに確認の連絡をした。振込忘れだった。'},
       {label:'もう数日待つ',cost:0,effects:{score:3},label2:'様子見',storyTag:'数日様子を見ることにした。'},
@@ -7154,13 +7154,13 @@ const DOMAIN_CASES = [
        label2:'評判+6・絆+4 / みどり負担・疲労+8',
        storyTag:'みどりと一緒に清掃に参加した。地域住民に「いつもありがとう」と声をかけられた。みどりは少し疲れた様子だったが、「こういうの、好きです」と言ってくれた。',
        followUp:{days:30,icon:'🧹',sender:'自治会長',title:'地域清掃を続けた甲斐がありました',body:'石川さんから連絡がありました。\n\n「先日の寄り合いで、「舞昆さんはいつも清掃に来てくれる」という話が出ました。\n\n「顔を知っているから安心して買いに行ける」という声も。\n\n地道な積み重ねが、地域の信頼になっています。」',effects:{custBonusPerDay:1,custBonusDays:14,source:'cleanup'}}},
-      {label:'一人で参加する',
+      {label:'参加する',
        cost:0,
        effects:{score:6,rep:4,communityBond:2,fatigue:12,profile:{community:2}},
        label2:'評判+4 / 疲労+12（一人で対応）',
        storyTag:'一人で地域清掃に参加した。少し疲れたが、顔見知りが増えた気がした。',
        followUp:{days:30,icon:'🧹',sender:'自治会',title:'清掃で顔を覚えてもらえたようです',
-         body:'自治会の方から声がかかりました。\n\n「先日の清掃で一緒になった方が\n「あのお店の人、毎回来てくれるね」って言ってたよ。\n\n「顔を知ってると、入りやすい」って\nお店に来てくれた方もいるみたい。」',
+         body:'自治会の方から声がかかりました。\n\n「先日の清掃で一緒になった方が\n「あのお店の人、毎回来てくれるね」って言ってたよ。\n\n「顔を知ってると、入りやすい」って\nお店に行った方もいるみたい。」',
          effects:{custBonusPerDay:1, custBonusDays:10, source:'cleanup_solo'}}},
       {label:'今回は見送る',
        cost:0, noAP:true,
@@ -12852,7 +12852,7 @@ const MAIN_STORY_CHAPTERS = [
         sceneTitle:'成田さんの問い',
         speaker:'成田（銀行員）',
         portrait:'narita',
-        text:'最初の頃と比べて、\nずいぶん関わる方が増えましたね。\n\n「全部、ご自分でやるつもりですか？」\n\n成田さんはそう言った。\nいつもどおりの、穏やかな口調で。\n\n「経営者の仕事は、\n全部ひとりでこなすことだけでは\nないと思いますよ。\n\n任せられるところは、\n少し任せてみてもいいのかもしれません。」'
+        text:'最初の頃と比べて、\nずいぶん関わる方が増えましたね。\n\n「全部、ご自分でやるつもりですか？」\n\n成田さんはそう言った。\nいつもどおりの、穏やかな口調で。\n\n「経営者の仕事は、\n全部を自分でやることではないと思いますよ。\n\n任せられるところは、\n少し任せてみてもいいのかもしれません。」'
       },
       {
         sceneTitle:'ひとりではない',
@@ -12874,17 +12874,17 @@ const MAIN_STORY_CHAPTERS = [
     scenes:[
       { sceneTitle:'ギフト包みの依頼',
         speaker:'ナレーション',
-        text:'ある午後、一人のお客様が、\n少し迷いながらカウンターへ近づいてきた。\n\n「舞昆を、ギフト用に包んでもらえますか。\n入院している友人へ、お見舞いに」' },
+        text:'ある午後、一人のお客様が、\n少し迷いながらカウンターへ近づいてきた。\n\n「入院している友人へ、お見舞いを持っていきたくて。\n舞昆を、贈り物用に包んでもらえますか」' },
       { sceneTitle:'贈り先の話',
         speaker:'あなた',
-        text:'商品を選んでいる間、\nお客様はぽつぽつと話してくれた。\n\n「この店、ずっと前から知っていて。\n昔、その友人と一緒によく買いに来ていたんです」\n\nふたりで来ていた店。\nそれを今、一人でまた訪ねている。' },
+        text:'商品を選んでいる間、\nお客様はぽつぽつと話してくれた。\n\n「この店、ずっと前から知っていて。\n以前、その友人と一緒によく買いに来ていたんです」\n\n以前はふたりで来ていたこの店を、\n今は一人で訪ねている。' },
       { sceneTitle:'成田さんの一言',
         portrait:'narita',
         speaker:'成田（銀行員）',
         text:'「贈り物というのは、商品を渡しているんじゃなくて、\n相手への気持ちを届けているんですよね」\n\n成田さんは、当たり前のことのように言った。\nでも、その言葉が少し胸に残った。' },
       { sceneTitle:'気づいたこと',
         speaker:'あなた',
-        text:'舞昆は、誰かの食卓へ届くものだと思っていた。\n\nでも、それだけじゃなかった。\n\n誰かから、誰かへ。\nそのあいだに込められた\n「また元気でいてほしい」という気持ちも、\n一緒に届いていくのかもしれない。' },
+        text:'舞昆は、誰かの食卓へ届くものだと思っていた。\n\nでも、それだけじゃなかった。\n\n誰かから、誰かへ。\nそのあいだに込められた\n「ずっと元気でいてほしい」という気持ちも、\n一緒に届いていくのかもしれない。' },
       { sceneTitle:'もう一歩先へ',
         speaker:'あなた',
         text:'届けるものの向こうには、\n受け取る人がいる。\n\nその当たり前のことを、\n前より少し意識するようになった。\n\n商品だけでなく、\n届ける先の人のことを考えること。\nそれが、この仕事のひとつだと思った。',
@@ -13476,7 +13476,7 @@ function showMainStoryChapter(chId, replayMode){
       ${sc.speaker !== 'ナレーション' && sc.speaker !== 'あなた' ? `<div class="ms-scene-speaker">${sc.speaker}</div>` : ''}
       <div class="ms-scene-text" style="white-space:pre-line">${sc.text}</div>
       ${nextGoalHtml}
-      <button onclick="_msNext()" style="width:100%;padding:12px;background:${isLast?'var(--gr3)':'var(--bg2)'};color:${isLast?'#fff':'var(--text)'};border:${isLast?'none':'1px solid var(--border)'};border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">${btnLabel}</button>
+      <button onclick="_msNext()" style="width:100%;padding:12px;background:${isLast?'var(--gr3)':'var(--bg2)'};color:${isLast?'#fff':'var(--text)'};border:${isLast?'none':'1px solid var(--border)'};border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;position:sticky;bottom:0;margin-top:4px">${btnLabel}</button>
     </div>`;
   }
 
