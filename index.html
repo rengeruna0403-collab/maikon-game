@@ -8898,11 +8898,10 @@ function generateConditionCases(){
     addCase(CASE_POOL.find(c => c.id === 'tenant_request'));
   }
 
-  // ── ① 成田「まず認知を」（4月2日〜・開店済み・メニュー1品以上・チュートリアル後）──
-  // 4/2〜4/4頃に発火するよう totalDays>=2 で判定。tutCompletedDay依存を廃止。
+  // ── ① 成田「まず認知を」（チュートリアル完了・開店・メニュー登録後、5月末まで発火可能。6月以降は新規発火しない）──
   const totalDays = (G.year-1)*360 + (G.month-1)*30 + G.day;
   const s0 = G.stores[0];
-  if(s0.isOpen && s0.menu && s0.menu.length > 0 && G.tut.phase === 'done' && totalDays >= 2){
+  if(s0.isOpen && s0.menu && s0.menu.length > 0 && G.tut.phase === 'done' && totalDays >= 2 && totalDays <= 150){
     if(!G.cases.some(c => c.id === 'narita_first_ad')){
       addCase(CASE_POOL.find(c => c.id === 'narita_first_ad'));
     }
