@@ -2816,9 +2816,10 @@ function advanceDay(){
     console.log('[advanceDay] date update done: ' + G.year + '年' + G.month + '月' + G.day + '日 AP=' + G.ap + ' money=' + G.money);
   }
 
-  // メインストーリーエンディング（1年目3月30日のみ）
+  // メインストーリーエンディング（1年度末=翌年3月30日）
+  // ゲームはY1M4D1開始、月が12を超えるとyearが繰り上がるためY2M3が年度末
   if(!G.gameEnded && !G.freeMode && G.tut.phase === 'done'){
-    if(G.year === 1 && G.month === 3 && G.day === 30){
+    if(G.year === 2 && G.month === 3 && G.day === 30){
       G.gameEnded = true;
       setTimeout(showMainStoryEnding, 800);
       return;
@@ -11065,7 +11066,7 @@ function _advanceDayCore(){
   if(G.day>30){ G.day=1; G.month++; normalizeDate(); G._isMonthEnd=true; monthlyTick(); }
   // メインストーリーエンディング（advanceDayと同じチェック：キャッシュ危機解決後も発火させる）
   if(!G.gameEnded && !G.freeMode && G.tut.phase === 'done'){
-    if(G.year === 1 && G.month === 3 && G.day === 30){
+    if(G.year === 2 && G.month === 3 && G.day === 30){
       G.gameEnded = true;
       setTimeout(showMainStoryEnding, 800);
       return;
@@ -12862,11 +12863,152 @@ const MAIN_STORY_CHAPTERS = [
       }
     ],
     learningTheme:'任せることと人と育てること', reward:null },
-  { id:'chapter_4', chapter:4, title:'贈る気持ち', subtitle:'', status:'planned', unlock:{}, scenes:[], learningTheme:'贈り物とご縁', reward:null },
-  { id:'chapter_5', chapter:5, title:'人に任せるということ', subtitle:'', status:'planned', unlock:{}, scenes:[], learningTheme:'育てる・任せる', reward:null },
-  { id:'chapter_6', chapter:6, title:'町とのご縁', subtitle:'', status:'planned', unlock:{}, scenes:[], learningTheme:'地域との関係', reward:null },
-  { id:'chapter_7', chapter:7, title:'次の店へ', subtitle:'', status:'planned', unlock:{}, scenes:[], learningTheme:'広げる責任', reward:null },
-  { id:'chapter_8', chapter:8, title:'今度はあなたが届ける番', subtitle:'', status:'planned', unlock:{}, scenes:[], learningTheme:'舞昆を届ける人', reward:null }
+  { id:'chapter_4', chapter:4, title:'贈る気持ち', subtitle:'届ける先に、顔がある',
+    heroImage:'assets/story/chapter3_hero.webp',
+    status:'implemented',
+    unlock:{ all:[
+      { type:'storyCompleted', chapterId:'chapter_3' },
+      { type:'daysSinceChapterCompleted', chapterId:'chapter_3', minDays:20 },
+      { type:'resolvedCasesAtLeast', value:13 }
+    ]},
+    scenes:[
+      { sceneTitle:'ギフト包みの依頼',
+        speaker:'ナレーション',
+        text:'ある午後、一人のお客様が、\n少し迷いながらカウンターへ近づいてきた。\n\n「舞昆を、ギフト用に包んでもらえますか。\n入院している友人へ、お見舞いに」' },
+      { sceneTitle:'贈り先の話',
+        speaker:'あなた',
+        text:'商品を選んでいる間、\nお客様はぽつぽつと話してくれた。\n\n「この店、ずっと前から知っていて。\n昔、その友人と一緒によく買いに来ていたんです」\n\nふたりで来ていた店。\nそれを今、一人でまた訪ねている。' },
+      { sceneTitle:'成田さんの一言',
+        portrait:'narita',
+        speaker:'成田（銀行員）',
+        text:'「贈り物というのは、商品を渡しているんじゃなくて、\n相手への気持ちを届けているんですよね」\n\n成田さんは、当たり前のことのように言った。\nでも、その言葉が少し胸に残った。' },
+      { sceneTitle:'気づいたこと',
+        speaker:'あなた',
+        text:'舞昆は、誰かの食卓へ届くものだと思っていた。\n\nでも、それだけじゃなかった。\n\n誰かから、誰かへ。\nそのあいだに込められた\n「また元気でいてほしい」という気持ちも、\n一緒に届いていくのかもしれない。' },
+      { sceneTitle:'もう一歩先へ',
+        speaker:'あなた',
+        text:'この店は、食べるものを売っている。\n\nでも同時に、\n人と人をつなぐ場所にもなっている。\n\nその「届ける先」のことを、\nもっと大切に考えていこう。',
+        isLast:true,
+        nextGoal:'お客様との関わりを続けながら、\nスタッフや周りの人たちとも一緒に経営を育てましょう。' }
+    ],
+    learningTheme:'贈り物とご縁', reward:null },
+  { id:'chapter_5', chapter:5, title:'人に任せるということ', subtitle:'信じて、任せてみる',
+    heroImage:'assets/story/chapter3_hero.webp',
+    status:'implemented',
+    unlock:{ all:[
+      { type:'storyCompleted', chapterId:'chapter_4' },
+      { type:'daysSinceChapterCompleted', chapterId:'chapter_4', minDays:20 },
+      { type:'resolvedCasesAtLeast', value:18 }
+    ]},
+    scenes:[
+      { sceneTitle:'午後の店内',
+        speaker:'あなた',
+        text:'スタッフが接客しているのを、\n少し離れたところから見ていた。\n\n自分ならこうする、とか、\nそこはもう少しこう言えばよかった、とか、\n頭の中でずっと考えていた。\n\n——いつから、こんなにそわそわするようになったんだろう。' },
+      { sceneTitle:'スタッフの判断',
+        speaker:'ナレーション',
+        text:'お客様が少し珍しい商品を尋ねていた。\n\nスタッフは、自分なりの言葉で説明し、\n別の商品も合わせて薦めた。\n\n自分が教えたわけじゃない。\nでも、その対応は悪くなかった。\nむしろ、温かかった。' },
+      { sceneTitle:'お客様の言葉',
+        speaker:'お客様',
+        text:'「あのスタッフさん、いいですね。\nちゃんと話を聞いてくれて」\n\nその言葉は、\nスタッフへの褒め言葉だったけれど、\nどこか自分への問いかけにも聞こえた。\n\n——ちゃんと、任せていただろうか。' },
+      { sceneTitle:'信頼というもの',
+        speaker:'あなた',
+        text:'全部見ていないと不安になるのは、\n任せているようで、まだ手放せていないからだと思った。\n\n信頼は、任せることでしか育たない。\n\n頭ではわかっていたはずなのに、\n実際にやるのは難しかった。' },
+      { sceneTitle:'一緒に育てる',
+        speaker:'あなた',
+        text:'全部見ていなくてもいい。\n\n任せた分だけ、相手が育つ場所ができる。\nそして、自分も別のことを考える時間ができる。\n\nひとりでやらなくていい——\nその言葉の意味が、少し深くなった気がした。',
+        isLast:true,
+        nextGoal:'店もアパートも、地域のご縁を大切にしながら\nさらに成長させていきましょう。' }
+    ],
+    learningTheme:'育てる・任せる', reward:null },
+  { id:'chapter_6', chapter:6, title:'町とのご縁', subtitle:'この店は、町の一部になっていた',
+    heroImage:'assets/story/chapter3_hero.webp',
+    status:'implemented',
+    unlock:{ all:[
+      { type:'storyCompleted', chapterId:'chapter_5' },
+      { type:'daysSinceChapterCompleted', chapterId:'chapter_5', minDays:20 },
+      { type:'resolvedCasesAtLeast', value:23 }
+    ]},
+    scenes:[
+      { sceneTitle:'商店街のある朝',
+        speaker:'ナレーション',
+        text:'開店前の店内を整えていると、\n窓の外をご近所の方が通り過ぎていった。\n\n会釈をしてくれる人、\n立ち止まってショーウィンドウを眺める人、\n手を振りながら先を急ぐ人。\n\nいつの間にか、\nそれが朝の当たり前になっていた。' },
+      { sceneTitle:'知った顔',
+        speaker:'お客様',
+        text:'「今日も来たよ」\n\nそう言いながら入ってくる、\n近所の年配の方がいる。\n\n買う量は少なくても、\n毎週必ず顔を見せてくれる。\n\nその方にとって、\nここは「立ち寄る場所」になっているのかもしれない。' },
+      { sceneTitle:'子どもたちの視線',
+        speaker:'あなた',
+        text:'学校帰りの子どもたちが、\n窓の外から店内を覗いていた。\n\n中に入ってくるわけじゃないけれど、\n毎日のように通り道にしてくれているようだった。\n\nこの店が、\n誰かの日常の景色になっている。' },
+      { sceneTitle:'成田さんの言葉',
+        portrait:'narita',
+        speaker:'成田（銀行員）',
+        text:'「店というのは、商品を売るだけじゃなく、\n人が集まる場所にもなっていくんですよね。\n\n利益で測れない部分が、\n実は一番長く続く力になったりします」\n\n成田さんはそう言って、\nいつものように穏やかに笑った。' },
+      { sceneTitle:'祖父が守ったもの',
+        speaker:'あなた',
+        text:'祖父が何十年もこの場所に店を出し続けたのは、\n商品だけを売りたかったからじゃなかったんだろう。\n\nここに来ると、\n誰かに会える。\n何か話せる。\n\n町の中に、\nそういう場所をつくっていたんだと思った。\n\n——続けることで、自分もその一部になっていた。',
+        isLast:true,
+        nextGoal:'地域との関わりを大切にしながら、\nお店とアパートの経営を安定させていきましょう。' }
+    ],
+    learningTheme:'地域との関係', reward:null },
+  { id:'chapter_7', chapter:7, title:'次の店へ', subtitle:'広げることは、責任を持つこと',
+    heroImage:'assets/story/chapter3_hero.webp',
+    status:'implemented',
+    unlock:{ all:[
+      { type:'storyCompleted', chapterId:'chapter_6' },
+      { type:'daysSinceChapterCompleted', chapterId:'chapter_6', minDays:20 }
+    ], any:[
+      { type:'totalRevenueAtLeast', value:1000000 },
+      { type:'resolvedCasesAtLeast', value:28 }
+    ]},
+    scenes:[
+      { sceneTitle:'ある提案',
+        speaker:'お客様',
+        text:'常連のお客様が、ふと言った。\n\n「ここ、もう一店舗出さないんですか。\n別の駅のほうにも、あったらいいのに」\n\n笑い話のつもりで聞いていたけれど、\n帰り道、その言葉がずっと頭に残っていた。' },
+      { sceneTitle:'迷い',
+        speaker:'あなた',
+        text:'広げることへの期待もある。\n\nでも、不安もある。\n\n今の店でさえ、\nまだ十分にできていないことがある。\n\nそれなのに、次の場所へ進んでいいのだろうか。\n\nしばらく、その問いと一緒に過ごした。' },
+      { sceneTitle:'成田さんの問い',
+        portrait:'narita',
+        speaker:'成田（銀行員）',
+        text:'「なぜ、広げたいと思うんですか？」\n\n成田さんは、否定も肯定もせずに\nそう聞いてきた。\n\n「売上を増やすためですか。\nそれとも、届けたい場所があるからですか。\n\n——答えによって、進む方向が変わると思いますよ」' },
+      { sceneTitle:'自分の答え',
+        speaker:'あなた',
+        text:'正直に考えてみた。\n\n売上が伸びればいいとは思う。\nでも、それだけじゃない気がする。\n\n舞昆を、もっと多くの人の食卓に届けたい。\nそう思っている自分がいた。\n\nその気持ちが本物なら、\n広げることには意味があるかもしれない。' },
+      { sceneTitle:'準備を始める',
+        speaker:'あなた',
+        text:'今すぐ動くわけじゃない。\n\nでも、その日に向けて、\n今の店をもっとしっかり育てよう。\n\n広げることは、\n関わる人が増えるということだ。\n\n責任を持ちながら、\n少しずつ前へ進んでいこう。',
+        isLast:true,
+        nextGoal:'今の店を着実に育てながら、\n次のステップに向けた準備を整えましょう。' }
+    ],
+    learningTheme:'広げる責任', reward:null },
+  { id:'chapter_8', chapter:8, title:'今度はあなたが届ける番', subtitle:'食卓へ、ご縁を届けていく',
+    heroImage:'assets/story/chapter3_hero.webp',
+    status:'implemented',
+    unlock:{ all:[
+      { type:'storyCompleted', chapterId:'chapter_7' },
+      { type:'daysSinceChapterCompleted', chapterId:'chapter_7', minDays:20 },
+      { type:'resolvedCasesAtLeast', value:30 }
+    ]},
+    scenes:[
+      { sceneTitle:'春から始まったこと',
+        speaker:'あなた',
+        text:'春に、この店を引き継いだ。\n\n何もわからないまま始めて、\nうまくいかないことも、\n誰かに助けてもらうことも、たくさんあった。\n\n気づいたら、季節が一巡りしようとしていた。' },
+      { sceneTitle:'変わったもの',
+        speaker:'ナレーション',
+        text:'スタッフができた。\n入居者との関係が生まれた。\n地域のことを少しだけ知った。\n\n店の売上が上がったことより、\nあの人の顔が思い浮かぶことが増えたことのほうが、\n経営している実感として残っている。' },
+      { sceneTitle:'祖父の帳面',
+        speaker:'あなた',
+        text:'久しぶりに、あの帳面を開いた。\n\n「注文の数だけを見るな。\nまた頼んでくれた理由を忘れないこと」\n\n最初に読んだときとは違う気持ちで、\nその言葉を読んでいた。\n\nあの頃の自分には、\nまだこの意味がわからなかった。' },
+      { sceneTitle:'成田さんの訪問',
+        portrait:'narita',
+        speaker:'成田（銀行員）',
+        text:'「続けてみて、どうでしたか」\n\n成田さんが、いつものように店に来てそう聞いた。\n\n「大変でした。でも——」\n\n答えようとして、言葉が少し詰まった。\n\n「やってよかったと、思っています」\n\n成田さんは、うなずいた。' },
+      { sceneTitle:'届ける番',
+        speaker:'あなた',
+        text:'最初の頃、成田さんに言われた言葉を思い出した。\n\n「お客様の反応を見てみてください。\nそこに答えがありますよ」\n\n——その答えが、少しだけ見えた気がした。\n\n舞昆を届ける仕事は、\n今度は自分がする番だ。\n\n祖父が続けてきたことを、\n自分なりのやり方で、\n次の誰かへ続けていこう。',
+        isLast:true,
+        nextGoal:'この一年で学んだことを胸に、\n次のステップへ進みましょう。' }
+    ],
+    learningTheme:'舞昆を届ける人', reward:null }
 ];
 
 function ensureMainStoryState(){
@@ -12932,12 +13074,27 @@ const MAIN_STORY_GROWTH_STAGES = [
   { id:'afterChapter2', icon:'🌿', title:'ご縁を見つめ始めた経営者',
     description:'売上や常連数の向こうに、\n一人ひとりのお客様がいることに気づきました。' },
   { id:'afterChapter3', icon:'🌳', title:'ひとりではない経営者',
-    description:'全部ひとりでやらなくていい。\n周りの人たちと一緒に、店もアパートも育てていけます。' }
+    description:'全部ひとりでやらなくていい。\n周りの人たちと一緒に、店もアパートも育てていけます。' },
+  { id:'afterChapter4', icon:'🌳', title:'届ける意味を知った経営者',
+    description:'舞昆は食卓へ届くだけでなく、\n人と人をつなぐ贈り物にもなっていました。' },
+  { id:'afterChapter5', icon:'🌳', title:'任せることを選んだ経営者',
+    description:'信頼は任せることでしか育たない。\n一緒に育てる経営を実践しています。' },
+  { id:'afterChapter6', icon:'🌳', title:'町の一部になった経営者',
+    description:'店は商品を売る場所だけでなく、\n地域の人が集まる場所にもなっていました。' },
+  { id:'afterChapter7', icon:'🌳', title:'次を見据えた経営者',
+    description:'広げることは責任を持つこと。\n届けたい場所への準備を始めています。' },
+  { id:'afterChapter8', icon:'🌳', title:'舞昆を届ける人',
+    description:'今度はあなたが届ける番です。\n祖父の続きを、自分なりのやり方で。' }
 ];
 
 function getMainStoryGrowthStage(){
   ensureMainStoryState();
   const completed = G.mainStory.completedChapters;
+  if(completed.includes('chapter_8')) return MAIN_STORY_GROWTH_STAGES[8];
+  if(completed.includes('chapter_7')) return MAIN_STORY_GROWTH_STAGES[7];
+  if(completed.includes('chapter_6')) return MAIN_STORY_GROWTH_STAGES[6];
+  if(completed.includes('chapter_5')) return MAIN_STORY_GROWTH_STAGES[5];
+  if(completed.includes('chapter_4')) return MAIN_STORY_GROWTH_STAGES[4];
   if(completed.includes('chapter_3')) return MAIN_STORY_GROWTH_STAGES[3];
   if(completed.includes('chapter_2')) return MAIN_STORY_GROWTH_STAGES[2];
   if(completed.includes('chapter_1')) return MAIN_STORY_GROWTH_STAGES[1];
@@ -12969,11 +13126,50 @@ function getMainStoryProgressMetrics(){
     ];
   }
 
-  // 第3章完了済み
-  if(completed.includes('chapter_3')){
+  // 第3章完了済み・第4章未完了
+  if(completed.includes('chapter_3') && !completed.includes('chapter_4')){
+    const resolvedCases = (G.cases||[]).filter(c=>c.resolved).length;
+    return [
+      { label:'これまでの案件対応', value:resolvedCases, target:13, unit:'件', isMoney:false,
+        note:'ご縁を重ねることで、\n次の物語が見えてきます。' }
+    ];
+  }
+  // 第4章完了済み・第5章未完了
+  if(completed.includes('chapter_4') && !completed.includes('chapter_5')){
+    const resolvedCases = (G.cases||[]).filter(c=>c.resolved).length;
+    return [
+      { label:'これまでの案件対応', value:resolvedCases, target:18, unit:'件', isMoney:false,
+        note:'任せることを覚えると、\n次の物語が開きます。' }
+    ];
+  }
+  // 第5章完了済み・第6章未完了
+  if(completed.includes('chapter_5') && !completed.includes('chapter_6')){
+    const resolvedCases = (G.cases||[]).filter(c=>c.resolved).length;
+    return [
+      { label:'これまでの案件対応', value:resolvedCases, target:23, unit:'件', isMoney:false,
+        note:'地域との関わりを続けることで、\n次の物語が見えてきます。' }
+    ];
+  }
+  // 第6章完了済み・第7章未完了
+  if(completed.includes('chapter_6') && !completed.includes('chapter_7')){
     return [
       { label:'累計売上', value:totalRev, target:1000000, unit:'円', isMoney:true,
-        note:'お店と地域を一緒に育てながら、\n次の物語を待ちましょう。' },
+        note:'お店を着実に育てながら、\n次の物語を待ちましょう。' }
+    ];
+  }
+  // 第7章完了済み・第8章未完了
+  if(completed.includes('chapter_7') && !completed.includes('chapter_8')){
+    const resolvedCases = (G.cases||[]).filter(c=>c.resolved).length;
+    return [
+      { label:'これまでの案件対応', value:resolvedCases, target:30, unit:'件', isMoney:false,
+        note:'一年分のご縁を積み重ねると、\n最後の物語が開きます。' }
+    ];
+  }
+  // 第8章完了済み
+  if(completed.includes('chapter_8')){
+    return [
+      { label:'累計売上', value:totalRev, target:2000000, unit:'円', isMoney:true,
+        note:'物語はひとつの区切りを迎えました。\n引き続き経営を楽しみましょう。' }
     ];
   }
 
@@ -12995,16 +13191,27 @@ function _checkMainStoryMilestones(){
     G.mainStory.milestonesShown.push('cases_5');
     setTimeout(()=> notify('✨ 主人公が一歩成長しました\nお客様とのご縁が増え、舞昆への理解が深まっています。', 'gold'), 300);
   }
-  // 第2章解放条件チェック（通知）
-  if(G.mainStory.completedChapters.includes('chapter_1') &&
-     !G.mainStory.unlockedChapters.includes('chapter_2') &&
-     !G.mainStory.milestonesShown.includes('ch2_unlock_notified')){
-    _evalMainStoryUnlock();
-    if(G.mainStory.unlockedChapters.includes('chapter_2')){
-      G.mainStory.milestonesShown.push('ch2_unlock_notified');
-      setTimeout(()=> notify('📖 新しい物語が開きました\n第2章「祖父が残したご縁」', 'gold'), 500);
+  // 各章の解放通知
+  const _chNotifies = [
+    { completedId:'chapter_1', unlockedId:'chapter_2', key:'ch2_unlock_notified', label:'第2章「祖父が残したご縁」' },
+    { completedId:'chapter_2', unlockedId:'chapter_3', key:'ch3_unlock_notified', label:'第3章「ひとりでやらなくていい」' },
+    { completedId:'chapter_3', unlockedId:'chapter_4', key:'ch4_unlock_notified', label:'第4章「贈る気持ち」' },
+    { completedId:'chapter_4', unlockedId:'chapter_5', key:'ch5_unlock_notified', label:'第5章「人に任せるということ」' },
+    { completedId:'chapter_5', unlockedId:'chapter_6', key:'ch6_unlock_notified', label:'第6章「町とのご縁」' },
+    { completedId:'chapter_6', unlockedId:'chapter_7', key:'ch7_unlock_notified', label:'第7章「次の店へ」' },
+    { completedId:'chapter_7', unlockedId:'chapter_8', key:'ch8_unlock_notified', label:'第8章「今度はあなたが届ける番」' },
+  ];
+  _chNotifies.forEach(n => {
+    if(G.mainStory.completedChapters.includes(n.completedId) &&
+       !G.mainStory.unlockedChapters.includes(n.unlockedId) &&
+       !G.mainStory.milestonesShown.includes(n.key)){
+      _evalMainStoryUnlock();
+      if(G.mainStory.unlockedChapters.includes(n.unlockedId)){
+        G.mainStory.milestonesShown.push(n.key);
+        setTimeout(()=> notify('📖 新しい物語が開きました\n' + n.label, 'gold'), 500);
+      }
     }
-  }
+  });
 }
 
 function _renderMsGrowthStageBlock(){
@@ -13113,6 +13320,17 @@ function renderMainStoryCard(){
     </div>`;
   }
 
+  // 第3章以降が解放されていて未完了 → 汎用カード
+  if(pendingCh){
+    return `<div class="ms-card">
+      <div class="ms-card-ttl">📖 新しい物語が開きました</div>
+      <div class="ms-card-ch">${pendingCh.chapter}章　${pendingCh.title}</div>
+      ${pendingCh.subtitle ? `<div class="ms-card-sub">${pendingCh.subtitle}</div>` : ''}
+      ${_renderMsGrowthStageBlock()}
+      <button onclick="showMainStoryChapter('${pendingCh.id}')" style="width:100%;padding:10px;background:var(--gr3);color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;margin-top:10px">物語を進める</button>
+    </div>`;
+  }
+
   // 完了済み章あり → 折りたたみカード
   const _msOpen = !!G._msDetailOpen;
   const _stage = getMainStoryGrowthStage();
@@ -13194,7 +13412,12 @@ function showMainStoryChapter(chId, replayMode){
     const _learningByChapter = {
       'chapter_1': 'あなたは、<br>舞昆を「売るもの」ではなく<br>「食卓へ届けるもの」と考え始めました。',
       'chapter_2': '常連客を、<br>ただの人数ではなく、<br>店を選び続けてくれる一人ひとりとして<br>見るようになりました。',
-      'chapter_3': '全部ひとりでやらなくてもいい。<br>店もアパートも、<br>周りの人たちと一緒に育てていけると<br>気づきました。'
+      'chapter_3': '全部ひとりでやらなくてもいい。<br>店もアパートも、<br>周りの人たちと一緒に育てていけると<br>気づきました。',
+      'chapter_4': '舞昆は食卓へ届くだけでなく、<br>人と人をつなぐ贈り物にもなっていました。<br>届ける先には、必ず顔があります。',
+      'chapter_5': '信頼は、任せることでしか育たない。<br>スタッフと一緒に育てる経営を、<br>少しずつ実践できています。',
+      'chapter_6': '店は商品を売る場所だけでなく、<br>地域の人が集まる場所にもなっていました。<br>祖父が守ったものが見えてきました。',
+      'chapter_7': '広げることは、責任を持つこと。<br>売上のためではなく、<br>届けたい場所があるから進む。',
+      'chapter_8': '今度はあなたが届ける番です。<br>祖父の続きを、<br>自分なりのやり方で。'
     };
     const _learningText = _learningByChapter[chId] || '';
     const nextGoalHtml = (isLast && sc.nextGoal && !replayMode) ? `
