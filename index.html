@@ -707,6 +707,7 @@ let G = {
   cashShortageEver: false, // チュートリアル中に資金ショートしたか
   fatigue: 0,             // 疲労度（0〜120）：過労の蓄積
   expansionUnlocked: false, // 成田の拡大提案を受諾したか
+  store2Unlocked: false,    // 成田の2号店提案を前向きに受けたか
   ownerFundUses: 0,      // オーナー資金投入回数（最大3回）
   ownerAptitude: 50,     // オーナー適性スコア（内部のみ・プレイヤーには非表示）
   playerName: '',    // プレイヤーネーム（セーブキー・ログ識別に使用）
@@ -754,7 +755,7 @@ let G = {
   stores: [{
     id:1, name:'舞昆茶屋1号店', region:'桜橋ハイツ1F',
     customers:6, newCustomers:6, regulars:1, satisfaction:52, unitPrice:700, // Balance v0.2-model-1: newCustomers 5→6
-    staffCost:15000, dailyPrepCost:1000, ingredientCostPerCustomer:250, rent:50000, // Balance v0.2-model-1: 固定ingredientCost→客数比例モデル
+    staffCost:15000, dailyPrepCost:1000, ingredientCostPerCustomer:250, rent:0, // Balance v0.2-model-1: 固定ingredientCost→客数比例モデル / 桜橋ハイツ1F自己所有のため家賃なし
     menu:[],
     menuAddedMonth: {},
     upgrades:[], level:1, monthlyBonus:0,
@@ -969,7 +970,7 @@ function calcDailyRevenue(){
     let staffMult = 1.0;
     if(G.staffUnlocked && G.staff.length > 0){
       const _unavailNames = G.staffUnavailableToday || [];
-      const _midori = G.staff.find(st => st.name === '佐々木みどり' && !_unavailNames.includes('佐々木みどり'));
+      const _midori = G.staff.find(st => st.name === '佐々木みどり' && st.store === s.name && !_unavailNames.includes('佐々木みどり'));
       if(_midori){
         const _burden = _midori.burden || 0;
         const _sat    = _midori.satisfaction || 70;
@@ -5474,7 +5475,7 @@ const CASE_POOL = [
     title:'「そろそろ2号店を考えてもいい頃です」',
     body:'成田さんが少し前のめりになって話し始めました。\n\n「本店の数字が安定してきましたね。\nよく続けてきました。\n\n次のステップとして、\n2号店の可能性を考えてみませんか。\n\nリスクはゼロではありませんが、\n今の体力なら選択肢に入れる時期です。\n\n急ぐ必要はありません。\nでも、頭の片隅に置いておいてください」',
     choices:[
-      {label:'「前向きに考えています」と答える',cost:0,effects:{score:10,credit:3,naritaTrust:5,profile:{risk:3,finance:2}},label2:'信用+3・拡大意向を示す',storyTag:'成田から2号店の可能性を聞いた。選択肢として頭に入れることにした。'},
+      {label:'「前向きに考えています」と答える',cost:0,effects:{score:10,credit:3,naritaTrust:5,store2Unlocked:true,profile:{risk:3,finance:2}},label2:'信用+3・2号店出店解放',storyTag:'成田から2号店の可能性を聞いた。選択肢として頭に入れることにした。'},
       {label:'「今はまだ本店に集中したい」と答える',cost:0,effects:{score:5,naritaTrust:2,profile:{finance:3}},label2:'本店優先',storyTag:'成田の提案は保留にした。今の経営を固める。'},
     ]},
 
@@ -11993,6 +11994,7 @@ function chooseEvent(idx, useFatigue){
     if(_sr){ _sr._pendingReset = true; }
   }
   if(fx.unlockExpansion){ G.expansionUnlocked = true; notify('新目標が解放されました：空き家取得へ挑戦！','gold'); }
+  if(fx.store2Unlocked){ G.store2Unlocked = true; notify('🏪 2号店出店が解放されました！店舗タブから開業できます','gold'); }
   if(fx.staffSat && G.staff.length > 0){
     G.staff.forEach(s => { s.satisfaction = Math.min(100, (s.satisfaction||70) + fx.staffSat); });
   }
@@ -14159,6 +14161,7 @@ function openNewStoreModal(){
   `);
 }
 function openNewStore(){
+  if(!G.store2Unlocked && G.stores.length<2){notify('成田さんから2号店の提案を受けてから出店できます','warn');return;}
   if(G.money<2000000){notify('資金不足','warn');return;}
   if(!useAP(25, '新店舗開業準備', ()=>openNewStore())) return;
   addHistory('🏪', `舞昆茶屋${G.stores.length+1}号店 開業`);
@@ -15861,7 +15864,7 @@ function renderStore(){
   return `
     ${renderTutBanner()}
     ${_storeCaseHtml}
-    <div class="sel-tabs">${tabs}<button class="sel-tab" onclick="openNewStoreModal()">+ 新店舗</button></div>
+    <div class="sel-tabs">${tabs}${(G.store2Unlocked||G.stores.length>=2)?`<button class="sel-tab" onclick="openNewStoreModal()">+ 新店舗</button>`:''}</div>
     ${!s.isOpen ? `<div id="store-reopen-anchor" style="background:#FFF3E0;border:2px solid #FF8F00;border-radius:12px;padding:14px 16px;margin-bottom:10px">
       <div style="font-size:13px;font-weight:700;color:#E65100;margin-bottom:4px">🔒 このお店は現在閉店中です</div>
       <div style="font-size:11px;color:#E65100;opacity:.8;margin-bottom:10px">イートイン営業は停止中です。商品コーナーは引き続き確認できます。</div>
@@ -18002,6 +18005,12 @@ function _normalizeSaveData(){
       }
     }
   }
+  // 旧セーブ救済：1号店rent=50000→0（桜橋ハイツ1F自己所有のため）
+  if(G.stores && G.stores[0] && G.stores[0].name==='舞昆茶屋1号店' && G.stores[0].region==='桜橋ハイツ1F' && G.stores[0].rent===50000){
+    G.stores[0].rent = 0;
+  }
+  // 旧セーブ救済：store2Unlocked未定義の場合、2号店が既にある旧セーブは維持
+  G.store2Unlocked ??= false;
   G.cases                ||= [];
   // 旧セーブ救済：met=trueだがlastCaseDayが未定義の場合は現在日を設定
   // （lastCaseDay=0のままだとcharReady(30)が起動初日から満たされてしまう）
