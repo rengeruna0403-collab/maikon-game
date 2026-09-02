@@ -6934,7 +6934,7 @@ const DOMAIN_CASES = [
     body:'みどりが少し申し訳なさそうに声をかけてきた。\n\n「すみません、明日だけ早退させてもらえますか。\n娘の参観日で……14時には上がりたくて。\n\n先週の分、今週多めに動きます。\nご迷惑をおかけして本当に申し訳ないんですが」',
     choices:[
       {label:'「もちろん。行ってあげてください」と快諾する',cost:0,effects:{score:10,staffSat:12,midoriTrust:5,profile:{people:3}},label2:'みどりとの信頼+・満足度+12',storyTag:'参観日の早退を快諾した。翌日、みどりは「ありがとうございます」と花のような顔で出勤してきた。'},
-      {label:'「今日は客数が多いので、できれば15時まで」と相談する',cost:0,effects:{score:4,staffSat:-4,profile:{people:1,finance:1}},label2:'みどりの満足度-・業務優先',storyTag:'業務の都合を正直に伝えた。みどりは「わかりました」と言って15時まで残ってくれた。'},
+      {label:'「明日は客数が多くなりそうなので、できれば15時まで」と相談する',cost:0,effects:{score:4,staffSat:-4,profile:{people:1,finance:1}},label2:'みどりの満足度-・業務優先',storyTag:'業務の都合を正直に伝えた。みどりは「わかりました」と言って15時まで残ってくれた。'},
     ]},
 
   { id:'midori_summer', conditionOnly:true, repeatable:false, domain:'staff', sender:'みどり', icon:'☀️', apCost:5, expireDays:14, category:'mgmt',
@@ -12787,7 +12787,7 @@ const MAIN_STORY_CHAPTERS = [
     scenes: [
       { sceneTitle:'動き始めた光景', speaker: 'あなた', text: 'お客様が舞昆を手にとって、そのまま帰っていく。\n祖父が長年続けてきた光景が、また動き始めた。\nそれだけで、少し胸が温かくなった。' },
       { sceneTitle:'知っているようで知らない', speaker: 'あなた', text: 'ところで——\n舞昆って、どんなものなんだろう。\n子どもの頃から身近にあったけれど、改めて聞かれると答えられない。' },
-      { sceneTitle:'成田さんの言葉', portrait:'narita', speaker: '成田（銀行員）', text: 'いい質問ですね。\n商品を売るより先に、まずお客様の反応を見てみてください。\nそこに答えがありますよ。' },
+      { sceneTitle:'成田さんの言葉', portrait:'narita', speaker: '成田（銀行員）', text: '「いい質問ですね。\n商品を売るより先に、まずお客様の反応を見てみてください。\nそこに答えがありますよ」' },
       { sceneTitle:'食卓のこと', speaker: 'ナレーション', text: 'その日の午後、一人のお客様が舞昆をお買い上げになった。\n「これ、ごはんと一緒に食べるのが好きでね。\n毎日の食卓に欠かせないんですよ」' },
       { sceneTitle:'届ける仕事', speaker: 'あなた', text: '商品を売るだけじゃなくて、\n誰かの食卓へ届ける仕事なんだ。\n——そう気がついた気がした。' },
       { sceneTitle:'もっと知りたい', speaker: 'あなた', text: '次は、舞昆がどうやって作られているのか知りたい。\nこの店を続ければ、もっと見えてくるものがあるかもしれない。',
@@ -12817,9 +12817,9 @@ const MAIN_STORY_CHAPTERS = [
       { sceneTitle:'棚の隙間から', speaker: 'ナレーション', text: '店の奥を片づけていると、\n棚の隙間から古い帳面が出てきた。\n\n表紙には、\n祖父の字で「ご注文控え」と書かれている。' },
       { sceneTitle:'数ではなく名前', speaker: 'あなた', text: '注文の数だけが\n書かれているわけじゃない。\n\n名前の横に、\n小さなメモが残っている。' },
       { sceneTitle:'覚えておくためのメモ', speaker: 'ナレーション', text: '「黒舞昆をいつもの数」\n「娘さんが帰省する頃に」\n「固いものは少なめに」\n\n商品の記録というよりも、\nまるで、その人のことを覚えておくための\nメモのようだった。' },
-      { sceneTitle:'また開いて、よかった', speaker: 'お客様', text: 'この店がまた開いて、\n本当によかった。\n\nおじいさんは、\n私が何を買うかだけじゃなくて、\n家族のことまで覚えてくれていたの。' },
+      { sceneTitle:'また開いて、よかった', speaker: 'お客様', text: '「この店がまた開いて、\n本当によかった。\n\nおじいさんは、\n私が何を買うかだけじゃなくて、\n家族のことまで覚えてくれていたの」' },
       { sceneTitle:'自分に、できるだろうか', speaker: 'あなた', text: '自分に、\n祖父と同じことができるだろうか。\n\n商品も、お客様のことも、\nまだ知らないことばかりだ。' },
-      { sceneTitle:'成田さんの答え', portrait:'narita', speaker: '成田（銀行員）', text: '同じやり方をする必要はありません。\n\nまずは、\n目の前のお客様が何を望んでいるか、\n少しずつ知っていけばいいと思います。' },
+      { sceneTitle:'成田さんの答え', portrait:'narita', speaker: '成田（銀行員）', text: '「同じやり方をする必要はありません。\n\nまずは、\n目の前のお客様が何を望んでいるか、\n少しずつ知っていけばいいと思います」' },
       { sceneTitle:'数字の向こう', speaker: 'あなた', text: '常連客という数字の向こうに、\n一人ひとりの暮らしがある。\n\n祖父が残したのは、\n売上だけじゃなかったんだ。' },
       { sceneTitle:'自分なりのご縁', speaker: 'あなた', text: 'まずは、\nもっとお客様のことを知ろう。\n\nまた来たいと思ってもらえる店を、\n自分なりにつくっていこう。',
         isLast: true,
@@ -12851,7 +12851,7 @@ const MAIN_STORY_CHAPTERS = [
         sceneTitle:'成田さんの問い',
         speaker:'成田（銀行員）',
         portrait:'narita',
-        text:'最初の頃と比べて、\nずいぶん関わる方が増えましたね。\n\n「全部、ご自分でやるつもりですか？」\n\n成田さんはそう言った。\nいつもどおりの、穏やかな口調で。\n\n「経営者の仕事は、\n全部を自分でやることではないと思いますよ。\n\n任せられるところは、\n少し任せてみてもいいのかもしれません。」'
+        text:'「最初の頃と比べて、\nずいぶん関わる方が増えましたね」\n\n「全部、ご自分でやるつもりですか？」\n\n成田さんはそう言った。\nいつもどおりの、穏やかな口調で。\n\n「経営者の仕事は、\n全部を自分でやることではないと思いますよ。\n\n任せられるところは、\n少し任せてみてもいいのかもしれません。」'
       },
       {
         sceneTitle:'ひとりではない',
@@ -13475,7 +13475,7 @@ function showMainStoryChapter(chId, replayMode){
       ${sc.speaker !== 'ナレーション' && sc.speaker !== 'あなた' ? `<div class="ms-scene-speaker">${sc.speaker}</div>` : ''}
       <div class="ms-scene-text" style="white-space:pre-line">${sc.text}</div>
       ${nextGoalHtml}
-      <button onclick="_msNext()" style="width:100%;padding:12px;background:${isLast?'var(--gr3)':'var(--bg2)'};color:${isLast?'#fff':'var(--text)'};border:${isLast?'none':'1px solid var(--border)'};border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;position:sticky;bottom:0;margin-top:4px">${btnLabel}</button>
+      <button onclick="_msNext()" style="width:100%;padding:12px;background:${isLast?'var(--gr3)':'var(--bg2)'};color:${isLast?'#fff':'var(--text)'};border:${isLast?'none':'1px solid var(--border)'};border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;margin-top:4px">${btnLabel}</button>
     </div>`;
   }
 
@@ -16495,7 +16495,7 @@ function renderStaff(){
               </div>
               <div class="prog-bar"><div class="prog-fill" style="width:${pct}%;background:${allOk?'var(--gold)':'var(--gr)'}"></div></div>
               <div style="margin-top:4px;display:flex;gap:8px;flex-wrap:wrap">
-                <span style="color:${dayOk?'var(--gr)':'var(--orange)'}">在籍 ${s.daysWorked}日　${dayOk?'✓ 達成':`あと${req.daysWorked - s.daysWorked}日`}</span>
+                <span style="color:${dayOk?'var(--gr)':'var(--orange)'}">在籍 ${s.daysWorked}日　${dayOk?'✓ 達成':`昇格まであと${req.daysWorked - s.daysWorked}日`}</span>
                 <span style="color:${satOk?'var(--gr)':'var(--orange)'}">満足 ${Math.round(s.satisfaction||70)}　${satOk?'✓ 達成':`あと${Math.max(0,req.satisfaction - Math.round(s.satisfaction||70))}`}</span>
                 ${skillChecks.join('')}
               </div>`;
@@ -16534,7 +16534,7 @@ function renderStaff(){
         return `<div class="card">
           <div class="card-ttl">👥 求人募集</div>
           <div style="font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.7">
-            求人広告を出すと応募者3人が集まります。スキルや希望給与を見て採用を判断してください。
+            求人広告を出すと3人の応募者が来ます。スキルや給与を比較して、一人を選んで採用します。
           </div>
           <button class="btn btn-gr" style="width:100%;padding:10px;font-size:13px" onclick="postJobAd()">
             📋 求人広告を出す <span style="font-size:11px;opacity:.8;margin-left:6px">AP-5 ・ ¥30,000</span>
