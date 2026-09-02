@@ -3004,7 +3004,7 @@ function monthlyTick(){
           const nm=_availSurnames[Math.floor(Math.random()*_availSurnames.length)]+_suffix;
           r.tenant={name:nm,age:30+Math.round(Math.random()*30),type,
             bio:'新しい入居者。まだ詳しいことはわからない。',
-            dream:'「ここで新しい生活を始めたい」',event:null};
+            dream:'「ここで新しい生活を始めたい」',event:null,movedInTotalDays:_autoTd};
           r.seeking=false;
           r.satisfaction=60+Math.round(Math.random()*20);
           addNews(`🏠 ${b.name} ${r.num}号室に「${nm}」が入居`);
@@ -6301,7 +6301,7 @@ const DOMAIN_CASES = [
       {label:'もう数日待つ',cost:0,effects:{score:3},label2:'様子見',storyTag:'数日様子を見ることにした。'},
     ]},
 
-  { id:'rent_late_month', requireTenant:true, repeatable:true, domain:'landlord', sender:'入居者', icon:'⚠️', apCost:15, expireDays:7, category:'mgmt',
+  { id:'rent_late_month', requireTenant:true, requireTenantMinDays:30, repeatable:true, domain:'landlord', sender:'入居者', icon:'⚠️', apCost:15, expireDays:7, category:'mgmt',
     expirePenalty:{credit:-3, news:'⚠️ 家賃滞納対応を放置した。信用度低下。'},
     title:'家賃滞納1か月',
     body:'{{TENANT_ROOM}}の{{TENANT_NAME}}の家賃が1か月滞納しています。\n\n連絡を取ったところ、「仕事が変わって\n今月は厳しい」とのことです。',
@@ -8255,6 +8255,23 @@ function getRandomCurrentTenant(){
   if(pool.length === 0) return null;
   return pool[Math.floor(Math.random() * pool.length)];
 }
+// 入居期間が minDays 以上の入居者のみ対象（nullは初期住民として常に対象）
+function getRandomTenantWithMinDays(minDays){
+  const _tdN = (G.year-1)*360 + (G.month-1)*30 + G.day;
+  const pool = [];
+  for(const b of G.buildings || []){
+    for(const r of b.rooms || []){
+      if(r.tenant && r.tenant.name){
+        const _mi = r.tenant.movedInTotalDays;
+        if(_mi == null || _tdN - _mi >= minDays){
+          pool.push({ name: r.tenant.name, room: r.num + '号室', num: r.num });
+        }
+      }
+    }
+  }
+  if(pool.length === 0) return null;
+  return pool[Math.floor(Math.random() * pool.length)];
+}
 
 function addCase(caseData){
   if(!caseData) return;
@@ -8283,7 +8300,10 @@ function addCase(caseData){
   }
   // 入居者プレースホルダー置換（{{TENANT_NAME}} / {{TENANT_ROOM}}）
   if(entry.body && (entry.body.includes('{{TENANT_NAME}}') || entry.body.includes('{{TENANT_ROOM}}'))){
-    const _t = getRandomCurrentTenant();
+    const _t = entry.requireTenantMinDays
+      ? getRandomTenantWithMinDays(entry.requireTenantMinDays)
+      : getRandomCurrentTenant();
+    if(!_t && entry.requireTenantMinDays) return; // 期間条件を満たすtenant不在→案件生成しない
     if(_t){
       entry._tenantName = _t.name;
       entry._tenantRoom = _t.room;
@@ -8427,7 +8447,7 @@ function staffAutoProcess(){
       const {bi, ri, applicant} = c.choices[0].effects.approveRoom;
       const r = G.buildings[bi]?.rooms[ri];
       if(r && !r.tenant){
-        r.tenant = {name:applicant.name, age:applicant.age, type:applicant.type, bio:'', dream:'', event:null};
+        r.tenant = {name:applicant.name, age:applicant.age, type:applicant.type, bio:'', dream:'', event:null, movedInTotalDays:(G.year-1)*360+(G.month-1)*30+G.day};
         r.seeking = false;
         addNews(`🏠 【スタッフ対応】${G.buildings[bi].name} ${r.num}号室 入居手続き完了（${applicant.name}）`);
       }
@@ -8699,6 +8719,16 @@ function generateWeeklyCases(){
     if(c.requireVacancy && !_hasVacancy) return false;
     if(c.maxOccupancyPct !== undefined && totalRooms() > 0 && occupiedRooms()/totalRooms() > c.maxOccupancyPct) return false;
     if(c.requireTenant && !G.buildings.some(b => (b.rooms||[]).some(r => r.tenant))) return false;
+    // requireTenantMinDays: 入居期間が最低日数以上のtenantが1室以上必要
+    if(c.requireTenantMinDays){
+      const _tdNqf = (G.year-1)*360 + (G.month-1)*30 + G.day;
+      const _hasQualified = G.buildings.some(b => (b.rooms||[]).some(r => {
+        if(!r.tenant) return false;
+        const _mi = r.tenant.movedInTotalDays;
+        return _mi == null || _tdNqf - _mi >= c.requireTenantMinDays;
+      }));
+      if(!_hasQualified) return false;
+    }
     // early_departure: 引き止めホールド中でないtenantが少なくとも1室必要
     if(c.id === 'early_departure'){
       const _hasValidEdTarget = G.buildings.some(b =>
@@ -12009,6 +12039,7 @@ function chooseEvent(idx, useFatigue){
                 dream: '「ここで安心して暮らしたい」',
                 event: null,
                 isCharacter: fx.approveChar,
+                movedInTotalDays:(G.year-1)*360+(G.month-1)*30+G.day,
               };
               r.seeking = false;
               r.satisfaction = 75;
@@ -12150,7 +12181,7 @@ function chooseEvent(idx, useFatigue){
   if(fx.approveRoom){
     const {bi, ri, applicant} = fx.approveRoom;
     const r = G.buildings[bi].rooms[ri];
-    r.tenant = { name:applicant.name, age:applicant.age, type:applicant.type, bio:'', dream:'', event:null };
+    r.tenant = { name:applicant.name, age:applicant.age, type:applicant.type, bio:'', dream:'', event:null, movedInTotalDays:(G.year-1)*360+(G.month-1)*30+G.day };
     r.seeking = false;
     G._totalHouseholds = (G._totalHouseholds||0) + 1;
     addNews(`🏠 ${G.buildings[bi].name} ${r.num}号室 入居決定（${applicant.name}）`);
@@ -12167,7 +12198,8 @@ function chooseEvent(idx, useFatigue){
         const r = G.buildings[bi].rooms[ri];
         if(!r.tenant && !(_pendingCharApply && r.seeking)){
           r.tenant = { name:applicant.name, age:applicant.age, type:applicant.type,
-                       bio:applicant.bio||'', dream:applicant.dream||'', event:null };
+                       bio:applicant.bio||'', dream:applicant.dream||'', event:null,
+                       movedInTotalDays:(G.year-1)*360+(G.month-1)*30+G.day };
           r.seeking = false;
           r.satisfaction = 70;
           G._totalHouseholds = (G._totalHouseholds||0) + 1;
