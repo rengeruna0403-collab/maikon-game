@@ -5691,7 +5691,7 @@ const CASE_POOL = [
   // ════════════════════════════════════
 
   // ── 店舗 ──
-  { id:'midgame_menu_renewal', repeatable:true, domain:'store', sender:'常連客', icon:'🍱', apCost:5, expireDays:21, category:'ops', minDay:30,
+  { id:'midgame_menu_renewal', repeatable:true, noDelegate:true, domain:'store', sender:'常連客', icon:'🍱', apCost:5, expireDays:21, category:'ops', minDay:30,
     expirePenalty:{rep:-2, news:'🍱 メニュー刷新の提案を放置した。常連の声が届いていない印象に。'},
     title:'メニューを見直してほしいとの声',
     body:'常連のお客さまから声がかかりました。\n\n「最近、ちょっとマンネリになってきた気がして。\n季節の食材とか、新しいものを試してもらえたら嬉しいな」',
@@ -5700,7 +5700,7 @@ const CASE_POOL = [
       {label:'「検討します」と答えてそのまま',cost:0,noAP:true,effects:{score:3,storeSat:-2},label2:'信頼やや低下',storyTag:''},
     ]},
 
-  { id:'midgame_peak_day', repeatable:true, domain:'store', sender:'スタッフ', requireStaff:true, icon:'🔥', apCost:3, expireDays:7, category:'ops',
+  { id:'midgame_peak_day', repeatable:true, noDelegate:true, domain:'store', sender:'スタッフ', requireStaff:true, icon:'🔥', apCost:3, expireDays:7, category:'ops',
     expirePenalty:{staffSat:-5, news:'🔥 繁忙期の対応を放置した。スタッフの疲弊が増している。'},
     title:'繁忙期の対応をどうするか',
     body:'スタッフから相談が来ました。\n\n「来週、地域のイベントと重なって、いつもの3倍近い来客が予想されます。\n臨時対応はどうしますか？」',
@@ -8290,6 +8290,13 @@ function addCase(caseData){
   }
   const _ctd = (G.year-1)*360 + (G.month-1)*30 + G.day;
   const entry = { ...caseData, createdDay: G.day, createdMonth: G.month, createdYear: G.year, createdTotalDays: _ctd, resolved: false };
+  // 店舗日常ops：生成時に担当店舗を決定してstoreNameを付与
+  // （CASE_POOL templateには固定値を持たせず、生成インスタンスで決定）
+  if(entry.domain === 'store' && entry.category === 'ops' && !entry.conditionOnly && !entry.noDelegate && !entry.storeName){
+    const _openSt = (G.stores||[]).filter(s => (s.policy||'owner') !== 'closed');
+    const _tgt = _openSt.length ? _openSt[Math.floor(Math.random()*_openSt.length)] : (G.stores||[])[0];
+    if(_tgt) entry.storeName = _tgt.name;
+  }
   // bodyVariants: 複数パターンからランダム選択
   if(caseData.bodyVariants && caseData.bodyVariants.length > 0){
     entry.body = caseData.bodyVariants[Math.floor(Math.random() * caseData.bodyVariants.length)];
@@ -8433,34 +8440,34 @@ function checkCaseExpiry(){
   });
 }
 
-// スタッフが業務案件（category:'ops'）のみ自動処理
+// 店長委任による店舗日常ops自動処理（店舗単位・週2件固定）
 function staffAutoProcess(){
   if(!G.started || G.staff.length === 0) return;
-  const maxStaffLevel = Math.max(...G.staff.map(s => s.level || 1));
-  let autoCount = 0;
-  const maxAuto = maxStaffLevel; // レベル=週の自動処理上限
-  G.cases.forEach(c => {
-    if(c.resolved || autoCount >= maxAuto) return;
-    // 業務案件のみ（経営・戦略はオーナー専用）
-    if(c.category !== 'ops') return;
-    // イベント・ストーリー案件はオーナーが読む・選択するため除外
-    if(c.conditionOnly) return;
-    // 物件・入居者案件は店舗スタッフの管轄外
-    if(c.domain === 'landlord') return;
-    // 入居申込は自動承認
-    if(c.id && c.id.startsWith('apply_') && c.choices[0]?.effects?.approveRoom){
-      const {bi, ri, applicant} = c.choices[0].effects.approveRoom;
-      const r = G.buildings[bi]?.rooms[ri];
-      if(r && !r.tenant){
-        r.tenant = {name:applicant.name, age:applicant.age, type:applicant.type, bio:'', dream:'', event:null, movedInTotalDays:(G.year-1)*360+(G.month-1)*30+G.day};
-        r.seeking = false;
-        addNews(`🏠 【スタッフ対応】${G.buildings[bi].name} ${r.num}号室 入居手続き完了（${applicant.name}）`);
-      }
-    } else {
-      addNews(`✅ 【スタッフ対応】「${c.title}」を対応しました`);
-    }
-    c.resolved = true;
-    autoCount++;
+  const MAX_AUTO = 2; // 店長1人あたりの週次自動処理上限（固定値でキャラ格差を防ぐ）
+  G.stores.forEach(s => {
+    // 店長委任モードかつ担当店長が存在する店舗のみ処理
+    if((s.policy || 'owner') !== 'staff') return;
+    const _manager = G.staff.find(st => st.store === s.name && st.title === '店長');
+    if(!_manager) return;
+    let autoCount = 0;
+    G.cases.forEach(c => {
+      if(c.resolved || autoCount >= MAX_AUTO) return;
+      // 業務案件のみ（経営・戦略はオーナー専用）
+      if(c.category !== 'ops') return;
+      // イベント・ストーリー案件はオーナーが読む・選択するため除外
+      if(c.conditionOnly) return;
+      // 物件・入居者案件は店長の管轄外（大家業務は別システムで扱う）
+      if(c.domain === 'landlord') return;
+      // 店舗日常opsのみ（community・staff等はオーナーが対応）
+      if(c.domain !== 'store') return;
+      // 委任不可フラグ（経営判断・高コスト判断）
+      if(c.noDelegate) return;
+      // 担当店舗の案件のみ（店舗識別なしの旧saveケースは自動処理しない）
+      if(!c.storeName || c.storeName !== s.name) return;
+      addNews(`✅ 【店長対応】${s.name}「${c.title}」を対応しました`);
+      c.resolved = true;
+      autoCount++;
+    });
   });
 }
 
@@ -16229,7 +16236,7 @@ function renderStore(){
           { key:'owner', icon:'🧑‍🍳', label:'オーナーが店頭に立つ', sub:'売上100%', locked: false },
           { key:'staff', icon: _storeManager ? '🏪' : '👩',
             label: _storeManager ? `店長（${_storeManager.name}）に委任する` : 'スタッフに任せる',
-            sub: _storeManager ? '定型業務を自動化・AP消費なし' : (hasStaff ? 'AP消費なし・人件費発生' : '🔒 スタッフがいません'),
+            sub: _storeManager ? '担当店舗の定型opsを自動処理・AP消費なし' : (hasStaff ? 'AP消費なし・人件費発生' : '🔒 スタッフがいません'),
             locked: staffLocked },
           { key:'closed', icon:'🔒', label:'臨時休業', sub:'売上なし・評判-1/日', locked: false },
         ];
