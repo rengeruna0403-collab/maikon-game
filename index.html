@@ -14161,7 +14161,8 @@ function openNewStoreModal(){
   `);
 }
 function openNewStore(){
-  if(!G.store2Unlocked && G.stores.length<2){notify('成田さんから2号店の提案を受けてから出店できます','warn');return;}
+  if(G.stores.length >= 2){return;}
+  if(!G.store2Unlocked){notify('成田さんから2号店の提案を受けてから出店できます','warn');return;}
   if(G.money<2000000){notify('資金不足','warn');return;}
   if(!useAP(25, '新店舗開業準備', ()=>openNewStore())) return;
   addHistory('🏪', `舞昆茶屋${G.stores.length+1}号店 開業`);
@@ -15864,7 +15865,7 @@ function renderStore(){
   return `
     ${renderTutBanner()}
     ${_storeCaseHtml}
-    <div class="sel-tabs">${tabs}${(G.store2Unlocked||G.stores.length>=2)?`<button class="sel-tab" onclick="openNewStoreModal()">+ 新店舗</button>`:''}</div>
+    <div class="sel-tabs">${tabs}${(G.store2Unlocked && G.stores.length < 2)?`<button class="sel-tab" onclick="openNewStoreModal()">+ 新店舗</button>`:''}</div>
     ${!s.isOpen ? `<div id="store-reopen-anchor" style="background:#FFF3E0;border:2px solid #FF8F00;border-radius:12px;padding:14px 16px;margin-bottom:10px">
       <div style="font-size:13px;font-weight:700;color:#E65100;margin-bottom:4px">🔒 このお店は現在閉店中です</div>
       <div style="font-size:11px;color:#E65100;opacity:.8;margin-bottom:10px">イートイン営業は停止中です。商品コーナーは引き続き確認できます。</div>
