@@ -753,7 +753,7 @@ let G = {
   apMax: 100,            // 注意力上限（週30回復・月初満タン回復）
 
   stores: [{
-    id:1, name:'舞昆茶屋1号店', region:'桜橋ハイツ1F',
+    id:1, name:'舞昆茶屋1号店', region:'桜橋ハイツ1F', baseId:'base_sakurabashi_1',
     customers:6, newCustomers:6, regulars:1, satisfaction:52, unitPrice:700, // Balance v0.2-model-1: newCustomers 5→6
     staffCost:15000, dailyPrepCost:1000, ingredientCostPerCustomer:250, rent:0, // Balance v0.2-model-1: 固定ingredientCost→客数比例モデル / 桜橋ハイツ1F自己所有のため家賃なし
     menu:[],
@@ -764,7 +764,7 @@ let G = {
   }],
 
   buildings: [{
-    id:1, name:'桜橋ハイツ', region:'桜橋区',
+    id:1, name:'桜橋ハイツ', region:'桜橋区', baseId:'base_sakurabashi_1',
     rooms:[
       {num:'101', tenant:{
         name:'金本恵子', age:74, type:'高齢単身',
@@ -12312,7 +12312,7 @@ function addBuilding(){
   const names=['昆布荘','発酵テラス','地域の家','舞昆ヴィレッジ','縁の家'];
   const n=names[Math.floor(Math.random()*names.length)];
   G.buildings.push({
-    id,name:`${n}${id}号棟`,region:'桜橋区',
+    id,name:`${n}${id}号棟`,region:'桜橋区', baseId:null,
     rooms:[
       {num:'101',tenant:null,rent:50000,satisfaction:0,seeking:false},
       {num:'102',tenant:null,rent:50000,satisfaction:0,seeking:false},
@@ -14168,7 +14168,7 @@ function openNewStore(){
   addHistory('🏪', `舞昆茶屋${G.stores.length+1}号店 開業`);
   G.money-=2000000;
   const id=G.stores.length+1;
-  G.stores.push({id,name:`舞昆茶屋${id}号店`,region:'桜橋区',
+  G.stores.push({id,name:`舞昆茶屋${id}号店`,region:'桜橋区', baseId:'base_sakurabashi_2',
     isOpen:true, policy:'owner',
     customers:15, newCustomers:14, regulars:1, satisfaction:55,
     unitPrice:700, staffCost:0, dailyPrepCost:2000, ingredientCostPerCustomer:300, rent:45000, // Balance v0.2-model-1
@@ -14598,7 +14598,7 @@ function buyBuilding(cost,rooms){
   const id=G.buildings.length+1;
   const rr=[];
   for(let i=1;i<=rooms;i++) rr.push({num:`${String(i).padStart(2,'0')}`,tenant:null,rent:50000,satisfaction:0,seeking:false});
-  G.buildings.push({id,name:`舞昆アパート${id}号棟`,region:'桜橋区',rows:rr,rooms:rr,monthlyMaintenance:Math.round(cost/12)});
+  G.buildings.push({id,name:`舞昆アパート${id}号棟`,region:'桜橋区',baseId:null,rows:rr,rooms:rr,monthlyMaintenance:Math.round(cost/12)});
   scoreOwner(8,'buy_bld');
   addHistory('🏢', `舞昆アパート${id}号棟 購入（${rooms}室）`);
   addStory(`新しい物件・舞昆アパート${id}号棟を購入した。空き家が生まれ変わる。`, 'highlight');
@@ -18005,6 +18005,29 @@ function _normalizeSaveData(){
         _s0n.giftSeasonalRetryDay = (G.year-1)*360 + (G.month-1)*30 + (G.day||1);
       }
     }
+  }
+  // 旧セーブ救済：baseId補完（Phase 1）
+  if(G.stores){
+    G.stores.forEach(st => {
+      if(st.baseId != null) return; // 既存値は上書きしない
+      if(st.name === '舞昆茶屋1号店' && st.region === '桜橋ハイツ1F'){
+        st.baseId = 'base_sakurabashi_1';
+      } else if(st.name === '舞昆茶屋2号店'){
+        st.baseId = 'base_sakurabashi_2';
+      } else {
+        st.baseId = null; // 3号店以上・不明はnull
+      }
+    });
+  }
+  if(G.buildings){
+    G.buildings.forEach(b => {
+      if(b.baseId != null) return; // 既存値は上書きしない
+      if(b.name === '桜橋ハイツ'){
+        b.baseId = 'base_sakurabashi_1';
+      } else {
+        b.baseId = null;
+      }
+    });
   }
   // 旧セーブ救済：1号店rent=50000→0（桜橋ハイツ1F自己所有のため）
   if(G.stores && G.stores[0] && G.stores[0].name==='舞昆茶屋1号店' && G.stores[0].region==='桜橋ハイツ1F' && G.stores[0].rent===50000){
