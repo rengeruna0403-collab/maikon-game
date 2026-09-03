@@ -8443,6 +8443,10 @@ function staffAutoProcess(){
     if(c.resolved || autoCount >= maxAuto) return;
     // 業務案件のみ（経営・戦略はオーナー専用）
     if(c.category !== 'ops') return;
+    // イベント・ストーリー案件はオーナーが読む・選択するため除外
+    if(c.conditionOnly) return;
+    // 物件・入居者案件は店舗スタッフの管轄外
+    if(c.domain === 'landlord') return;
     // 入居申込は自動承認
     if(c.id && c.id.startsWith('apply_') && c.choices[0]?.effects?.approveRoom){
       const {bi, ri, applicant} = c.choices[0].effects.approveRoom;
@@ -14648,7 +14652,7 @@ function getPromotionReqs(level, s){
       2: { label:'ベテランスタッフ→リーダー',      daysWorked:150, skills:{service:78,management:55}, satisfaction:75 },
       3: { label:'リーダー→主任',                 daysWorked:240, skills:{service:83,management:65}, satisfaction:78, requireTrust:30 },
       4: { label:'主任→副店長',                   daysWorked:330, skills:{management:72},            satisfaction:80 },
-      5: { label:'副店長→店長',                   daysWorked:450, skills:{management:82},            satisfaction:83, requireBuildings:2 },
+      5: { label:'副店長→店長',                   daysWorked:450, skills:{management:82},            satisfaction:83, requireStores:2 },
     }[level] || null;
   }
   if(s && s.type === 'arubaito'){
@@ -14677,6 +14681,7 @@ function _checkPromotionConditions(s, req){
   }
   if(req.requireTrust && (G.midoriTrust||0) < req.requireTrust) return false;
   if(req.requireBuildings && G.buildings.length < req.requireBuildings) return false;
+  if(req.requireStores && G.stores.length < req.requireStores) return false;
   return true;
 }
 
