@@ -14732,6 +14732,10 @@ function runMonthlyEvaluation(){
       if(s.level >= maxLv){
         promotions.push({ s, graduated: true });
         addHistory('🎓', `${s.name} 最終昇格「${s.title}」`);
+        if(s.title === '店長'){
+          addStory(`${s.name}が店長に昇格した。${s.store}を任せることができる。営業方針で「店長に委任」を選ぼう。`, 'highlight');
+          notify(`🏪 ${s.name}が店長に昇格！${s.store}を委任できます`, 'gold');
+        }
       } else {
         promotions.push({ s, oldTitle, graduated: false });
         addHistory('⭐', `${s.name} 昇格「${oldTitle}→${s.title}」`);
@@ -16215,9 +16219,13 @@ function renderStore(){
       } else {
         const policy = s.policy || 'owner';
         const staffLocked = !hasStaff;
+        const _storeManager = G.staff.find(st => st.store === s.name && st.title === '店長');
         const policyOptions = [
           { key:'owner', icon:'🧑‍🍳', label:'オーナーが店頭に立つ', sub:'売上100%', locked: false },
-          { key:'staff', icon:'👩', label:'スタッフに任せる', sub: hasStaff ? 'AP消費なし・人件費発生' : '🔒 スタッフがいません', locked: staffLocked },
+          { key:'staff', icon: _storeManager ? '🏪' : '👩',
+            label: _storeManager ? `店長（${_storeManager.name}）に委任する` : 'スタッフに任せる',
+            sub: _storeManager ? '定型業務を自動化・AP消費なし' : (hasStaff ? 'AP消費なし・人件費発生' : '🔒 スタッフがいません'),
+            locked: staffLocked },
           { key:'closed', icon:'🔒', label:'臨時休業', sub:'売上なし・評判-1/日', locked: false },
         ];
         return `<div style="background:var(--bg2);border-radius:12px;padding:12px 14px;margin-bottom:10px">
