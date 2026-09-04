@@ -8307,11 +8307,25 @@ function addCase(caseData){
   if(entry.domain === 'store' && entry.storeScoped === true && !entry.conditionOnly && !entry.storeName){
     let _openSt = (G.stores||[]).filter(s => (s.policy||'owner') !== 'closed');
     if(entry.requireStaff){
+      // requireStaff: スタッフ在籍店舗のみを候補とする（70/30対象外）
       const _staffedSt = _openSt.filter(s => (G.staff||[]).some(st => st.store === s.name));
       if(_staffedSt.length === 0) return; // スタッフ在籍open storeなし→生成しない
       _openSt = _staffedSt;
     }
-    const _tgt = _openSt.length ? _openSt[Math.floor(Math.random()*_openSt.length)] : (G.stores||[])[0];
+    let _tgt;
+    if(!entry.requireStaff){
+      // 通常storeScoped: owner群70% / staff群30% で配分
+      const _ownerSt = _openSt.filter(s => (s.policy||'owner') === 'owner');
+      const _staffSt  = _openSt.filter(s => (s.policy||'owner') === 'staff');
+      if(_ownerSt.length && _staffSt.length){
+        const _pool = Math.random() < 0.7 ? _ownerSt : _staffSt;
+        _tgt = _pool[Math.floor(Math.random()*_pool.length)];
+      } else {
+        _tgt = _openSt.length ? _openSt[Math.floor(Math.random()*_openSt.length)] : (G.stores||[])[0];
+      }
+    } else {
+      _tgt = _openSt.length ? _openSt[Math.floor(Math.random()*_openSt.length)] : (G.stores||[])[0];
+    }
     if(_tgt) entry.storeName = _tgt.name;
   }
   // bodyVariants: 複数パターンからランダム選択
