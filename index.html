@@ -5691,7 +5691,7 @@ const CASE_POOL = [
   // ════════════════════════════════════
 
   // ── 店舗 ──
-  { id:'midgame_menu_renewal', repeatable:true, noDelegate:true, domain:'store', sender:'常連客', icon:'🍱', apCost:5, expireDays:21, category:'ops', minDay:30,
+  { id:'midgame_menu_renewal', repeatable:true, noDelegate:true, storeScoped:true, domain:'store', sender:'常連客', icon:'🍱', apCost:5, expireDays:21, category:'ops', minDay:30,
     expirePenalty:{rep:-2, news:'🍱 メニュー刷新の提案を放置した。常連の声が届いていない印象に。'},
     title:'メニューを見直してほしいとの声',
     body:'常連のお客さまから声がかかりました。\n\n「最近、ちょっとマンネリになってきた気がして。\n季節の食材とか、新しいものを試してもらえたら嬉しいな」',
@@ -5700,7 +5700,7 @@ const CASE_POOL = [
       {label:'「検討します」と答えてそのまま',cost:0,noAP:true,effects:{score:3,storeSat:-2},label2:'信頼やや低下',storyTag:''},
     ]},
 
-  { id:'midgame_peak_day', repeatable:true, noDelegate:true, domain:'store', sender:'スタッフ', requireStaff:true, icon:'🔥', apCost:3, expireDays:7, category:'ops',
+  { id:'midgame_peak_day', repeatable:true, noDelegate:true, storeScoped:true, domain:'store', sender:'スタッフ', requireStaff:true, icon:'🔥', apCost:3, expireDays:7, category:'ops',
     expirePenalty:{staffSat:-5, news:'🔥 繁忙期の対応を放置した。スタッフの疲弊が増している。'},
     title:'繁忙期の対応をどうするか',
     body:'スタッフから相談が来ました。\n\n「来週、地域のイベントと重なって、いつもの3倍近い来客が予想されます。\n臨時対応はどうしますか？」',
@@ -5709,7 +5709,7 @@ const CASE_POOL = [
       {label:'通常通り、できる範囲で対応する',cost:0,effects:{score:5,custUp:1},label2:'無理しない経営',storyTag:'通常通りで対応した。行列にはなったが、なんとか回せた。'},
     ]},
 
-  { id:'midgame_hygiene_check', repeatable:true, domain:'store', sender:'保健所', icon:'🧹', apCost:10, expireDays:14, category:'mgmt', minDay:21,
+  { id:'midgame_hygiene_check', repeatable:true, storeScoped:true, domain:'store', sender:'保健所', icon:'🧹', apCost:10, expireDays:14, category:'mgmt', minDay:21,
     expirePenalty:{rep:-5, credit:-2, news:'🧹 衛生管理の指摘を放置した。行政からの評価が下がった。'},
     title:'保健所から衛生管理の確認通知',
     bodyVariants:[
@@ -5723,7 +5723,7 @@ const CASE_POOL = [
       {label:'最低限だけ対応して提出する',cost:0,effects:{score:3,rep:0},label2:'義務を果たした',storyTag:''},
     ]},
 
-  { id:'midgame_repeat_customer', repeatable:true, domain:'store', sender:'常連客', icon:'☕', apCost:5, expireDays:14, category:'ops',
+  { id:'midgame_repeat_customer', repeatable:true, storeScoped:true, domain:'store', sender:'常連客', icon:'☕', apCost:5, expireDays:14, category:'ops',
     expirePenalty:{storeSat:-3, news:''},
     title:'常連さんが「少し変わったな」と',
     body:'長い付き合いの常連さんが、少し寂しそうに言いました。\n\n「最近、お店が忙しそうで。\n昔みたいに話す時間がなくなった気がして。\n……寂しいな、なんて」',
@@ -5732,7 +5732,7 @@ const CASE_POOL = [
       {label:'「忙しいですが大切にしています」と伝える',cost:0,effects:{score:5,storeSat:3},label2:'',storyTag:''},
     ]},
 
-  { id:'midgame_sns_inquiry', repeatable:true, domain:'store', sender:'若いお客さん', icon:'📱', apCost:5, expireDays:10, category:'ops',
+  { id:'midgame_sns_inquiry', repeatable:true, storeScoped:true, domain:'store', sender:'若いお客さん', icon:'📱', apCost:5, expireDays:10, category:'ops',
     expirePenalty:{news:'📱 SNS掲載の機会を断った。'},
     title:'SNSに載せてもいいですか',
     body:'来店した若いお客さんが遠慮がちに聞きました。\n\n「あの、写真撮ってもいいですか？\nSNSに「舞昆いいですよ」って書きたくて。\nフォロワーが少しいるので……迷惑だったら断ってください」',
@@ -5956,7 +5956,7 @@ const CASE_POOL = [
     ]},
 
   // ── 季節のギフト案件 ──
-  { id:'gift_season_haha', repeatable:true, domain:'store', sender:'常連客', icon:'🌹', apCost:10, expireDays:14, category:'mgmt', minMonth:5, maxMonth:5, oncePerYear:true,
+  { id:'gift_season_haha', repeatable:true, storeScoped:true, domain:'store', sender:'常連客', icon:'🌹', apCost:10, expireDays:14, category:'mgmt', minMonth:5, maxMonth:5, oncePerYear:true,
     title:'母の日のギフトを探しています',
     body:'常連のお客様が相談してくれました。\n\n「来週、母の日なんですけど……\n離れて暮らしている母に、\n舞昆を贈りたいんです。\n\n「お母さんが喜ぶもの」って考えたら\n真っ先に思い浮かんで。\n\nギフト包装、できますか？」',
     choices:[
@@ -5964,7 +5964,7 @@ const CASE_POOL = [
       {label:'「和紙袋入りがおすすめです」と紹介する',cost:0,effects:{score:8,storeBrand:3,money:3240,profile:{people:2}},label2:'売上+・ブランド+',storyTag:'母の日に和紙袋入りを提案した。'},
     ]},
 
-  { id:'gift_season_chichi', repeatable:true, domain:'store', sender:'常連客', icon:'👔', apCost:10, expireDays:14, category:'mgmt', minMonth:6, maxMonth:6, oncePerYear:true,
+  { id:'gift_season_chichi', repeatable:true, storeScoped:true, domain:'store', sender:'常連客', icon:'👔', apCost:10, expireDays:14, category:'mgmt', minMonth:6, maxMonth:6, oncePerYear:true,
     title:'父の日に舞昆を贈りたい',
     body:'若いお客様が来店しました。\n\n「父の日に、\n実家の父に舞昆を送ろうと思って。\n\n父がお酒を飲むときに\nご飯のおかずが欲しいって言ってたから。\n\n「東京では手に入らない」って言ったら\n喜ぶかなと思って。」',
     choices:[
@@ -5972,7 +5972,7 @@ const CASE_POOL = [
       {label:'「まずは定番のパウチから試してみては」と提案する',cost:0,effects:{score:7,money:2160,custUp:1,profile:{people:2}},label2:'お試し購入',storyTag:'父の日のお試し購入を勧めた。'},
     ]},
 
-  { id:'gift_season_keiro', repeatable:true, domain:'store', sender:'常連客', icon:'🍁', apCost:10, expireDays:14, category:'mgmt', minMonth:9, maxMonth:9, oncePerYear:true,
+  { id:'gift_season_keiro', repeatable:true, storeScoped:true, domain:'store', sender:'常連客', icon:'🍁', apCost:10, expireDays:14, category:'mgmt', minMonth:9, maxMonth:9, oncePerYear:true,
     title:'敬老の日のご挨拶品に',
     body:'地域の方が相談しに来ました。\n\n「今年の敬老の日に、\n老人会のみなさんへのご挨拶品を探していて。\n\n「体に優しいもの」「地元のもの」\nという条件で考えたら\n舞昆しか思い浮かばなくて。\n\n15人分、まとめてお願いできますか？」',
     choices:[
@@ -5981,7 +5981,7 @@ const CASE_POOL = [
     ]},
 
   // ── お中元・お歳暮（季節ギフト追加）──
-  { id:'gift_season_ochugen', repeatable:true, domain:'store', sender:'常連客', icon:'🎋', apCost:10, expireDays:21, category:'mgmt',
+  { id:'gift_season_ochugen', repeatable:true, storeScoped:true, domain:'store', sender:'常連客', icon:'🎋', apCost:10, expireDays:21, category:'mgmt',
     minMonth:7, maxMonth:8, oncePerYear:true,
     title:'お中元に舞昆を贈りたい',
     body:'夏の日差しが強い午後、常連のお客様が来店しました。\n\n「毎年お世話になっている方に\nお中元を贈りたくて。\n\n「体にやさしくて、気持ちが伝わるもの」を探していたら\n舞昆を思い出して。\n\n「暑い季節にもご飯が進む」って\n言ってもらえそうな気がして」',
@@ -5989,7 +5989,7 @@ const CASE_POOL = [
       {label:'「夏向けのギフトセットをご用意できます」と提案する',cost:0,effects:{score:12,rep:5,storeBrand:6,money:10800,custUp:2,profile:{people:3,community:2}},label2:'ギフト売上・ブランド+',storyTag:'お中元に舞昆ギフトを提案した。「夏にご飯が進む味」として喜ばれた。'},
       {label:'「和紙袋入りが見栄えがいいですよ」と提案する',cost:0,effects:{score:8,storeBrand:4,money:6480,profile:{people:2}},label2:'贈答向け提案',storyTag:'お中元に和紙袋入りを提案した。'},
     ]},
-  { id:'gift_season_oseibo', repeatable:true, domain:'store', sender:'常連客', icon:'🎍', apCost:10, expireDays:21, category:'mgmt',
+  { id:'gift_season_oseibo', repeatable:true, storeScoped:true, domain:'store', sender:'常連客', icon:'🎍', apCost:10, expireDays:21, category:'mgmt',
     minMonth:11, maxMonth:12, oncePerYear:true,
     title:'お歳暮に舞昆を選びました',
     body:'年の瀬が近づいてきた頃、\n常連のお客様が少し改まった様子で来店しました。\n\n「今年もお歳暮に舞昆を選びました。\n\n毎年これを贈ると\n「舞昆だ！嬉しい」って言ってもらえるんです。\n\n「遠くに住んでいても、味でつながれる気がして」\n\nことしは少し多めに贈りたくて」',
@@ -6533,7 +6533,7 @@ const DOMAIN_CASES = [
   // ════════════════════════════════════
 
   // ① 常連客・健康相談（ops AP5-10）
-  { id:'health_bp', repeatable:true, domain:'store', sender:'常連客', icon:'🩺', apCost:5, expireDays:14, category:'ops',
+  { id:'health_bp', repeatable:true, storeScoped:true, domain:'store', sender:'常連客', icon:'🩺', apCost:5, expireDays:14, category:'ops',
     title:'塩分が気になるとの相談',
     body:'お客さんの一人（68歳くらいの女性）が話しかけてきました。\n\n「血圧の薬をもらっているんですが、\n塩分が気になって。\n舞昆ってたくさん食べても大丈夫ですか？」',
     choices:[
@@ -6551,7 +6551,7 @@ const DOMAIN_CASES = [
        storyTag:'「健康が一番大切ですから」と正直にお伝えした。「こんなお店なら安心して来られる」と言ってくださった。'},
     ]},
 
-  { id:'gift_search', repeatable:true, domain:'store', sender:'お客様', icon:'🎁', apCost:5, expireDays:10, category:'ops',
+  { id:'gift_search', repeatable:true, storeScoped:true, domain:'store', sender:'お客様', icon:'🎁', apCost:5, expireDays:10, category:'ops',
     managerAuto:true,
     managerAutoEffects:{score:5, storeSat:3, custUp:1},
     managerAutoText:'贈り物を探していたお客様をご案内しました',
@@ -6562,7 +6562,7 @@ const DOMAIN_CASES = [
       {label:'おすすめ商品を丁寧に説明する',cost:0,effects:{score:7,storeSat:3},label2:'接客品質向上',storyTag:'丁寧に商品を説明した。'},
     ]},
 
-  { id:'elderly_absent', repeatable:true, minDay:14, domain:'store', requireStaff:true, sender:'スタッフ', icon:'🧓', apCost:10, expireDays:7, category:'mgmt',
+  { id:'elderly_absent', repeatable:true, minDay:14, storeScoped:true, domain:'store', requireStaff:true, sender:'スタッフ', icon:'🧓', apCost:10, expireDays:7, category:'mgmt',
     title:'毎日来るおばあさんが来ていない',
     body:'みどりから報告が来ました。\n\n「毎日来てくださる松田さんが\n3日間見えていません。\nご連絡すべきでしょうか…？」',
     choices:[
@@ -6570,7 +6570,7 @@ const DOMAIN_CASES = [
       {label:'次に来たら様子を確認する',cost:0,effects:{score:5},label2:'次回確認',storyTag:'次の来店時に確認することにした。'},
     ]},
 
-  { id:'mail_order_ask', repeatable:true, domain:'store', sender:'常連客', icon:'📦', apCost:10, expireDays:14, category:'mgmt',
+  { id:'mail_order_ask', repeatable:true, storeScoped:true, domain:'store', sender:'常連客', icon:'📦', apCost:10, expireDays:14, category:'mgmt',
     title:'遠方の家族に送りたいと相談された',
     body:'常連の小林さんから相談が来ました。\n\n「東京に住む娘に舞昆を送りたいんですが、\n通販はやっていませんか？」\n\n通販需要への対応を検討する機会です。',
     choices:[
@@ -6578,7 +6578,7 @@ const DOMAIN_CASES = [
       {label:'通販の仕組みを検討すると伝える',cost:0,effects:{score:6,profile:{risk:2}},label2:'拡大への一歩',storyTag:'通販の検討を始めることにした。'},
     ]},
 
-  { id:'sns_post', repeatable:true, domain:'store', sender:'お客様', icon:'📱', apCost:5, expireDays:14, category:'ops',
+  { id:'sns_post', repeatable:true, storeScoped:true, domain:'store', sender:'お客様', icon:'📱', apCost:5, expireDays:14, category:'ops',
     title:'SNSに投稿したいと言われた',
     body:'若い女性客が「お店の雰囲気や商品を\nインスタに投稿してもいいですか？」と聞いてきました。\n\nSNSでの拡散チャンスです。',
     choices:[
@@ -6612,7 +6612,7 @@ const DOMAIN_CASES = [
       {label:'手作りのPOPで工夫する（¥5,000）',cost:5000,effects:{score:8,storeSat:4,custUp:2},label2:'低コストで差別化',storyTag:'手作りPOPで季節感を演出した。'},
     ]},
 
-  { id:'product_complaint', repeatable:true, domain:'store', sender:'お客様', icon:'⚠️', apCost:15, expireDays:7, category:'mgmt',
+  { id:'product_complaint', repeatable:true, storeScoped:true, domain:'store', sender:'お客様', icon:'⚠️', apCost:15, expireDays:7, category:'mgmt',
     expirePenalty:{rep:-5, news:'⚠️ 商品クレームへの対応を放置した。'},
     title:'商品の品質についてクレーム',
     body:'「先日購入した舞昆の味が\n以前と違う気がします。\nがっかりしました」という連絡が届きました。',
@@ -6766,7 +6766,7 @@ const DOMAIN_CASES = [
   // ③ 舞昆茶屋：常連客・商品系（repeatable, category:'mgmt', AP 10-15）
   // ※ bento_request は generateConditionCases で季節ごとに動的生成
 
-  { id:'menu_feedback', repeatable:true, menuProposal:true, domain:'store', sender:'常連客', icon:'☕', apCost:10, expireDays:14, category:'mgmt',
+  { id:'menu_feedback', repeatable:true, storeScoped:true, menuProposal:true, domain:'store', sender:'常連客', icon:'☕', apCost:10, expireDays:14, category:'mgmt',
     title:'メニューへのご意見',
     body:'常連の田中さんから意見をいただきました。\n\n「最近同じメニューが多い気がします。\n季節のメニューがあると嬉しいのですが」',
     choices:[
@@ -6774,7 +6774,7 @@ const DOMAIN_CASES = [
       {label:'次の仕入れで工夫してみる',cost:0,effects:{score:6,storeSat:3},label2:'小さな改善',storyTag:'仕入れで季節感を出す工夫をした。'},
     ]},
 
-  { id:'new_regular', repeatable:true, domain:'store', sender:'お客様', icon:'🙋', apCost:5, expireDays:14, category:'ops',
+  { id:'new_regular', repeatable:true, storeScoped:true, domain:'store', sender:'お客様', icon:'🙋', apCost:5, expireDays:14, category:'ops',
     managerAuto:true,
     managerAutoEffects:{score:4, rep:2},
     managerAutoText:'地域の方から名刺を受け取り、ご縁をつないでくれました',
@@ -8298,7 +8298,7 @@ function addCase(caseData){
   const entry = { ...caseData, createdDay: G.day, createdMonth: G.month, createdYear: G.year, createdTotalDays: _ctd, resolved: false };
   // 店舗日常ops：生成時に担当店舗を決定してstoreNameを付与
   // （CASE_POOL templateには固定値を持たせず、生成インスタンスで決定）
-  if(entry.domain === 'store' && entry.category === 'ops' && !entry.conditionOnly && !entry.noDelegate && !entry.storeName){
+  if(entry.domain === 'store' && entry.storeScoped === true && !entry.conditionOnly && !entry.storeName){
     const _openSt = (G.stores||[]).filter(s => (s.policy||'owner') !== 'closed');
     const _tgt = _openSt.length ? _openSt[Math.floor(Math.random()*_openSt.length)] : (G.stores||[])[0];
     if(_tgt) entry.storeName = _tgt.name;
