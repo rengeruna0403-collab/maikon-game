@@ -6552,6 +6552,9 @@ const DOMAIN_CASES = [
     ]},
 
   { id:'gift_search', repeatable:true, domain:'store', sender:'お客様', icon:'🎁', apCost:5, expireDays:10, category:'ops',
+    managerAuto:true,
+    managerAutoEffects:{score:5, storeSat:3, custUp:1},
+    managerAutoText:'贈り物を探していたお客様をご案内しました',
     title:'退院祝いの贈り物を探している',
     body:'「母が先週退院しました。\n健康的な贈り物を探しているんですが、\n舞昆はどうでしょうか？」',
     choices:[
@@ -6772,6 +6775,9 @@ const DOMAIN_CASES = [
     ]},
 
   { id:'new_regular', repeatable:true, domain:'store', sender:'お客様', icon:'🙋', apCost:5, expireDays:14, category:'ops',
+    managerAuto:true,
+    managerAutoEffects:{score:4, rep:2},
+    managerAutoText:'地域の方から名刺を受け取り、ご縁をつないでくれました',
     title:'新しいお客様から名刺をいただいた',
     body:'最近よく来てくれるお客様から声をかけられました。\n\n「地元でNPOをやっています。\nいつもありがとう。何かお手伝いできることがあれば」',
     choices:[
@@ -8462,9 +8468,31 @@ function staffAutoProcess(){
       if(c.domain !== 'store') return;
       // 委任不可フラグ（経営判断・高コスト判断）
       if(c.noDelegate) return;
+      // 店長自動処理許可フラグ必須（明示許可がない案件はプレイヤー判断へ残す）
+      if(!c.managerAuto) return;
       // 担当店舗の案件のみ（店舗識別なしの旧saveケースは自動処理しない）
       if(!c.storeName || c.storeName !== s.name) return;
-      addNews(`✅ 【店長対応】${s.name}「${c.title}」を対応しました`);
+      // 担当店舗を特定（storeNameから安全に取得・fallbackなし）
+      const _autoStore = G.stores.find(st => st.name === c.storeName);
+      if(!_autoStore) return; // storeが見つからない場合はプレイヤー対応へ残す
+      // managerAutoEffectsを担当店舗へ適用
+      const _mafx = c.managerAutoEffects || null;
+      if(_mafx){
+        if(_mafx.score) scoreOwner(_mafx.score, 'manager_auto');
+        if(_mafx.rep)   G.regions[0].reputation = Math.min(100, (G.regions[0].reputation||0) + _mafx.rep);
+        if(_mafx.storeSat) _autoStore.satisfaction = Math.min(100, (_autoStore.satisfaction||70) + _mafx.storeSat);
+        if(_mafx.custUp){
+          const _maCap = getStaffCapacity();
+          const _maCur = (_autoStore.newCustomers||0) + (_autoStore.regulars||0);
+          const _maUp  = Math.min(_mafx.custUp, Math.max(0, _maCap - _maCur));
+          if(_maUp > 0){
+            _autoStore.newCustomers = (_autoStore.newCustomers||0) + _maUp;
+            _autoStore.customers    = (_autoStore.newCustomers||0) + (_autoStore.regulars||0);
+          }
+        }
+      }
+      const _autoText = c.managerAutoText || `「${c.title}」を対応しました`;
+      addNews(`🌿 【店長対応】${s.name}：${_manager.name}が${_autoText}`);
       c.resolved = true;
       autoCount++;
     });
