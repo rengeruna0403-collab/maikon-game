@@ -819,7 +819,7 @@ let G = {
   staff: [
     {id:1, name:'佐々木みどり', emoji:'👩', age:38, level:2, title:'ベテランスタッフ',
      store:'舞昆茶屋1号店',
-     bio:'シングルマザー。小学3年生の娘を育てながら週4日・9〜15時で働く。接客が丁寧で常連に評判が良い。',
+     bio:'シングルマザー。小学3年生の娘を育てながら9〜15時で働く。接客が丁寧で常連に評判が良い。',
      dream:'「娘に大学へ行かせてやりたい。そのために稼がなきゃ」',
      skills:{service:72, cooking:58, management:42},
      daysWorked:180, salary:110000, growthPts:20, nextLevel:100, burden:20, satisfaction:78},
@@ -5539,7 +5539,7 @@ const CASE_POOL = [
   { id:'midori_apply', conditionOnly:true, character:'midori', sender:'佐々木みどり', icon:'👩', apCost:5, expireDays:14, category:'mgmt',
     expirePenalty:{score:-3, news:'👩 今回はみどりとのご縁がつながらなかったようです。'},
     title:'「働かせていただけませんか」',
-    body:'見知らぬ女性が店を訪ねてきました。\n\n「あの……こちらでスタッフを募集していると聞いたんですが。\n\n子どもの迎えがあるので15時までになりますが、\n週4日くらいなら働けます。\n\n接客の仕事をしていたこともあります。\n\n少しでもお役に立てたら、と思って」\n\n少し緊張した様子で、こちらの返事を待っています。',
+    body:'見知らぬ女性が店を訪ねてきました。\n\n「あの……こちらでスタッフを募集していると聞いたんですが。\n\n子どもの迎えがあるので15時までになりますが、\n平日なら働けます。\n\n接客の仕事をしていたこともあります。\n\n少しでもお役に立てたら、と思って」\n\n少し緊張した様子で、こちらの返事を待っています。',
     choices:[
       {label:'「詳しく話を聞かせてください」',cost:0,effects:{score:5,showMidoriInterview:true,profile:{people:2}},label2:'面談して採用を判断する',storyTag:'スタッフ候補の女性と、詳しく話を聞くことにした。'},
       {label:'「今は募集が難しいです」',cost:0,noAP:true,effects:{score:-2,profile:{finance:2}},label2:'引き続き一人で続ける',storyTag:'スタッフ募集は難しいと伝えた。一人で続けることにした。',onResolve:'_midoriDecline'},
@@ -5556,7 +5556,7 @@ const CASE_POOL = [
   { id:'midori_apply_retry', conditionOnly:true, character:'midori', sender:'佐々木みどり', icon:'👩', apCost:5, expireDays:14, category:'mgmt',
     expirePenalty:{score:-2, news:'👩 今回もみどりとのご縁がつながらなかったようです。'},
     title:'「もう一度、お願いできませんか」',
-    body:'みどりから再び連絡が来た。\n\n「以前お断りされたんですが、\nまた来てしまいました。\n\n最近、舞昆茶屋さんがとても忙しそうで……\n一人では大変ではないかと思って。\n\n娘が学校に行っている間だけで構いません。\n9時から15時、週4日。\n\nもう一度だけ考えていただけませんか？」',
+    body:'みどりから再び連絡が来た。\n\n「以前お断りされたんですが、\nまた来てしまいました。\n\n最近、舞昆茶屋さんがとても忙しそうで……\n一人では大変ではないかと思って。\n\n娘が学校に行っている間だけで構いません。\n9時から15時で。\n\nもう一度だけ考えていただけませんか？」',
     choices:[
       {label:'「詳しく話を聞かせてください」',cost:0,effects:{score:6,showMidoriInterview:true,profile:{people:2}},label2:'面談して採用を判断する',storyTag:'みどりともう一度詳しく話を聞くことにした。'},
       {label:'「今はまだ難しいです」',cost:0,noAP:true,effects:{score:-4,profile:{finance:2}},label2:'また一人で続ける',storyTag:'再度断った。みどりは「わかりました」と静かに去った。',onResolve:'_midoriDecline'},
@@ -6177,8 +6177,8 @@ const CHARACTERS = {
   },
   midori: {
     key: 'midori', name: '佐々木みどり', age: 38, icon: '🌿',
-    tag: 'シングルマザー・接客担当（週4・午前のみ）',
-    intro: '小学3年生の娘を持つシングルマザー。\n週4日・9〜15時のパート勤務。接客は丁寧で常連にも評判がいい。\n子どもの帰宅に合わせて退勤するため、夕方以降はオーナーが対応する必要がある。',
+    tag: 'シングルマザー・接客担当（午前のみ）',
+    intro: '小学3年生の娘を持つシングルマザー。\n9〜15時のパート勤務。接客は丁寧で常連にも評判がいい。\n子どもの帰宅に合わせて退勤するため、夕方以降はオーナーが対応する必要がある。',
   },
   nishimura: {
     key: 'nishimura', name: '西村 健二', age: 56, icon: '🏪',
@@ -6948,9 +6948,9 @@ const DOMAIN_CASES = [
     title:'「夏休みの預け先が見つからなくて」',
     body:'みどりが困った顔で相談に来た。\n\n「来月から娘が夏休みに入るんですが、\n学童も定員がいっぱいで……\n\n7月は週3に減らしてもいいですか。\nお盆は親戚に預けられそうなんですが、\nそれ以外の週が少し心配で」',
     choices:[
-      {label:'「週3で構いません。無理しないで」と伝える',cost:0,effects:{score:10,staffSat:10,midoriTrust:6,profile:{people:3}},label2:'みどりの信頼+・夏季対応',storyTag:'週3勤務を受け入れた。その夏、一人でこなす日が増えたが、みどりが戻ってきたときの笑顔で報われた気がした。'},
+      {label:'「この夏は無理しないで、短い時間で構いません」と伝える',cost:0,effects:{score:10,staffSat:10,midoriTrust:6,profile:{people:3}},label2:'みどりの信頼+・夏季対応',storyTag:'夏の間は短時間勤務を受け入れた。その夏、一人でこなす日が増えたが、みどりが戻ってきたときの笑顔で報われた気がした。'},
       {label:'「一緒に解決策を考えましょう」と話し合う',cost:0,effects:{score:8,staffSat:8,midoriTrust:4,profile:{people:2,community:1}},label2:'みどりと一緒に考える',storyTag:'二人で話し合った。地域の子育て支援を調べたり、他のスタッフを探す話にもなった。'},
-      {label:'「できれば週4のままお願いしたい」と伝える',cost:0,effects:{score:0,staffSat:-8,profile:{finance:2}},label2:'みどりの満足度-・業務優先',storyTag:'業務の都合を優先した。みどりは「わかりました」と言ったが、少し表情が曇った。'},
+      {label:'「できれば今まで通り来てほしい」と伝える',cost:0,effects:{score:0,staffSat:-8,profile:{finance:2}},label2:'みどりの満足度-・業務優先',storyTag:'業務の都合を優先した。みどりは「わかりました」と言ったが、少し表情が曇った。'},
     ]},
 
   { id:'midori_sick', conditionOnly:true, repeatable:true, domain:'staff', sender:'みどり', icon:'🤒', apCost:0, expireDays:3, category:'ops', noDelegate:true,
@@ -8048,7 +8048,7 @@ const DOMAIN_CASES = [
     title:'「昼の時間帯、ちょっと厳しくなってきました」',
     body:'みどりが少し困った顔で話しかけてきた。\n\n「最近、11時から13時ごろが特にお客様が多くて。\n私一人では追いつかなくて——\n\nレジとお茶出しを同時にやると、\nどうしても待たせてしまうんです。\n\n昼の時間帯だけでも、もう一人いると\nずいぶん違うと思うんですが……」\n\n昼のピーク時間帯の人手不足が、限界に近づいている。',
     choices:[
-      { label:'昼スタッフを募集する（週4日・10〜15時）', cost:0, ap:5,
+      { label:'昼スタッフを募集する（10〜15時）', cost:0, ap:5,
         effects:{ score:5, hireLunchStaff:true },
         label2:'昼の体制を強化', storyTag:'昼勤務のスタッフを募集することにした。みどりの負担が減り、昼のピークを乗り越えられるようになりそうだ。' },
       { label:'しばらくみどりと二人で頑張る', cost:0,
@@ -8232,9 +8232,9 @@ const DOMAIN_CASES = [
   { id:'staff_shortage', conditionOnly:true, repeatable:false, domain:'staff', sender:'成田', icon:'📋',
     apCost:0, expireDays:28, category:'ops',
     title:'「次は夕方の体制ですね」',
-    body:'成田さんが立ち寄って言った。\n\n「昼の人手は整いましたね。\nみどりさんと新しい方でうまく回っているようです。\n\nただ——\n15時以降はまだお一人ですよね？\n\nこのままお客さんが増えてくると、\n夕方以降に限界が来ると思います。\n\n夕方だけのアルバイトを一人、\n入れてみてはどうでしょう。\n週3日・17時から21時で\n月給は6万円ほど。\n\n昼夜それぞれに人が揃う体制になります」',
+    body:'成田さんが立ち寄って言った。\n\n「昼の人手は整いましたね。\nみどりさんと新しい方でうまく回っているようです。\n\nただ——\n15時以降はまだお一人ですよね？\n\nこのままお客さんが増えてくると、\n夕方以降に限界が来ると思います。\n\n夕方だけのアルバイトを一人、\n入れてみてはどうでしょう。\n17時から21時で\n月給は6万円ほど。\n\n昼夜それぞれに人が揃う体制になります」',
     choices:[
-      { label:'夕方アルバイトを募集する（週3・17〜21時・月給¥60,000）', cost:0, ap:5,
+      { label:'夕方アルバイトを募集する（17〜21時・月給¥60,000）', cost:0, ap:5,
         effects:{ score:5, hireArubaito:true },
         label2:'夕方体制へ', storyTag:'夕方アルバイトを採用することにした。昼はみどりと昼スタッフ、夕方は坂本でカバーする体制へ。' },
       { label:'しばらく一人で回す', cost:0,
@@ -12577,7 +12577,6 @@ function showMidoriInterviewModal(){
       <div style="background:var(--bg2);border-radius:8px;padding:10px 14px;margin-bottom:12px">
         <div style="font-size:10px;font-weight:700;color:var(--muted);letter-spacing:.05em;margin-bottom:8px">勤務条件</div>
         <div style="display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:12px">
-          <span style="color:var(--muted)">勤務</span><span>週4日</span>
           <span style="color:var(--muted)">時間</span><span>9:00〜15:00</span>
           <span style="color:var(--muted)">接客経験</span><span>5年</span>
           <span style="color:var(--muted)">人件費</span><span style="font-weight:700">月 ¥95,000</span>
@@ -12616,12 +12615,12 @@ function showArubaitoModal(){
         <strong>教えてもらえれば頑張ります</strong>」
       </div>
       <div style="background:var(--bg2);border-radius:8px;padding:8px 12px;margin-bottom:14px;font-size:11px;color:var(--muted)">
-        大学1年生 ／ 勤務：週3日 17:00〜21:00 ／ 希望月給 ¥60,000<br>
+        大学1年生 ／ 勤務時間：17:00〜21:00 ／ 希望月給 ¥60,000<br>
         ※ 夕方17〜21時をカバー。オーナーがその時間帯に縛られなくなります
       </div>
       <div style="display:flex;flex-direction:column;gap:8px">
         <button class="choice-btn" onclick="hireArubaito()">
-          <div class="choice-lbl">🧑‍🎓 採用する（週3日・17〜21時・月給 ¥60,000）</div>
+          <div class="choice-lbl">🧑‍🎓 採用する（17〜21時・月給 ¥60,000）</div>
           <div class="choice-eff" style="color:var(--gr)">夕方営業が安定・新規客が増えやすくなる・月次固定費 +¥60,000</div>
         </button>
         <button class="choice-btn" onclick="rejectArubaito()">
@@ -12647,7 +12646,7 @@ function hireArubaito(){
   G.staff.push({
     id: nextId, name:'坂本 大樹', emoji:'🧑‍🎓', age:19, level:1, title:'新人', type:'arubaito',
     store:'舞昆茶屋1号店',
-    bio:'近所の大学1年生。週3日・夕方17〜21時勤務。素直で覚えが早い。',
+    bio:'近所の大学1年生。夕方17〜21時勤務。素直で覚えが早い。',
     dream:'「まだわからないけど、いろんなこと経験したい」',
     skills:{ service:35, cooking:25, management:10 },
     daysWorked:0, salary:60000, growthPts:0, nextLevel:40, burden:5, satisfaction:75,
@@ -12656,8 +12655,8 @@ function hireArubaito(){
   G.stores[0].newCustomers = (G.stores[0].newCustomers || 0) + 1;
   G.stores[0].customers = (G.stores[0].newCustomers||0) + (G.stores[0].regulars||0);
   G._arubaitoRejected = false;
-  addStory('坂本大樹を夕方アルバイトとして採用した。週3日・17〜21時。みどりが帰る夕方以降も店が回るようになった。夕方の来客が増えてきた。','highlight');
-  addNews('🧑‍🎓 坂本大樹 採用（週3日・17〜21時・月給¥60,000）');
+  addStory('坂本大樹を夕方アルバイトとして採用した。夕方17〜21時。みどりが帰る夕方以降も店が回るようになった。夕方の来客が増えてきた。','highlight');
+  addNews('🧑‍🎓 坂本大樹 採用（17〜21時・月給¥60,000）');
   notify('坂本大樹を採用！夕方の来客が増えやすくなりました', 'gold');
   renderTab();
 }
@@ -12684,7 +12683,6 @@ function showLunchStaffModal(){
       <div style="background:var(--bg2);border-radius:8px;padding:10px 14px;margin-bottom:12px">
         <div style="font-size:10px;font-weight:700;color:var(--muted);letter-spacing:.05em;margin-bottom:8px">勤務条件</div>
         <div style="display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:12px">
-          <span style="color:var(--muted)">勤務</span><span>週4日</span>
           <span style="color:var(--muted)">時間</span><span>10:00〜15:00</span>
           <span style="color:var(--muted)">接客経験</span><span>カフェ2年</span>
           <span style="color:var(--muted)">人件費</span><span style="font-weight:700">月 ¥75,000</span>
@@ -12717,7 +12715,7 @@ function hireLunchStaff(){
   G.staff.push({
     id: nextId, name:'田村 あかり', emoji:'👩‍🍳', age:28, level:1, title:'新人', type:'lunchStaff',
     store:'舞昆茶屋1号店',
-    bio:'28歳・主婦。週4日・10〜15時勤務。カフェ経験2年。みどりの指導のもと昼の接客を担う。',
+    bio:'28歳・主婦。10〜15時勤務。カフェ経験2年。みどりの指導のもと昼の接客を担う。',
     dream:'「自分でもいつかカフェをやってみたい」',
     skills:{ service:45, cooking:30, management:8 },
     daysWorked:0, salary:75000, growthPts:0, nextLevel:40, burden:5, satisfaction:75,
@@ -12725,8 +12723,8 @@ function hireLunchStaff(){
   G._lunchStaffHiredDay = (G.year-1)*360 + (G.month-1)*30 + G.day;
   G.stores[0].newCustomers = (G.stores[0].newCustomers||0) + 1;
   G.stores[0].customers = (G.stores[0].newCustomers||0) + (G.stores[0].regulars||0);
-  addStory('田村あかりを昼スタッフとして採用した。週4日・10〜15時。みどりと二人で昼のピークを支えてもらえる体制になった。','highlight');
-  addNews('👩‍🍳 田村あかり 採用（週4日・10〜15時・月給¥75,000）');
+  addStory('田村あかりを昼スタッフとして採用した。10〜15時。みどりと二人で昼のピークを支えてもらえる体制になった。','highlight');
+  addNews('👩‍🍳 田村あかり 採用（10〜15時・月給¥75,000）');
   notify('田村あかりを採用！昼のピーク対応が安定します', 'gold');
   renderTab();
 }
@@ -12752,7 +12750,7 @@ function showMidoriEvent(){
       </div>
       <div style="display:flex;flex-direction:column;gap:8px">
         <button class="choice-btn" onclick="hireMidori()">
-          <div class="choice-lbl">👩 採用する（週4日・9〜15時・月給 ¥95,000）</div>
+          <div class="choice-lbl">👩 採用する（9〜15時・月給 ¥95,000）</div>
           <div class="choice-eff">午前〜昼の接客をカバー / AP消費が軽減</div>
         </button>
         <button class="choice-btn" onclick="document.getElementById('event-modal').style.display='none';renderTab()">
@@ -12769,15 +12767,15 @@ function hireMidori(){
   G.staff.push({
     id:1, name:'佐々木みどり', emoji:'👩', age:38, level:1, title:'パート',
     store:'舞昆茶屋1号店',
-    bio:'シングルマザー。小学3年生の娘を育てながら週4日・9〜15時で働く。接客が丁寧で常連に評判が良い。',
+    bio:'シングルマザー。小学3年生の娘を育てながら9〜15時で働く。接客が丁寧で常連に評判が良い。',
     dream:'「娘に大学へ行かせてやりたい。そのために稼がなきゃ」',
     skills:{service:68, cooking:55, management:40},
     daysWorked:0, salary:95000, growthPts:0, nextLevel:50, burden:10, satisfaction:75,
   });
   G.stores[0].policy = 'staff'; // 自動的にスタッフ方針へ
   G.staffUnlocked = true;       // 人材タブ解放
-  addStory('佐々木みどりを採用した。週4日・9〜15時のパート勤務。午前から昼の時間帯を支えてもらえる。15時以降はまだ一人だが、これで少し息ができる。','highlight');
-  addNews('👩 佐々木みどり 採用（週4日・9〜15時・月給¥95,000）');
+  addStory('佐々木みどりを採用した。9〜15時の勤務。午前から昼の時間帯を支えてもらえる。15時以降はまだ一人だが、これで少し息ができる。','highlight');
+  addNews('👩 佐々木みどり 採用（9〜15時・月給¥95,000）');
   notify('みどりを採用！人材タブが解放されました','gold');
   // ご縁ノートに登録
   if(G.characters && G.characters.midori){
