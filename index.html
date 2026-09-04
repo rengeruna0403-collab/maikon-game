@@ -11177,12 +11177,14 @@ function showFollowUpModal(f){
   document.getElementById('event-modal').style.display = 'flex';
   _updateAdvFixed();
   G.activeEvent = { _followUp: true, _followUpEffects: f.effects || null,
+    _followUpStoreName: f.storeName || null,
     _followUpData: { charTarget: f.charTarget || null, charNoteText: f.charNoteText || null } };
 }
 
 function closeFollowUp(){
   const _fuData = G.activeEvent && G.activeEvent._followUpData;
   const _fx = G.activeEvent && G.activeEvent._followUpEffects;
+  const _fuStoreName = G.activeEvent && G.activeEvent._followUpStoreName || null;
   document.getElementById('event-modal').style.display = 'none';
   G.activeEvent = null;
   // 後日談をご縁ノートに保存
@@ -11205,8 +11207,14 @@ function closeFollowUp(){
     if(_fx.rep)           G.regions[0].reputation = Math.min(100, (G.regions[0].reputation||0) + _fx.rep);
     if(_fx.score)         scoreOwner(_fx.score, 'followup');
     if(_fx.communityBond) G.communityBond = Math.min(100, (G.communityBond||0) + _fx.communityBond);
-    if(_fx.storeSat && G.stores[0])
-      G.stores[0].satisfaction = Math.min(100, (G.stores[0].satisfaction||70) + _fx.storeSat);
+    if(_fx.storeSat){
+      if(_fuStoreName){
+        const _fuSt = G.stores.find(s => s.name === _fuStoreName);
+        if(_fuSt) _fuSt.satisfaction = Math.min(100, (_fuSt.satisfaction||70) + _fx.storeSat);
+      } else if(G.stores[0]){
+        G.stores[0].satisfaction = Math.min(100, (G.stores[0].satisfaction||70) + _fx.storeSat);
+      }
+    }
     if(_fx.customerLoyalty)
       G.customerLoyalty = Math.min(100, (G.customerLoyalty||0) + _fx.customerLoyalty);
     if(_fx.custRegular && G.stores[0]){
@@ -11854,6 +11862,7 @@ function chooseEvent(idx, useFatigue){
         title:'投稿、あまり伸びなかったみたいです',
         body:'しばらく後、投稿してくれたお客さんからひとこと届きました。\n\n「あの写真、投稿したんですけど——\n\nいいねはそれなりについたんですが、\nそれほど広がらなくて。\n\nでもお店のこと、好きだから\nまた来ます！」\n\nSNSはいつも伸びるとは限らない。\nでも、また来てくれることの方が大事かもしれない。',
         effects: null,
+        storeName: (ev && ev.storeName) || null,
       });
       addStory('SNSに投稿してもらった。今回はあまり広がらなかったようだ。', 'normal');
     } else if(_roll < 75 - _bonus * 1.1){
@@ -11864,6 +11873,7 @@ function chooseEvent(idx, useFatigue){
         title:'「SNSを見て来ました」が増えています',
         body:'あの日の投稿のお客さんから連絡がありました。\n\n「先日投稿したら、保存数がすごくて。\n\n「どこにあるんですか？」という\nDMも何件か届きました。\n\nお店にもSNSを見て来られる方が\n増えていたら嬉しいです。\n\n大阪の舞昆、もっとたくさんの人に\n知ってもらえたらいいですね。」\n\nその頃から「SNSで見ました」という新しいお客様が少しずつ増え始めている。',
         effects:{ custBonusPerDay:1, custBonusDays:14, source:'sns_normal' },
+        storeName: (ev && ev.storeName) || null,
       });
       addStory('SNSに投稿してもらった。じわじわと反応が来ている。', 'normal');
     } else {
@@ -11874,6 +11884,7 @@ function chooseEvent(idx, useFatigue){
         title:'投稿がバズりました！',
         body:'投稿してくれたお客さんから興奮気味のメッセージが届きました。\n\n「あの写真、すごいことになってて！\n\n保存数がどんどん増えて、\n「どこにあるんですか？」って\nDMが20件以上来てます。\n\n「大阪に行ったら絶対行く」\n「お土産に買いたい」ってコメントもあって——\n\nお店のこと、もっとたくさんの人に\n伝わったらいいなと思っています！」\n\nその頃から「SNSで見ました」という新しいお客様が一気に増え始めた。',
         effects:{ custBonusPerDay:3, custBonusDays:21, rep:3, source:'sns_big' },
+        storeName: (ev && ev.storeName) || null,
       });
       addStory('SNSへの投稿が大きく広がった。来週から新規来店が増えそうだ。', 'highlight');
       notify('🔥 SNS投稿が広がっています！来店が増えそうです', 'gold');
@@ -11889,6 +11900,7 @@ function chooseEvent(idx, useFatigue){
       title:'商品がSNSで紹介された',
       body:'先日のお客様が、商品の写真をSNSに載せてくれたようです。\n\n大きく広がったわけではないけれど、\n「これ気になる」「食べてみたい」という\nコメントがいくつか付いていたそうです。\n\n少しずつ、舞昆茶屋を知ってくれる人が増えているようだ。',
       effects:{ storeBrand:1, source:'sns_product' },
+      storeName: (ev && ev.storeName) || null,
     });
     addStory('商品のみの掲載を承諾した。大きくはないが、少し知ってもらえたようだ。', 'normal');
   }
@@ -12155,6 +12167,7 @@ function chooseEvent(idx, useFatigue){
       title: followUp.title || '',
       body: followUp.body || '',
       effects: followUp.effects || null,
+      storeName: (ev && ev.storeName) || null,
     });
   }
 
