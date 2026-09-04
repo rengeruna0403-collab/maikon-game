@@ -11296,6 +11296,38 @@ function getChoiceImpactIcons(choice){
 
 function showEventModal(ev){
   if(G.autoTesting){ _autoResolveEvent(); return; }
+
+  // ── みどり店長の急な休み：他スタッフがいる場合は店長自己処理 ──
+  if(ev.id === 'midori_sick'){
+    const _skMid = G.staff.find(s => s.name === '佐々木みどり');
+    if(_skMid && _skMid.title === '店長'){
+      const _skOthers = G.staff.filter(s => s.name !== '佐々木みどり' && s.store === _skMid.store);
+      if(_skOthers.length > 0){
+        // 同店に他スタッフあり → 店長が自己判断でシフト調整・欠勤
+        _skMid.satisfaction = Math.min(100, (_skMid.satisfaction||70) + 8);
+        G.midoriTrust = Math.min(100, (G.midoriTrust||0) + 4);
+        const _skSt = G.stores.find(s => s.name === _skMid.store);
+        if(_skSt) _skSt.satisfaction = Math.max(0, (_skSt.satisfaction||70) - 2);
+        G.staffUnavailableToday = G.staffUnavailableToday || [];
+        if(!G.staffUnavailableToday.includes('佐々木みどり')) G.staffUnavailableToday.push('佐々木みどり');
+        scoreOwner(4, 'manager_auto');
+        const _skIdx = G.cases.indexOf(ev);
+        if(_skIdx >= 0) G.cases[_skIdx].resolved = true;
+        G.activeEvent = null;
+        addNews(`🌿 【店長対応】みどりが娘の発熱で休みを取りました。${_skOthers[0].name}が対応します`);
+        addStory('みどりが子どもの発熱で休みを取った。店の方は残りのスタッフが対応してくれた。', 'normal');
+        notify('🌿 みどりが自己判断で休暇を取りました');
+        renderTab(); updateHeader();
+        return;
+      } else {
+        // 店長一人のみ → オーナーへエスカレーション（本文を店長らしい文脈に変更）
+        ev = Object.assign({}, ev, {
+          body: '朝7時、みどりから連絡が来た。\n\n「娘が昨夜から熱を出してしまって、\nお休みをいただきたいのですが——\n\n……今日の午前、他のスタッフがいないので、\nお店のことが心配で、ご相談したくて連絡しました。\n\n本当に申し訳ありません」\n\n——店長として調整しようにも、今日は一人しかいない。'
+        });
+      }
+    }
+  }
+
   const apCostRaw = ev.apCost || 0;
   const apCost = apCostRaw;
   const apShortfall = apCost > 0 ? Math.max(0, apCost - G.ap) : 0;
@@ -11312,11 +11344,17 @@ function showEventModal(ev){
   const _portraitKey = getCharacterPortrait(ev);
   const _portraitInfo = _portraitKey ? CHARACTERS[_portraitKey] : null;
   const _portraitUrl  = _portraitKey ? CHARACTER_PORTRAITS[_portraitKey] : null;
-  const _portraitRole = _portraitKey
-    ? (_portraitKey === 'midori' && !G.staffUnlocked
-        ? 'スタッフ候補'
-        : (CHARACTER_ROLES[_portraitKey] || ''))
-    : '';
+  let _portraitRole = '';
+  if(_portraitKey){
+    if(_portraitKey === 'midori' && !G.staffUnlocked){
+      _portraitRole = 'スタッフ候補';
+    } else if(_portraitKey === 'midori'){
+      const _prMs = G.staff.find(s => s.name === '佐々木みどり');
+      _portraitRole = _prMs ? (_prMs.title || CHARACTER_ROLES.midori) : CHARACTER_ROLES.midori;
+    } else {
+      _portraitRole = CHARACTER_ROLES[_portraitKey] || '';
+    }
+  }
   const _portraitName = _portraitInfo ? _portraitInfo.name : (_portraitKey === 'ochawanman' ? 'お茶碗マン' : '');
 
   const body=document.getElementById('event-modal-body');
