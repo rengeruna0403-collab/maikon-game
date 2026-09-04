@@ -10390,6 +10390,7 @@ function renderCasesBox(){
       <div style="flex:1;min-width:0">
         <div style="display:flex;align-items:center;gap:5px;margin-bottom:2px;flex-wrap:wrap">
           <span style="font-size:12px;color:${CAT_COLOR[cat]||'var(--muted)'};font-weight:700">${CAT_LABEL[cat]||''}</span>
+          ${c.storeName && (G.stores||[]).length > 1 ? `<span style="font-size:10px;background:var(--bg2);color:var(--muted);border-radius:99px;padding:1px 6px;font-weight:600">${c.storeName}</span>` : ''}
           <span style="font-size:12px;color:var(--muted)">${c.sender}</span>
           ${urgencyBadge}${hireBadge}
         </div>
@@ -11307,6 +11308,7 @@ function showEventModal(ev){
       </div>
     </div>` : `<div class="modal-icon">${ev.icon}</div>`}
     <div class="modal-title">${ev.title}</div>
+    ${ev.storeName && (G.stores||[]).length > 1 ? `<div style="text-align:center;font-size:11px;font-weight:600;color:var(--muted);margin:-4px 0 8px;letter-spacing:.05em">🏪 ${ev.storeName}</div>` : ''}
     ${ev.storyContext?`<div class="modal-story">${ev.storyContext}</div>`:''}
     <div class="modal-body">${ev.body}</div>
     ${apBanner}
