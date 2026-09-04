@@ -690,7 +690,8 @@ let G = {
   },
   tabHighlights: {}, // ハイライト中タブ { store:true, staff:true, ... }
   staffUnlocked: false, // 人材タブ解放フラグ（みどり採用で true）
-  staffUnavailableToday: [], // 当日のみ有効：休み・欠勤スタッフ名リスト。日送りでリセット。
+  staffUnavailableToday: [],    // 当日のみ有効：休み・欠勤スタッフ名リスト。日送りでリセット。
+  ownerSupportStoreToday: null, // 当日のみ有効：オーナー応援先店舗名（string|null）。日送りでリセット。
   totalRevenue: 0, totalProfit: 0,
   monthRevenue: 0, monthExpense: 0, monthIngredientCost: 0,
   lastDayRevenue: 0,
@@ -937,6 +938,48 @@ function calcSeasonMult(month, store) {
   };
   return finalMult;
 }
+
+// ── 日次店舗運営状態ヘルパー ──────────────────────────────────────────────
+// 当日勤務可能なスタッフ一覧（staffUnavailableToday を除外）
+function getAvailableStaffForStore(store){
+  const _unavail = G.staffUnavailableToday || [];
+  return (G.staff || []).filter(st => st.store === store.name && !_unavail.includes(st.name));
+}
+
+// オーナーが今日その店舗にいるか（ownerSupportStoreToday が設定された日は応援先のみ）
+function isOwnerPresentAtStore(store){
+  const _support = G.ownerSupportStoreToday || null;
+  if(_support){
+    // 応援先が存在する店舗名かチェック（存在しない店舗名ならfallback=false）
+    return store.name === _support && (G.stores || []).some(s => s.name === _support);
+  }
+  // 通常：policy='owner' 店舗にいる
+  return (store.policy || 'owner') === 'owner';
+}
+
+// 店舗の今日の運営状態を返す
+// status: 'normal' | 'reduced' | 'closed'
+function getStoreOperatingStatus(store){
+  // 閉店・臨時休業は最優先
+  if((store.policy || 'owner') === 'closed' || store._tempClosed || !store.isOpen){
+    return { status:'closed', ownerPresent:false, managerPresent:false, availableStaff:[] };
+  }
+  const availableStaff = getAvailableStaffForStore(store);
+  const ownerPresent   = isOwnerPresentAtStore(store);
+  const managerPresent = availableStaff.some(st => st.title === '店長');
+  let status;
+  if(ownerPresent || managerPresent){
+    status = 'normal';
+  } else if(availableStaff.length > 0){
+    status = 'reduced';
+  } else {
+    status = 'closed';
+  }
+  if(DEV_MODE) console.log('[storeOps]', store.name, status,
+    '| owner:', ownerPresent, '| mgr:', managerPresent, '| staff:', availableStaff.length);
+  return { status, ownerPresent, managerPresent, availableStaff };
+}
+// ─────────────────────────────────────────────────────────────────────────────
 
 function calcDailyRevenue(){
   let rev=0, exp=0, totalIngCost=0; // Balance v0.2-model-1: track ingredient cost separately
@@ -2899,8 +2942,9 @@ function advanceDay(){
   setTimeout(()=>{ try { _checkMenuImpactResult(); } catch(e){ console.error('[advanceDay] menuImpact:', e); } }, 950);
   try { _checkApLowWarning(); } catch(e){ console.error('[advanceDay] apLowWarning:', e); }
   } finally {
-    // 日次スタッフ休み状態リセット（翌日は通常復帰）
-    G.staffUnavailableToday = [];
+    // 日次スタッフ休み状態・オーナー応援先リセット（翌日は通常復帰）
+    G.staffUnavailableToday   = [];
+    G.ownerSupportStoreToday  = null;
     // 月末処理中でない場合のみここで解除
     // （月末の場合は closeMonthlyChallengeModal で解除）
     // try内の途中returnや例外発生時も必ずここを通る
@@ -4683,9 +4727,11 @@ function _renderStoreScene(s){
   const _unavailNamesVis = G.staffUnavailableToday || [];
   const _assignedStaff = (G.staff || []).filter(st => st.store === s.name && !_unavailNamesVis.includes(st.name));
   const _primaryStaff = _assignedStaff.length > 0 ? _assignedStaff[0] : null;
-  const _showOwner = !_primaryStaff || _policy === 'owner';
+  const _ownerHere = isOwnerPresentAtStore(s); // オーナーが今日この店にいるか（応援先考慮）
+  const _showOwner = _ownerHere && (!_primaryStaff || _policy === 'owner');
   const _isMidoriAssigned = !_showOwner && _primaryStaff && _primaryStaff.name === '佐々木みどり';
-  const staffIcon = _showOwner ? '🧑‍💼' : (_isMidoriAssigned ? '👩' : (_primaryStaff.emoji || '🧑'));
+  // _primaryStaff null かつ owner不在 → 誰もいない状態（🏪）
+  const staffIcon = _showOwner ? '🧑‍💼' : (_isMidoriAssigned ? '👩' : (_primaryStaff ? _primaryStaff.emoji || '🧑' : '🏪'));
   const hasCust = (s.customers||0) > 0 && s.menu && s.menu.length > 0;
 
   // ── 季節デコ（中央上部・Lvで大きさ変化） ──────────────
@@ -18254,6 +18300,7 @@ function _normalizeSaveData(){
   G.pendingMenuImpactResult ??= null; // 旧セーブ補完
   G.initialSetupCompleted   ??= false;
   G.staffUnavailableToday   ||= [];
+  G.ownerSupportStoreToday  ??= null; // 旧セーブ補完
   // 旧セーブ救済：step1+step2達成済みで全部屋入居済みor募集中なら自動完了に昇格
   if(!G.initialSetupCompleted && G.started && G.tut && G.tut.phase === 'done'){
     const _s1ok = !!(G.stores && G.stores[0] && G.stores[0].isOpen);
