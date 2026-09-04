@@ -17061,6 +17061,121 @@ function _autoTestChunk(targetDays, chunkSize, onDone){
   }
 }
 
+// ─── QA: 2号店+1号店みどり店長委任テスト状態スキップ ───
+function debugSkipToStore2ManagerTest(){
+  if(!DEV_MODE){ console.warn('[QA] DEV_MODE=falseのため実行不可'); return; }
+  if(!confirm('[QA] 現在のセーブを「2号店+みどり店長委任テスト状態」に書き換えます。元に戻せません。続行しますか？')) return;
+
+  // ── 日付設定: 2年目4月1日 (totalDays=451) ──
+  G.year  = 2;
+  G.month = 4;
+  G.day   = 1;
+  G._lastCaseDay = 0; // 案件生成を即時可能にする
+
+  // ── チュートリアル完了 ──
+  G.started = true;
+  G.tut = G.tut || {};
+  G.tut.phase = 'done';
+  G.tut.tutCompletedDay = 30;
+  G.tut._day1HintDone = true;
+  markTutDone();
+
+  // ── 資金・AP ──
+  G.money    = 3500000;
+  G.ap       = 60;
+  G.apMax    = 60;
+  G.fatigue  = 0;
+  G.phase    = 2;
+
+  // ── 信用・地域 ──
+  G.creditScore = 55;
+  if(G.regions && G.regions[0]) G.regions[0].reputation = 65;
+  G.naritaTrust  = 20;
+  G.midoriTrust  = 30;
+  G.storeBrand   = 20;
+  G.customerLoyalty = 10;
+
+  // ── 1号店 ──
+  G.store2Unlocked = true;
+  const s1 = G.stores[0];
+  s1.policy      = 'staff';
+  s1.isOpen      = true;
+  s1.customers   = 30;
+  s1.newCustomers = 8;
+  s1.regulars    = 5;
+  s1.satisfaction = 75;
+  s1.menu = s1.menu && s1.menu.length >= 2 ? s1.menu : ['鮭舞昆定食','たもぎ茸舞昆定食'];
+
+  // ── 2号店 生成 ──
+  if(G.stores.length < 2){
+    G.stores.push({
+      id: 2, name: '舞昆茶屋2号店', region: '桜橋区', baseId: 'base_sakurabashi_2',
+      isOpen: true, policy: 'owner',
+      customers: 15, newCustomers: 14, regulars: 1, satisfaction: 55,
+      unitPrice: 700, staffCost: 0, dailyPrepCost: 2000,
+      ingredientCostPerCustomer: 300, rent: 45000,
+      menu: ['たもぎ茸舞昆定食'], upgrades: [], level: 1, monthlyBonus: 0
+    });
+  } else {
+    G.stores[1].policy  = 'owner';
+    G.stores[1].isOpen  = true;
+  }
+  G._store2OpenDay = 360; // year2 month1 day1に開業 (91日前)
+
+  // ── みどり: 店長へ昇格 ──
+  G.staffUnlocked = true;
+  let midori = (G.staff || []).find(s => s.name === '佐々木みどり');
+  if(!midori){
+    midori = {
+      id: 1, name: '佐々木みどり', emoji: '👩', age: 38,
+      bio: 'シングルマザー。接客が丁寧で常連に評判が良い。',
+      dream: '「娘に大学へ行かせてやりたい。そのために稼がなきゃ」',
+      skills: { service: 85, cooking: 65, management: 85 },
+      daysWorked: 451, salary: 120000, growthPts: 0, nextLevel: 9999,
+      burden: 20, satisfaction: 85
+    };
+    G.staff = G.staff || [];
+    G.staff.unshift(midori);
+  } else {
+    midori.level        = 6;
+    midori.title        = '店長';
+    midori.store        = '舞昆茶屋1号店';
+    midori.daysWorked   = Math.max(midori.daysWorked || 0, 451);
+    midori.skills       = { service: 85, cooking: 65, management: 85 };
+    midori.satisfaction = Math.max(midori.satisfaction || 70, 85);
+  }
+  midori.level = 6;
+  midori.title = '店長';
+  midori.store = '舞昆茶屋1号店';
+
+  // ── 成田: 面識あり ──
+  G.characters = G.characters || {};
+  G.characters.narita = G.characters.narita || {};
+  G.characters.narita.met   = true;
+  G.characters.narita.level = Math.max(G.characters.narita.level || 0, 2);
+
+  // ── 既存 pending case を整理（story chain破壊リスクを避け、未解決案件だけ削除）──
+  G.cases = (G.cases || []).filter(c => c.resolved); // 解決済みのみ残す
+
+  // ── セーブ ──
+  saveGame();
+  renderTab();
+  updateHeader();
+
+  console.log(
+    '%c[QA STORE2 READY]', 'color:#90EE90;font-weight:bold',
+    '\n1号店: policy=' + G.stores[0].policy + ' manager=' + (G.staff.find(s=>s.store===G.stores[0].name&&s.title==='店長')||{}).name,
+    '\n2号店: policy=' + G.stores[1].policy,
+    '\nstore2Unlocked=' + G.store2Unlocked,
+    '\ndate=' + G.year + '年' + G.month + '月' + G.day + '日 (totalDays=451)',
+    '\nmoney=¥' + G.money.toLocaleString(),
+    '\nAP=' + G.ap + '/' + G.apMax,
+    '\nみどりlevel=' + midori.level + ' title=' + midori.title
+  );
+  notify('🏪 [QA] 2号店+みどり店長テスト状態にスキップ完了', 'gold');
+  if(typeof showDebugPanel === 'function') showDebugPanel();
+}
+
 function runAutoTest(days){
   if(!DEV_MODE) return;
   if(G.autoTesting){ notify('テスト実行中です','warn'); return; }
@@ -17303,6 +17418,9 @@ function _renderDevDashboard(){
           <button onclick="runAutoTest(1080)" style="${_devBtnStyle('#2a2a0a','#5a5a1a','#FFD700')}">エンディング</button>
           <button onclick="G.autoTestResults=null;showDebugPanel()" style="${_devBtnStyle('#2a1a1a','#5a3a3a','#aaa')}">結果クリア</button>
         </div>`}
+    <div style="margin-top:8px;border-top:1px solid #2a2a2a;padding-top:8px">
+      <button onclick="debugSkipToStore2ManagerTest()" style="${_devBtnStyle('#1a1a2e','#3a3a6a','#87CEEB')}width:100%;font-size:11px">🏪 2号店+みどり店長テスト状態へスキップ</button>
+    </div>
   </div>`;
 
   // ── 📡 Analytics確認 ──
