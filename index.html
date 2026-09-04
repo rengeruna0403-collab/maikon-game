@@ -17157,6 +17157,22 @@ function debugSkipToStore2ManagerTest(){
   // ── 既存 pending case を整理（story chain破壊リスクを避け、未解決案件だけ削除）──
   G.cases = (G.cases || []).filter(c => c.resolved); // 解決済みのみ残す
 
+  // ── 過去イベント解決済み履歴付与 ──
+  // 通常プレイで2号店+みどり店長状態(dw=451)到達前に必ず解決されているはずのcase履歴を
+  // G.casesに追加し、次の案件生成サイクルで再発火するのを防ぐ。
+  // ゲーム本体の発火条件は変更しない。
+  const _qaR = (id, ctd) => ({ id, resolved: true, _qaSkipped: true,
+    createdYear:1, createdMonth:1, createdDay:1, createdTotalDays: ctd });
+  const _qaResolvIds = ['midori_growth','staff_promotion_discuss',
+                        'staff_want_independent','staff_thanks','narita_expansion'];
+  _qaResolvIds.forEach(id => {
+    if(!G.cases.some(c => c.id === id)){
+      const _ctd = { midori_growth:44, staff_promotion_discuss:250,
+                     staff_want_independent:210, staff_thanks:400, narita_expansion:60 }[id] || 1;
+      G.cases.push(_qaR(id, _ctd));
+    }
+  });
+
   // ── セーブ ──
   saveGame();
   renderTab();
