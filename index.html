@@ -11301,18 +11301,25 @@ function showEventModal(ev){
   if(ev.id === 'midori_sick'){
     const _skMid = G.staff.find(s => s.name === '佐々木みどり');
     if(_skMid && _skMid.title === '店長'){
-      const _skOthers = G.staff.filter(s => s.name !== '佐々木みどり' && s.store === _skMid.store);
+      // 冪等ガード：既に解決済みなら何もしない
+      if(ev.resolved){ G.activeEvent = null; return; }
+      // 当日不在スタッフを除外した同店カバー要員リスト
+      const _unavailToday = G.staffUnavailableToday || [];
+      const _skOthers = G.staff.filter(s =>
+        s.name !== '佐々木みどり' &&
+        s.store === _skMid.store &&
+        !_unavailToday.includes(s.name)
+      );
       if(_skOthers.length > 0){
-        // 同店に他スタッフあり → 店長が自己判断でシフト調整・欠勤
+        // 同店に当日勤務可能な他スタッフあり → 店長が自己判断でシフト調整・欠勤
         _skMid.satisfaction = Math.min(100, (_skMid.satisfaction||70) + 8);
         G.midoriTrust = Math.min(100, (G.midoriTrust||0) + 4);
         const _skSt = G.stores.find(s => s.name === _skMid.store);
         if(_skSt) _skSt.satisfaction = Math.max(0, (_skSt.satisfaction||70) - 2);
-        G.staffUnavailableToday = G.staffUnavailableToday || [];
+        G.staffUnavailableToday = _unavailToday;
         if(!G.staffUnavailableToday.includes('佐々木みどり')) G.staffUnavailableToday.push('佐々木みどり');
         scoreOwner(4, 'manager_auto');
-        const _skIdx = G.cases.indexOf(ev);
-        if(_skIdx >= 0) G.cases[_skIdx].resolved = true;
+        ev.resolved = true; // 参照直接書き換え（indexOf不要・確実）
         G.activeEvent = null;
         addNews(`🌿 【店長対応】みどりが娘の発熱で休みを取りました。${_skOthers[0].name}が対応します`);
         addStory('みどりが子どもの発熱で休みを取った。店の方は残りのスタッフが対応してくれた。', 'normal');
@@ -11320,10 +11327,26 @@ function showEventModal(ev){
         renderTab(); updateHeader();
         return;
       } else {
-        // 店長一人のみ → オーナーへエスカレーション（本文を店長らしい文脈に変更）
+        // 当日対応可能スタッフなし → オーナーへエスカレーション
+        // 本文・選択肢を店舗運営判断に切り替え（みどりは休む前提）
         ev = Object.assign({}, ev, {
-          body: '朝7時、みどりから連絡が来た。\n\n「娘が昨夜から熱を出してしまって、\nお休みをいただきたいのですが——\n\n……今日の午前、他のスタッフがいないので、\nお店のことが心配で、ご相談したくて連絡しました。\n\n本当に申し訳ありません」\n\n——店長として調整しようにも、今日は一人しかいない。'
+          body: '朝7時、みどりから連絡が来た。\n\n「娘が昨夜から熱を出してしまって、\nお休みをいただきます。\n\n……今日の午前、他のスタッフがいないので\nお店のことが心配で、ご相談したくて連絡しました。\n\n本当に申し訳ありません」\n\n——みどりは休む。問題は今日の店をどうするか。',
+          choices:[
+            { label:'「自分が行きます。娘さんのそばにいてあげて」と伝え、1号店に向かう',
+              cost:0,
+              effects:{ score:8, fatigue:12, midoriTrust:6, staffSat:6, storeSat:-3,
+                        staffOff:'佐々木みどり', profile:{ people:3 } },
+              label2:'信頼+・主人公疲労+12・満足度小幅減',
+              storyTag:'「自分が行く」と伝えた。その日は1号店に顔を出してなんとか乗り切った。体は疲れたが、夕方みどりから「助かりました」とメッセージが来た。' },
+            { label:'「今日は開店を少し遅らせて対応します」と伝える',
+              cost:0,
+              effects:{ score:4, midoriTrust:4, storeSat:-6,
+                        staffOff:'佐々木みどり', profile:{ finance:1 } },
+              label2:'信頼+・午前の客足減・満足度-6',
+              storyTag:'開店時間を遅らせて対応した。午前中の客足は少なかったが、無理なく回すことができた。' },
+          ]
         });
+        G.activeEvent = ev; // chooseEvent()はG.activeEventを参照するため同期が必要
       }
     }
   }
