@@ -11415,15 +11415,22 @@ function delegateToMidori(){
     const scale = 0.4 + (skill / 100) * 0.45;
     if(fx.score)   scoreOwner(Math.ceil(fx.score * scale), 'delegate');
     if(fx.rep)     G.regions[0].reputation = Math.min(100, G.regions[0].reputation + Math.ceil(fx.rep * scale));
-    if(fx.storeSat) G.stores[0].satisfaction = Math.min(100, G.stores[0].satisfaction + Math.ceil(fx.storeSat * scale));
+    if(fx.storeSat){
+      // storeNameがある案件は該当店舗へ、ない場合は従来どおり1号店へ（互換性維持）
+      const _dmSt = (ev && ev.storeName) ? G.stores.find(s=>s.name===ev.storeName) : G.stores[0];
+      if(_dmSt) _dmSt.satisfaction = Math.min(100, (_dmSt.satisfaction||70) + Math.ceil(fx.storeSat * scale));
+    }
     if(fx.custUp){
       const up = Math.max(1, Math.round(fx.custUp * scale * 0.35));
       const _cap = getStaffCapacity();
-      const _cur = (G.stores[0].newCustomers||0) + (G.stores[0].regulars||0);
-      const _actualUp = Math.min(up, Math.max(0, _cap - _cur));
-      if(_actualUp > 0){
-        G.stores[0].newCustomers = (G.stores[0].newCustomers||0) + _actualUp;
-        G.stores[0].customers = (G.stores[0].newCustomers||0) + (G.stores[0].regulars||0);
+      const _dmStCu = (ev && ev.storeName) ? G.stores.find(s=>s.name===ev.storeName) : G.stores[0];
+      if(_dmStCu){
+        const _cur = (_dmStCu.newCustomers||0) + (_dmStCu.regulars||0);
+        const _actualUp = Math.min(up, Math.max(0, _cap - _cur));
+        if(_actualUp > 0){
+          _dmStCu.newCustomers = (_dmStCu.newCustomers||0) + _actualUp;
+          _dmStCu.customers = (_dmStCu.newCustomers||0) + (_dmStCu.regulars||0);
+        }
       }
     }
     const pct = Math.round(scale * 100);
@@ -11435,7 +11442,8 @@ function delegateToMidori(){
     notify(`🏪 スタッフが対応しました（効果${pct}%）`);
   } else {
     // 失敗：効果なし＋小ペナルティ
-    G.stores[0].satisfaction = Math.max(0, (G.stores[0].satisfaction||70) - 5);
+    const _dmStF = (ev && ev.storeName) ? G.stores.find(s=>s.name===ev.storeName) : G.stores[0];
+    if(_dmStF) _dmStF.satisfaction = Math.max(0, (_dmStF.satisfaction||70) - 5);
     G.midoriTrust = Math.max(0, (G.midoriTrust||0) - 3);
     addStory(`スタッフに「${ev.title}」を任せたが、うまく対応できなかった。後でオーナーがフォローする必要がありそうだ。`, 'warn');
     addNews(`⚠️ スタッフ対応失敗「${ev.title}」`);
@@ -11731,19 +11739,26 @@ function chooseEvent(idx, useFatigue){
     G.staffUnavailableToday = G.staffUnavailableToday || [];
     if(!G.staffUnavailableToday.includes(fx.staffOff)) G.staffUnavailableToday.push(fx.staffOff);
   }
-  if(fx.storeSat) G.stores[0].satisfaction=Math.min(100,G.stores[0].satisfaction+fx.storeSat);
+  if(fx.storeSat){
+    // storeNameがある案件は該当店舗へ、ない場合は従来どおり1号店へ（互換性維持）
+    const _ceSt = (ev && ev.storeName) ? G.stores.find(s=>s.name===ev.storeName) : G.stores[0];
+    if(_ceSt) _ceSt.satisfaction=Math.min(100,(_ceSt.satisfaction||70)+fx.storeSat);
+  }
   if(fx.custUp){
     // 序盤スケール：開店90日未満は15%、180日未満は35%、以降65%
     const _daysSinceOpen = (G.year-1)*360 + (G.month-1)*30 + G.day;
     const _custScale = _daysSinceOpen < 90 ? 0.15 : _daysSinceOpen < 180 ? 0.35 : 0.65;
     const _scaledUp = Math.max(1, Math.round(fx.custUp * _custScale));
-    // スタッフ容量を超えない範囲で加算
+    // スタッフ容量を超えない範囲で加算（storeNameがある案件は該当店舗へ）
     const _cap = getStaffCapacity();
-    const _curTotal = (G.stores[0].newCustomers || G.stores[0].customers || 0) + (G.stores[0].regulars || 0);
-    const _actualUp = Math.min(_scaledUp, Math.max(0, _cap - _curTotal));
-    if(_actualUp > 0){
-      G.stores[0].newCustomers = (G.stores[0].newCustomers || G.stores[0].customers || 0) + _actualUp;
-      G.stores[0].customers = (G.stores[0].newCustomers||0) + (G.stores[0].regulars||0);
+    const _cuSt = (ev && ev.storeName) ? G.stores.find(s=>s.name===ev.storeName) : G.stores[0];
+    if(_cuSt){
+      const _curTotal = (_cuSt.newCustomers || _cuSt.customers || 0) + (_cuSt.regulars || 0);
+      const _actualUp = Math.min(_scaledUp, Math.max(0, _cap - _curTotal));
+      if(_actualUp > 0){
+        _cuSt.newCustomers = (_cuSt.newCustomers || _cuSt.customers || 0) + _actualUp;
+        _cuSt.customers = (_cuSt.newCustomers||0) + (_cuSt.regulars||0);
+      }
     }
   }
   if(fx.custRegular){
