@@ -6595,7 +6595,7 @@ const DOMAIN_CASES = [
     ]},
 
   // ② 商品開発（mgmt AP15）
-  { id:'new_product_idea', requireStaff:true, repeatable:true, menuProposal:true, domain:'store', sender:'みどり', icon:'💡', apCost:15, expireDays:21, category:'mgmt',
+  { id:'new_product_idea', requireStaff:true, repeatable:true, menuProposal:true, domain:'store', sender:'みどり', staffActor:'みどり', icon:'💡', apCost:15, expireDays:21, category:'mgmt',
     title:'みどりが新商品のアイデアを出した',
     body:'みどりからアイデアを提案されました。\n\n「お客様から「おにぎり専用の舞昆が欲しい」\nという声を何度もいただいています。\nコンビニおにぎり向け小分けパックを\n作ってみませんか？」',
     choices:[
@@ -6604,7 +6604,7 @@ const DOMAIN_CASES = [
       {label:'今は既存商品の強化が優先',cost:0,effects:{score:4,profile:{finance:2}},label2:'既存集中',storyTag:'既存商品の強化を優先することにした。'},
     ]},
 
-  { id:'seasonal_limited', requireStaff:true, repeatable:true, menuProposal:true, domain:'store', sender:'みどり', icon:'🌸', apCost:15, expireDays:21, category:'mgmt',
+  { id:'seasonal_limited', requireStaff:true, repeatable:true, menuProposal:true, domain:'store', sender:'みどり', staffActor:'みどり', icon:'🌸', apCost:15, expireDays:21, category:'mgmt',
     title:'季節限定パッケージの提案',
     body:'みどりから提案が届きました。\n\n「今の季節に合わせた舞昆の限定パッケージを作りませんか？\nSNS映えしますし、贈答需要も狙えます」\n\nみどり「先日、試食したお客様からも好評でした！この季節だけのお楽しみにしましょう」',
     choices:[
@@ -6642,7 +6642,7 @@ const DOMAIN_CASES = [
     ]},
 
   // ④ スタッフ（mgmt AP10-20）
-  { id:'midori_pop', requireStaff:true, repeatable:false, domain:'store', sender:'みどり', icon:'🎨', apCost:10, expireDays:14, category:'mgmt',
+  { id:'midori_pop', requireStaff:true, repeatable:false, domain:'store', sender:'みどり', staffActor:'みどり', icon:'🎨', apCost:10, expireDays:14, category:'mgmt',
     title:'みどりがPOPを作りたいと言っている',
     body:'みどりから相談が来ました。\n\n「お店のPOPを手書きで作ったら\n喜ばれると思うんですが、\n時間をもらえませんか？」',
     choices:[
@@ -6660,7 +6660,7 @@ const DOMAIN_CASES = [
        storyTag:'今は業務優先と伝えた。みどりは「わかりました」と静かに引き下がった。'},
     ]},
 
-  { id:'midori_failure', requireStaff:true, repeatable:true, domain:'store', sender:'みどり', icon:'😢', apCost:10, expireDays:7, category:'mgmt',
+  { id:'midori_failure', requireStaff:true, repeatable:true, domain:'store', sender:'みどり', staffActor:'みどり', icon:'😢', apCost:10, expireDays:7, category:'mgmt',
     title:'みどりが失敗して落ち込んでいる',
     body:'みどりが接客でミスをして、お客様を怒らせてしまいました。\n\nお客様には謝罪済みですが、\nみどり自身がかなり落ち込んでいます。',
     choices:[
@@ -8296,10 +8296,21 @@ function addCase(caseData){
   }
   const _ctd = (G.year-1)*360 + (G.month-1)*30 + G.day;
   const entry = { ...caseData, createdDay: G.day, createdMonth: G.month, createdYear: G.year, createdTotalDays: _ctd, resolved: false };
+  // staffActor案件: 特定スタッフの所属店舗へ帰属（fallbackなし・スタッフ不在なら生成しない）
+  if(entry.domain === 'store' && entry.staffActor && !entry.conditionOnly && !entry.storeName){
+    const _actor = (G.staff||[]).find(s => s.name === entry.staffActor);
+    if(!_actor || !_actor.store) return;
+    entry.storeName = _actor.store;
+  }
   // 店舗日常ops：生成時に担当店舗を決定してstoreNameを付与
   // （CASE_POOL templateには固定値を持たせず、生成インスタンスで決定）
   if(entry.domain === 'store' && entry.storeScoped === true && !entry.conditionOnly && !entry.storeName){
-    const _openSt = (G.stores||[]).filter(s => (s.policy||'owner') !== 'closed');
+    let _openSt = (G.stores||[]).filter(s => (s.policy||'owner') !== 'closed');
+    if(entry.requireStaff){
+      const _staffedSt = _openSt.filter(s => (G.staff||[]).some(st => st.store === s.name));
+      if(_staffedSt.length === 0) return; // スタッフ在籍open storeなし→生成しない
+      _openSt = _staffedSt;
+    }
     const _tgt = _openSt.length ? _openSt[Math.floor(Math.random()*_openSt.length)] : (G.stores||[])[0];
     if(_tgt) entry.storeName = _tgt.name;
   }
