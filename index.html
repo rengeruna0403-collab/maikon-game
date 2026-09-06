@@ -1002,12 +1002,20 @@ function calcDailyRevenue(){
     }
     // 縮小運営補正
     if(s._tempClosed){ exp += Math.round(s.rent/30); return; }
+    // ── 当日運営体制（人員不足CLOSED / REDUCED）→ effectiveCustomers ───
+    const _ops = getStoreOperatingStatus(s);
+    if(_ops.status === 'closed'){
+      exp += Math.round(s.rent/30); // 人員不足による当日閉店：家賃のみ
+      return;
+    }
+    const _opsMult = _ops.status === 'reduced' ? 0.80 : 1.0; // REDUCED=責任者不在で対応可能客数80%（staffMultとは別概念）
     let revMult = 1;
     if(s._shortHours) revMult *= 0.70;
     if(s._lunchPause) revMult *= 0.80;
     const _td = (G.year-1)*360 + (G.month-1)*30 + G.day;
     const _custBonus = (G._tempCustBonuses||[]).filter(b => _td <= b.endDay).reduce((sum,b) => sum+b.amount, 0);
     const cTotal = (s.newCustomers||s.customers) + (s.regulars||0) + _custBonus;
+    const effectiveC = _opsMult < 1.0 ? Math.floor(cTotal * _opsMult) : cTotal; // REDUCED時のみ客数80%。元stateは不変。
     const up = s.unitPrice || 700;
     // ── スタッフ負担・満足度 → 接客品質 → 売上補正 ──
     let staffMult = 1.0;
@@ -1031,8 +1039,8 @@ function calcDailyRevenue(){
     }
     staffMult = Math.max(0.6, Math.min(1.1, staffMult));
     const seasonMult = calcSeasonMult(G.month, s);
-    rev += cTotal * up * revMult * staffMult * seasonMult + (s.monthlyBonus||0)/30;
-    const _dailyIngredient = s.dailyPrepCost != null ? (s.dailyPrepCost + cTotal*(s.ingredientCostPerCustomer||0)) : (s.ingredientCost||0); // Balance v0.2-model-1
+    rev += effectiveC * up * revMult * staffMult * seasonMult + (s.monthlyBonus||0)/30;
+    const _dailyIngredient = s.dailyPrepCost != null ? (s.dailyPrepCost + effectiveC*(s.ingredientCostPerCustomer||0)) : (s.ingredientCost||0); // Balance v0.2-model-1
     exp += _dailyIngredient + Math.round(s.rent/30); totalIngCost += _dailyIngredient;
   });
   G.buildings.forEach(b=>{
