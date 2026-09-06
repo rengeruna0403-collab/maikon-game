@@ -11373,24 +11373,54 @@ function showEventModal(ev){
         renderTab(); updateHeader();
         return;
       } else {
-        // 当日対応可能スタッフなし → オーナーへエスカレーション
-        // 本文・選択肢を店舗運営判断に切り替え（みどりは休む前提）
+        // みどり店舗に当日の代替スタッフなし → CASE B/C を判定してオーナーへエスカレーション
+        const _midoriStoreName = _skMid.store;
+        // オーナー通常担当店舗を動的取得（policy='owner' かつ isOpen かつ closed でない）
+        const _ownerStores = (G.stores || []).filter(s =>
+          (s.policy || 'owner') === 'owner' && s.isOpen && s.policy !== 'closed'
+        );
+        if(_ownerStores.length > 1 && DEV_MODE)
+          console.warn('[midori_sick] 複数owner store検出:', _ownerStores.map(s => s.name));
+        const _ownerStore = _ownerStores[0] || null;
+        // オーナー店舗の当日勤務可能スタッフ（みどり自身は別店舗のため対象外）
+        const _ownerOthers = _ownerStore ? getAvailableStaffForStore(_ownerStore) : [];
+
+        const _sickBodyBase = '朝7時、みどりから連絡が来た。\n\n「娘が昨夜から熱を出してしまって、\nお休みをいただきます。\n\n……今日はこちらに他のスタッフがいないので\nお店のことが心配で、ご相談したくて連絡しました。\n\n本当に申し訳ありません」\n\n——みどりは休む。';
+        let _sickBody, _sickChoices;
+
+        if(_ownerOthers.length === 0){
+          // CASE B：オーナー店舗にも代替スタッフなし → 応援不能・休業のみ
+          _sickBody = _sickBodyBase + 'あなたの店舗も今日は他のスタッフが動けない。\n今日はみどりの店を休みにするしかない。';
+          _sickChoices = [
+            { label:'「今日はお店を閉めましょう。娘さんのそばにいてあげて」と伝える',
+              cost:0,
+              effects:{ score:3, midoriTrust:4, storeSat:-3,
+                        staffOff:'佐々木みどり', profile:{ people:2 } },
+              label2:'信頼+・みどり店舗は今日休業',
+              storyTag:'みどりの店を今日は休みにした。どうにもならない日はある。みどりから「ありがとうございます」とメッセージが来た。' },
+          ];
+        } else {
+          // CASE C：オーナー店舗に代替スタッフあり → 応援可能・選択肢を提示
+          _sickBody = _sickBodyBase + '一方、あなたの店舗には他にスタッフがいる。\nみどりの店へ応援に行くか、今日は休みにするか。';
+          _sickChoices = [
+            { label:'「自分が行きます。娘さんのそばにいてあげて」と伝え、店へ向かう',
+              cost:0,
+              effects:{ score:8, fatigue:12, midoriTrust:6, staffSat:4, storeSat:-2,
+                        staffOff:'佐々木みどり', _ownerSupport: _midoriStoreName, profile:{ people:3 } },
+              label2:'信頼+・疲労+12・自店はスタッフに任せる',
+              storyTag:'自分がみどりの店へ向かった。もう一方の店はスタッフに任せた。夕方みどりから「助かりました」とメッセージが来た。' },
+            { label:'「今日はお店を閉めましょう。娘さんのそばにいてあげて」と伝える',
+              cost:0,
+              effects:{ score:3, midoriTrust:3, storeSat:-4,
+                        staffOff:'佐々木みどり', profile:{ people:1 } },
+              label2:'信頼+・みどり店舗は今日休業',
+              storyTag:'みどりの店を今日は休みにした。自分は自分の店に残った。みどりから「ありがとうございます」とメッセージが来た。' },
+          ];
+        }
+
         ev = Object.assign({}, ev, {
-          body: '朝7時、みどりから連絡が来た。\n\n「娘が昨夜から熱を出してしまって、\nお休みをいただきます。\n\n……今日の午前、他のスタッフがいないので\nお店のことが心配で、ご相談したくて連絡しました。\n\n本当に申し訳ありません」\n\n——みどりは休む。問題は今日の店をどうするか。',
-          choices:[
-            { label:'「自分が行きます。娘さんのそばにいてあげて」と伝え、1号店に向かう',
-              cost:0,
-              effects:{ score:8, fatigue:12, midoriTrust:6, staffSat:6, storeSat:-3,
-                        staffOff:'佐々木みどり', profile:{ people:3 } },
-              label2:'信頼+・主人公疲労+12・満足度小幅減',
-              storyTag:'「自分が行く」と伝えた。その日は1号店に顔を出してなんとか乗り切った。体は疲れたが、夕方みどりから「助かりました」とメッセージが来た。' },
-            { label:'「今日は開店を少し遅らせて対応します」と伝える',
-              cost:0,
-              effects:{ score:4, midoriTrust:4, storeSat:-6,
-                        staffOff:'佐々木みどり', profile:{ finance:1 } },
-              label2:'信頼+・午前の客足減・満足度-6',
-              storyTag:'開店時間を遅らせて対応した。午前中の客足は少なかったが、無理なく回すことができた。' },
-          ]
+          body: _sickBody, choices: _sickChoices,
+          storeName: _midoriStoreName, // storeSat をみどり店舗へ正確に向ける
         });
         G.activeEvent = ev; // chooseEvent()はG.activeEventを参照するため同期が必要
       }
@@ -11880,6 +11910,10 @@ function chooseEvent(idx, useFatigue){
     // 当日のみスタッフを欠勤扱いにする（翌日自動復帰）
     G.staffUnavailableToday = G.staffUnavailableToday || [];
     if(!G.staffUnavailableToday.includes(fx.staffOff)) G.staffUnavailableToday.push(fx.staffOff);
+  }
+  if(fx._ownerSupport){
+    // 当日のみオーナーが指定店舗へ応援（翌日 advanceDay finally で null へリセット）
+    G.ownerSupportStoreToday = fx._ownerSupport;
   }
   if(fx.storeSat){
     // storeNameがある案件は該当店舗へ、ない場合は従来どおり1号店へ（互換性維持）
