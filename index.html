@@ -941,14 +941,16 @@ function calcSeasonMult(month, store) {
 
 // ── 日次店舗運営状態ヘルパー ──────────────────────────────────────────────
 // 当日勤務可能なスタッフ一覧（staffUnavailableToday を除外）
-function getAvailableStaffForStore(store){
-  const _unavail = G.staffUnavailableToday || [];
+// opts._unavail: 上書き用（forecast時は[]を渡す）
+function getAvailableStaffForStore(store, opts = {}){
+  const _unavail = '_unavail' in opts ? opts._unavail : (G.staffUnavailableToday || []);
   return (G.staff || []).filter(st => st.store === store.name && !_unavail.includes(st.name));
 }
 
 // オーナーが今日その店舗にいるか（ownerSupportStoreToday が設定された日は応援先のみ）
-function isOwnerPresentAtStore(store){
-  const _support = G.ownerSupportStoreToday || null;
+// opts._support: 上書き用（forecast時はnullを渡す）
+function isOwnerPresentAtStore(store, opts = {}){
+  const _support = '_support' in opts ? opts._support : (G.ownerSupportStoreToday || null);
   if(_support){
     // 応援先が存在する店舗名かチェック（存在しない店舗名ならfallback=false）
     return store.name === _support && (G.stores || []).some(s => s.name === _support);
@@ -959,13 +961,14 @@ function isOwnerPresentAtStore(store){
 
 // 店舗の今日の運営状態を返す
 // status: 'normal' | 'reduced' | 'closed'
-function getStoreOperatingStatus(store){
-  // 閉店・臨時休業は最優先
+// opts: forecast時は { _unavail:[], _support:null } を渡す
+function getStoreOperatingStatus(store, opts = {}){
+  // 閉店・臨時休業は最優先（恒常・複数日状態なので forecast でも維持）
   if((store.policy || 'owner') === 'closed' || store._tempClosed || !store.isOpen){
     return { status:'closed', ownerPresent:false, managerPresent:false, availableStaff:[] };
   }
-  const availableStaff = getAvailableStaffForStore(store);
-  const ownerPresent   = isOwnerPresentAtStore(store);
+  const availableStaff = getAvailableStaffForStore(store, opts);
+  const ownerPresent   = isOwnerPresentAtStore(store, opts);
   const managerPresent = availableStaff.some(st => st.title === '店長');
   let status;
   if(ownerPresent || managerPresent){
@@ -981,7 +984,11 @@ function getStoreOperatingStatus(store){
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-function calcDailyRevenue(){
+// options.forecast=true: staffUnavailableToday / ownerSupportStoreToday を除外した通常配置で計算。
+// 月次予測・資金繰り・AI判断など将来推計用。デフォルト（引数なし）は当日実態を使う。
+function calcDailyRevenue(options = {}){
+  const _forecast = options.forecast === true;
+  const _opsOpts  = _forecast ? { _unavail: [], _support: null } : {};
   let rev=0, exp=0, totalIngCost=0; // Balance v0.2-model-1: track ingredient cost separately
   G.stores.forEach(s=>{
     if(!s.isOpen){ exp += Math.round(s.rent/30); return; }
@@ -1003,7 +1010,7 @@ function calcDailyRevenue(){
     // 縮小運営補正
     if(s._tempClosed){ exp += Math.round(s.rent/30); return; }
     // ── 当日運営体制（人員不足CLOSED / REDUCED）→ effectiveCustomers ───
-    const _ops = getStoreOperatingStatus(s);
+    const _ops = getStoreOperatingStatus(s, _opsOpts);
     if(_ops.status === 'closed'){
       exp += Math.round(s.rent/30); // 人員不足による当日閉店：家賃のみ
       return;
@@ -1020,7 +1027,7 @@ function calcDailyRevenue(){
     // ── スタッフ負担・満足度 → 接客品質 → 売上補正 ──
     let staffMult = 1.0;
     if(G.staffUnlocked && G.staff.length > 0){
-      const _unavailNames = G.staffUnavailableToday || [];
+      const _unavailNames = _forecast ? [] : (G.staffUnavailableToday || []);
       const _midori = G.staff.find(st => st.name === '佐々木みどり' && st.store === s.name && !_unavailNames.includes('佐々木みどり'));
       if(_midori){
         const _burden = _midori.burden || 0;
@@ -1418,7 +1425,7 @@ function checkDiscovery(){
 // ─── 相談ノートモーダル ───
 function showSodanNote(){
   const s0 = G.stores[0];
-  const {rev, exp, profit} = calcDailyRevenue();
+  const {rev, exp, profit} = calcDailyRevenue({forecast:true});
   const monthlyProfit = profit * 30;
   const vacancy = totalRooms() > 0 ? 1 - occupiedRooms()/totalRooms() : 0;
   const fatigue = G.fatigue || 0;
@@ -1568,7 +1575,7 @@ function showHowToPlay(){
 
 // ─── ゴール定義（いずれか1つ達成＋3日進行でクリア）───
 function getTutGoals(){
-  const {profit} = calcDailyRevenue();
+  const {profit} = calcDailyRevenue({forecast:true});
   const monthProfit = profit * 30;
   const rep = G.regions[0].reputation;
   const rooms = G.buildings[0].rooms;
@@ -1897,7 +1904,7 @@ function tutCheckMission(key){
 
 // ─── 融資審査スコア ───
 function getLoanScore(){
-  const {profit} = calcDailyRevenue();
+  const {profit} = calcDailyRevenue({forecast:true});
   const monthProfit = profit * 30;
   // 地域評価＝認知度＋絆の平均（両方育てないと高評価にならない）
   const rep = Math.min(100, Math.round((G.regions[0].reputation + (G.regions[0].communityBond||0)) / 2));
@@ -2233,7 +2240,7 @@ function renderFinanceSummary(){
 // ※ calcDailyRevenue() は現在の経営状態からの推計値（実績でなく見込み）
 function _getCashFlowStatus(){
   if(!G.started) return { level:'stable', data:{} };
-  const { exp: dailyExp } = calcDailyRevenue();
+  const { exp: dailyExp } = calcDailyRevenue({forecast:true});
   const money      = G.money;
   const recv       = G.receivables || 0;
   const daysLeft   = Math.max(0, 30 - G.day); // 今日を含まない残日数
@@ -2254,7 +2261,7 @@ function _getCashFlowStatus(){
 // ─── 収益性状態（資金繰りとは完全独立）───────────────────────
 function _getProfitabilityStatus(){
   if(!G.started) return { isNegative:false, data:{} };
-  const { rev:dailyRev, exp:dailyExp, profit:dailyProfit } = calcDailyRevenue();
+  const { rev:dailyRev, exp:dailyExp, profit:dailyProfit } = calcDailyRevenue({forecast:true});
   return { isNegative: dailyProfit < 0, data:{ dailyRev, dailyExp, dailyProfit } };
 }
 
@@ -15250,7 +15257,7 @@ function buildUpcomingEvents(){
       const _cheap = Math.min(..._avail.map(r=>r.cost));
       const _gap = _cheap - G.money;
       if(_gap > 0 && _gap <= _cheap * 0.4){
-        const _dpr = Math.max(500, calcDailyRevenue().profit);
+        const _dpr = Math.max(500, calcDailyRevenue({forecast:true}).profit);
         const _est = Math.min(30, Math.ceil(_gap / _dpr));
         if(_est > 0) items.push({ icon:'⭐', label:'店舗Lv'+(_st.level+1)+'への改装費用があと少し', sub:'あと'+_est+'日ほどで準備できそう', daysLeft:_est, type:'store' });
       }
@@ -16880,7 +16887,7 @@ function renderStory(){
 
 // ─────────── RENDER FINANCE ───────────
 function renderFinance(){
-  const {rev,exp,profit}=calcDailyRevenue();
+  const {rev,exp,profit}=calcDailyRevenue({forecast:true});
   // P1/P2/P5: calcDailyRevenue() を正として各表示値を逆算分離（二重管理を排除）
   const aptRev=G.buildings.flatMap(b=>b.rooms).filter(r=>r.tenant).reduce((s,r)=>s+r.rent,0);
   const giftBonus=G.stores.reduce((s,st)=>s+(st.monthlyBonus||0),0);
