@@ -5534,10 +5534,27 @@ const CASE_POOL = [
   { id:'narita_store2_proposal', conditionOnly:true, repeatable:false, domain:'bank', sender:'成田（銀行）', icon:'🏪', apCost:15, expireDays:30, category:'strategy',
     expirePenalty:{credit:-2, news:'🏪 成田からの2号店提案を放置した。'},
     title:'「そろそろ2号店を考えてもいい頃です」',
-    body:'成田さんが少し前のめりになって話し始めました。\n\n「本店の数字が安定してきましたね。\nよく続けてきました。\n\n次のステップとして、\n2号店の可能性を考えてみませんか。\n\nリスクはゼロではありませんが、\n今の体力なら選択肢に入れる時期です。\n\n急ぐ必要はありません。\nでも、頭の片隅に置いておいてください」',
+    body:'成田さんが静かに切り出しました。\n\n「みどりさんに1号店を任せる形、\n整ったんですね」\n\n「では、次の店を考えるなら、\n具体的な準備を見ていきましょう」\n\n「資金面も含めて、\n無理のない形で考える必要があります。\n\nリスクはゼロではありませんが、\n今の体力なら選択肢に入れる時期です」\n\n「急ぐ必要はありません。\nでも、考えておきましょう」',
     choices:[
       {label:'「前向きに考えています」と答える',cost:0,effects:{score:10,credit:3,naritaTrust:5,store2Unlocked:true,profile:{risk:3,finance:2}},label2:'信用+3・2号店出店解放',storyTag:'成田から2号店の可能性を聞いた。選択肢として頭に入れることにした。'},
       {label:'「今はまだ本店に集中したい」と答える',cost:0,effects:{score:5,naritaTrust:2,profile:{finance:3}},label2:'本店優先',storyTag:'成田の提案は保留にした。今の経営を固める。'},
+    ]},
+
+  { id:'honsha_vision', conditionOnly:true, repeatable:false, domain:'store',
+    sender:'本社の方', icon:'📦', apCost:0, expireDays:45, category:'ops',
+    title:'「舞昆を、もっと多くの人へ」',
+    body:'閉店後、見慣れない方が店を訪ねてきた。\n\n本社から来た、と名乗った。\n\n「ここのところ、店のことを見てきました」\n\n「商品を売るだけでなく、\n来てくれる人のことを考えながら\n続けてきましたね」\n\n少し間を置いて、続けた。\n\n「舞昆を、まだ知らない人にも\nもっと届けていきたい、と思っています」\n\n「あなたなら、次の場所でも\n同じように届けていけるんじゃないかと、\n私はそう思っています」\n\nただそれだけを言って、帰っていった。',
+    choices:[
+      {label:'「少し考えてみます」と答える', cost:0,
+       effects:{score:8, profile:{people:2}},
+       label2:'',
+       storyTag:'本社から来た方が店を訪ねてきた。舞昆をもっと多くの人へ届けたいという言葉が残った。',
+       onResolve:'_presidentVisionSeen'},
+      {label:'「この店のことが気になっています」と伝える', cost:0,
+       effects:{score:5, profile:{community:2}},
+       label2:'',
+       storyTag:'本社から来た方が店を訪ねてきた。1号店のことを気にかけていると伝えた。',
+       onResolve:'_presidentVisionSeen'},
     ]},
 
   { id:'narita_loan', sender:'成田（銀行）', icon:'🏦', apCost:20, expireDays:30, category:'strategy',
@@ -5729,6 +5746,40 @@ const CASE_POOL = [
        label2:'みどり信頼+・家庭変化',
        storyTag:'みどりが娘と話し合って、少し働き方の幅が広がってきたと教えてくれた。',
        onResolve:'_midoriFamilyFlexibility'},
+    ]},
+
+  { id:'midori_entrust_consult', conditionOnly:true, repeatable:false, domain:'staff',
+    sender:'佐々木みどり', icon:'🌿', apCost:0, expireDays:60, category:'ops',
+    title:'「この店のこと」',
+    body:'閉店後、みどりが声をかけてきた。\n\n「……今日、相談してもいいですか」\n\n「本社の方に、次の場所へ広げてみないかと\n言われたんですよね」\n\n——どこで聞いたのかは、わからなかった。\n\n「やってみたい気持ちはある」\n\n正直に言った。\n\n「でも、この店を自分が離れていいのか……\nそれだけが引っかかっています」\n\nみどりは少し黙ってから、静かに口を開いた。\n\n「そうですよね。\n大事なお店ですもんね」\n\n間があった。\n\n「……もし、この店のことが理由なら」\n\n「私に、任せてもらえませんか」\n\n「全部一人でできるとは思っていません。\nでも、ここで働いてきて、\nもっとこの店のことを\n任せてもらえるようになりたいと思っています」\n\n「困ったときは、また相談させてください。\nそれだけで、ちゃんとやれます」',
+    choices:[
+      {label:'「みどりに任せたい」', cost:0,
+       effects:{score:12, staffSat:10, midoriTrust:8, profile:{people:4}},
+       label2:'正式委任',
+       storyTag:'みどりに1号店の日常運営を託すことにした。みどりは「ちゃんとやれます」と言った。',
+       onResolve:'_midoriStore1Entrusted'},
+      {label:'「もう少し一緒にやりたい」', cost:0,
+       effects:{score:4, staffSat:2},
+       label2:'後日再相談',
+       storyTag:'今はまだ一緒にやりたいと伝えた。みどりは静かに頷いた。',
+       onResolve:'_midoriEntrustRetry'},
+    ]},
+
+  { id:'midori_entrust_retry', conditionOnly:true, repeatable:true, domain:'staff',
+    sender:'佐々木みどり', icon:'🌿', apCost:0, expireDays:45, category:'ops',
+    title:'「この店のこと、また話しましょうか」',
+    body:'みどりが、ふと声をかけてきた。\n\n「あのこと——\n私に任せてもらう話、\nまだ考えていますか」\n\n「急かすつもりはないですけど、\n社長が動けるなら、\n一緒に考えたいと思っていて」',
+    choices:[
+      {label:'「みどりに任せたい」', cost:0,
+       effects:{score:12, staffSat:10, midoriTrust:8, profile:{people:4}},
+       label2:'正式委任',
+       storyTag:'みどりに1号店の日常運営を託すことにした。',
+       onResolve:'_midoriStore1Entrusted'},
+      {label:'「もう少し時間をください」', cost:0,
+       effects:{score:2},
+       label2:'後日また',
+       storyTag:'もう少し考えたいと伝えた。みどりは理解してくれた。',
+       onResolve:'_midoriEntrustRetry'},
     ]},
 
   { id:'chr_midori_dream', conditionOnly:true, repeatable:false, domain:'staff', character:'midori',
@@ -9573,6 +9624,7 @@ function generateConditionCases(){
       if(_has2nd)                                                   _s2Reasons.push('2号店すでに存在');
       const _midoriForS2 = (G.staff||[]).find(s => s.name === '佐々木みどり');
       if(!_midoriForS2 || _midoriForS2.title !== '店長')           _s2Reasons.push('みどり未店長');
+      if(!G._midoriStore1Entrusted)                                _s2Reasons.push('委任未完了');
 
       G._naritaStore2Debug = _s2Reasons.length > 0
         ? `2号店提案 除外: ${_s2Reasons.join(' / ')}`
@@ -9730,7 +9782,7 @@ function generateConditionCases(){
   // 未解決のご縁案件が既にある場合は、そのキャラを今回はスキップ
   G.cases.filter(c => !c.resolved && c.character).forEach(c => _charQueued.add(c.character));
   function charCase(id){
-    const b = DOMAIN_CASES.find(c => c.id === id);
+    const b = [...DOMAIN_CASES, ...CASE_POOL].find(c => c.id === id);
     if(!b) return;
     const charKey = b.character;
     if(charKey && _charQueued.has(charKey)) return;
@@ -9893,6 +9945,29 @@ function generateConditionCases(){
   // ── みどり 独立アーク ──
   const _midori = G.staff.find(s => s.name === '佐々木みどり');
   const _midoriTitleIdx = _midori ? getStaffTitles(_midori).indexOf(_midori.title) : 0;
+
+  // ── 本社訪問WHY ──
+  if(!ch.honsha) G.characters.honsha = { met:false, lastCaseDay:0 };
+  if(!G._presidentVisionSeen && !G._midoriIndependent && !G.store2Unlocked && G.stores.length < 2
+     && !G.cases.some(c=>c.id==='honsha_vision')){
+    const _hvReasons = [];
+    if(!_midori || _midori.title !== '店長') _hvReasons.push('みどり未店長');
+    if(!(G.mainStory && G.mainStory.completedChapters && G.mainStory.completedChapters.includes('chapter_6'))) _hvReasons.push('Chapter6未完了');
+    if(_hvReasons.length === 0) charCase('honsha_vision');
+  }
+  // ── みどり委任相談 ──
+  if(G._presidentVisionSeen && !G._midoriStore1Entrusted
+     && totalDays > (G._presidentVisionDay||0)
+     && !G.cases.some(c=>c.id==='midori_entrust_consult')){
+    charCase('midori_entrust_consult');
+  }
+  // ── みどり委任再相談（拒否後30日以上・pending不在） ──
+  if(G._presidentVisionSeen && !G._midoriStore1Entrusted && G._midoriEntrustRetryDay
+     && totalDays >= G._midoriEntrustRetryDay
+     && !G.cases.some(c=>c.id==='midori_entrust_retry' && !c.resolved)){
+    addCase(CASE_POOL.find(c=>c.id==='midori_entrust_retry'));
+  }
+
   // 中盤母娘エピソード（1年目8月以降・リーダー以上・信頼15以上・未読）
   if(_midori && !G._midoriWorkJoyTold && !G.cases.some(c=>c.id==='midori_daughter_joy')){
     if(G.year >= 1 && G.month >= 8 && (_midori.level||0) >= 3 && (G.midoriTrust||0) >= 15) charCase('midori_daughter_joy');
@@ -12436,6 +12511,18 @@ function chooseEvent(idx, useFatigue){
     if(choice.onResolve === '_midoriFamilyFlexibility'){
       G._midoriFamilyFlexibility = true;
     }
+    if(choice.onResolve === '_presidentVisionSeen'){
+      G._presidentVisionSeen = true;
+      G._presidentVisionDay = (G.year-1)*360+(G.month-1)*30+G.day;
+    }
+    if(choice.onResolve === '_midoriStore1Entrusted'){
+      G._midoriStore1Entrusted = true;
+      if(G.stores && G.stores[0]) G.stores[0].policy = 'staff';
+      addHistory('🌿', 'みどりに1号店を託す');
+    }
+    if(choice.onResolve === '_midoriEntrustRetry'){
+      G._midoriEntrustRetryDay = (G.year-1)*360+(G.month-1)*30+G.day+30;
+    }
     if(choice.onResolve === '_midoriIndependent'){
       G._midoriIndependent = true;
       G._midoriIndependentDay = (G.year-1)*360 + (G.month-1)*30 + G.day;
@@ -13285,7 +13372,9 @@ const MAIN_STORY_CHAPTERS = [
     unlock:{ all:[
       { type:'storyCompleted', chapterId:'chapter_6' },
       { type:'daysSinceChapterCompleted', chapterId:'chapter_6', minDays:20 },
-      { type:'midoriIsManager' }
+      { type:'midoriIsManager' },
+      { type:'midoriEntrusted' },
+      { type:'store2Unlocked' }
     ], any:[
       { type:'totalRevenueAtLeast', value:1000000 },
       { type:'resolvedCasesAtLeast', value:28 }
@@ -13300,7 +13389,7 @@ const MAIN_STORY_CHAPTERS = [
       { sceneTitle:'成田さんの問い',
         portrait:'narita',
         speaker:'成田（銀行員）',
-        text:'「なぜ、広げたいと思うんですか？」\n\n成田さんは、否定も肯定もせずに\nそう聞いてきた。\n\n「売上を増やすためですか。\nそれとも、届けたい場所があるからですか。\n\n——答えによって、進む方向が変わると思いますよ」' },
+        text:'「それで——少し整理できましたか」\n\n成田さんは、静かにそう聞いてきた。\n\n「なぜ広げたいのか。\n届けたい場所があるからなのか。\n\n——その答えによって、\n準備の仕方も変わってきます」' },
       { sceneTitle:'自分の答え',
         speaker:'あなた',
         text:'正直に考えてみた。\n\n売上が伸びればいいとは思う。\nでも、それだけじゃない気がする。\n\n舞昆を、もっと多くの人の食卓に届けたい。\nそう思っている自分がいた。\n\nその気持ちが本物なら、\n広げることには意味があるかもしれない。' },
@@ -13398,6 +13487,8 @@ function _evalChapterUnlockCond(c){
     const _m = (G.staff||[]).find(s => s.name === '佐々木みどり');
     return _m && _m.level >= 6;
   }
+  if(c.type === 'midoriEntrusted') return !!G._midoriStore1Entrusted;
+  if(c.type === 'store2Unlocked') return !!G.store2Unlocked;
   return false;
 }
 
@@ -18516,6 +18607,11 @@ function _normalizeSaveData(){
       }
     }
   }
+  // 旧セーブ救済（3D-Q）：store2Unlocked済みなら委任flagを補完（Chapter 7 gate対応）
+  if(G.store2Unlocked && !G._midoriStore1Entrusted){
+    G._midoriStore1Entrusted = true;
+  }
+
   // 旧セーブ救済（3D-P以前）：みどり家庭変化フラグ
   // _midoriWorkJoyToldが未定義かつ3年目以降 → 中盤エピソードは過去に起きたものとして扱う
   // （3年目に「娘4年生になった」が不整合発火するのを防ぐ）
