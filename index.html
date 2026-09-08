@@ -5707,6 +5707,30 @@ const CASE_POOL = [
   // みどり 独立アーク
   // ══════════════════════════════════════════════════════
 
+  { id:'midori_daughter_joy', conditionOnly:true, repeatable:false, domain:'staff',
+    sender:'佐々木みどり', icon:'🌸', apCost:0, expireDays:30, category:'ops',
+    title:'「最近、楽しそうだね」',
+    body:'片付けをしながら、みどりが少し照れたように話しかけてきました。\n\n「この前、娘に言われたんです。\n\n「お母さん、最近仕事楽しそうだね」って。\n\n「なんかイキイキしてるっていうか」って言うもんで。\n\n自分では、そんなに変わったつもりはなかったんですけどね。\n\n……娘の目には、そう映っているみたいです」\n\nみどりが店で働き始めた頃より、その表情は確かに変わっているように見えた。',
+    choices:[
+      {label:'「こちらこそ、ありがとうございます」と伝える', cost:0,
+       effects:{score:8, staffSat:6, midoriTrust:5, profile:{people:3}},
+       label2:'みどり信頼+',
+       storyTag:'みどりが娘の言葉を教えてくれた。表情が変わってきている。',
+       onResolve:'_midoriWorkJoyTold'},
+    ]},
+
+  { id:'midori_family_flexibility', conditionOnly:true, repeatable:false, domain:'staff',
+    sender:'佐々木みどり', icon:'🌿', apCost:0, expireDays:60, category:'ops',
+    title:'「少し、変わってきました」',
+    body:'みどりが、ふと話しかけてきました。\n\n「娘、4年生になったんです。\n\n前は、15時には帰らないとって\nずっと思ってたんですけど。\n\n最近は、家のことも娘と話しながら、\n少しずつやり方を変えていて。\n\n毎日遅くまで、というのは難しいですけど。\n\n前よりは、仕事のことを考えられる時間が\n増えてきました」\n\n少し間を置いて、続けた。\n\n「……無理をするつもりはないんですが、\nもう少し、この仕事に向き合えそうで。\n\nそれが、嬉しくて」',
+    choices:[
+      {label:'「家庭のことを大事にしながらで十分です」と伝える', cost:0,
+       effects:{score:10, staffSat:8, midoriTrust:6, profile:{people:3}},
+       label2:'みどり信頼+・家庭変化',
+       storyTag:'みどりが娘と話し合って、少し働き方の幅が広がってきたと教えてくれた。',
+       onResolve:'_midoriFamilyFlexibility'},
+    ]},
+
   { id:'chr_midori_dream', conditionOnly:true, repeatable:false, domain:'staff', character:'midori',
     sender:'佐々木みどり', icon:'🌿', apCost:0, category:'ops',
     title:'みどりが夢を話してくれた',
@@ -9547,6 +9571,8 @@ function generateConditionCases(){
       if(!G.staffUnlocked && _staffCount < 1)                      _s2Reasons.push('スタッフ未採用');
       if(G.year === 1 && G.month < 6)                              _s2Reasons.push('1年目6月未満');
       if(_has2nd)                                                   _s2Reasons.push('2号店すでに存在');
+      const _midoriForS2 = (G.staff||[]).find(s => s.name === '佐々木みどり');
+      if(!_midoriForS2 || _midoriForS2.title !== '店長')           _s2Reasons.push('みどり未店長');
 
       G._naritaStore2Debug = _s2Reasons.length > 0
         ? `2号店提案 除外: ${_s2Reasons.join(' / ')}`
@@ -9867,6 +9893,14 @@ function generateConditionCases(){
   // ── みどり 独立アーク ──
   const _midori = G.staff.find(s => s.name === '佐々木みどり');
   const _midoriTitleIdx = _midori ? getStaffTitles(_midori).indexOf(_midori.title) : 0;
+  // 中盤母娘エピソード（1年目8月以降・リーダー以上・信頼15以上・未読）
+  if(_midori && !G._midoriWorkJoyTold && !G.cases.some(c=>c.id==='midori_daughter_joy')){
+    if(G.year >= 1 && G.month >= 8 && (_midori.level||0) >= 3 && (G.midoriTrust||0) >= 15) charCase('midori_daughter_joy');
+  }
+  // 2年目春 家庭変化（中盤エピソード済み・2年目以降・未読）
+  if(_midori && G._midoriWorkJoyTold && !G._midoriFamilyFlexibility && !G.cases.some(c=>c.id==='midori_family_flexibility')){
+    if(G.year >= 2) charCase('midori_family_flexibility');
+  }
   // 夢トーク（3年後以降・副店長相当以上・一度も話していない）
   if(_midori && totalDays >= 1080 && _midoriTitleIdx >= 4 && !G._midoriDreamTold && !G.cases.some(c=>c.id==='chr_midori_dream')) charCase('chr_midori_dream');
   // 独立相談（夢を話した後・さらに180日後）
@@ -12387,6 +12421,12 @@ function chooseEvent(idx, useFatigue){
     if(choice.onResolve === '_midoriDreamTold'){
       G._midoriDreamTold = true;
     }
+    if(choice.onResolve === '_midoriWorkJoyTold'){
+      G._midoriWorkJoyTold = true;
+    }
+    if(choice.onResolve === '_midoriFamilyFlexibility'){
+      G._midoriFamilyFlexibility = true;
+    }
     if(choice.onResolve === '_midoriIndependent'){
       G._midoriIndependent = true;
       G._midoriIndependentDay = (G.year-1)*360 + (G.month-1)*30 + G.day;
@@ -13235,7 +13275,8 @@ const MAIN_STORY_CHAPTERS = [
     status:'implemented',
     unlock:{ all:[
       { type:'storyCompleted', chapterId:'chapter_6' },
-      { type:'daysSinceChapterCompleted', chapterId:'chapter_6', minDays:20 }
+      { type:'daysSinceChapterCompleted', chapterId:'chapter_6', minDays:20 },
+      { type:'midoriIsManager' }
     ], any:[
       { type:'totalRevenueAtLeast', value:1000000 },
       { type:'resolvedCasesAtLeast', value:28 }
@@ -13343,6 +13384,10 @@ function _evalChapterUnlockCond(c){
     if(_ccd == null) return false;
     const _nowD = (G.year-1)*360 + (G.month-1)*30 + G.day;
     return (_nowD - _ccd) >= c.minDays;
+  }
+  if(c.type === 'midoriIsManager'){
+    const _m = (G.staff||[]).find(s => s.name === '佐々木みどり');
+    return _m && _m.level >= 6;
   }
   return false;
 }
@@ -14896,7 +14941,7 @@ function getPromotionReqs(level, s){
       2: { label:'ベテランスタッフ→リーダー',      daysWorked:150, skills:{service:78,management:55}, satisfaction:75 },
       3: { label:'リーダー→主任',                 daysWorked:240, skills:{service:83,management:65}, satisfaction:78, requireTrust:30 },
       4: { label:'主任→副店長',                   daysWorked:330, skills:{management:72},            satisfaction:80 },
-      5: { label:'副店長→店長',                   daysWorked:450, skills:{management:82},            satisfaction:83, requireStores:2 },
+      5: { label:'副店長→店長',                   daysWorked:450, skills:{management:82},            satisfaction:83, requireFlag:'_midoriFamilyFlexibility' },
     }[level] || null;
   }
   if(s && s.type === 'arubaito'){
@@ -14926,6 +14971,7 @@ function _checkPromotionConditions(s, req){
   if(req.requireTrust && (G.midoriTrust||0) < req.requireTrust) return false;
   if(req.requireBuildings && G.buildings.length < req.requireBuildings) return false;
   if(req.requireStores && G.stores.length < req.requireStores) return false;
+  if(req.requireFlag && !G[req.requireFlag]) return false;
   return true;
 }
 
