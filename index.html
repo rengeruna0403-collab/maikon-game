@@ -5531,13 +5531,13 @@ const CASE_POOL = [
       {label:'話を聞く（新目標：空き家取得）', cost:0, effects:{score:10, credit:3, unlockExpansion:true, profile:{risk:3}}, label2:'拡大フェーズへ移行', storyTag:'成田の提案を聞いた。次のステップが見えてきた。'},
       {label:'今は現状維持でいきます', cost:0, noAP:true, effects:{score:3, profile:{finance:2}}, label2:'いつでも再検討できます', storyTag:'拡大の提案は保留にした。今の経営を固める。'},
     ]},
-  { id:'narita_store2_proposal', conditionOnly:true, repeatable:false, domain:'bank', sender:'成田（銀行）', icon:'🏪', apCost:15, expireDays:30, category:'strategy',
+  { id:'narita_store2_proposal', conditionOnly:true, repeatable:true, domain:'bank', sender:'成田（銀行）', icon:'🏪', apCost:15, expireDays:30, category:'strategy',
     expirePenalty:{credit:-2, news:'🏪 成田からの2号店提案を放置した。'},
     title:'「そろそろ2号店を考えてもいい頃です」',
     body:'成田さんが静かに切り出しました。\n\n「みどりさんに1号店を任せる形、\n整ったんですね」\n\n「では、次の店を考えるなら、\n具体的な準備を見ていきましょう」\n\n「資金面も含めて、\n無理のない形で考える必要があります。\n\nリスクはゼロではありませんが、\n今の体力なら選択肢に入れる時期です」\n\n「急ぐ必要はありません。\nでも、考えておきましょう」',
     choices:[
       {label:'「前向きに考えています」と答える',cost:0,effects:{score:10,credit:3,naritaTrust:5,store2Unlocked:true,profile:{risk:3,finance:2}},label2:'信用+3・2号店出店解放',storyTag:'成田から2号店の可能性を聞いた。選択肢として頭に入れることにした。'},
-      {label:'「今はまだ本店に集中したい」と答える',cost:0,effects:{score:5,naritaTrust:2,profile:{finance:3}},label2:'本店優先',storyTag:'成田の提案は保留にした。今の経営を固める。'},
+      {label:'「今はまだ本店に集中したい」と答える',cost:0,effects:{score:5,naritaTrust:2,profile:{finance:3}},label2:'本店優先',storyTag:'成田の提案は保留にした。今の経営を固める。',onResolve:'_naritaStore2Retry'},
     ]},
 
   { id:'honsha_vision', conditionOnly:true, repeatable:false, domain:'store',
@@ -9613,7 +9613,7 @@ function generateConditionCases(){
     // ── 2号店提案 ──
     const _s2pKey = `${G.year}_narita_store2_proposal`;
     G.seasonalEventStatus = G.seasonalEventStatus || {};
-    if(!G.seasonalEventStatus[_s2pKey] && !G.cases.some(c => c.id === 'narita_store2_proposal')){
+    if(!G.seasonalEventStatus[_s2pKey] && !G.cases.some(c => c.id === 'narita_store2_proposal' && !c.resolved) && (!G._naritaStore2RetryDay || totalDays >= G._naritaStore2RetryDay)){
       const _s2Reasons = [];
       if(!_s0.isOpen)                                               _s2Reasons.push('本店未開店');
       if(_s0.level < 2)                                             _s2Reasons.push(`本店Lv不足(${_s0.level||1}/2)`);
@@ -10492,10 +10492,10 @@ function isCaseStillApplicable(c){
     c._autoSkipped = true;
     return false;
   }
-  // narita_store2_proposal：みどりが店長でなければペナルティなし失効（翌年再チェック）
+  // narita_store2_proposal：みどり店長 AND 委任完了でなければペナルティなし失効
   if(c.id === 'narita_store2_proposal'){
     const _mS2 = (G.staff||[]).find(s => s.name === '佐々木みどり');
-    if(!_mS2 || _mS2.title !== '店長'){
+    if(!_mS2 || _mS2.title !== '店長' || !G._midoriStore1Entrusted){
       c.resolved = true;
       c._autoSkipped = true;
       return false;
@@ -12522,6 +12522,12 @@ function chooseEvent(idx, useFatigue){
     }
     if(choice.onResolve === '_midoriEntrustRetry'){
       G._midoriEntrustRetryDay = (G.year-1)*360+(G.month-1)*30+G.day+30;
+    }
+    if(choice.onResolve === '_naritaStore2Retry'){
+      const _retryTotalDays = (G.year-1)*360+(G.month-1)*30+G.day;
+      G._naritaStore2RetryDay = _retryTotalDays + 30;
+      G.seasonalEventStatus = G.seasonalEventStatus || {};
+      delete G.seasonalEventStatus[`${G.year}_narita_store2_proposal`];
     }
     if(choice.onResolve === '_midoriIndependent'){
       G._midoriIndependent = true;
