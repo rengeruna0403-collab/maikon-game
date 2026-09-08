@@ -10417,6 +10417,15 @@ function isCaseStillApplicable(c){
     c._autoSkipped = true;
     return false;
   }
+  // narita_store2_proposal：みどりが店長でなければペナルティなし失効（翌年再チェック）
+  if(c.id === 'narita_store2_proposal'){
+    const _mS2 = (G.staff||[]).find(s => s.name === '佐々木みどり');
+    if(!_mS2 || _mS2.title !== '店長'){
+      c.resolved = true;
+      c._autoSkipped = true;
+      return false;
+    }
+  }
   // requireVacancy案件：満室なら即時非表示（day advance前でも）
   if(c.requireVacancy && !G.buildings.some(b => b.rooms.some(r => !r.tenant))){
     c.resolved = true;
@@ -18507,6 +18516,14 @@ function _normalizeSaveData(){
       }
     }
   }
+  // 旧セーブ救済（3D-P以前）：みどり家庭変化フラグ
+  // _midoriWorkJoyToldが未定義かつ3年目以降 → 中盤エピソードは過去に起きたものとして扱う
+  // （3年目に「娘4年生になった」が不整合発火するのを防ぐ）
+  if(G._midoriWorkJoyTold === undefined && (G.year||1) >= 3){
+    G._midoriWorkJoyTold = true;
+    G._midoriFamilyFlexibility = true;
+  }
+
   // 旧セーブ救済：v1.3e以前の early_departure 案件（_targetBi未設定）をペナルティなし失効
   // 理由：旧案件の本文に「来月末」「原状回復」が含まれ整合しない。
   // 新案件はロード後に通常の週次生成で届く。
