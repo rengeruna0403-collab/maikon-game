@@ -1283,7 +1283,7 @@ function getNPCStyleComment(){
       lines:[(G.staff && G.staff.length > 1)
                ? '「みんな働きやすそうで、うれしいです。\n続けていける職場って、なかなかないんですよ。」'
                : '「安心して働けています。\n続けていける職場って、なかなかないんですよ。」',
-              '「スタッフのことを、いつも考えてくれていますね。\nそういうオーナーさん、珍しいんですよ。」'],
+              '「スタッフのことを、いつも考えてくれていますね。\nそういうオーナー、珍しいんですよ。」'],
     },
     community: {
       npc:'石川', icon:'🌸',
@@ -4313,7 +4313,7 @@ function showStreetScene(){
   const midoriLine = hasMidori ? `
     <div style="background:var(--warm);border-radius:12px;padding:14px 16px;margin-top:16px;border-left:3px solid #81c784">
       <div style="font-size:10px;color:var(--muted);margin-bottom:6px">👩 佐々木みどり</div>
-      <div style="font-size:13px;line-height:2.1">「社長。<br><br>この町、<br>舞昆のある暮らしが増えましたね。」</div>
+      <div style="font-size:13px;line-height:2.1">「オーナー。<br><br>この町、<br>舞昆のある暮らしが増えましたね。」</div>
     </div>` : '';
 
   const nextBtn = hasMidori
@@ -5687,7 +5687,7 @@ const CASE_POOL = [
 
   { id:'midori_pop_result_together', conditionOnly:true, repeatable:false, domain:'store', sender:'みどり', icon:'🎨', apCost:0, category:'ops',
     title:'POPの反応について、みどりから報告',
-    body:'みどりが閉店後に話しかけてきた。\n\n「あのPOP、お客さんに何人か声かけてもらって。\n\n……うれしかったです。\n\n社長と一緒に考えたから、自信持って出せて」\n\n少し間があった。\n\n「次も一緒に考えてもらえますか」',
+    body:'みどりが閉店後に話しかけてきた。\n\n「あのPOP、お客さんに何人か声かけてもらって。\n\n……うれしかったです。\n\nオーナーと一緒に考えたから、自信持って出せて」\n\n少し間があった。\n\n「次も一緒に考えてもらえますか」',
     choices:[
       {label:'「もちろんです」と答える',cost:0,
        effects:{score:12,staffSat:8,midoriTrust:6,storeSat:4,profile:{people:2}},
@@ -5752,7 +5752,7 @@ const CASE_POOL = [
   { id:'midori_entrust_consult', conditionOnly:true, repeatable:false, domain:'staff',
     sender:'佐々木みどり', icon:'🌿', apCost:0, expireDays:60, category:'ops',
     title:'「この店のこと」',
-    body:'閉店後、みどりが声をかけてきた。\n\n「……今日、相談してもいいですか」\n\n「本社の社長が来てましたよね。」\n\n「やってみたい気持ちはある」\n\n正直に言った。\n\n「でも、この店を——\n　自分が離れていいのか」\n\nしばらく黙っていたみどりが、\nゆっくり口を開いた。\n\n「……離れるって、\n　この店がなくなることですか？」\n\n答えられなかった。\n\n「社長が毎日ここに立たなくても、\n　この店がこの店じゃなくなる\n　わけじゃないです。」\n\n少し間があった。\n\n「私、この店——\n　なくしたくないんです。」\n\n「ここで働いてきて、\n　それがいちばんはっきりしてることで。」\n\n「今まで社長がこの店でやってきたことを、\n　全部同じようにはできないと思います。」\n\n「分からないこともたくさんあると思います。」\n\n「でも、」\n\nみどりが、まっすぐこちらを見た。\n\n「この店を大事にすることなら、\n　私にもできます。」\n\n「……守ります。」\n\n「困ったら、また相談させてください。\n　そのつもりで、やらせてください。」\n\n——ここで一緒に、過ごしてきた時間があった。\n　みどりが、この店のことを\n　同じように大切にしている。\n\n　そのことが、今は確かに、わかる。',
+    body:'閉店後、みどりが声をかけてきた。\n\n「……今日、相談してもいいですか」\n\n「本社の社長が来てましたよね。」\n\n「やってみたい気持ちはある」\n\n正直に言った。\n\n「でも、この店を——\n　自分が離れていいのか」\n\nしばらく黙っていたみどりが、\nゆっくり口を開いた。\n\n「……離れるって、\n　この店がなくなることですか？」\n\n答えられなかった。\n\n「次の店のことを考えたら、\n　この店のことは大事にできなくなるんですか？」\n\n少し間があった。\n\n「私、この店——\n　なくしたくないんです。」\n\n「ここで働いてきて、\n　それがいちばんはっきりしてることで。」\n\n「今までオーナーがこの店でやってきたことを、\n　全部同じようにはできないと思います。」\n\n「分からないこともたくさんあると思います。」\n\n「でも、」\n\nみどりが、まっすぐこちらを見た。\n\n「この店を大事にすることなら、\n　私にもできます。」\n\n「……守ります。」\n\n「困ったら、また相談させてください。\n　そのつもりで、やらせてください。」\n\n——ここで一緒に、過ごしてきた時間があった。\n　みどりが、この店のことを\n　同じように大切にしている。\n\n　そのことが、今は確かに、わかる。',
     choices:[
       {label:'「……この店を、頼みます」と答えた', cost:0,
        effects:{score:12, staffSat:10, midoriTrust:8, profile:{people:4}},
@@ -5769,7 +5769,7 @@ const CASE_POOL = [
   { id:'midori_entrust_retry', conditionOnly:true, repeatable:true, domain:'staff',
     sender:'佐々木みどり', icon:'🌿', apCost:0, expireDays:45, category:'ops',
     title:'「この店のこと、また話しましょうか」',
-    body:'みどりが、ふと声をかけてきた。\n\n「あのこと——\n私に任せてもらう話、\nまだ考えていますか」\n\n「急かすつもりはないですけど、\n社長が動けるなら、\n一緒に考えたいと思っていて」',
+    body:'みどりが、ふと声をかけてきた。\n\n「あのこと——\n私に任せてもらう話、\nまだ考えていますか」\n\n「急かすつもりはないですけど、\nオーナーが動けるなら、\n一緒に考えたいと思っていて」',
     choices:[
       {label:'「みどりに任せたい」', cost:0,
        effects:{score:12, staffSat:10, midoriTrust:8, profile:{people:4}},
@@ -5786,7 +5786,7 @@ const CASE_POOL = [
   { id:'chr_midori_dream', conditionOnly:true, repeatable:false, domain:'staff', character:'midori',
     sender:'佐々木みどり', icon:'🌿', apCost:0, category:'ops',
     title:'みどりが夢を話してくれた',
-    body:'閉店後、二人で片付けていると\nみどりがぽつりと言った。\n\n「……社長。\nここで働いて、ずっと考えてたんですけど。\n\n私もいつか、\n自分のお店を持ちたいって。\n\nおにぎり屋、でも、なんでもいいんですけど。\nちいさくていいから。\n\n……変ですかね」',
+    body:'閉店後、二人で片付けていると\nみどりがぽつりと言った。\n\n「……オーナー。\nここで働いて、ずっと考えてたんですけど。\n\n私もいつか、\n自分のお店を持ちたいって。\n\nおにぎり屋、でも、なんでもいいんですけど。\nちいさくていいから。\n\n……変ですかね」',
     choices:[
       {label:'「変じゃないですよ。どんなお店がいいですか」と聞く',cost:0,
        effects:{score:15,staffSat:10,midoriTrust:10,profile:{people:4}},label2:'みどり信頼+・夢の芽生え',
@@ -5801,7 +5801,7 @@ const CASE_POOL = [
   { id:'chr_midori_sodan', conditionOnly:true, repeatable:false, domain:'staff', character:'midori',
     sender:'佐々木みどり', icon:'🌿', apCost:0, category:'ops',
     title:'みどりから相談がある',
-    body:'みどりが改まって座った。\n\n「……社長に、正直に言います。\n\n独立を、考えています。\n\n娘も来年、中学生で。\n今なら動けるかなって。\n\n社長のおかげで、ここまで来られました。\n\nだから……背中を押してもらいたくて」',
+    body:'みどりが改まって座った。\n\n「……オーナーに、正直に言います。\n\n独立を、考えています。\n\n娘も来年、中学生で。\n今なら動けるかなって。\n\nオーナーのおかげで、ここまで来られました。\n\nだから……背中を押してもらいたくて」',
     choices:[
       {label:'「背中を押します。いつ出ますか」と答える',cost:0,
        effects:{score:25,midoriTrust:20,profile:{people:6,community:3}},label2:'🌸 みどり独立へ・最良の選択',
@@ -5815,7 +5815,7 @@ const CASE_POOL = [
   { id:'chr_midori_newshop', conditionOnly:true, repeatable:false, domain:'community', character:'midori',
     sender:'商店街', icon:'🍙', apCost:0, category:'ops',
     title:'近所に新しいお弁当屋ができました',
-    body:'商店街の角に、こぢんまりとした店が開いた。\n\n「おにぎりと、お弁当」\n\n看板に見覚えがある字体。\n\nのれんをくぐると、エプロン姿の女性が振り返った。\n\n——みどりだった。\n\n「社長。\n\nまだまだ敵いませんね」\n\n笑っていた。',
+    body:'商店街の角に、こぢんまりとした店が開いた。\n\n「おにぎりと、お弁当」\n\n看板に見覚えがある字体。\n\nのれんをくぐると、エプロン姿の女性が振り返った。\n\n——みどりだった。\n\n「オーナー。\n\nまだまだ敵いませんね」\n\n笑っていた。',
     choices:[
       {label:'「いや、もう追いつかれそうですよ」と返す',cost:0,
        effects:{score:20,rep:8,communityBond:10,storeBrand:5,custUp:3,profile:{people:5,community:4}},
@@ -6087,7 +6087,7 @@ const CASE_POOL = [
 
   { id:'taste_midori_snack', conditionOnly:true, repeatable:false, requireStaff:true, domain:'staff', sender:'みどり（スタッフ）', icon:'🌿', apCost:0, expireDays:14, category:'ops',
     title:'みどりのひとこと',
-    body:'片付けをしていたみどりが、\nふと振り返りました。\n\n「社長、実は私……\nこの切れ端をつまみ食いするのが好きなんです（笑）\n\n昆布の旨みと、ちょっとした甘さが。\n\n娘に「また食べてる」って言われますけど、\n止まらなくて。\n\n……これって、仕事のうちですよね？（笑）」',
+    body:'片付けをしていたみどりが、\nふと振り返りました。\n\n「オーナー、実は私……\nこの切れ端をつまみ食いするのが好きなんです（笑）\n\n昆布の旨みと、ちょっとした甘さが。\n\n娘に「また食べてる」って言われますけど、\n止まらなくて。\n\n……これって、仕事のうちですよね？（笑）」',
     choices:[
       {label:'「品質チェックだよ」と笑って返す',cost:0,effects:{score:8,staffSat:8,midoriTrust:5,profile:{people:3}},label2:'みどり信頼+',storyTag:'みどりのつまみ食い告白。笑い合えた。'},
     ]},
@@ -7065,7 +7065,7 @@ const DOMAIN_CASES = [
 
   { id:'staff_thanks', conditionOnly:true, repeatable:false, domain:'staff', sender:'みどり', icon:'💌', apCost:5, expireDays:30, category:'ops',
     title:'「ここで働いてよかったです」',
-    body:'みどりから手紙が届いた。\n\n「オーナーさん、\n私、ここで働けて本当によかったです。\n\n娘が先日「ここのおにぎり好き」って言っていました。\nいつか一緒に連れてきてもいいですか。\n\n来月も、よろしくお願いします。\n\n——佐々木みどり」',
+    body:'みどりから手紙が届いた。\n\n「オーナー、\n私、ここで働けて本当によかったです。\n\n娘が先日「ここのおにぎり好き」って言っていました。\nいつか一緒に連れてきてもいいですか。\n\n来月も、よろしくお願いします。\n\n——佐々木みどり」',
     choices:[
       {label:'返事を書いてデスクに置く',cost:0,effects:{score:15,staffSat:15,profile:{people:3}},label2:'スタッフとの絆が深まる',storyTag:'みどりへ返事を書いた。小さな言葉が、一番大切なことを教えてくれた。'},
       {label:'「こちらこそ」と口で伝える',cost:0,effects:{score:10,staffSat:8},label2:'感謝を伝える',storyTag:'直接感謝を伝えた。'},
@@ -12540,7 +12540,7 @@ function chooseEvent(idx, useFatigue){
         if(G.characters && G.characters.midori){
           G.characters.midori.complete = true;
           G.characters.midori.notes = G.characters.midori.notes || [];
-          G.characters.midori.notes.push({ year:G.year, month:G.month, text:'社長のおかげでここまで来られました。', title:'独立' });
+          G.characters.midori.notes.push({ year:G.year, month:G.month, text:'オーナーのおかげでここまで来られました。', title:'独立' });
         }
         G.staff.splice(idx, 1);
       }
