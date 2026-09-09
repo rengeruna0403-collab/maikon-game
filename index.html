@@ -7886,12 +7886,12 @@ const DOMAIN_CASES = [
 
   { id:'chr_yamamoto_pta', conditionOnly:true, repeatable:false, domain:'community', character:'yamamoto',
     sender:'山本真由美', icon:'👩‍👧', apCost:15, category:'mgmt',
-    title:'学校から食育の相談が来た',
-    body:'山本さんがPTA役員として来てくれた。\n\n「学校の給食委員会から「地域の食文化を知ろう」という\n授業を計画したいと言われていて。\n\n「もしよければ舞昆茶屋さんに来ていただけないか」って。\n先生も「子どもたちが興味を持てそうで」とおっしゃっています。\n\nどうでしょうか？」',
+    title:'山本さんから店見学の相談',
+    body:'山本さんがPTA役員として来てくれた。\n\n「学校の給食委員会で、\n「地域の食文化を知ろう」という話が出ていて。\n\nそれなら、話を聞くだけじゃなくて、\n実際のお店を見てもらうのはどうかなって思ったんです。\n\n先生も、\n「地域のお店を自分の目で見るのは\nいい経験になりそうですね」って。\n\n山本さんが少し笑った。\n\n「もしよければ、\n今度こちらに見学に来てもらってもいいですか？」',
     choices:[
-      {label:'「ぜひ協力します」と快諾する',cost:0,effects:{score:18,rep:10,charLevel:'yamamoto',charNote:'山本さんの紹介で食育授業に呼ばれた。「子どもたちに会えるのが楽しみです」と伝えた。',communityBond:6,custUp:5,profile:{community:4,people:3}},label2:'ご縁+1・評判+10・来客+5',storyTag:'学校の食育授業に協力することになった。地域の子どもたちに舞昆を届けるチャンス。'},
-      {label:'「簡単な試食だけなら」と条件付きで応じる',cost:0,effects:{score:10,rep:6,charLevel:'yamamoto',charNote:'「試食だけなら」と答えた。山本さんが「それだけでも嬉しいです」と言ってくれた。',communityBond:3,custUp:2,profile:{community:2,people:2}},label2:'ご縁+1・評判+6',storyTag:'試食だけ協力することにした。'},
-      {label:'「今回は難しい」と断る',cost:0,noAP:true,effects:{score:-3,charNote:'山本さんの誘いを断った。「また今度ぜひ」と言ったが、少し残念そうだった。'},label2:'評判-',storyTag:'食育授業の協力を断った。山本さんが少し残念そうだった。'},
+      {label:'「ぜひ来てもらってください」と快諾する',cost:0,effects:{score:18,rep:10,charLevel:'yamamoto',charNote:'山本さんの紹介で学校の子どもたちが店見学に来ることになった。',communityBond:6,custUp:5,profile:{community:4,people:3}},label2:'ご縁+1・評判+10・来客+5',storyTag:'山本さんの仲介で、学校の子どもたちが店見学に来ることになった。'},
+      {label:'「短い見学と試食だけなら」と応じる',cost:0,effects:{score:10,rep:6,charLevel:'yamamoto',charNote:'「短い見学と試食だけなら」と答えた。山本さんが「それだけでも嬉しいです」と言ってくれた。',communityBond:3,custUp:2,profile:{community:2,people:2}},label2:'ご縁+1・評判+6',storyTag:'試食だけ協力することにした。'},
+      {label:'「今回は難しい」と伝える',cost:0,noAP:true,effects:{score:-3,charNote:'山本さんの誘いを断った。「また今度ぜひ」と言ったが、少し残念そうだった。'},label2:'評判-',storyTag:'山本さんからの店見学の相談を断った。少し残念そうだった。'},
     ]},
 
   { id:'chr_yamamoto_juken', conditionOnly:true, repeatable:false, domain:'community', character:'yamamoto',
