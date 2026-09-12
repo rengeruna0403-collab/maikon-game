@@ -3015,6 +3015,7 @@ function monthlyTick(){
     regulars:  (G.stores[0]  ? G.stores[0].regulars    : 0),
     credit:    G.creditScore || 0,
     money:     G.money       || 0,
+    evictions: [],
   };
   // 顧客数推移の記録（客数減少イベントの判定に使用）
   if(G.stores[0]){
@@ -3042,6 +3043,7 @@ function monthlyTick(){
           addNews(`🚪 ${r.tenant.name}が退去（満足度低下）`);
           addStory(`${r.tenant.name}が${b.name}を去った。`, 'normal');
           _recordFormerTenant(r.tenant.name);
+          if(G._monthSnap) G._monthSnap.evictions.push(r.tenant.name);
           r.tenant=null;
           scoreOwner(-3,'tenant_leave');
         } else {
@@ -3203,13 +3205,19 @@ function showMonthlyMeeting(monthProfit, promotions, ownerRankUp){
   if(_dRep  !== 0) _deltaRows.push({ icon:'🌸', label:'地域評価',   val:_dRep });
   if(_dReg  !== 0) _deltaRows.push({ icon:'👥', label:'常連',       val:_dReg });
   if(_dCredit!==0) _deltaRows.push({ icon:'🏦', label:'信用度',     val:_dCredit });
-  const _changeSummary = _deltaRows.length > 0 ? `
+  const _evictions = (_snap.evictions || []);
+  const _changeSummary = (_deltaRows.length > 0 || _evictions.length > 0) ? `
     <div style="background:var(--warm);border-radius:10px;padding:10px 14px;margin-bottom:10px">
       <div style="font-size:10px;font-weight:700;color:var(--muted);margin-bottom:6px">📋 今月の主な変化</div>
       ${_deltaRows.map(r => `
         <div style="display:flex;justify-content:space-between;align-items:center;font-size:13px;padding:2px 0">
           <span>${r.icon} ${r.label}</span>
           <span style="font-weight:700;color:${r.val>=0?'var(--gr)':'var(--orange)'}">${r.val>=0?'+':''}${r.fmt?fmt(r.val):fmtNum(r.val)}</span>
+        </div>`).join('')}
+      ${_evictions.map(name => `
+        <div style="display:flex;justify-content:space-between;align-items:center;font-size:13px;padding:2px 0">
+          <span>🚪 退去（満足度低下）</span>
+          <span style="font-weight:700;color:var(--orange)">${name}</span>
         </div>`).join('')}
     </div>` : '';
 
