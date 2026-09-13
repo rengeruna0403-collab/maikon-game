@@ -3039,7 +3039,7 @@ function monthlyTick(){
   G.buildings.forEach(b=>{
     b.rooms.forEach(r=>{
       if(r.tenant){
-        if(r.satisfaction<45 && Math.random()<0.25){
+        if(!r.tenant.isCharacter && r.satisfaction<45 && Math.random()<0.25){
           addNews(`🚪 ${r.tenant.name}が退去（満足度低下）`);
           addStory(`${r.tenant.name}が${b.name}を去った。`, 'normal');
           _recordFormerTenant(r.tenant.name);
@@ -8501,7 +8501,7 @@ function addCase(caseData){
     let _edMinSat = Infinity, _edBi = -1, _edRi = -1;
     G.buildings.forEach((b, bi) => {
       (b.rooms||[]).forEach((r, ri) => {
-        if(r.tenant && _tdNowEd >= (r._departureHoldUntil||0)){
+        if(r.tenant && !r.tenant.isCharacter && _tdNowEd >= (r._departureHoldUntil||0)){
           const _sat = r.satisfaction||70;
           if(_sat < _edMinSat){ _edMinSat = _sat; _edBi = bi; _edRi = ri; }
         }
