@@ -7652,7 +7652,7 @@ const DOMAIN_CASES = [
   { id:'chr_kimura_2', conditionOnly:true, repeatable:false, domain:'store', character:'kimura',
     sender:'木村さくら', icon:'🎓', apCost:5, expireDays:14, category:'ops',
     title:'木村さんが相談してきた',
-    body:'木村さんが困り顔で来店しました。\n\n「試食会で食べた舞昆、すごく美味しかったんですが……\n買ったらご飯のときに少しずつ使えますか？\n正直、一袋いくらくらいするのか気になって」',
+    body:'木村さんが困り顔で来店しました。\n\n「試食で食べた舞昆、すごく美味しかったんですが……\n買ったらご飯のときに少しずつ使えますか？\n正直、一袋いくらくらいするのか気になって」',
     choices:[
       {label:'価格帯と使い方を丁寧に説明する',cost:0,effects:{score:8,custUp:1,charLevel:'kimura',charNote:'価格と使い方を聞いて「少量でも続けられそう」と言った',profile:{people:2}},label2:'ご縁+1・学生に届く',storyTag:'木村さんに使い方と価格を説明した。「少量でも大丈夫なんですね」と安心してくれた。'},
       {label:'「少量から試せますよ」と小さいサイズを紹介する',cost:0,effects:{score:9,custUp:1,charLevel:'kimura',charNote:'「小さいサイズから試してみる」と言った'},label2:'ご縁+1',storyTag:'小さいサイズを紹介した。'},
@@ -7708,15 +7708,15 @@ const DOMAIN_CASES = [
     title:'木村さんの友人が来店した',
     body:'見知らぬ若い女性が入ってきました。\n\n「あの……木村さくらに聞いてきました。\n「絶対行って」って言われて。\n舞昆って何ですか？ 試食できますか？」',
     choices:[
-      {label:'丁寧に説明して試食してもらう',cost:0,effects:{score:10,custUp:2,charMeet:'kimura',charNote:'木村さんが紹介してくれたお客様が来てくれた。「あの子から聞いて」と言っていた。',profile:{people:2,community:1}},label2:'来客+2・口コミの力',storyTag:'木村さんの口コミで新しいお客様が来た。人から人へ、舞昆が伝わっていく。'},
+      {label:'丁寧に説明して試食してもらう',cost:0,effects:{score:10,custUp:2,charNote:'木村さんが紹介してくれたお客様が来てくれた。「あの子から聞いて」と言っていた。',profile:{people:2,community:1}},label2:'来客+2・口コミの力',storyTag:'木村さんの口コミで新しいお客様が来た。人から人へ、舞昆が伝わっていく。'},
     ]},
 
   { id:'chr_kimura_3', conditionOnly:true, repeatable:false, domain:'store', character:'kimura',
     sender:'木村さくら', icon:'🎓', apCost:5, expireDays:21, category:'ops',
-    title:'木村さんから感謝の言葉',
-    body:'木村さんが少し元気な顔で来てくれました。\n\n「先月、仕送りがなかなか来なくて大変だったんですが。\nご飯と舞昆だけで乗り切りました。\n\nあと——バイト先の友だちに話したら、\n何人か興味持ってて。今度連れてきてもいいですか？」',
+    title:'木村さんから「連れてきていいですか」',
+    body:'木村さんが少し明るい顔で来てくれました。\n\n「バイト先の友だちに舞昆の話をしたら、\n何人か興味持ってて。\n\n「どこで買えるの？」って聞かれて、\n「一緒に連れてきてもいいですか」って。\n\nここ、入りやすいですよねって言ったら\nみんな来てみたいって言ってて」',
     choices:[
-      {label:'「もちろん！お待ちしています」と伝える',cost:0,effects:{score:12,rep:4,charLevel:'kimura',charNote:'「ご飯と舞昆だけで乗り切った」と言った。友人も連れてきてくれるかも',custUp:3,profile:{people:3,community:2}},label2:'ご縁+1・口コミ効果',storyTag:'木村さんが友達を連れてきてくれると言った。「ご飯と舞昆で乗り切った」という言葉が残った。'},
+      {label:'「もちろん！お待ちしています」と伝える',cost:0,effects:{score:12,rep:4,charLevel:'kimura',charNote:'バイト先の友だちに舞昆を話してくれた。「連れてきていいですか」と来店した',custUp:3,profile:{people:3,community:2}},label2:'ご縁+1・口コミ効果',storyTag:'木村さんがバイト先の友だちに舞昆を話してくれた。「入りやすい」という言葉が嬉しかった。'},
     ]},
 
   // ══════════════════════════════════════════════════════
@@ -8092,10 +8092,10 @@ const DOMAIN_CASES = [
 
   { id:'chr_kimura_return', conditionOnly:true, repeatable:false, domain:'store', character:'kimura',
     sender:'木村さくら', icon:'✨', apCost:0, category:'ops',
-    title:'木村さんが数年ぶりに帰ってきた',
+    title:'木村さんが帰ってきた',
     body:'見覚えのある顔が入ってきました。\n少し大人びた木村さくらさんです。\n\n「……久しぶりです。\n社会人になって、出張でこの辺りに来て。\n\n真っ先にここが浮かびました。\n\n（少し笑って）\n就職しても取り寄せてますよ。\n変わらないですね。なんか——ほっとします」',
     choices:[
-      {label:'「お帰り。変わりましたね」と温かく迎える',cost:0,effects:{score:20,rep:8,charNote:'数年ぶりに社会人になって再来店。「ここが真っ先に浮かんだ」と言ってくれた',charLevel:'kimura',storeBrand:8,communityBond:5,customerLoyalty:8,custUp:1,profile:{people:4,community:3}},label2:'ご縁深まる・来客+1',storyTag:'木村さんが大人になって帰ってきた。「真っ先にここが浮かんだ」という言葉が、この仕事の答えのように思えた。'},
+      {label:'「お帰り。変わりましたね」と温かく迎える',cost:0,effects:{score:20,rep:8,charNote:'社会人になって出張で再来店。「ここが真っ先に浮かんだ」と言ってくれた',charLevel:'kimura',storeBrand:8,communityBond:5,customerLoyalty:8,custUp:1,profile:{people:4,community:3}},label2:'ご縁深まる・来客+1',storyTag:'木村さんが大人になって帰ってきた。「真っ先にここが浮かんだ」という言葉が、この仕事の答えのように思えた。'},
     ]},
 
   // ══════════════════════════════════════════════════════
