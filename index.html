@@ -15390,7 +15390,7 @@ function buildUpcomingEvents(){
 
   // ④ 人物イベント（charReadyまであと1-5日）
   const ch = G.characters || {};
-  const _charInfos = [{key:'tanaka',icon:'👴',name:'田中さん'},{key:'takahashi',icon:'👨‍💼',name:'高橋さん'},{key:'nishimura',icon:'👩',name:'西村さん'}];
+  const _charInfos = [{key:'tanaka',icon:'👴',name:'田中さん'},{key:'takahashi',icon:'👨‍💼',name:'高橋さん'},{key:'nishimura',icon:'🏪',name:'西村さん'}];
   for(const ci of _charInfos){
     const c = ch[ci.key];
     if(!c || !c.met) continue;
