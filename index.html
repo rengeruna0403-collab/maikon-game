@@ -9834,8 +9834,12 @@ function generateConditionCases(){
   if(ch.yamamoto.level >= 3 && G.cases.some(c=>c.id==='chr_yamamoto_4' && c.resolved) && charReady('yamamoto',45) && !G.cases.some(c=>c.id==='chr_yamamoto_referral')) charCase('chr_yamamoto_referral');
   // Step7: 学校食育相談（level4以上・Step6解決後・60日間隔）
   if(ch.yamamoto.level >= 4 && G.cases.some(c=>c.id==='chr_yamamoto_referral' && c.resolved) && charReady('yamamoto',60) && !G.cases.some(c=>c.id==='chr_yamamoto_pta')) charCase('chr_yamamoto_pta');
-  // Step8: エンディング（PTAイベント解決後・complete前・2年目以降・60日間隔）
-  if(G.cases.some(c=>c.id==='chr_yamamoto_pta' && c.resolved) && !ch.yamamoto.complete && G.year >= 2 && charReady('yamamoto',60) && !G.cases.some(c=>c.id==='chr_yamamoto_ending')) charCase('chr_yamamoto_ending');
+  // Step8a: 受験期（PTA解決後・complete前・ending未生成・60日間隔）
+  if(G.cases.some(c=>c.id==='chr_yamamoto_pta' && c.resolved) && !ch.yamamoto.complete && !G.cases.some(c=>c.id==='chr_yamamoto_ending') && !G.cases.some(c=>c.id==='chr_yamamoto_juken') && charReady('yamamoto',60)) charCase('chr_yamamoto_juken');
+  // Step8b: 合格通知（juken解決後・complete前・ending未生成・30日間隔）
+  if(G.cases.some(c=>c.id==='chr_yamamoto_juken' && c.resolved) && !ch.yamamoto.complete && !G.cases.some(c=>c.id==='chr_yamamoto_ending') && !G.cases.some(c=>c.id==='chr_yamamoto_pass') && charReady('yamamoto',30)) charCase('chr_yamamoto_pass');
+  // Step9: エンディング（pass解決後・complete前・2年目以降・60日間隔）
+  if(G.cases.some(c=>c.id==='chr_yamamoto_pass' && c.resolved) && !ch.yamamoto.complete && G.year >= 2 && charReady('yamamoto',60) && !G.cases.some(c=>c.id==='chr_yamamoto_ending')) charCase('chr_yamamoto_ending');
 
   // ── 鈴木アーク ──
   // ep1: 地域清掃で初対面（met前のみ・開業30日以降・評判20以上）
