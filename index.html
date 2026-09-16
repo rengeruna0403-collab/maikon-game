@@ -13382,7 +13382,7 @@ const MAIN_STORY_CHAPTERS = [
         speaker:'あなた',
         text:'祖父が長い間この場所に店を出し続けたのは、\n商品だけを売りたかったからじゃなかったんだろう。\n\nここに来ると、\n誰かに会える。\n何か話せる。\n\n町の中に、\nそういう場所をつくっていたんだと思った。\n\n——続けることで、自分もその一部になっていた。',
         isLast:true,
-        nextGoal:'地域との関わりを大切にしながら、\nお店とアパートの経営を安定させていきましょう。' }
+        nextGoal:'地域との関わりを大切にしながら、\nスタッフとともに店を育て、\n少しずつ任せられる店を作っていきましょう。' }
     ],
     learningTheme:'地域との関係', reward:null },
   { id:'chapter_7', chapter:7, title:'次の店へ', subtitle:'広げることは、責任を持つこと',
@@ -13597,10 +13597,67 @@ function getMainStoryProgressMetrics(){
   }
   // 第6章完了済み・第7章未完了
   if(completed.includes('chapter_6') && !completed.includes('chapter_7')){
-    return [
-      { label:'累計売上', value:totalRev, target:1000000, unit:'円', isMoney:true,
-        note:'お店を着実に育てながら、\n次の物語を待ちましょう。' }
-    ];
+    const _midori6 = (G.staff||[]).find(s => s.name === '佐々木みどり');
+    const _items6 = [];
+
+    // A：経営成長（常に表示）
+    _items6.push({
+      label:'累計売上',
+      value:totalRev,
+      target:1000000,
+      unit:'円',
+      isMoney:true,
+      note:'店の土台を、少しずつ確かなものにしていきましょう。'
+    });
+
+    // B：みどり成長（採用済みの場合のみ）
+    if(_midori6){
+      const _dw6 = _midori6.daysWorked || 0;
+      const _lv6 = _midori6.level || 1;
+      const _title6 = _midori6.title || 'パート';
+      // level 6（店長）未到達の間だけ表示
+      if(_lv6 < 6){
+        const _hasFlex = !!G._midoriFamilyFlexibility;
+        const _note6 = _hasFlex
+          ? '任せられることが、少しずつ増えてきました。'
+          : G.year >= 2
+            ? 'スタッフと一緒に、店を支える形を作っていきましょう。'
+            : '一緒に店を育てながら、少しずつ経験を積んでいます。';
+        _items6.push({
+          label:'みどりの成長',
+          value:_dw6,
+          target:450,
+          unit:'日',
+          isMoney:false,
+          note:`現在：${_title6}。${_note6}`
+        });
+      } else {
+        // 店長昇格後・honsha_vision前
+        _items6.push({
+          label:'みどりの成長',
+          value:_dw6,
+          target:_dw6,
+          unit:'日',
+          isMoney:false,
+          note:`${_title6}として、1号店を支えています。`
+        });
+      }
+    }
+
+    // C：1周年の節目（Y1のみ・narita_diagnosis未解決の間）
+    const _diagDone6 = (G.cases||[]).some(c => c.id === 'narita_diagnosis' && c.resolved);
+    if(G.year === 1 && !_diagDone6){
+      _items6.push({
+        label:'1年目の終わりに向けて',
+        value:null,
+        target:null,
+        unit:'',
+        isMoney:false,
+        note:'まずは、この店で一年を積み重ねていきましょう。\n年度の終わりに、ここまでの経営を振り返る機会があります。'
+      });
+    }
+
+    return _items6;
   }
   // 第7章完了済み・第8章未完了
   if(completed.includes('chapter_7') && !completed.includes('chapter_8')){
@@ -13689,13 +13746,20 @@ function _renderMsProgressBlock(){
   _checkMainStoryMilestones();
   const metrics = getMainStoryProgressMetrics();
   const rows = metrics.map(m => {
+    // value/target が null のエントリはノートのみ表示（数値バーなし）
+    if(m.value == null || m.target == null){
+      return `<div style="margin-bottom:10px">
+        <div style="font-size:11px;font-weight:700;margin-bottom:3px">${m.label}</div>
+        <div style="font-size:10px;color:var(--muted);line-height:1.7;white-space:pre-line">${m.note}</div>
+      </div>`;
+    }
     const pct = Math.min(100, Math.round((m.value / m.target) * 100));
     const valStr = m.isMoney ? fmt(m.value) : m.value;
     const tgtStr = m.isMoney ? fmt(m.target) : m.target;
     return `<div style="margin-bottom:10px">
       <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px">
         <span style="font-weight:700">${m.label}</span>
-        <span style="color:var(--muted)">${valStr} / ${tgtStr}${m.isMoney?'':'件'}</span>
+        <span style="color:var(--muted)">${valStr} / ${tgtStr}${m.unit||''}</span>
       </div>
       <div style="background:var(--border);border-radius:4px;height:5px;overflow:hidden">
         <div style="background:var(--gr);height:5px;width:${pct}%;border-radius:4px"></div>
