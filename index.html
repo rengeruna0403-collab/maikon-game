@@ -9207,7 +9207,8 @@ function generateConditionCases(){
       else if(_ndBond >= 20) _ndFeedback.push(`地域との関わりも、少しずつ形になってきています。`);
       const _ndBodyPart1 = '成田から連絡が届いた。\n\n「オーナーとして1年が経ちましたね。\n数字だけでなく、あなたの判断の傾向を見てきました。';
       const _ndBodyPart2 = '\n\nどんな経営者になりたいか——改めて聞かせてもらえますか？」';
-      const _ndBodyMid = _ndFeedback.length > 0 ? '\n\n' + _ndFeedback.join('\n\n') : '';
+      if(_ndFeedback.length === 0) _ndFeedback.push('思うようにいかないことも含めて、\nいろいろな判断を重ねてきた一年だったと思います。');
+      const _ndBodyMid = '\n\n' + _ndFeedback.join('\n\n');
       _ndClone.body = _ndBodyPart1 + _ndBodyMid + _ndBodyPart2;
       addCase(_ndClone);
     }
