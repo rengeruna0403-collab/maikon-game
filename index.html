@@ -5736,7 +5736,7 @@ const CASE_POOL = [
   { id:'midori_daughter_joy', conditionOnly:true, repeatable:false, domain:'staff',
     sender:'佐々木みどり', icon:'🌸', apCost:0, expireDays:30, category:'ops',
     title:'「最近、楽しそうだね」',
-    body:'片付けをしながら、みどりが少し照れたように話しかけてきました。\n\n「この前、娘に言われたんです。\n\n「お母さん、最近仕事楽しそうだね」って。\n\n「なんかイキイキしてるっていうか」って言うもんで。\n\n自分では、そんなに変わったつもりはなかったんですけどね。\n\n……娘の目には、そう映っているみたいです」\n\nみどりが店で働き始めた頃より、その表情は確かに変わっているように見えた。',
+    body:'片付けをしながら、みどりが少し照れたように話しかけてきました。\n\n「この前、娘に言われたんです。\n\n「お母さん、最近仕事楽しそうだね」って。\n\n「なんかイキイキしてるっていうか」って言うもんで。\n\n自分では、そんなに変わったつもりはなかったんですけどね。\n\n……娘の目には、そう映っているみたいです」\n\nみどりが店で働き始めた頃より、その表情は確かに変わっているように見えた。\n\n——みどりが変わっていたなら、自分もまた、この店で変わっていたのかもしれない、と思った。',
     choices:[
       {label:'「こちらこそ、ありがとうございます」と伝える', cost:0,
        effects:{score:8, staffSat:6, midoriTrust:5, profile:{people:3}},
@@ -5748,7 +5748,7 @@ const CASE_POOL = [
   { id:'midori_family_flexibility', conditionOnly:true, repeatable:false, domain:'staff',
     sender:'佐々木みどり', icon:'🌿', apCost:0, expireDays:60, category:'ops',
     title:'「少し、変わってきました」',
-    body:'みどりが、ふと話しかけてきました。\n\n「娘、4年生になったんです。\n\n前は、15時には帰らないとって\nずっと思ってたんですけど。\n\n最近は、家のことも娘と話しながら、\n少しずつやり方を変えていて。\n\n毎日遅くまで、というのは難しいですけど。\n\n前よりは、仕事のことを考えられる時間が\n増えてきました」\n\n少し間を置いて、続けた。\n\n「……無理をするつもりはないんですが、\nもう少し、この仕事に向き合えそうで。\n\nそれが、嬉しくて」',
+    body:'みどりが、ふと話しかけてきました。\n\n「娘、4年生になったんです。\n\n前は、15時には帰らないとって\nずっと思ってたんですけど。\n\n最近は、家のことも娘と話しながら、\n少しずつやり方を変えていて。\n\n毎日遅くまで、というのは難しいですけど。\n\n前よりは、仕事のことを考えられる時間が\n増えてきました」\n\n少し間を置いて、続けた。\n\n「……無理をするつもりはないんですが、\nもう少し、この仕事に向き合えそうで。\n\nそれが、嬉しくて」\n\n——娘と話し合いながら、みどり自身が答えを見つけていた。',
     choices:[
       {label:'「家庭のことを大事にしながらで十分です」と伝える', cost:0,
        effects:{score:10, staffSat:8, midoriTrust:6, profile:{people:3}},
@@ -9193,7 +9193,24 @@ function generateConditionCases(){
   }
   // 1年目年度末の経営者診断（1年目3月25日以降・ゲームは4月開始なので3月=年度末）
   if(G.year === 1 && G.month === 3 && G.day >= 25 && !G.cases.some(c => c.id === 'narita_diagnosis')){
-    addCase(CASE_POOL.find(c => c.id === 'narita_diagnosis'));
+    const _ndBase = CASE_POOL.find(c => c.id === 'narita_diagnosis');
+    if(_ndBase){
+      const _ndClone = {..._ndBase};
+      const _ndRev = G.totalRevenue || 0;
+      const _ndReg = (G.stores && G.stores[0] && G.stores[0].regulars) || 0;
+      const _ndBond = G.communityBond || 0;
+      const _ndMidori = (G.staff||[]).find(s => s.name === '佐々木みどり');
+      const _ndFeedback = [];
+      if(_ndRev >= 300000) _ndFeedback.push(`売上は${Math.floor(_ndRev/10000)}万円。地道な積み上げを続けてきました。`);
+      else if(_ndReg >= 5) _ndFeedback.push(`${_ndReg}人の常連さんが定着しています。`);
+      if(_ndMidori && _ndMidori.level >= 3) _ndFeedback.push(`${_ndMidori.name}さんも、${_ndMidori.title}として着実に力をつけています。`);
+      else if(_ndBond >= 20) _ndFeedback.push(`地域との関わりも、少しずつ形になってきています。`);
+      const _ndBodyPart1 = '成田から連絡が届いた。\n\n「オーナーとして1年が経ちましたね。\n数字だけでなく、あなたの判断の傾向を見てきました。';
+      const _ndBodyPart2 = '\n\nどんな経営者になりたいか——改めて聞かせてもらえますか？」';
+      const _ndBodyMid = _ndFeedback.length > 0 ? '\n\n' + _ndFeedback.join('\n\n') : '';
+      _ndClone.body = _ndBodyPart1 + _ndBodyMid + _ndBodyPart2;
+      addCase(_ndClone);
+    }
   }
 
   // ── 商品解放イベント ──────────────────────────
@@ -12520,9 +12537,11 @@ function chooseEvent(idx, useFatigue){
     }
     if(choice.onResolve === '_midoriWorkJoyTold'){
       G._midoriWorkJoyTold = true;
+      addStory('みどりが娘の言葉を打ち明けてくれた。この店での時間が、みどり自身の中で何かに変わっていた。', 'milestone');
     }
     if(choice.onResolve === '_midoriFamilyFlexibility'){
       G._midoriFamilyFlexibility = true;
+      addStory('みどりが娘と話し合いながら、働き方の幅を少し広げていた。みどり自身が、自分で見つけた答えだった。', 'milestone');
     }
     if(choice.onResolve === '_presidentVisionSeen'){
       G._presidentVisionSeen = true;
@@ -15212,6 +15231,9 @@ function runMonthlyEvaluation(){
         addHistory('🎓', `${s.name} 最終昇格「${s.title}」`);
         if(s.title === '店長'){
           addStory(`${s.name}が店長に昇格した。${s.store}を任せることができる。営業方針で「店長に委任」を選ぼう。`, 'highlight');
+          if(s.name === '佐々木みどり'){
+            addStory('佐々木みどりが店長になった。ここまでの日々が、みどり自身の力になっていた。', 'milestone');
+          }
           notify(`🏪 ${s.name}が店長に昇格！${s.store}を委任できます`, 'gold');
         }
       } else {
