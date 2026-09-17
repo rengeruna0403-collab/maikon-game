@@ -4518,10 +4518,9 @@ const _OCHAWAN_DAILY = [
   '今日は風が気持ちよかったですね。散歩日和でした。',
 ];
 const _MAIKON_PRODUCTS = [
-  {name:'夢冴え舞昆', emoji:'🟫', desc:'昆布の旨味と醤油の深みが絶妙。白ご飯との相性は抜群です。', story:'昆布の旨みとまろやかな味わいを楽しめる、舞昆の定番商品。ご飯のお供として長く親しまれています。'},
-  {name:'たもぎ茸舞昆', emoji:'🟩', desc:'珍しいたもぎ茸を使った一品。旨味が強く、料理のアクセントにも。', story:'希少なきのこ・たもぎ茸の香りと、昆布の旨みを合わせた一品です。'},
-  {name:'生姜舞昆', emoji:'🫚', desc:'生姜の風味がさわやか。おにぎりの具にも最適です。', story:'爽やかな生姜の風味と昆布の旨みが重なる舞昆。おにぎりやお茶漬けにも合わせやすい商品です。'},
-  {name:'ギフト舞昆セット', emoji:'🎁', desc:'贈り物に最適な詰め合わせ。喜ばれること間違いなし。', story:'大切な人への贈り物としても選ばれる、舞昆の詰め合わせです。'},
+  {name:'たもぎ茸舞昆', emoji:'🟩', desc:'珍しいたもぎ茸を使った一品。旨味が強く、料理のアクセントにも。', story:'たもぎ茸の香りと、昆布の旨みを合わせた一品です。'},
+  {name:'生姜舞昆', emoji:'🫚', desc:'生姜の風味がさわやか。おにぎりの具にも最適です。', story:'爽やかな生姜の風味と、昆布の旨みを合わせた舞昆です。'},
+  {name:'ギフト舞昆セット', emoji:'🎁', desc:'贈り物に最適な詰め合わせ。喜ばれること間違いなし。', story:'舞昆を詰め合わせた、贈り物向けのセットです。'},
 ];
 
 function _checkOchawanProposal(){
@@ -4627,7 +4626,7 @@ function _ochawanAction(type){
           + '<div style="font-weight:700;font-size:16px;text-align:center;margin-bottom:4px">' + product.name + '</div>'
           + '<div style="background:var(--bg2);border-radius:10px;padding:12px;margin-bottom:10px;font-size:12px;line-height:1.8">'
           + '<strong>🍴 味わい</strong><br>' + product.desc + '<br><br>'
-          + '<strong>📖 商品ストーリー</strong><br>' + product.story
+          + '<strong>📖 商品紹介</strong><br>' + product.story
           + '</div>'
           + '<div style="background:rgba(0,180,80,.1);border-radius:8px;padding:8px 12px;font-size:12px;color:var(--gr);margin-bottom:12px">ブランド力 ＋1</div>'
           + '<button onclick="document.getElementById(\'event-modal\').style.display=\'none\'" style="width:100%;padding:10px;background:var(--green,#4CAF50);border:none;border-radius:10px;color:#fff;font-size:14px;font-weight:700;cursor:pointer">おいしかった！</button>';
@@ -5552,7 +5551,7 @@ const CASE_POOL = [
   { id:'honsha_origin', conditionOnly:true, repeatable:false, domain:'store',
     sender:'舞昆本社 社長', icon:'📦', apCost:0, expireDays:999, category:'ops',
     title:'「始まりは、お客様の声だったんですよ」',
-    body:'昼少し前、一人の男性が店に入ってきた。\n\n「舞昆本社の者です。\n　新しいオーナーさんに挨拶に来ました」\n\n社長だと、名乗った。\n\n「直接お会いするのは初めてですね。\n　数字だけ見ていると、\n　店のことが見えなくなってしまうので——」\n\n商品棚の前でしばらく立ち止まって、\n社長が話しかけてきた。\n\n「この商品ね、\n　最初から今の形だったわけじゃないんですよ」\n\n「昆布の佃煮を作っていた頃に、\n　常連のお客様からこんな声をもらったんです」\n\n「おいしくて、\n　つい食べすぎてしまう——と」\n\n「それで考えたんですよ。\n　おいしさはそのままに、\n　もっと違う作り方ができないかと」\n\n「発酵に目を向けて、\n　ずいぶん試行錯誤しました。\n　簡単には形にならなかったですよ」\n\n「それが、\n　今の舞昆になったんです」\n\n少し間があった。\n\n「始まりは、\n　お客様の声だったんですよ」\n\n——この店に立つようになってから、\nお客様の言葉を聞く時間が増えていた。\n\n最初のきっかけが、\nそこにあったんだ——と思った。\n\n「また来ます」\n\nそう言い残して、社長は出ていった。',
+    body:'昼少し前、一人の男性が店に入ってきた。\n\n「舞昆本社の者です。\n　新しいオーナーさんに挨拶に来ました」\n\n社長だと、名乗った。\n\n「直接お会いするのは初めてですね。\n　数字だけ見ていると、\n　店のことが見えなくなってしまうので——」\n\n商品棚の前でしばらく立ち止まって、\n社長が話しかけてきた。\n\n「この商品ね、\n　最初から今の形だったわけじゃないんですよ」\n\n「お客様から、\n　こんな声をもらったんです」\n\n「おいしくて、\n　つい食べすぎてしまう——と」\n\n「それで考えたんですよ。\n　おいしさはそのままに、\n　もっと違う作り方ができないかと」\n\n「発酵に目を向けて、\n　ずいぶん試行錯誤しました。\n　簡単には形にならなかったですよ」\n\n「それが、\n　今の舞昆になったんです」\n\n少し間があった。\n\n「始まりは、\n　お客様の声だったんですよ」\n\n——この店に立つようになってから、\nお客様の言葉を聞く時間が増えていた。\n\n最初のきっかけが、\nそこにあったんだ——と思った。\n\n「また来ます」\n\nそう言い残して、社長は出ていった。',
     choices:[
       {label:'「お客様の声から生まれたんですね」と返した', cost:0,
        effects:{score:5},
