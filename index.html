@@ -4415,8 +4415,8 @@ function showMaikonPurchase(){
         <div style="font-size:48px;margin-bottom:12px">🏮</div>
         <div style="font-size:16px;font-weight:700;margin-bottom:6px">舞昆</div>
         <div style="font-size:12px;color:var(--muted);line-height:1.8">
-          丹波篠山の昆布と旬の食材を合わせた<br>
-          ご飯のお供。保存料不使用。
+          北海道道南産の真昆布を使った、<br>
+          ご飯のお供。
         </div>
       </div>
 
@@ -4518,10 +4518,10 @@ const _OCHAWAN_DAILY = [
   '今日は風が気持ちよかったですね。散歩日和でした。',
 ];
 const _MAIKON_PRODUCTS = [
-  {name:'夢冴え舞昆', emoji:'🟫', desc:'昆布の旨味と醤油の深みが絶妙。白ご飯との相性は抜群です。', story:'創業者が「ご飯が止まらない」と言って生まれた看板商品。発売以来30年、変わらぬ味です。'},
-  {name:'たもぎ茸舞昆', emoji:'🟩', desc:'珍しいたもぎ茸を使った一品。旨味が強く、料理のアクセントにも。', story:'北海道産のたもぎ茸との出会いから生まれた限定品。地元でも入手困難な素材です。'},
-  {name:'生姜舞昆', emoji:'🫚', desc:'生姜の風味がさわやか。おにぎりの具にも最適です。', story:'常連の田中さんのリクエストで開発されました。今では人気No.2商品。'},
-  {name:'ギフト舞昆セット', emoji:'🎁', desc:'贈り物に最適な詰め合わせ。喜ばれること間違いなし。', story:'「大切な人への贈り物にしたい」というお客様の声から誕生しました。'},
+  {name:'夢冴え舞昆', emoji:'🟫', desc:'昆布の旨味と醤油の深みが絶妙。白ご飯との相性は抜群です。', story:'昆布の旨みとまろやかな味わいを楽しめる、舞昆の定番商品。ご飯のお供として長く親しまれています。'},
+  {name:'たもぎ茸舞昆', emoji:'🟩', desc:'珍しいたもぎ茸を使った一品。旨味が強く、料理のアクセントにも。', story:'希少なきのこ・たもぎ茸の香りと、昆布の旨みを合わせた一品です。'},
+  {name:'生姜舞昆', emoji:'🫚', desc:'生姜の風味がさわやか。おにぎりの具にも最適です。', story:'爽やかな生姜の風味と昆布の旨みが重なる舞昆。おにぎりやお茶漬けにも合わせやすい商品です。'},
+  {name:'ギフト舞昆セット', emoji:'🎁', desc:'贈り物に最適な詰め合わせ。喜ばれること間違いなし。', story:'大切な人への贈り物としても選ばれる、舞昆の詰め合わせです。'},
 ];
 
 function _checkOchawanProposal(){
@@ -4627,7 +4627,7 @@ function _ochawanAction(type){
           + '<div style="font-weight:700;font-size:16px;text-align:center;margin-bottom:4px">' + product.name + '</div>'
           + '<div style="background:var(--bg2);border-radius:10px;padding:12px;margin-bottom:10px;font-size:12px;line-height:1.8">'
           + '<strong>🍴 味わい</strong><br>' + product.desc + '<br><br>'
-          + '<strong>📖 開発秘話</strong><br>' + product.story
+          + '<strong>📖 商品ストーリー</strong><br>' + product.story
           + '</div>'
           + '<div style="background:rgba(0,180,80,.1);border-radius:8px;padding:8px 12px;font-size:12px;color:var(--gr);margin-bottom:12px">ブランド力 ＋1</div>'
           + '<button onclick="document.getElementById(\'event-modal\').style.display=\'none\'" style="width:100%;padding:10px;background:var(--green,#4CAF50);border:none;border-radius:10px;color:#fff;font-size:14px;font-weight:700;cursor:pointer">おいしかった！</button>';
@@ -5547,6 +5547,23 @@ const CASE_POOL = [
     choices:[
       {label:'「前向きに考えています」と答える',cost:0,effects:{score:10,credit:3,naritaTrust:5,store2Unlocked:true,profile:{risk:3,finance:2}},label2:'信用+3・2号店出店解放',storyTag:'成田から2号店の可能性を聞いた。選択肢として頭に入れることにした。'},
       {label:'「今はまだ本店に集中したい」と答える',cost:0,effects:{score:5,naritaTrust:2,profile:{finance:3}},label2:'本店優先',storyTag:'成田の提案は保留にした。今の経営を固める。',onResolve:'_naritaStore2Retry'},
+    ]},
+
+  { id:'honsha_origin', conditionOnly:true, repeatable:false, domain:'store',
+    sender:'舞昆本社 社長', icon:'📦', apCost:0, expireDays:999, category:'ops',
+    title:'「始まりは、お客様の声だったんですよ」',
+    body:'昼少し前、一人の男性が店に入ってきた。\n\n「舞昆本社の者です。\n　新しいオーナーさんに挨拶に来ました」\n\n社長だと、名乗った。\n\n「直接お会いするのは初めてですね。\n　数字だけ見ていると、\n　店のことが見えなくなってしまうので——」\n\n商品棚の前でしばらく立ち止まって、\n社長が話しかけてきた。\n\n「この商品ね、\n　最初から今の形だったわけじゃないんですよ」\n\n「昆布の佃煮を作っていた頃に、\n　常連のお客様からこんな声をもらったんです」\n\n「おいしくて、\n　つい食べすぎてしまう——と」\n\n「それで考えたんですよ。\n　おいしさはそのままに、\n　もっと違う作り方ができないかと」\n\n「発酵に目を向けて、\n　ずいぶん試行錯誤しました。\n　簡単には形にならなかったですよ」\n\n「それが、\n　今の舞昆になったんです」\n\n少し間があった。\n\n「始まりは、\n　お客様の声だったんですよ」\n\n——この店に立つようになってから、\nお客様の言葉を聞く時間が増えていた。\n\n最初のきっかけが、\nそこにあったんだ——と思った。\n\n「また来ます」\n\nそう言い残して、社長は出ていった。',
+    choices:[
+      {label:'「お客様の声から生まれたんですね」と返した', cost:0,
+       effects:{score:5},
+       label2:'',
+       storyTag:'舞昆本社の社長が初めて店に来た。舞昆が生まれたきっかけを話してくれた。始まりはお客様の声だったという。',
+       onResolve:'_presidentMet'},
+      {label:'「試行錯誤、大変だったんですね」と言葉を返した', cost:0,
+       effects:{score:5},
+       label2:'',
+       storyTag:'舞昆本社の社長が初めて店に来た。舞昆が生まれるまでの試行錯誤を話してくれた。',
+       onResolve:'_presidentMet'},
     ]},
 
   { id:'honsha_vision', conditionOnly:true, repeatable:false, domain:'store',
@@ -9979,6 +9996,13 @@ function generateConditionCases(){
 
   // ── 本社訪問WHY ──
   if(!ch.honsha) G.characters.honsha = { met:false, lastCaseDay:0 };
+  // ── 本社社長 初登場 PRODUCT WHY（Ch4完了後・全プレイヤー向け）──
+  if(!G._presidentMet && !G._presidentVisionSeen
+     && G.mainStory && G.mainStory.completedChapters
+     && G.mainStory.completedChapters.includes('chapter_4')
+     && !G.cases.some(c=>c.id==='honsha_origin')){
+    charCase('honsha_origin');
+  }
   if(!G._presidentVisionSeen && !G._midoriIndependent && !G.store2Unlocked && G.stores.length < 2
      && !G.cases.some(c=>c.id==='honsha_vision')){
     const _hvReasons = [];
@@ -12544,6 +12568,10 @@ function chooseEvent(idx, useFatigue){
       G._midoriFamilyFlexibility = true;
       addStory('みどりが娘と話し合いながら、働き方の幅を少し広げていた。みどり自身が、自分で見つけた答えだった。', 'milestone');
     }
+    if(choice.onResolve === '_presidentMet'){
+      G._presidentMet = true;
+      addStory('舞昆本社の社長が初めて店に来た。舞昆が生まれたきっかけを話してくれた。始まりは、お客様の声だったという。', 'milestone');
+    }
     if(choice.onResolve === '_presidentVisionSeen'){
       G._presidentVisionSeen = true;
       G._presidentVisionDay = (G.year-1)*360+(G.month-1)*30+G.day;
@@ -13247,7 +13275,7 @@ const MAIN_STORY_CHAPTERS = [
       { sceneTitle:'成田さんの言葉', portrait:'narita', speaker: '成田（銀行員）', text: '「いい質問ですね。\n商品を売るより先に、まずお客様の反応を見てみてください。\nそこに答えがありますよ」' },
       { sceneTitle:'食卓のこと', speaker: 'ナレーション', text: 'その日の午後、一人のお客様が舞昆をお買い上げになった。\n「これ、ごはんと一緒に食べるのが好きでね。\nつい、もうひと口ごはんが進むんですよ。\n毎日の食卓に欠かせないんです」' },
       { sceneTitle:'届ける仕事', speaker: 'あなた', text: '商品を売るだけじゃなくて、\n誰かの食卓へ届ける仕事なんだ。\n——そう気がついた気がした。' },
-      { sceneTitle:'もっと知りたい', speaker: 'あなた', text: '次は、舞昆がどうやって作られているのか知りたい。\nこの店を続ければ、もっと見えてくるものがあるかもしれない。',
+      { sceneTitle:'もっと知りたい', speaker: 'あなた', text: '次は、舞昆という商品が、\nどんなきっかけで生まれたのか知りたい。\nこの店を続ければ、もっと見えてくるものがあるかもしれない。',
         isLast: true,
         nextGoal: 'お客様とのご縁を増やし、\nお店の売上を伸ばしてみましょう。'
       }
