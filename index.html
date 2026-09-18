@@ -13203,7 +13203,7 @@ function getPostMenuGrowthSuggestions(si){
 
   // 2号店
   if(G.stores.length < 2){
-    const managerCnt = G.staff.filter(st => (st.level||1) >= 2).length;
+    const managerCnt = G.staff.filter(st => st.title === '店長').length;
     list.push({ icon:'🏬', label:'2号店を目指す',
       desc:'資金と店長候補を準備すると、新しい店舗へ挑戦できます。',
       btn:'条件を確認', onclick:"setTab('store')",
@@ -14885,7 +14885,7 @@ function showNewStoreManagerModal(si){
       </button>
       <button class="choice-btn" onclick="assignManagerToNewStore('owner',${si})">
         <div class="choice-lbl">🧑‍🍳 自分が店長として入る</div>
-        <div class="choice-eff">追加費用なし・毎日AP+10消費（接客対応）</div>
+        <div class="choice-eff">追加費用なし・毎日AP-4消費（接客対応）</div>
       </button>
     </div>
   `);
