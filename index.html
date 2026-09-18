@@ -5585,7 +5585,7 @@ const CASE_POOL = [
   { id:'narita_loan', sender:'成田（銀行）', icon:'🏦', apCost:20, expireDays:30, category:'strategy',
     expirePenalty:{credit:-5, news:'🏦 融資の申込期限が過ぎた。機会を逃した。'},
     title:'追加融資の案内',
-    body:'追加融資（¥500,000）のご案内です。\n現在の信用度であれば審査は通る見込みです。\n資金が手元に増えますが、返済義務も増えます。',
+    body:'追加融資（¥500,000）のご案内です。\n現在の信用度であれば審査は通る見込みです。\n資金が手元に増えますが、信用度が少し下がります。',
     choices:[
       {label:'融資を受ける（+¥500,000 / 信用度-5）',cost:0,effects:{money:500000,credit:-5,score:5,profile:{risk:3}},label2:'現金+50万',storyTag:'成田の提案を受け入れ追加融資を受けた。'},
       {label:'今は必要ない',cost:0,effects:{score:3,profile:{finance:3}},label2:'自己資本経営を続ける',storyTag:'追加融資の案内を断った。自力でやると決めた。'},
@@ -10987,8 +10987,6 @@ function analyzeCashCrisisReasons(){
   const totalCustomers = G.stores.reduce((s,st)=>s+(st.customers||0),0);
   if(totalCustomers < 15)
     reasons.push('来客数が少なく店舗売上が安定しなかった');
-  if((G.loanCount||0) >= 2)
-    reasons.push('融資が重なり月次返済が増加した');
   if(G.regions[0]?.investTotal > 500000 && G.money < 0)
     reasons.push('地域投資への支出が過大だった');
   if(reasons.length === 0)
@@ -14656,7 +14654,10 @@ function buyRenov(si,name,cost,cust,sat,score){
   if(!useAP(apCost, '改装立ち合い', ()=>buyRenov(si,name,cost,cust,sat,score))) return;
   const _bfMoney=G.money, _bfAp=G.ap, _bfCust=G.stores[si].customers, _bfSat=G.stores[si].satisfaction, _bfLevel=G.stores[si].level;
   G.money-=cost; G.stores[si].upgrades.push(name);
-  if(cust) G.stores[si].customers+=cust;
+  if(cust){
+    G.stores[si].newCustomers=(G.stores[si].newCustomers||G.stores[si].customers||0)+cust;
+    G.stores[si].customers=G.stores[si].newCustomers+(G.stores[si].regulars||0);
+  }
   if(sat) G.stores[si].satisfaction=Math.min(100,G.stores[si].satisfaction+sat);
   if(score) scoreOwner(score,'renov');
   G.stores[si].level=Math.min(5,G.stores[si].level+1);
