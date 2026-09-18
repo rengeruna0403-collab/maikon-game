@@ -14799,11 +14799,12 @@ function showApplicantModal(targetSi){
         <div style="font-size:12px;color:var(--gr);font-weight:700">¥${(a.salary/10000).toFixed(1)}万/月</div>
       </div>
       <div style="font-size:11px;color:var(--muted);margin-bottom:6px">${a.bio}</div>
-      <div style="display:flex;gap:8px;font-size:11px;margin-bottom:8px">
+      <div style="display:flex;gap:8px;font-size:11px;margin-bottom:4px">
         <span>接客 <strong>${a.skills.service}</strong></span>
         <span>調理 <strong>${a.skills.cooking}</strong></span>
         <span>管理 <strong>${a.skills.management}</strong></span>
       </div>
+      <div style="font-size:10px;color:var(--muted);margin-bottom:8px">※ スキルはスタッフの昇格条件に関わります</div>
       <button class="btn btn-gr" style="width:100%;padding:7px;font-size:12px" onclick="hireApplicant(${i},${targetSi??-1})">
         この人を採用する
       </button>
@@ -17108,7 +17109,7 @@ function renderStaff(){
         return `<div class="card">
           <div class="card-ttl">👥 求人募集</div>
           <div style="font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.7">
-            求人広告を出すと3人の応募者が来ます。スキルや給与を比較して、一人を選んで採用します。
+            求人広告を出すと3人の応募者が来ます。スキルや給与、これからの育ち方を見ながら、一人を選んで採用します。
           </div>
           <button class="btn btn-gr" style="width:100%;padding:10px;font-size:13px" onclick="postJobAd()">
             📋 求人広告を出す <span style="font-size:11px;opacity:.8;margin-left:6px">AP-5 ・ ¥30,000</span>
