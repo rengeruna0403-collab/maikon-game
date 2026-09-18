@@ -10872,7 +10872,6 @@ function showIssueCardModal(){
 // ─────────── CASH CRISIS MODALS ───────────
 function showCashCrisisModal(){
   G.cashShortageEver = true;
-  G.cashNegativeDays = (G.cashNegativeDays||0) + 1;
   const uses = G.ownerFundUses || 0;
   const injectAmounts = [300000, 200000, 100000];
   const injectAmt = uses < 3 ? injectAmounts[uses] : 0;
@@ -11338,8 +11337,11 @@ function _advanceDayCore(){
   G.monthIngredientCost = (G.monthIngredientCost||0) + (_dailyIngCost2||0); // Balance v0.2-model-1
   G.lastDayRevenue = rev;
   if(profit > 0) G.creditScore = Math.min(100, G.creditScore + 0.2);
-  if(G.money < 0){ G.cashNegativeDays=(G.cashNegativeDays||0)+1; G.cashShortageEver=true; }
-  else G.cashNegativeDays=0;
+  if(G.money < 0){
+    G.cashNegativeDays=(G.cashNegativeDays||0)+1;
+    G.cashShortageEver=true;
+    if(G.cashNegativeDays >= 7){ G.cashNegativeDays=0; setTimeout(showBankruptcyCrisisModal,300); }
+  } else { G.cashNegativeDays=0; }
   G.staff.forEach(s=>{
     s.daysWorked++;
     s.growthPts += 1 + Math.floor((s.skills.service+s.skills.management)/100);
