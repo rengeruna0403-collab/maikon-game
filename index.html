@@ -4610,7 +4610,11 @@ function _ochawanAction(type){
     case 'stand': {
       if(ap < 10){ notify('APが足りません','red'); return; }
       spend(10);
-      if(s){ s.customers = (s.customers||0) + 3; s.regulars = (s.regulars||0) + 1; }
+      if(s){
+        s.newCustomers=(s.newCustomers||s.customers||0)+3;
+        s.regulars=(s.regulars||0)+1;
+        s.customers=s.newCustomers+s.regulars;
+      }
       G.money = (G.money||0) + 2000;
       if(modal) modal.style.display = 'none';
       notify('🏪 店頭に立ちました！ 新規客＋3 / 売上＋¥2,000', 'green');
@@ -11072,7 +11076,10 @@ function resolveBankruptcy(choice){
     addStory('苦肉の策で家賃を値上げした。入居者たちの顔が険しくなった。','normal');
     notify('全室家賃+5,000（退去リスク上昇）','warn');
   } else if(choice === 'ad_stop'){
-    G.stores.forEach(s=>{ s.customers = Math.max(5, s.customers - 5); });
+    G.stores.forEach(s=>{
+      s.newCustomers=Math.max(2,(s.newCustomers||s.customers||0)-5);
+      s.customers=s.newCustomers+(s.regulars||0);
+    });
     G.regions[0].reputation = Math.max(0, G.regions[0].reputation - 20);
     addNews('📣 広告・地域活動を停止（評判-20・客数-5）');
     addStory('広告と地域活動をすべて止めた。静かな節約の日々が続く。','normal');
@@ -14616,8 +14623,8 @@ function openAdModal(si){
   const rows=AD_OPTIONS.map(a=>`
     <div class="fin-row">
       <div><div style="font-weight:700;font-size:13px">${a.name}</div>
-        <div style="font-size:11px;color:var(--muted)">客数+${a.cust}/日</div></div>
-      <button class="btn btn-gr btn-sm" onclick="buyAd(${si},'${a.name}',${a.cost},${a.cust});closeActionModal()">
+        <div style="font-size:11px;color:var(--muted)">${a.days}日間 来客+${a.cust}/日</div></div>
+      <button class="btn btn-gr btn-sm" onclick="buyAd(${si},'${a.name}',${a.cost},${a.cust},${a.days});closeActionModal()">
         ${fmt(a.cost)}</button>
     </div>
   `).join('');
@@ -14626,13 +14633,16 @@ function openAdModal(si){
   showActionModal(`<div class="modal-title" style="margin-bottom:14px">📣 広告</div>${adInfoCard}${rows}
     <button class="btn btn-bg" style="width:100%;margin-top:10px" onclick="closeActionModal()">閉じる</button>`);
 }
-function buyAd(si,name,cost,cust){
+function buyAd(si,name,cost,cust,days){
   if(G.money<cost){notify('資金不足','warn');return;}
   const apCost = getApCost(10, si);
-  if(!useAP(apCost, '広告打合せ', ()=>buyAd(si,name,cost,cust))) return;
-  G.money-=cost; G.stores[si].customers+=cust;
-  scoreOwner(2,'ad'); addNews(`📣 「${name}」開始`);
-  notify(`「${name}」開始！ 客数+${cust}`); updateHeader();
+  if(!useAP(apCost, '広告打合せ', ()=>buyAd(si,name,cost,cust,days))) return;
+  G.money-=cost;
+  const _adTd=(G.year-1)*360+(G.month-1)*30+G.day;
+  G._tempCustBonuses=G._tempCustBonuses||[];
+  G._tempCustBonuses.push({amount:cust,endDay:_adTd+(days||21),source:'buyAd_'+name});
+  scoreOwner(2,'ad'); addNews(`📣 「${name}」開始（${days||21}日間）`);
+  notify(`「${name}」開始！${days||21}日間 来客+${cust}/日`,'gold'); updateHeader();
 }
 function openRenovModal(si){
   const s=G.stores[si];
