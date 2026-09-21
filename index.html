@@ -2383,7 +2383,8 @@ function tutFestival(choice){
     if(G.money<50000){notify('資金不足（¥50,000必要）','warn');return;}
     G.money-=50000;
     G.regions[0].reputation=Math.min(100,G.regions[0].reputation+15);
-    G.stores[0].customers+=5;
+    G.stores[0].newCustomers=(G.stores[0].newCustomers||G.stores[0].customers||0)+5;
+    G.stores[0].customers=G.stores[0].newCustomers+(G.stores[0].regulars||0);
     G.staff.forEach(s=>{ s.burden=Math.min(100,(s.burden||0)+15); });
     scoreOwner(15,'festival_join');
     addStory('桜まつりに出店した。疲れたが、地域での知名度が一気に上がった。','highlight');
@@ -13151,10 +13152,10 @@ const MENU_OPTIONS=[
   {name:'舞昆弁当（テイクアウト）',cost:70000,sat:7,cust:4,priceUp:120},
 ];
 const AD_OPTIONS=[
-  {name:'チラシ配布',cost:30000,cust:5},
-  {name:'LINE配信',cost:15000,cust:3},
-  {name:'SNS広告',cost:50000,cust:8},
-  {name:'地元紙広告',cost:80000,cust:12},
+  {name:'チラシ配布',cost:30000,cust:5,days:14},
+  {name:'LINE配信',cost:15000,cust:3,days:14},
+  {name:'SNS広告',cost:50000,cust:8,days:21},
+  {name:'地元紙広告',cost:80000,cust:12,days:28},
 ];
 const RENOV_OPTIONS=[
   {name:'カウンター席増設',cost:200000,cust:8,sat:5},
