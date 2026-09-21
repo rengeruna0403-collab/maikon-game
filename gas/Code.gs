@@ -107,6 +107,7 @@ const LEADS_COLS = [
   ['purchaseScore','購入意欲スコア'],
   ['salesPriority','営業優先度'],
   ['actionStatus','対応状況'],
+  ['interestShopOperation','店舗運営に興味あり'],
 ];
 
 const ACTIONS_COLS = [

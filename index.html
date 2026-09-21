@@ -4085,7 +4085,7 @@ function showEndingDiagnosis(stage){
     +'<div style="text-align:center;padding:6px 4px 12px;font-size:12px;color:var(--muted);line-height:2">'
     +'ここまでプレイありがとうございます。<br>あなたの経営結果を保存できます。'
     +'</div>'
-    +'<button class="btn" onclick="showEndingLeadCapture('+stage+')" style="width:100%;padding:14px;font-size:15px;background:var(--gold);color:#fff;border:none;border-radius:10px;font-weight:700;margin-bottom:10px">診断結果を保存する →</button>'
+    +'<button class="btn" onclick="showRealWorldReveal('+stage+')" style="width:100%;padding:14px;font-size:15px;background:var(--gold);color:#fff;border:none;border-radius:10px;font-weight:700;margin-bottom:10px">診断結果を保存する →</button>'
     +'<button class="btn" onclick="enterFreeMode()" style="width:100%;padding:12px;font-size:13px;background:transparent;color:var(--muted);border:1px solid var(--border);border-radius:10px">登録せずに続ける</button>'
     +'</div>';
 
@@ -4105,6 +4105,31 @@ function showEndingDiagnosis(stage){
       if(el) el.style.width = el.dataset.pct + '%';
     });
   }, 900);
+}
+
+// ─────────── 1年目エンディング：現実世界への接続 ───────────
+function showRealWorldReveal(stage){
+  const body = document.getElementById('event-modal-body');
+  body.innerHTML = '<div style="padding:4px">'
+    + '<div style="text-align:center;margin-bottom:16px">'
+    + '<div style="font-size:28px;margin-bottom:8px">🌸</div>'
+    + '<div style="font-size:16px;font-weight:700;margin-bottom:6px">ゲームの世界から、現実へ</div>'
+    + '</div>'
+    + '<div style="background:var(--warm);border-radius:10px;padding:16px;margin-bottom:16px;font-size:13px;line-height:2;color:var(--text)">'
+    + 'このゲームに登場した「舞昆」は、<br>現実にもある商品です。<br><br>'
+    + 'ゲームの中では、<br>お客様の食卓へ舞昆を届けながら、<br>店や人とのご縁を育ててきました。<br><br>'
+    + '実際の舞昆や、<br>それを作っている会社についても<br>見ることができます。'
+    + '</div>'
+    + '<div style="display:flex;flex-direction:column;gap:10px;margin-bottom:16px">'
+    + '<a href="https://www.maikon.jp/" target="_blank" rel="noopener noreferrer"'
+    + ' style="display:block;width:100%;padding:14px;font-size:14px;font-weight:700;background:var(--gr3);color:#fff;border:none;border-radius:10px;text-align:center;text-decoration:none;box-sizing:border-box">'
+    + '🍚 実際の舞昆を見てみる</a>'
+    + '<a href="https://115283.com/about/" target="_blank" rel="noopener noreferrer"'
+    + ' style="display:block;width:100%;padding:14px;font-size:14px;font-weight:700;background:var(--bg2);color:var(--text);border:1px solid var(--border);border-radius:10px;text-align:center;text-decoration:none;box-sizing:border-box">'
+    + '🏢 舞昆が生まれた会社を知る</a>'
+    + '</div>'
+    + '<button class="btn" onclick="showEndingLeadCapture('+stage+')" style="width:100%;padding:14px;font-size:14px;background:var(--gold);color:#fff;border:none;border-radius:10px;font-weight:700">次へ →</button>'
+    + '</div>';
 }
 
 // ─────────── 1年目エンディング：CRM保存フォーム ───────────
@@ -4140,17 +4165,12 @@ function showEndingLeadCapture(){
   const body = document.getElementById('event-modal-body');
   body.innerHTML = '<div style="padding:4px">'
     + '<div style="text-align:center;margin-bottom:14px">'
-    + '<div style="font-size:16px;font-weight:700;margin-bottom:4px">診断結果を保存しませんか？</div>'
+    + '<div style="font-size:16px;font-weight:700;margin-bottom:4px">📋 プレイ記録を残す</div>'
     + '</div>'
-    + '<div style="background:var(--warm);border-radius:10px;padding:14px 16px;margin-bottom:14px;font-size:12px;line-height:2.1">'
-    + 'ゲームはここで一区切りですが、<br>'
-    + 'ここから先は自由に経営を続けられます。<br><br>'
-    + '<span style="font-size:11px;color:var(--muted)">診断結果を保存すると、</span><br>'
-    + '・あなた専用の診断結果<br>'
-    + '・おすすめ舞昆商品 ' + rec.icon + '&nbsp;' + rec.name + '<br>'
-    + '・大家業タイプ診断<br>'
-    + '・今後追加されるイベント情報<br><br>'
-    + '<span style="font-size:11px;color:var(--muted)">を受け取ることができます。</span>'
+    + '<div style="background:var(--warm);border-radius:10px;padding:14px 16px;margin-bottom:14px;font-size:13px;line-height:2">'
+    + 'ここまでのプレイ記録と、<br>'
+    + '興味を持った内容を残すことができます。<br><br>'
+    + '<span style="font-size:11px;color:var(--muted)">メールアドレスの入力は任意です。</span>'
     + '</div>'
     + (nameVal
       ? '<div style="background:var(--bg2);border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:13px">'
@@ -4166,6 +4186,8 @@ function showEndingLeadCapture(){
     + '<label style="display:flex;align-items:flex-start;gap:10px;font-size:13px;cursor:pointer">'
     + '<input id="el-maikon" type="checkbox" style="margin-top:2px;width:16px;height:16px;accent-color:var(--gr3)"><span>🍚 舞昆の商品に興味がある</span></label>'
     + '<label style="display:flex;align-items:flex-start;gap:10px;font-size:13px;cursor:pointer">'
+    + '<input id="el-shop" type="checkbox" style="margin-top:2px;width:16px;height:16px;accent-color:var(--gr3)"><span>🏪 舞昆を届けるお店の運営に興味がある</span></label>'
+    + '<label style="display:flex;align-items:flex-start;gap:10px;font-size:13px;cursor:pointer">'
     + '<input id="el-apt" type="checkbox" style="margin-top:2px;width:16px;height:16px;accent-color:var(--gr3)"><span>🏠 大家業に興味がある</span></label>'
     + '</div>'
     + '<button class="btn" style="width:100%;padding:15px;font-size:15px;background:var(--gr3);color:#fff;border:none;border-radius:10px;font-weight:700;margin-bottom:10px"'
@@ -4180,6 +4202,7 @@ function sendEndingLead(){
   const email  = (document.getElementById('el-email')?.value || '').trim();
   const apt    = document.getElementById('el-apt')?.checked    || false;
   const maikon = document.getElementById('el-maikon')?.checked || false;
+  const shop   = document.getElementById('el-shop')?.checked   || false;
   const line   = document.getElementById('el-line')?.checked   || false;
   const style  = getOwnerStyle() || { key:'balanced', title:'バランス型オーナー' };
   const p      = G.ownerProfile || {};
@@ -4196,8 +4219,9 @@ function sendEndingLead(){
     region:           prof.region || '',
     email,
     line,
-    interestApartment: apt,
-    interestMaikon:   maikon,
+    interestApartment:     apt,
+    interestMaikon:        maikon,
+    interestShopOperation: shop,
     ownerType:        style.title,
     ownerStyleKey:    style.key,
     ownerScore:       G._ownerScore || 0,
@@ -4221,11 +4245,10 @@ function sendEndingLead(){
   const body = document.getElementById('event-modal-body');
   body.innerHTML = '<div style="padding:20px 8px;text-align:center">'
     + '<div style="font-size:44px;margin-bottom:14px">🌸</div>'
-    + '<div style="font-size:17px;font-weight:700;margin-bottom:10px">ありがとうございます！</div>'
+    + '<div style="font-size:17px;font-weight:700;margin-bottom:10px">ありがとうございます</div>'
     + '<div style="font-size:13px;color:var(--muted);line-height:2;margin-bottom:24px">'
-    + '診断結果を保存しました。<br>'
-    + (email ? email + ' へお届けします。<br><br>' : '')
-    + 'これからも舞昆茶屋を育てていきましょう。'
+    + 'プレイ記録を保存しました。<br><br>'
+    + 'このあとも、<br>フリーモードで店を続けることができます。'
     + '</div>'
     + '<button class="btn" style="width:100%;padding:15px;font-size:15px;background:var(--gr3);color:#fff;border:none;border-radius:10px;font-weight:700"'
     + ' onclick="enterFreeMode()">フリーモードへ →</button>'
