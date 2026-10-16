@@ -1,0 +1,923 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>舞昆茶屋 箱庭プロトタイプ Phase 1C</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+
+body{
+  font-family:monospace;
+  background:#111118;
+  color:#b0b0c0;
+  padding:20px;
+  min-height:100vh;
+}
+h1{font-size:13px;margin-bottom:4px;color:#777}
+.desc{font-size:10px;color:#333;margin-bottom:20px}
+.wrap{display:inline-block;margin-right:28px;margin-bottom:20px;vertical-align:top}
+.size-label{font-size:10px;color:#444;margin-bottom:4px}
+.debug{font-size:9px;color:#2a5a2a;margin-top:3px;height:14px}
+
+/* ── CONTAINER ── */
+.miniature{
+  position:relative;overflow:hidden;
+  border-radius:6px;
+  border:1px solid #222230;
+  image-rendering:pixelated;
+  height:180px;
+  background:#f2e8d6; /* fallback */
+}
+
+/* ═══════════════════════════════════════════
+   BACKGROUND LAYERS
+═══════════════════════════════════════════ */
+/* Ceiling – wooden beam strip */
+.bg-ceiling{
+  position:absolute;top:0;left:0;right:0;
+  height:22px;z-index:1;
+  background:linear-gradient(to bottom,#a87840 0%,#c49060 60%,#b88050 100%);
+  border-bottom:3px solid #8a6030;
+}
+/* subtle beam texture */
+.bg-ceiling::after{
+  content:'';position:absolute;inset:0;
+  background:repeating-linear-gradient(
+    90deg,
+    transparent 0,transparent 54px,
+    rgba(0,0,0,.06) 54px,rgba(0,0,0,.06) 56px
+  );
+}
+
+/* Upper wall – light cream */
+.bg-wall-upper{
+  position:absolute;top:25px;left:0;right:0;
+  height:68px;z-index:1;
+  background:#f4ead8;
+}
+
+/* Dado rail – thin wooden strip dividing wall */
+.bg-dado{
+  position:absolute;top:93px;left:0;right:0;
+  height:5px;z-index:2;
+  background:linear-gradient(to bottom,#c0904a,#a07030);
+  box-shadow:0 2px 3px rgba(0,0,0,.12);
+}
+
+/* Lower wall – slightly warmer tone */
+.bg-wall-lower{
+  position:absolute;top:98px;left:0;right:0;bottom:38px;
+  z-index:1;
+  background:#ede0c4;
+}
+
+/* Floor – warm wood planks */
+.bg-floor{
+  position:absolute;bottom:0;left:0;right:0;
+  height:38px;z-index:1;
+  background:#c09048;
+  border-top:3px solid #906828;
+}
+.bg-floor::before{  /* plank grain */
+  content:'';position:absolute;inset:0;
+  background:repeating-linear-gradient(
+    90deg,
+    transparent 0,transparent 43px,
+    rgba(0,0,0,.07) 43px,rgba(0,0,0,.07) 46px
+  );
+}
+.bg-floor::after{  /* floor highlight */
+  content:'';position:absolute;
+  top:0;left:0;right:0;height:4px;
+  background:rgba(255,210,120,.18);
+}
+
+/* ═══════════════════════════════════════════
+   ENTRANCE
+═══════════════════════════════════════════ */
+/* Door frame */
+.door-frame{
+  position:absolute;bottom:0;left:6px;
+  width:32px;height:72px;z-index:3;
+  background:#5a3a18;
+  border-radius:3px 3px 0 0;
+}
+.door-frame::after{  /* frame inner edge highlight */
+  content:'';position:absolute;
+  top:2px;left:2px;right:2px;bottom:0;
+  background:#6e4820;
+  border-radius:2px 2px 0 0;
+}
+/* Door panel */
+.door{
+  position:absolute;bottom:0;left:8px;
+  width:28px;height:68px;z-index:4;
+  background:#8a5a30;
+  border-radius:2px 2px 0 0;
+}
+.door::before{  /* window */
+  content:'';position:absolute;
+  top:6px;left:4px;right:4px;height:20px;
+  background:linear-gradient(135deg,#c8dce8,#a8c8dc);
+  border:1px solid #5a3810;
+  border-radius:1px;
+}
+.door::after{  /* handle */
+  content:'';position:absolute;
+  top:38px;right:5px;
+  width:4px;height:4px;
+  background:#e0c030;
+  border-radius:50%;
+  box-shadow:0 0 0 1px #a08020;
+}
+
+/* Noren – two hanging fabric strips above door */
+.noren{
+  position:absolute;top:22px;left:6px;
+  width:32px;z-index:5;
+  display:flex;gap:2px;
+}
+.noren-strip{
+  flex:1;height:28px;
+  border-radius:0 0 3px 3px;
+  opacity:.9;
+}
+.noren-strip:nth-child(1){background:#8b2020}
+.noren-strip:nth-child(2){background:#7a1e1e}
+
+/* ═══════════════════════════════════════════
+   SHELVES
+═══════════════════════════════════════════ */
+.shelf-unit{
+  position:absolute;z-index:4;
+  background:#7e5830;
+  border-radius:2px 2px 0 0;
+  box-shadow:2px 3px 6px rgba(0,0,0,.18);
+}
+/* shelf top cap */
+.shelf-unit::before{
+  content:'';position:absolute;
+  top:-5px;left:-2px;right:-2px;height:6px;
+  background:#9a7048;
+  border-radius:2px 2px 1px 1px;
+  box-shadow:0 -1px 0 #b88858;
+}
+/* shelf back panel */
+.shelf-unit::after{
+  content:'';position:absolute;
+  top:0;left:0;right:0;bottom:0;
+  background:linear-gradient(to right,
+    rgba(0,0,0,.06) 0,rgba(0,0,0,.06) 2px,
+    transparent 2px,transparent calc(100% - 2px),
+    rgba(0,0,0,.06) calc(100% - 2px));
+}
+/* horizontal shelf boards */
+.shelf-board{
+  position:absolute;left:0;right:0;
+  height:3px;background:#9a7048;
+  box-shadow:0 1px 0 rgba(0,0,0,.1);
+}
+/* shelf items row */
+.shelf-row{
+  position:absolute;left:2px;right:2px;
+  display:flex;gap:2px;align-items:flex-end;
+}
+
+/* ── item shapes ── */
+/* Bottle: neck + body */
+.si-bottle{display:flex;flex-direction:column;align-items:center;flex-shrink:0}
+.sib-neck{width:3px;height:4px;border-radius:1px 1px 0 0}
+.sib-body{width:7px;height:11px;border-radius:1px;margin-top:0;box-shadow:inset -1px 0 0 rgba(0,0,0,.2)}
+/* Jar: rounded top */
+.si-jar{width:8px;height:10px;border-radius:2px;flex-shrink:0;
+  box-shadow:inset -1px -1px 0 rgba(0,0,0,.15),inset 0 2px 0 rgba(255,255,255,.25)}
+/* Box: flat with lid line */
+.si-box{
+  width:9px;height:9px;border-radius:1px;flex-shrink:0;
+  position:relative;
+  box-shadow:inset -1px -2px 0 rgba(0,0,0,.2)
+}
+.si-box::after{content:'';position:absolute;top:2px;left:0;right:0;
+  height:1px;background:rgba(255,255,255,.35)}
+/* Bag: trapezoid via clip-path */
+.si-bag{
+  width:9px;height:12px;flex-shrink:0;
+  clip-path:polygon(12% 0%,88% 0%,100% 100%,0% 100%);
+  box-shadow:none;
+  position:relative;
+}
+/* Gift: box with ribbon */
+.si-gift{
+  width:10px;height:9px;border-radius:1px;flex-shrink:0;
+  position:relative;
+  box-shadow:inset -1px -2px 0 rgba(0,0,0,.15)
+}
+.si-gift::before{content:'';position:absolute;
+  top:0;bottom:0;left:50%;width:1px;
+  background:rgba(255,255,255,.5);transform:translateX(-50%)}
+.si-gift::after{content:'';position:absolute;
+  left:0;right:0;top:50%;height:1px;
+  background:rgba(255,255,255,.5);transform:translateY(-50%)}
+
+/* ═══════════════════════════════════════════
+   COUNTER / REGISTER
+═══════════════════════════════════════════ */
+/* Counter top surface (lighter, sits on top of front) */
+.counter-top{
+  position:absolute;z-index:13;
+  background:#c4a068;
+  border-radius:2px 2px 0 0;
+  box-shadow:0 -1px 0 #d4b078;
+}
+/* Counter front face (darker, higher z so みどり appears behind) */
+.counter-front{
+  position:absolute;z-index:12;
+  background:#6a4820;
+  border-radius:2px;
+  box-shadow:2px 3px 6px rgba(0,0,0,.2);
+}
+/* Register machine */
+.register-machine{
+  position:absolute;z-index:14;
+  background:#22202e;
+  border-radius:2px 2px 1px 1px;
+}
+.register-machine::before{  /* screen */
+  content:'';position:absolute;
+  top:2px;left:2px;right:2px;height:8px;
+  background:#28b828;border-radius:1px;
+  box-shadow:0 0 4px #28b828;
+}
+.register-machine::after{  /* keypad */
+  content:'';position:absolute;
+  bottom:3px;left:2px;right:2px;height:5px;
+  background:#181828;border-radius:1px;
+}
+
+/* ═══════════════════════════════════════════
+   EAT-IN AREA  (floor level, right side)
+═══════════════════════════════════════════ */
+/* Area sign on upper wall */
+.eatin-sign{
+  position:absolute;z-index:3;
+  font-size:6px;color:#907040;
+  letter-spacing:.5px;
+  font-family:monospace;
+  white-space:nowrap;
+}
+
+/* Table top */
+.eatin-table-top{
+  position:absolute;z-index:6;
+  background:#b8864a;
+  border-radius:2px;
+  border-top:2px solid #cca060;
+  box-shadow:0 2px 4px rgba(0,0,0,.2);
+}
+/* Table legs */
+.eatin-table-leg{
+  position:absolute;z-index:5;
+  width:3px;background:#9a6e38;
+  bottom:38px; /* floor level */
+  border-radius:0 0 1px 1px;
+}
+
+/* Chair: seat + backrest as a unit */
+.eatin-chair-wrap{position:absolute;z-index:7}
+.chair-back{
+  width:14px;height:12px;
+  border:2px solid #7a5830;
+  border-bottom:none;
+  border-radius:2px 2px 0 0;
+  background:rgba(180,130,70,.15);
+}
+.chair-seat{
+  width:16px;height:6px;
+  background:#9a7040;
+  border-radius:1px;
+  margin-left:-1px;
+  box-shadow:0 1px 0 #7a5020;
+}
+.chair-legs-row{
+  display:flex;justify-content:space-between;
+  padding:0 2px;
+}
+.chair-leg{
+  width:2px;height:8px;
+  background:#7a5830;
+  border-radius:0 0 1px 1px;
+}
+
+/* ═══════════════════════════════════════════
+   CHARACTERS  (22×34px, arm/leg structure)
+═══════════════════════════════════════════ */
+.character{
+  position:absolute;
+  width:22px;
+  image-rendering:pixelated;
+  z-index:10;
+  opacity:0;
+}
+/* Hair – wider for distinctive silhouette */
+.ch-hair{width:16px;height:5px;margin:0 auto;border-radius:3px 3px 0 0}
+/* Head */
+.ch-head{width:14px;height:10px;margin:0 auto;border-radius:2px}
+/* Middle row: arm | torso | arm */
+.ch-mid{
+  display:flex;justify-content:center;align-items:flex-start;
+  margin-top:1px;
+}
+.ch-arm{width:4px;height:9px;border-radius:0 0 2px 2px;margin-top:2px}
+.ch-torso{width:14px;height:11px;border-radius:1px;position:relative}
+/* みどり apron overlay */
+.char-midori .ch-torso::after{
+  content:'';position:absolute;
+  bottom:0;left:2px;right:2px;top:3px;
+  background:rgba(255,255,255,.2);
+  border-radius:0 0 1px 1px;
+}
+/* Lower row: two legs */
+.ch-legs{display:flex;justify-content:center;gap:2px;margin-top:1px}
+.ch-leg{width:5px;height:7px;border-radius:0 0 2px 2px;transition:height .25s ease}
+
+/* Character label */
+.char-label{
+  position:absolute;top:-10px;left:50%;
+  transform:translateX(-50%);
+  font-size:6px;white-space:nowrap;
+  color:#fff;
+  text-shadow:0 1px 2px #000,0 0 5px rgba(0,0,0,.8);
+  pointer-events:none;
+}
+
+/* ── PALETTES ── */
+.char-midori .ch-hair  {background:#2a1a0c}
+.char-midori .ch-head  {background:#f5c5a0}
+.char-midori .ch-arm   {background:#f5c5a0}
+.char-midori .ch-torso {background:#4a9e6b}
+.char-midori .ch-leg   {background:#2d5c3f}
+
+.char-custa .ch-hair   {background:#1a1008}
+.char-custa .ch-head   {background:#f0b890}
+.char-custa .ch-arm    {background:#f0b890}
+.char-custa .ch-torso  {background:#4a7cb5}
+.char-custa .ch-leg    {background:#354a6e}
+
+.char-custb .ch-hair   {background:#b07828}
+.char-custb .ch-head   {background:#f5c5a0}
+.char-custb .ch-arm    {background:#f5c5a0}
+.char-custb .ch-torso  {background:#c45a7b}
+.char-custb .ch-leg    {background:#5a4070}
+
+/* Sitting pose – shorter legs */
+.character.sitting .ch-leg{height:3px}
+
+/* Idle bob on head */
+@keyframes headbob{
+  0%,100%{transform:translateY(0)}
+  50%     {transform:translateY(-1px)}
+}
+.bobbing .ch-head{animation:headbob 1.15s ease-in-out infinite}
+
+/* ── SPEECH BUBBLE ── */
+.bubble{
+  position:absolute;
+  background:#fff;
+  border:1px solid #bbb;
+  border-radius:4px;
+  padding:2px 5px;
+  font-size:7px;color:#333;
+  white-space:nowrap;
+  opacity:0;
+  transition:opacity .25s;
+  z-index:20;pointer-events:none;
+}
+.bubble::after{
+  content:'';position:absolute;
+  bottom:-5px;left:8px;
+  border:4px solid transparent;
+  border-top-color:#fff;
+  filter:drop-shadow(0 1px 0 #bbb);
+}
+
+/* ═══════════════════════════════════════════
+   SMALL WALL DECORATION
+═══════════════════════════════════════════ */
+.wall-deco{
+  position:absolute;z-index:3;
+  width:16px;height:20px;
+  background:#a87840;
+  border:1px solid #906030;
+  border-radius:1px;
+}
+.wall-deco::before{ /* inner mat */
+  content:'';position:absolute;inset:2px;
+  background:#f0d8a0;
+  border-radius:1px;
+}
+.wall-deco::after{ /* abstract brush stroke */
+  content:'';position:absolute;
+  top:5px;left:3px;right:3px;height:2px;
+  background:#806030;
+  border-radius:1px;
+  box-shadow:0 4px 0 #806030;
+}
+
+/* ─────────────────────────────────────── */
+.info{
+  margin-top:20px;
+  max-width:820px;
+  font-size:10px;line-height:1.6;
+  color:#444;
+  border-top:1px solid #222;
+  padding-top:12px;
+}
+.info b{color:#666}
+</style>
+</head>
+<body>
+
+<h1>舞昆茶屋 箱庭プロトタイプ — Phase 1C</h1>
+<p class="desc">miniature-test.html — 独立試作。index.html / 既存ゲームファイル変更なし。</p>
+
+<div class="wrap">
+  <div class="size-label">339 × 180px（375px スマホ想定）</div>
+  <div class="miniature" id="s339" style="width:339px"></div>
+  <div class="debug" id="d339"></div>
+</div>
+
+<div class="wrap">
+  <div class="size-label">394 × 180px（430px body 想定）</div>
+  <div class="miniature" id="s394" style="width:394px"></div>
+  <div class="debug" id="d394"></div>
+</div>
+
+<div class="info">
+  <b>緑=みどり（レジ担当）/ 青=客A（物販）/ ピンク=客B（イートイン）</b><br>
+  image-rendering:pixelated 適用。キャラは ch-hair/ch-head/ch-arm/ch-torso/ch-leg 構造。
+  Canvas不使用。commit/push なし。
+</div>
+
+<script>
+// ══════════════════════════════════════════════
+//  LAYOUT CONSTANTS  (BASE_W = 339px)
+// ══════════════════════════════════════════════
+const BASE_W = 339;
+
+// x positions (left edge of character bounding box, in base-coord space)
+const PX = {
+  offLeft  : -30,
+  door     :  14,   // inside door
+  shelfA   :  70,   // stop position near shelf A
+  shelfB   : 128,   // stop position near shelf B
+  counterCust: 172, // customer side of counter
+  midoriX  : 204,   // みどり behind counter (left of register, visible above counter)
+  // eat-in furniture (table is the reference; chairs are relative to it)
+  eatinTable      : 262,  // table left edge
+  eatinTableW     :  50,  // table width  → right edge = 312
+  eatinChairLeft  : 266,  // left chair left edge  (inside table width)
+  eatinChairRight : 292,  // right chair left edge (inside table width)
+  // custB sitting point — SEPARATE from furniture coords
+  // center-align: chairLeft + chairW/2 - charW/2 = 266 + 8 - 11 = 263
+  custBSeatX      : 263,
+};
+
+// y = bottom from container bottom (fixed, no scale)
+const PY = {
+  floor   : 38,
+  eatinSit: 42,  // chair seat level for custB
+};
+
+// ══════════════════════════════════════════════
+//  HELPERS
+// ══════════════════════════════════════════════
+const delay = ms => new Promise(r => setTimeout(r, ms));
+
+function mkEl(parent, tag, cls, css = {}) {
+  const d = document.createElement(tag);
+  if (cls) d.className = cls;
+  Object.assign(d.style, css);
+  parent.appendChild(d);
+  return d;
+}
+
+// Walk to x (distance-proportional duration, speed in base-coord units/sec)
+function walkTo(el, x, sc, speed = 95) {
+  const curX = parseFloat(el.style.left || 0) / sc;
+  const dist = Math.abs(x - curX);
+  const dur = Math.max(300, (dist / speed) * 1000);
+  el.style.transition = `left ${dur}ms linear`;
+  el.style.left = (x * sc) + 'px';
+  return delay(dur + 40);
+}
+
+// Walk to x+y simultaneously (x speed governs duration, y eases in same time)
+function walkToXY(el, x, y, sc, speed = 95) {
+  const curX = parseFloat(el.style.left || 0) / sc;
+  const dist = Math.abs(x - curX);
+  const dur = Math.max(400, (dist / speed) * 1000);
+  el.style.transition = `left ${dur}ms linear, bottom ${dur}ms ease`;
+  el.style.left   = (x * sc) + 'px';
+  el.style.bottom = y + 'px';
+  return delay(dur + 40);
+}
+
+function setPos(el, x, y, sc) {
+  el.style.transition = 'none';
+  el.style.left   = (x * sc) + 'px';
+  el.style.bottom = y + 'px';
+}
+function setBottom(el, y, dur = 0) {
+  el.style.transition = dur ? `bottom ${dur}ms ease` : 'none';
+  el.style.bottom = y + 'px';
+}
+function setOpacity(el, v, dur = 200) {
+  el.style.transition = `opacity ${dur}ms`;
+  el.style.opacity = v;
+}
+function face(el, dir) {
+  // flip character; counter-flip the label so it stays readable
+  el.style.transform = dir === 'left' ? 'scaleX(-1)' : 'scaleX(1)';
+  const lbl = el.querySelector('.char-label');
+  if (lbl) lbl.style.transform = dir === 'left'
+    ? 'translateX(-50%) scaleX(-1)'
+    : 'translateX(-50%) scaleX(1)';
+}
+function bob(el, on) {
+  on ? el.classList.add('bobbing') : el.classList.remove('bobbing');
+}
+function sit(el, on) {
+  on ? el.classList.add('sitting') : el.classList.remove('sitting');
+}
+
+// ══════════════════════════════════════════════
+//  BUILD SCENE
+// ══════════════════════════════════════════════
+function buildScene(cid) {
+  const container = document.getElementById(cid);
+  const W = container.offsetWidth;
+  const sc = W / BASE_W;
+  container.innerHTML = '';
+
+  const S = n => (n * sc) + 'px';  // scaled px string
+
+  // ── background layers ──
+  mkEl(container, 'div', 'bg-ceiling');
+  mkEl(container, 'div', 'bg-wall-upper');
+  mkEl(container, 'div', 'bg-dado');
+  mkEl(container, 'div', 'bg-wall-lower');
+  mkEl(container, 'div', 'bg-floor');
+
+  // ── entrance ──
+  mkEl(container, 'div', 'door-frame');
+  mkEl(container, 'div', 'door');
+  // noren hanging above door
+  mkEl(container, 'div', 'noren').innerHTML =
+    '<div class="noren-strip"></div><div class="noren-strip"></div>';
+
+  // small decorative frame on upper wall
+  mkEl(container, 'div', 'wall-deco', {left:S(170), top:'30px'});
+
+  // ── SHELF A ──
+  const sA = mkEl(container, 'div', 'shelf-unit', {
+    left:S(50), bottom:'38px', width:S(50), height:'70px'
+  });
+  // horizontal boards
+  mkEl(sA, 'div', 'shelf-board', {top:'35px'});
+  // top row: bottle, jar, bag, box
+  const rA1 = mkEl(sA, 'div', 'shelf-row', {bottom:'40px'});
+  addItem(rA1, 'bottle', '#9848b0');
+  addItem(rA1, 'jar',    '#d06028');
+  addItem(rA1, 'bottle', '#4878b8');
+  addItem(rA1, 'jar',    '#c08030');
+  // bottom row
+  const rA2 = mkEl(sA, 'div', 'shelf-row', {bottom:'6px'});
+  addItem(rA2, 'bag',    '#d85030');
+  addItem(rA2, 'box',    '#50a050');
+  addItem(rA2, 'gift',   '#e07030');
+  addItem(rA2, 'bag',    '#5060c0');
+
+  // ── SHELF B ──
+  const sB = mkEl(container, 'div', 'shelf-unit', {
+    left:S(114), bottom:'38px', width:S(46), height:'62px'
+  });
+  mkEl(sB, 'div', 'shelf-board', {top:'30px'});
+  const rB1 = mkEl(sB, 'div', 'shelf-row', {bottom:'36px'});
+  addItem(rB1, 'jar',    '#e04040');
+  addItem(rB1, 'bottle', '#40a860');
+  addItem(rB1, 'jar',    '#7040c0');
+  const rB2 = mkEl(sB, 'div', 'shelf-row', {bottom:'6px'});
+  addItem(rB2, 'gift',   '#c84040');
+  addItem(rB2, 'box',    '#4880d0');
+  addItem(rB2, 'bag',    '#c0a030');
+
+  // ── COUNTER + REGISTER ──
+  const ctrLeft = 196;
+  const ctrW    = 64;
+  // top board (z:13, slightly wider/lighter)
+  mkEl(container, 'div', 'counter-top', {
+    left:S(ctrLeft - 2), bottom:'56px', width:S(ctrW + 4), height:'6px'
+  });
+  // front face (z:12 — みどり z:10 goes behind this)
+  mkEl(container, 'div', 'counter-front', {
+    left:S(ctrLeft), bottom:'38px', width:S(ctrW), height:'20px'
+  });
+  // register machine (sits on counter top)
+  mkEl(container, 'div', 'register-machine', {
+    left:S(ctrLeft + 34), bottom:'62px', width:S(22), height:'20px'
+  });
+
+  // ── EAT-IN TABLE + CHAIRS ──
+  // sign on upper wall
+  mkEl(container, 'div', 'eatin-sign', {
+    left:S(PX.eatinTable - 6), top:'32px'
+  }).textContent = 'イートイン';
+
+  // table top
+  mkEl(container, 'div', 'eatin-table-top', {
+    left:S(PX.eatinTable), bottom:'58px',
+    width:S(PX.eatinTableW), height:'12px'
+  });
+  // table legs (4px inset from each edge)
+  mkEl(container, 'div', 'eatin-table-leg', {
+    left:S(PX.eatinTable + 4), height:'20px'
+  });
+  mkEl(container, 'div', 'eatin-table-leg', {
+    left:S(PX.eatinTable + PX.eatinTableW - 8), height:'20px'
+  });
+
+  // left chair — custB sits here; z-index toggled dynamically
+  const ch1 = mkEl(container, 'div', 'eatin-chair-wrap', {
+    left:S(PX.eatinChairLeft), bottom:'38px'
+  });
+  mkEl(ch1, 'div', 'chair-back');
+  mkEl(ch1, 'div', 'chair-seat');
+  const cl1 = mkEl(ch1, 'div', 'chair-legs-row');
+  mkEl(cl1,'div','chair-leg'); mkEl(cl1,'div','chair-leg');
+
+  // right chair (decorative)
+  const ch2 = mkEl(container, 'div', 'eatin-chair-wrap', {
+    left:S(PX.eatinChairRight), bottom:'38px'
+  });
+  mkEl(ch2, 'div', 'chair-back');
+  mkEl(ch2, 'div', 'chair-seat');
+  const cl2 = mkEl(ch2, 'div', 'chair-legs-row');
+  mkEl(cl2,'div','chair-leg'); mkEl(cl2,'div','chair-leg');
+
+  // ── CHARACTERS ──
+  function mkChar(charCls, label, zIdx) {
+    const c = mkEl(container, 'div', 'character ' + charCls);
+    c.innerHTML = `
+      <div class="ch-hair"></div>
+      <div class="ch-head"></div>
+      <div class="ch-mid">
+        <div class="ch-arm"></div>
+        <div class="ch-torso"></div>
+        <div class="ch-arm"></div>
+      </div>
+      <div class="ch-legs">
+        <div class="ch-leg"></div>
+        <div class="ch-leg"></div>
+      </div>
+      <span class="char-label">${label}</span>
+    `;
+    c.style.zIndex = zIdx || '10';
+    return c;
+  }
+
+  // みどり – z:10, partially behind counter-front (z:12)
+  const midori = mkChar('char-midori', 'みどり', 10);
+  setPos(midori, PX.midoriX, 50, sc);  // bottom=50: legs hidden by counter, upper body visible
+  midori.style.opacity = '1';
+  face(midori, 'left');
+
+  // 客A – z:14 (appears in front of counter)
+  const custA = mkChar('char-custa', '客A', 14);
+  setPos(custA, PX.offLeft, PY.floor, sc);
+
+  // 客B – z:11
+  const custB = mkChar('char-custb', '客B', 11);
+  setPos(custB, PX.offLeft - 20, PY.floor, sc);
+
+  // speech bubble above みどり
+  const bubble = mkEl(container, 'div', 'bubble', {
+    left: S(PX.midoriX - 16), bottom: '98px'  // above みどり head (top ~85px)
+  });
+
+  return { container, midori, custA, custB, bubble, sc,
+           eatinChairEl: ch1,
+           _aAtReg: false, _bAtReg: false };
+}
+
+// shelf item factory
+function addItem(row, type, color) {
+  let el;
+  if (type === 'bottle') {
+    el = document.createElement('div');
+    el.className = 'si-bottle';
+    el.innerHTML = `<div class="sib-neck" style="background:${color}"></div>
+                    <div class="sib-body" style="background:${color}"></div>`;
+  } else if (type === 'jar') {
+    el = document.createElement('div');
+    el.className = 'si-jar';
+    el.style.background = color;
+  } else if (type === 'box') {
+    el = document.createElement('div');
+    el.className = 'si-box';
+    el.style.background = color;
+  } else if (type === 'bag') {
+    el = document.createElement('div');
+    el.className = 'si-bag';
+    el.style.background = color;
+  } else if (type === 'gift') {
+    el = document.createElement('div');
+    el.className = 'si-gift';
+    el.style.background = color;
+  }
+  if (el) row.appendChild(el);
+}
+
+// ══════════════════════════════════════════════
+//  ANIMATION LOOPS
+// ══════════════════════════════════════════════
+
+async function loopMidori(st) {
+  const { midori, bubble } = st;
+  bob(midori, true);
+
+  while (true) {
+    await delay(2000 + Math.random() * 1500);
+
+    if (st._aAtReg || st._bAtReg) {
+      bob(midori, false);
+      face(midori, 'left');
+      const phrases = ['いらっしゃいませ！', 'ありがとうございます', 'またどうぞ♪', 'お待たせしました'];
+      bubble.textContent = phrases[Math.floor(Math.random() * phrases.length)];
+      bubble.style.opacity = '1';
+      await delay(1800);
+      bubble.style.opacity = '0';
+      bob(midori, true);
+    } else if (Math.random() > 0.5) {
+      // occasional glance toward shelves
+      bob(midori, false);
+      face(midori, 'right');
+      await delay(700);
+      face(midori, 'left');
+      bob(midori, true);
+    }
+  }
+}
+
+async function loopCustA(st, dbg) {
+  const { custA, sc } = st;
+
+  while (true) {
+    // reset
+    custA.style.transition = 'none';
+    setPos(custA, PX.offLeft, PY.floor, sc);
+    custA.style.opacity = '0';
+    face(custA, 'right');
+    sit(custA, false);
+    bob(custA, false);
+    st._aAtReg = false;
+
+    await delay(1500 + Math.random() * 3000);
+
+    // enter
+    setOpacity(custA, '1', 150);
+    await delay(180);
+    dbg.textContent = '客A: 入店';
+    await walkTo(custA, PX.door + 4, sc, 110);
+
+    // walk to shelf A or B
+    const toShelfB = Math.random() > 0.5;
+    const shelfX = toShelfB ? PX.shelfB : PX.shelfA;
+    dbg.textContent = `客A: 棚${toShelfB ? 'B' : 'A'}へ`;
+    await walkTo(custA, shelfX, sc, 90);
+
+    // browse
+    bob(custA, true);
+    dbg.textContent = `客A: 商品を見ている`;
+    await delay(1500 + Math.random() * 1500);
+    bob(custA, false);
+
+    // walk to register (appears in front of counter, z:14)
+    face(custA, 'right');
+    dbg.textContent = '客A: レジへ';
+    await walkTo(custA, PX.counterCust, sc, 85);
+    st._aAtReg = true;
+    bob(custA, true);
+    dbg.textContent = '客A: 会計中';
+    await delay(1800);
+    bob(custA, false);
+    st._aAtReg = false;
+
+    // exit
+    face(custA, 'left');
+    dbg.textContent = '客A: 退店';
+    await walkTo(custA, PX.door, sc, 100);
+    await walkTo(custA, PX.offLeft - 4, sc, 120);
+    setOpacity(custA, '0', 150);
+    dbg.textContent = '客A: 待機';
+  }
+}
+
+async function loopCustB(st, dbg) {
+  const { custB, sc, eatinChairEl } = st;
+
+  while (true) {
+    // reset
+    custB.style.transition = 'none';
+    setPos(custB, PX.offLeft - 20, PY.floor, sc);
+    custB.style.opacity = '0';
+    face(custB, 'right');
+    sit(custB, false);
+    bob(custB, false);
+    custB.style.zIndex = '11';
+    if (eatinChairEl) eatinChairEl.style.zIndex = '';
+    st._bAtReg = false;
+
+    await delay(4000 + Math.random() * 4000);
+
+    // enter
+    setOpacity(custB, '1', 150);
+    await delay(180);
+    dbg.textContent = '客B: 入店';
+    await walkTo(custB, PX.door + 8, sc, 110);
+
+    // walk to counter to order
+    dbg.textContent = '客B: カウンターへ';
+    await walkTo(custB, PX.counterCust - 8, sc, 88);
+    st._bAtReg = true;
+    bob(custB, true);
+    dbg.textContent = '客B: 注文中';
+    await delay(1200);
+    bob(custB, false);
+    st._bAtReg = false;
+
+    // walk to eat-in: stop just in front of left chair first
+    face(custB, 'right');
+    dbg.textContent = '客B: イートインへ';
+    await walkTo(custB, PX.custBSeatX - 8, sc, 88);
+
+    // small step onto seat position
+    dbg.textContent = '客B: 着席位置へ';
+    await walkTo(custB, PX.custBSeatX, sc, 40);
+
+    // sit: swap z-index so chair renders in front of customer
+    dbg.textContent = '客B: 着席';
+    if (eatinChairEl) eatinChairEl.style.zIndex = '14';
+    custB.style.zIndex = '8';
+    sit(custB, true);
+    setBottom(custB, PY.eatinSit, 250);
+    await delay(300);
+    bob(custB, true);
+    await delay(3000 + Math.random() * 2500);
+    bob(custB, false);
+
+    // stand up: restore z-index
+    dbg.textContent = '客B: 退席';
+    sit(custB, false);
+    setBottom(custB, PY.floor, 300);
+    await delay(250);
+    if (eatinChairEl) eatinChairEl.style.zIndex = '';
+    custB.style.zIndex = '11';
+    await delay(150);
+
+    // small step back before turning
+    await walkTo(custB, PX.custBSeatX - 8, sc, 50);
+
+    face(custB, 'left');
+    dbg.textContent = '客B: 退店へ向かう';
+    await walkTo(custB, PX.door + 4, sc, 90);
+
+    dbg.textContent = '客B: 退店';
+    await walkTo(custB, PX.offLeft - 20, sc, 120);
+    setOpacity(custB, '0', 150);
+    dbg.textContent = '客B: 待機';
+  }
+}
+
+// ══════════════════════════════════════════════
+//  INIT
+// ══════════════════════════════════════════════
+function initStore(cid, dbgId, startDelay) {
+  const dbg = document.getElementById(dbgId);
+  dbg.textContent = '準備中...';
+  setTimeout(() => {
+    const st = buildScene(cid);
+    dbg.textContent = '営業中';
+    loopMidori(st).catch(console.error);
+    loopCustA(st, dbg).catch(console.error);
+    setTimeout(() => loopCustB(st, dbg).catch(console.error), 2500);
+  }, startDelay);
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+  initStore('s339', 'd339', 100);
+  initStore('s394', 'd394', 500);
+});
+</script>
+</body>
+</html>
