@@ -4758,6 +4758,891 @@ const SEASON_STORE_THEME = {
     floorDay:'rgba(80,100,150,.35)', floorNight:'rgba(50,70,120,.45)' },
 };
 
+// ══════════════════════════════════════════════════════════════
+//  STORE MINIATURE  (feature/store-miniature)
+//  READ-ONLY rendering — zero game-state mutations.
+//  DEV_MODE only; production falls through to _renderStoreScene.
+// ══════════════════════════════════════════════════════════════
+
+function _ensureMiniCss(){
+  if(document.getElementById('_mini_css')) return;
+  const st=document.createElement('style');
+  st.id='_mini_css';
+  st.textContent=`
+.mini-container{position:relative;overflow:hidden;border-radius:6px;image-rendering:pixelated}
+
+/* === 背景 === */
+.mini-bg-ceiling{position:absolute;top:0;left:0;right:0;height:22px;z-index:1;background:linear-gradient(to bottom,#8c6030 0%,#a87840 55%,#9a7038 100%);border-bottom:3px solid #7a5228}
+.mini-bg-ceiling::after{content:'';position:absolute;inset:0;background:repeating-linear-gradient(90deg,rgba(0,0,0,.14) 0,rgba(0,0,0,.14) 2px,transparent 2px,transparent 52px,rgba(0,0,0,.09) 52px,rgba(0,0,0,.09) 54px)}
+.mini-bg-wall-upper{position:absolute;top:25px;left:0;right:0;height:68px;z-index:1;background:#f0e4cc}
+.mini-bg-wall-upper::after{content:'';position:absolute;inset:0;background:repeating-linear-gradient(180deg,transparent 0,transparent 11px,rgba(0,0,0,.018) 11px,rgba(0,0,0,.018) 12px)}
+.mini-bg-dado{position:absolute;top:93px;left:0;right:0;height:5px;z-index:2;background:linear-gradient(to bottom,#c89050,#8a5a28);box-shadow:0 2px 3px rgba(0,0,0,.2)}
+.mini-bg-wall-lower{position:absolute;top:98px;left:0;right:0;bottom:38px;z-index:1;background:#ecdfc0}
+.mini-bg-floor{position:absolute;bottom:0;left:0;right:0;height:38px;z-index:1;background:linear-gradient(to bottom,#c09448 0%,#b07838 60%,#a07030 100%);border-top:3px solid #8a5a20}
+.mini-bg-floor::before{content:'';position:absolute;inset:0;background:repeating-linear-gradient(90deg,transparent 0,transparent 41px,rgba(0,0,0,.15) 41px,rgba(0,0,0,.15) 43px,transparent 43px,transparent 84px,rgba(0,0,0,.08) 84px,rgba(0,0,0,.08) 86px)}
+.mini-bg-floor::after{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:rgba(255,210,100,.14)}
+
+/* === ドア（非表示・アニメーション構造は維持） === */
+.mini-door-frame,.mini-door{display:none}
+/* のれん：掛け棒＋布2枚 */
+.mini-noren{position:absolute;bottom:36px;left:4px;width:42px;z-index:5;display:flex;flex-direction:column;align-items:stretch}
+/* 掛け棒 */
+.mini-noren::before{content:'';display:block;height:3px;background:linear-gradient(to right,#5a3808,#9a6830,#b07838,#9a6830,#5a3808);border-radius:2px;margin-bottom:0;box-shadow:0 1px 2px rgba(0,0,0,.4),0 0 0 1px rgba(0,0,0,.2)}
+/* 布帯をflexで並べる */
+.mini-noren-strips{display:flex;gap:2px}
+.mini-noren-strip{flex:1;height:38px;border-radius:0 0 4px 4px;position:relative;overflow:hidden}
+/* 左布 */
+.mini-noren-strip:nth-child(1){background:linear-gradient(to bottom,#7a1a1a 0%,#8c2020 40%,#701818 100%)}
+/* 右布 */
+.mini-noren-strip:nth-child(2){background:linear-gradient(to bottom,#721818 0%,#841e1e 40%,#681616 100%)}
+/* 白い花紋（上部中央） */
+.mini-noren-strip:nth-child(1)::before{content:'';position:absolute;top:6px;left:50%;transform:translateX(-50%);width:7px;height:7px;background:radial-gradient(circle at 50% 50%,rgba(255,248,220,.85) 25%,transparent 26%),radial-gradient(circle at 50% 15%,rgba(255,248,220,.7) 18%,transparent 19%),radial-gradient(circle at 85% 35%,rgba(255,248,220,.7) 18%,transparent 19%),radial-gradient(circle at 85% 65%,rgba(255,248,220,.7) 18%,transparent 19%),radial-gradient(circle at 50% 85%,rgba(255,248,220,.7) 18%,transparent 19%),radial-gradient(circle at 15% 65%,rgba(255,248,220,.7) 18%,transparent 19%),radial-gradient(circle at 15% 35%,rgba(255,248,220,.7) 18%,transparent 19%)}
+/* 縦の中心線（僅かな色差で自然な2枚感） */
+.mini-noren-strip:nth-child(2)::before{content:'';position:absolute;top:6px;left:50%;transform:translateX(-50%);width:5px;height:5px;background:radial-gradient(circle,rgba(255,248,220,.6) 30%,transparent 31%);box-shadow:0 4px 0 rgba(255,248,220,.4),0 8px 0 rgba(255,248,220,.25)}
+
+/* === 商品棚 === */
+.mini-shelf-unit{position:absolute;z-index:4;background:linear-gradient(to right,#4e3010 0%,#7a5530 8%,#7e5830 85%,#4e3010 100%);border-radius:2px 2px 0 0;box-shadow:3px 4px 8px rgba(0,0,0,.28),inset 0 0 12px rgba(0,0,0,.12)}
+.mini-shelf-unit::before{content:'';position:absolute;top:-5px;left:-2px;right:-2px;height:6px;background:linear-gradient(to bottom,#c09870,#9a7248);border-radius:2px 2px 1px 1px;box-shadow:0 -1px 0 #d0a870}
+.mini-shelf-unit::after{content:'';position:absolute;inset:0;background:repeating-linear-gradient(180deg,rgba(0,0,0,.055) 0,rgba(0,0,0,.055) 1px,transparent 1px,transparent 6px);pointer-events:none;border-radius:2px 2px 0 0}
+.mini-shelf-board{position:absolute;left:0;right:0;height:4px;background:linear-gradient(to bottom,#a87848,#8a5e30);box-shadow:0 1px 0 rgba(0,0,0,.18),0 -1px 0 rgba(255,255,255,.12)}
+.mini-shelf-row{position:absolute;left:2px;right:2px;display:flex;gap:2px;align-items:flex-end}
+
+/* === 商品 === */
+.mini-si-img{flex-shrink:0;display:block;image-rendering:pixelated}
+.mini-si-akafuji  {height:15px;width:10px}
+.mini-si-dashipack{height:15px;width:12px}
+.mini-si-dashisoy {height:18px;width:9px}
+.mini-si-giftbox  {height:12px;width:12px}
+.mini-si-gift     {height:14px;width:14px}
+.mini-si-kombu    {height:15px;width:13px}
+
+/* === カウンター === */
+.mini-counter-top{position:absolute;z-index:13;background:linear-gradient(to right,#a87840,#c8a860,#c4a468,#b88848,#a87840);border-radius:2px 2px 0 0;border-top:1px solid #d8b878;box-shadow:0 -1px 0 #d8b868,0 2px 4px rgba(0,0,0,.18)}
+.mini-counter-front{position:absolute;z-index:12;background:linear-gradient(to right,#5a3810,#7a5030,#724820,#5a3810);border-radius:2px;box-shadow:2px 3px 6px rgba(0,0,0,.25),inset 1px 0 0 rgba(255,255,255,.08)}
+.mini-counter-front::before{content:'';position:absolute;top:4px;left:4px;right:4px;height:1px;background:rgba(255,255,255,.1)}
+.mini-counter-front::after{content:'';position:absolute;bottom:4px;left:4px;right:4px;height:1px;background:rgba(255,255,255,.07)}
+
+/* === レジ === */
+.mini-register{position:absolute;z-index:14;background:linear-gradient(to bottom,#343048,#262238);border-radius:3px 3px 1px 1px;box-shadow:1px 2px 4px rgba(0,0,0,.4),inset 1px 0 0 rgba(255,255,255,.08)}
+.mini-register::before{content:'';position:absolute;top:2px;left:2px;right:2px;height:7px;background:linear-gradient(to bottom,#1ea828,#28c030);border-radius:1px;box-shadow:0 0 5px rgba(40,192,48,.7)}
+.mini-register::after{content:'';position:absolute;bottom:2px;left:2px;right:2px;height:6px;background:#181828;border-radius:1px;box-shadow:2px 1px 0 rgba(255,255,255,.2),5px 1px 0 rgba(255,255,255,.2),8px 1px 0 rgba(255,255,255,.2),2px 3px 0 rgba(255,255,255,.15),5px 3px 0 rgba(255,255,255,.15),8px 3px 0 rgba(255,255,255,.15)}
+
+/* === イートイン === */
+.mini-eatin-sign{position:absolute;z-index:3;font-size:6px;color:#7a5830;letter-spacing:.5px;font-family:monospace;white-space:nowrap;text-shadow:0 1px 0 rgba(255,255,255,.5)}
+.mini-table-top{position:absolute;z-index:6;background:linear-gradient(to right,#a87038,#c8925a,#c4904e,#b07040,#a07038);border-radius:2px;border-top:2px solid #d8a860;box-shadow:0 3px 5px rgba(0,0,0,.25),inset 0 1px 0 rgba(255,255,255,.2)}
+.mini-table-leg{position:absolute;z-index:5;width:3px;background:linear-gradient(to right,#7a5028,#9a6838,#8a5c2c);bottom:38px;border-radius:0 0 1px 1px;box-shadow:1px 0 0 rgba(0,0,0,.15)}
+.mini-chair-wrap{position:absolute;z-index:7}
+.mini-chair-back{width:14px;height:12px;border:2px solid #6a4820;border-bottom:none;border-radius:3px 3px 0 0;background:linear-gradient(to bottom,#9a6e40,#7e5030);box-shadow:inset 0 1px 0 rgba(255,255,255,.15)}
+.mini-chair-seat{width:16px;height:7px;background:linear-gradient(to bottom,#c08848,#986030);border-radius:2px;margin-left:-1px;box-shadow:0 1px 0 #7a4820,inset 0 1px 0 rgba(255,255,255,.2)}
+.mini-chair-legs-row{display:flex;justify-content:space-between;padding:0 2px}
+.mini-chair-leg{width:2px;height:8px;background:linear-gradient(to right,#7a5428,#9a6838);border-radius:0 0 1px 1px}
+
+/* === 人物 sprite === */
+.mini-char{position:absolute;width:30px;height:46px;image-rendering:pixelated}
+.mini-ch-sprite{display:block;width:30px;height:46px;background-repeat:no-repeat;image-rendering:pixelated}
+.mini-sp-midori{background-image:url(assets/miniature/chars/midori.png);background-size:30px 46px;background-position:0 0}
+.mini-sp-owner{}
+.mini-sp-custa {background-image:url(assets/miniature/chars/cust_a.png);background-size:90px 46px;background-position:0 0}
+.mini-sp-custb {background-image:url(assets/miniature/chars/cust_b.png);background-size:120px 46px;background-position:0 0}
+@keyframes mini-spritebob{0%,100%{transform:translateY(0)}50%{transform:translateY(-1px)}}
+.mini-char.mini-bobbing .mini-ch-sprite{animation:mini-spritebob 1.15s ease-in-out infinite}
+@keyframes mini-walk-cycle{from{background-position:-30px 0}to{background-position:-90px 0}}
+.mini-char.mini-walking .mini-ch-sprite.mini-sp-custa{animation:mini-walk-cycle 0.50s steps(2) infinite;transform:scaleX(-1)}
+.mini-char.mini-walking .mini-ch-sprite.mini-sp-custb{animation:mini-walk-cycle 0.50s steps(2) infinite}
+.mini-char.mini-sitting .mini-ch-sprite.mini-sp-custb{background-position:-90px 0;animation:none}
+.mini-char.mini-sitting.mini-bobbing .mini-ch-sprite.mini-sp-custb{animation:mini-spritebob 1.15s ease-in-out infinite}
+.mini-label{position:absolute;top:-10px;left:50%;transform:translateX(-50%);font-size:6px;white-space:nowrap;color:#fff;text-shadow:0 1px 2px #000;pointer-events:none}
+.mini-bubble{position:absolute;background:#fff;border:1px solid #bbb;border-radius:4px;padding:2px 5px;font-size:7px;color:#333;white-space:nowrap;opacity:0;transition:opacity .25s;z-index:20;pointer-events:none}
+.mini-bubble::after{content:'';position:absolute;bottom:-5px;left:8px;border:4px solid transparent;border-top-color:#fff;filter:drop-shadow(0 1px 0 #bbb)}
+
+/* === 壁装飾（額） === */
+.mini-wall-deco{position:absolute;z-index:3;width:18px;height:22px;background:#7a5428;border:2px solid #5a3a18;border-radius:1px;box-shadow:1px 2px 4px rgba(0,0,0,.25)}
+.mini-wall-deco::before{content:'';position:absolute;inset:2px;background:#f8f0d8;border-radius:1px}
+.mini-wall-deco::after{content:'';position:absolute;top:5px;left:4px;right:4px;height:1px;background:#907050;box-shadow:0 3px 0 #907050,0 6px 0 rgba(144,112,80,.5),1px 9px 0 rgba(144,112,80,.38),-1px 12px 0 rgba(144,112,80,.28)}
+/* 食器（配膳演出）— 湯飲み＋小皿 */
+.mini-food{position:absolute;opacity:0;transition:opacity 0.45s;pointer-events:none;z-index:7;width:14px;height:12px}
+/* 湯飲み本体（茶筒形） */
+.mini-food::before{content:'';position:absolute;top:0;left:3px;width:8px;height:9px;background:linear-gradient(to right,#a06030 0%,#c87840 40%,#e8a860 55%,#c07030 80%,#8a4820 100%);border-radius:1px 1px 3px 3px;box-shadow:0 1px 3px rgba(0,0,0,.35)}
+/* 小皿（楕円形・乳白） */
+.mini-food::after{content:'';position:absolute;bottom:0;left:0;width:14px;height:4px;background:linear-gradient(to bottom,#f5ede0 0%,#d4c4a0 100%);border-radius:40%;box-shadow:0 1px 2px rgba(0,0,0,.3)}
+/* PNG食器（背景画像）— mini-food-img クラスが付いた場合に適用 */
+.mini-food.mini-food-img{width:32px;height:32px;background-repeat:no-repeat;background-position:center bottom;background-size:32px 32px;image-rendering:pixelated}
+.mini-food::before,.mini-food::after{display:none}
+.mini-food-onigiri{background-image:url(assets/miniature/food/onigiri.png)}
+.mini-food-ochazuke{background-image:url(assets/miniature/food/ochazuke.png)}
+.mini-food-konbucha{background-image:url(assets/miniature/food/konbucha.png)}
+.mini-food-lunchplate{background-image:url(assets/miniature/food/lunch_plate.png)}
+.mini-food-breakfast{background-image:url(assets/miniature/food/breakfast.png)}
+.mini-food-empty-onigiri{background-image:url(assets/miniature/food/empty_onigiri.png)}
+.mini-food-empty-ochazuke{background-image:url(assets/miniature/food/empty_ochazuke.png)}
+.mini-food-empty-konbucha{background-image:url(assets/miniature/food/empty_konbucha.png)}
+.mini-food-empty-lunchplate{background-image:url(assets/miniature/food/empty_lunch_plate.png)}
+.mini-food-empty-breakfast{background-image:url(assets/miniature/food/empty_breakfast.png)}
+`;
+  document.head.appendChild(st);
+}
+
+// Returns true if the store currently offers any eat-in menu item.
+// s.menu is an array of name-strings; type info lives in the catalog constants.
+function _hasEatInMenu(s){
+  // s.menu contains only eatIn names (same source as game's _activeEatIn check)
+  return !!(s && (s.menu||[]).length);
+}
+
+// Map s.customers → visual bustle level (0-4). Does NOT change s.customers.
+function _bustleLevel(s){
+  const c=s.customers||0;
+  if(c<=0)  return 0;
+  if(c<=7)  return 1;
+  if(c<=17) return 2;
+  if(c<=27) return 3;
+  return 4;
+}
+
+// ── miniature DOM/animation helpers ──
+const _mDelay=ms=>new Promise(r=>setTimeout(r,ms));
+
+function _mMkEl(parent,tag,cls,css){
+  const d=document.createElement(tag);
+  if(cls) d.className=cls;
+  if(css) Object.assign(d.style,css);
+  parent.appendChild(d);
+  return d;
+}
+
+function _mWalkTo(el,x,sc,speed){
+  speed=speed||95;
+  const curX=parseFloat(el.style.left||0)/sc;
+  const dist=Math.abs(x-curX);
+  if(dist<1) return Promise.resolve();
+  _mFace(el, x>curX ? 'right' : 'left');
+  const dur=Math.max(300,dist/speed*1000);
+  el.classList.add('mini-walking');
+  el.style.transition=`left ${dur}ms linear`;
+  el.style.left=(x*sc)+'px';
+  return _mDelay(dur+40).then(()=>{ el.classList.remove('mini-walking'); });
+}
+
+function _mSetPos(el,x,y,sc){
+  el.style.transition='none';
+  el.style.left=(x*sc)+'px';
+  el.style.bottom=y+'px';
+}
+
+function _mSetBottom(el,y,dur){
+  el.style.transition=dur?`bottom ${dur}ms ease`:'none';
+  el.style.bottom=y+'px';
+}
+
+function _mSetOpacity(el,v,dur){
+  el.style.transition=`opacity ${dur||200}ms`;
+  el.style.opacity=v;
+}
+
+function _mFace(el,dir){
+  // PNG chars face LEFT by default; right=flip, left=no-flip
+  el.style.transform=dir==='right'?'scaleX(-1)':'scaleX(1)';
+  const lbl=el.querySelector('.mini-label');
+  if(lbl) lbl.style.transform=dir==='right'
+    ?'translateX(-50%) scaleX(-1)'
+    :'translateX(-50%) scaleX(1)';
+}
+
+function _mBob(el,on){ on?el.classList.add('mini-bobbing'):el.classList.remove('mini-bobbing'); }
+function _mSit(el,on){ on?el.classList.add('mini-sitting'):el.classList.remove('mini-sitting'); }
+
+// Build all DOM elements inside container. Returns state object for loops.
+function _buildMiniScene(container,showStaff,store){
+  const W=container.offsetWidth||339;
+  const sc=W/339;
+  const S=n=>(n*sc)+'px';
+  const MPX={
+    offLeft:-30,door:14,doorCX:22,doorCX_char:11,shelfA:70,shelfB:128,counterCust:172,midoriX:204,
+    eatinTable:262,eatinTableW:50,eatinChairLeft:266,eatinChairRight:292,custBSeatX:263,
+  };
+  const MPY={floor:36,eatinSit:42,entryOutside:8};
+
+  _mMkEl(container,'div','mini-bg-ceiling');
+  _mMkEl(container,'div','mini-bg-wall-upper');
+  _mMkEl(container,'div','mini-bg-dado');
+  _mMkEl(container,'div','mini-bg-wall-lower');
+  _mMkEl(container,'div','mini-bg-floor');
+  _mMkEl(container,'div','mini-door-frame');
+  _mMkEl(container,'div','mini-door');
+  _mMkEl(container,'div','mini-noren').innerHTML=
+    '<div class="mini-noren-strips"><div class="mini-noren-strip"></div><div class="mini-noren-strip"></div></div>';
+  _mMkEl(container,'div','mini-wall-deco',{left:S(170),top:'30px'});
+
+  const _miniProdSrc={akafuji:'akafuji_bag.png',dashipack:'dashi_pack.png',dashisoy:'dashi_shoyu.png',kombu:'shiofuki_kombu.png'};
+  function _addItem(row,type){
+    const el=document.createElement('img');
+    el.src='assets/miniature/products/'+(_miniProdSrc[type]||'');
+    el.className='mini-si-img mini-si-'+type;
+    el.draggable=false;
+    row.appendChild(el);
+  }
+  const _uProds=G.unlockedProducts||[];
+  const _prodCount=_uProds.length;
+  const _tier=_prodCount<=2?1:_prodCount===3?'1b':_prodCount===4?2:_prodCount<=6?3:4;
+  const _shelfLayouts={
+    '1': [['akafuji','dashipack'],['dashisoy'],[],[]],
+    '1b':[['akafuji','dashipack','dashisoy'],['kombu','akafuji'],[],[]],
+    '2': [['akafuji','dashipack','dashisoy'],['kombu','akafuji'],['dashipack','kombu'],['dashisoy']],
+    '3': [['akafuji','dashipack','dashisoy'],['kombu','akafuji','dashipack'],['dashisoy','kombu','akafuji'],['dashipack','dashisoy']],
+    '4': [['dashisoy','akafuji','dashipack'],['akafuji','kombu','dashisoy'],['dashipack','kombu','dashisoy'],['akafuji','kombu','dashipack']],
+  };
+  const _rows=_shelfLayouts[_tier]||_shelfLayouts['1'];
+
+  const sA=_mMkEl(container,'div','mini-shelf-unit',{left:S(50),bottom:'38px',width:S(50),height:'70px'});
+  _mMkEl(sA,'div','mini-shelf-board',{top:'35px'});
+  const rA1=_mMkEl(sA,'div','mini-shelf-row',{bottom:'35px'});
+  _rows[0].forEach(t=>_addItem(rA1,t));
+  const rA2=_mMkEl(sA,'div','mini-shelf-row',{bottom:'0px'});
+  _rows[1].forEach(t=>_addItem(rA2,t));
+
+  const sB=_mMkEl(container,'div','mini-shelf-unit',{left:S(114),bottom:'38px',width:S(46),height:'62px'});
+  _mMkEl(sB,'div','mini-shelf-board',{top:'30px'});
+  const rB1=_mMkEl(sB,'div','mini-shelf-row',{bottom:'32px'});
+  _rows[2].forEach(t=>_addItem(rB1,t));
+  const rB2=_mMkEl(sB,'div','mini-shelf-row',{bottom:'0px'});
+  _rows[3].forEach(t=>_addItem(rB2,t));
+
+  const cL=196,cW=64;
+  _mMkEl(container,'div','mini-counter-top',  {left:S(cL-2),bottom:'56px',width:S(cW+4),height:'6px'});
+  _mMkEl(container,'div','mini-counter-front',{left:S(cL),  bottom:'38px',width:S(cW),  height:'20px'});
+  _mMkEl(container,'div','mini-register',     {left:S(cL+34),bottom:'62px',width:S(22), height:'20px'});
+
+  _mMkEl(container,'div','mini-eatin-sign',{left:S(MPX.eatinTable-6),top:'32px'}).textContent='イートイン';
+  _mMkEl(container,'div','mini-table-top', {left:S(MPX.eatinTable),bottom:'58px',width:S(MPX.eatinTableW),height:'12px'});
+  _mMkEl(container,'div','mini-table-leg', {left:S(MPX.eatinTable+4),height:'20px'});
+  _mMkEl(container,'div','mini-table-leg', {left:S(MPX.eatinTable+MPX.eatinTableW-8),height:'20px'});
+
+  function mkChair(x){
+    const w=_mMkEl(container,'div','mini-chair-wrap',{left:S(x),bottom:'38px'});
+    _mMkEl(w,'div','mini-chair-back');_mMkEl(w,'div','mini-chair-seat');
+    const lr=_mMkEl(w,'div','mini-chair-legs-row');
+    _mMkEl(lr,'div','mini-chair-leg');_mMkEl(lr,'div','mini-chair-leg');
+    return w;
+  }
+  const ch1=mkChair(MPX.eatinChairLeft);
+  mkChair(MPX.eatinChairRight);
+
+  function mkChar(colorCls,label,zIdx){
+    const c=_mMkEl(container,'div','mini-char '+colorCls);
+    const spMap={'mini-col-midori':'mini-sp-midori','mini-col-owner':'mini-sp-owner','mini-col-custa':'mini-sp-custa','mini-col-custb':'mini-sp-custb'};
+    const spCls=spMap[colorCls]||'mini-sp-midori';
+    c.innerHTML=`<div class="mini-ch-sprite ${spCls}"></div><span class="mini-label">${label}</span>`;
+    c.style.zIndex=zIdx;
+    c.style.opacity='0';
+    return c;
+  }
+
+  // staff at register (みどり or owner, depending on showStaff)
+  const staffCls  = showStaff.owner ? 'mini-col-owner' : 'mini-col-midori';
+  const staffLabel= showStaff.owner ? 'オーナー' : 'みどり';
+  const midori=mkChar(staffCls,staffLabel,'10');
+  if(showStaff.midori){
+    _mSetPos(midori,MPX.midoriX,50,sc);
+    midori.style.opacity='1';
+    _mFace(midori,'left');
+  }
+
+  const custA=mkChar('mini-col-custa','客A','14');
+  _mSetPos(custA,MPX.doorCX_char,MPY.entryOutside,sc);
+  const custB=mkChar('mini-col-custb','客B','11');
+  _mSetPos(custB,MPX.doorCX_char,MPY.entryOutside,sc);
+
+  const bubble=_mMkEl(container,'div','mini-bubble',{left:S(MPX.midoriX-16),bottom:'98px'});
+
+  // 食器（配膳演出用）— 着席後の配膳タイミングで表示
+  const foodIn=_mMkEl(container,'div','mini-food mini-food-in',{left:S(MPX.eatinTable+6),bottom:'65px'});
+
+  return {container,sc,midori,custA,custB,bubble,ch1,MPX,MPY,showStaff,foodIn,store,_aAtReg:false,_bAtReg:false,_midoriPhase:'idle'};
+}
+
+// ── animation loops — exit when container leaves DOM ──
+
+async function _loopMidoriMini(st){
+  const {container,midori,bubble}=st;
+  while(container.isConnected){
+    await _mDelay(2000+Math.random()*1500);
+    if(!container.isConnected) break;
+    if(st._aAtReg||st._bAtReg){
+      _mFace(midori,'left');
+      const p=['いらっしゃいませ！','ありがとうございます','またどうぞ♪'];
+      bubble.textContent=p[Math.floor(Math.random()*p.length)];
+      bubble.style.opacity='1';
+      await _mDelay(1800);
+      if(!container.isConnected) break;
+      bubble.style.opacity='0';
+    } else if(Math.random()>.5){
+      _mFace(midori,'right');
+      await _mDelay(700);
+      if(!container.isConnected) break;
+      _mFace(midori,'left');
+    }
+  }
+}
+
+// Door entry: character rises from outside (z behind door) to floor level; head peeks above door top.
+// normalZ: z-index to restore after entry (e.g. '14' or '11').
+async function _mEnterDoor(el,insideY,normalZ){
+  el.style.zIndex='2';                        // behind door (door z:3-4)
+  _mSetOpacity(el,'1',150); await _mDelay(200); // fade in; label/hair visible above door in last phase of rise
+  _mSetBottom(el,insideY,400); await _mDelay(450); // rise: head barely peeks above door top at end
+  el.style.zIndex=normalZ;                    // restore normal z
+}
+// Door exit: character sinks from floor to outside behind door, then fades.
+async function _mLeaveDoor(el,outsideY){
+  el.style.zIndex='2';                        // behind door
+  _mSetBottom(el,outsideY,400); await _mDelay(450); // sink: disappears behind door
+  _mSetOpacity(el,'0',150); await _mDelay(180);
+}
+
+async function _loopCustAMini(st,startDelay){
+  const {container,custA,sc}=st;
+  const PX=st.MPX,PY=st.MPY;
+  if(startDelay) await _mDelay(startDelay);
+  while(container.isConnected){
+    custA.style.transition='none';
+    _mSetPos(custA,PX.doorCX_char,PY.entryOutside,sc); // centered on door
+    custA.style.opacity='0'; custA.style.zIndex='14';
+    _mFace(custA,'right'); _mSit(custA,false);
+    st._aAtReg=false;
+    await _mDelay(1500+Math.random()*3000);
+    if(!container.isConnected) break;
+    await _mEnterDoor(custA,PY.floor,'14');
+    if(!container.isConnected) break;
+    await _mWalkTo(custA,Math.random()>.5?PX.shelfB:PX.shelfA,sc,90);
+    if(!container.isConnected) break;
+    await _mDelay(1500+Math.random()*1500); if(!container.isConnected) break;
+    await _mWalkTo(custA,PX.counterCust,sc,85);
+    if(!container.isConnected) break;
+    _mFace(custA,'right');
+    st._aAtReg=true; await _mDelay(1800); if(!container.isConnected) break;
+    st._aAtReg=false;
+    await _mWalkTo(custA,PX.doorCX_char,sc,100); if(!container.isConnected) break;
+    await _mLeaveDoor(custA,PY.entryOutside);
+  }
+}
+
+// みどり在勤+hasEatIn 時、_loopCustAMini の代替。みどりが空くまでレジ前で待機してから会計演出を行う
+async function _loopCustAMidori(st, startDelay){
+  const {container,custA,bubble,sc}=st;
+  const PX=st.MPX, PY=st.MPY;
+  await _mDelay(startDelay||0);
+  while(container.isConnected){
+    custA.style.transition='none';
+    _mSetPos(custA,PX.doorCX_char,PY.entryOutside,sc);
+    custA.style.opacity='0'; custA.style.zIndex='14';
+    _mFace(custA,'right'); _mSit(custA,false);
+    st._aAtReg=false;
+    await _mDelay(1500+Math.random()*3000); if(!container.isConnected) break;
+    await _mEnterDoor(custA,PY.floor,'14'); if(!container.isConnected) break;
+    await _mWalkTo(custA,Math.random()>.5?PX.shelfB:PX.shelfA,sc,90); if(!container.isConnected) break;
+    await _mDelay(1500+Math.random()*1500); if(!container.isConnected) break;
+    await _mWalkTo(custA,PX.counterCust,sc,85); if(!container.isConnected) break;
+    _mFace(custA,'right');
+    while(st._midoriPhase!=='idle'){ await _mDelay(200); if(!container.isConnected) break; }
+    if(!container.isConnected) break;
+    st._midoriPhase='checkout';
+    try{
+      const _aPh=['いらっしゃいませ！','ようこそ！','いらっしゃい♪'];
+      bubble.style.left=((PX.midoriX-16)*sc)+'px';
+      bubble.style.bottom='98px';
+      bubble.textContent=_aPh[Math.floor(Math.random()*_aPh.length)];
+      bubble.style.opacity='1';
+      st._aAtReg=true; await _mDelay(2000); if(!container.isConnected) break;
+      st._aAtReg=false;
+      bubble.style.opacity='0';
+    } finally {
+      st._midoriPhase='idle';
+    }
+    await _mWalkTo(custA,PX.doorCX_char,sc,100); if(!container.isConnected) break;
+    await _mLeaveDoor(custA,PY.entryOutside); if(!container.isConnected) break;
+  }
+}
+
+async function _loopCustBMini(st){
+  const {container,custB,ch1,sc}=st;
+  const PX=st.MPX,PY=st.MPY;
+  while(container.isConnected){
+    custB.style.transition='none';
+    _mSetPos(custB,PX.doorCX_char,PY.entryOutside,sc); // centered on door
+    custB.style.opacity='0'; custB.style.zIndex='11';
+    _mFace(custB,'right'); _mSit(custB,false);
+    if(ch1) ch1.style.zIndex='';
+    st._bAtReg=false;
+    await _mDelay(4000+Math.random()*4000);
+    if(!container.isConnected) break;
+    await _mEnterDoor(custB,PY.floor,'11');
+    if(!container.isConnected) break;
+    await _mWalkTo(custB,PX.counterCust-8,sc,88); if(!container.isConnected) break;
+    _mFace(custB,'right');
+    st._bAtReg=true; await _mDelay(1200); if(!container.isConnected) break;
+    st._bAtReg=false;
+    custB.style.zIndex='14'; // pass in front of counter-front(z:12) and counter-top(z:13)
+    await _mWalkTo(custB,PX.custBSeatX-8,sc,88); if(!container.isConnected) break;
+    await _mWalkTo(custB,PX.custBSeatX,sc,40);   if(!container.isConnected) break;
+    if(ch1) ch1.style.zIndex='14';
+    custB.classList.remove('mini-walking'); // ensure walk anim is off before sit
+    custB.style.zIndex='8';
+    _mFace(custB,'left'); // sit_back PNG is drawn right-facing; scaleX(1)=no-flip is correct
+    _mSit(custB,true); _mSetBottom(custB,PY.eatinSit,250);
+    await _mDelay(3500+Math.random()*2500); if(!container.isConnected) break;
+    _mSit(custB,false); _mSetBottom(custB,PY.floor,300);
+    await _mDelay(250); if(!container.isConnected) break;
+    if(ch1) ch1.style.zIndex='';
+    custB.style.zIndex='14'; // pass in front of counter on return walk
+    await _mDelay(150);
+    await _mWalkTo(custB,PX.custBSeatX-8,sc,50); if(!container.isConnected) break;
+    await _mWalkTo(custB,PX.doorCX_char,sc,90);  if(!container.isConnected) break;
+    await _mLeaveDoor(custB,PY.entryOutside);
+  }
+}
+
+// _loopCustBMini(凍結) は定義保持・変更なし・起動しない。
+// _loopCustTerraceA は定義保持・変更なし・起動しない。
+// 1来客ごとに _runIndoorVisit を逐次実行する（テラス演出は v1.1第1弾では無効）。
+// 料理PNG クラス対応表（ミニチュア表示専用・経営ロジック非連動）
+const _FOOD_CLASS_MAP={
+  '黒舞昆おにぎり':       ['mini-food-onigiri',    'mini-food-empty-onigiri'],
+  '梅舞昆茶漬け':         ['mini-food-ochazuke',   'mini-food-empty-ochazuke'],
+  '昆布茶セット':         ['mini-food-konbucha',   'mini-food-empty-konbucha'],
+  '発酵ランチプレート':   ['mini-food-lunchplate', 'mini-food-empty-lunchplate'],
+  '朝定食（高齢者向け）': ['mini-food-breakfast',  'mini-food-empty-breakfast'],
+};
+function _pickFoodClasses(menu){
+  const hits=(menu||[]).filter(n=>_FOOD_CLASS_MAP[n]);
+  if(!hits.length) return null;
+  return _FOOD_CLASS_MAP[hits[Math.floor(Math.random()*hits.length)]];
+}
+const _PNG_CLASSES=['mini-food-img','mini-food-onigiri','mini-food-ochazuke','mini-food-konbucha',
+  'mini-food-lunchplate','mini-food-breakfast','mini-food-empty-onigiri','mini-food-empty-ochazuke',
+  'mini-food-empty-konbucha','mini-food-empty-lunchplate','mini-food-empty-breakfast'];
+function _setFoodClass(el,cls){
+  _PNG_CLASSES.forEach(c=>el.classList.remove(c));
+  if(cls){ el.classList.add('mini-food-img'); el.classList.add(cls); }
+}
+
+async function _loopSeatRoute(st){
+  const {container,custA,custB,ch1,sc,midori,bubble,foodIn,showStaff}=st;
+  const PX=st.MPX,PY=st.MPY;
+  const tWrap=container.parentNode&&container.parentNode.querySelector('.mini-terrace-wrap');
+
+  const flB=42,sitB=48;
+  const TPX={chairL:108,chairR:192,buildingExit:5};
+  const tblServeX=125;
+
+  let custT=null,staffT=null,foodTL=null,foodTR=null;
+  if(tWrap){
+    custT=document.createElement('div');
+    custT.className='mini-char mini-col-custb';
+    custT.innerHTML='<div class="mini-ch-sprite mini-sp-custb"></div>';
+    custT.style.cssText=`position:absolute;z-index:5;opacity:0;bottom:${flB}px;left:0`;
+    tWrap.appendChild(custT);
+
+    if(showStaff.midori){
+      staffT=document.createElement('div');
+      staffT.className='mini-char mini-col-midori';
+      staffT.innerHTML='<div class="mini-ch-sprite mini-sp-midori"></div>';
+      staffT.style.cssText=`position:absolute;z-index:7;opacity:0;bottom:${flB}px;left:${TPX.buildingExit*sc}px`;
+      tWrap.appendChild(staffT);
+    }
+
+    foodTL=document.createElement('div');
+    foodTL.className='mini-food';
+    foodTL.style.cssText=`bottom:70px;left:${(TPX.chairL+10)*sc}px`;
+    tWrap.appendChild(foodTL);
+
+    foodTR=document.createElement('div');
+    foodTR.className='mini-food';
+    foodTR.style.cssText=`bottom:70px;left:${(TPX.chairR-10)*sc}px`;
+    tWrap.appendChild(foodTR);
+  }
+
+  if(showStaff.midori){
+    _mSetPos(midori,PX.midoriX,50,sc);
+    midori.style.opacity='1';
+    _mFace(midori,'left');
+  }
+
+  st._seatStats={indoor:0,terrace:0};
+
+  function _regBubble(text){
+    bubble.style.left=((PX.midoriX-16)*sc)+'px';
+    bubble.style.bottom='98px';
+    bubble.textContent=text;
+    bubble.style.opacity='1';
+  }
+
+  function _tblBubble(text){
+    bubble.style.left=((PX.eatinTable-12)*sc)+'px';
+    bubble.style.bottom='82px';
+    bubble.textContent=text;
+    bubble.style.opacity='1';
+  }
+
+  async function _serveIndoor(){
+    if(!container.isConnected) return;
+    if(showStaff.midori){
+      while(st._midoriPhase!=='idle'){ await _mDelay(200); if(!container.isConnected) return; }
+      st._midoriPhase='serving';
+      try{
+        _mFace(midori,'right');
+        await _mWalkTo(midori,248,sc,90); if(!container.isConnected) return;
+        midori.style.zIndex='15'; // 客席へ: 着席中ch1(14)・カウンター(13)・客B(8)より手前
+        _mSetBottom(midori,PY.floor,260); await _mDelay(300); if(!container.isConnected) return;
+        await _mWalkTo(midori,286,sc,80); if(!container.isConnected) return;
+        _mFace(midori,'left');
+        foodIn.style.opacity='1';
+        await _mDelay(350); if(!container.isConnected) return;
+        st._midoriPhase='return';
+        await _mWalkTo(midori,248,sc,80); if(!container.isConnected) return;
+        midori.style.zIndex='10';
+        _mSetBottom(midori,50,260); await _mDelay(300); if(!container.isConnected) return;
+        _mFace(midori,'left');
+        await _mWalkTo(midori,PX.midoriX,sc,90); if(!container.isConnected) return;
+        _mFace(midori,'left');
+      } finally {
+        midori.style.zIndex='10';
+        st._midoriPhase='idle';
+      }
+    } else {
+      await _mDelay(400); if(!container.isConnected) return;
+      foodIn.style.opacity='1';
+    }
+  }
+
+  async function _clearIndoor(){
+    if(!container.isConnected) return;
+    if(showStaff.midori){
+      while(st._midoriPhase!=='idle'){ await _mDelay(200); if(!container.isConnected) return; }
+      st._midoriPhase='clearing';
+      try{
+        _mFace(midori,'right');
+        await _mWalkTo(midori,248,sc,90); if(!container.isConnected) return;
+        _mSetBottom(midori,PY.floor,260); await _mDelay(300); if(!container.isConnected) return;
+        await _mWalkTo(midori,258,sc,80); if(!container.isConnected) return;
+        foodIn.style.opacity='0';
+        await _mDelay(300); if(!container.isConnected) return;
+        st._midoriPhase='return';
+        await _mWalkTo(midori,248,sc,80); if(!container.isConnected) return;
+        _mSetBottom(midori,50,260); await _mDelay(300); if(!container.isConnected) return;
+        _mFace(midori,'left');
+        await _mWalkTo(midori,PX.midoriX,sc,90); if(!container.isConnected) return;
+        _mFace(midori,'left');
+      } finally {
+        _setFoodClass(foodIn,null);
+        st._midoriPhase='idle';
+      }
+    } else {
+      foodIn.style.opacity='0';
+      await _mDelay(500); if(!container.isConnected) return;
+      _setFoodClass(foodIn,null);
+    }
+  }
+
+  async function _serveTerrace(foodEl){
+    if(!container.isConnected||!tWrap||!tWrap.isConnected) return;
+    if(showStaff.midori&&staffT){
+      while(st._midoriPhase!=='idle'){ await _mDelay(200); if(!container.isConnected||!tWrap.isConnected) return; }
+      st._midoriPhase='serving';
+      try{
+        _mFace(midori,'left');
+        await _mWalkTo(midori,PX.doorCX_char+10,sc,110); if(!container.isConnected||!tWrap.isConnected) return;
+        _mSetOpacity(midori,'0',180); await _mDelay(220);
+        if(!container.isConnected||!tWrap.isConnected) return;
+        staffT.style.transition='none';
+        staffT.style.left=(TPX.buildingExit*sc)+'px';
+        staffT.style.bottom=flB+'px';
+        _mSetOpacity(staffT,'1',180); await _mDelay(220);
+        if(!tWrap.isConnected||!container.isConnected) return;
+        _mFace(staffT,'right');
+        await _mWalkTo(staffT,tblServeX,sc,85); if(!tWrap.isConnected||!container.isConnected) return;
+        foodEl.style.opacity='1';
+        await _mDelay(350); if(!tWrap.isConnected||!container.isConnected) return;
+        _mFace(staffT,'left');
+        await _mWalkTo(staffT,TPX.buildingExit,sc,85); if(!tWrap.isConnected||!container.isConnected) return;
+        _mSetOpacity(staffT,'0',180); await _mDelay(220);
+        st._midoriPhase='return';
+        if(!container.isConnected) return;
+        midori.style.transition='none';
+        _mSetPos(midori,PX.doorCX_char+10,50,sc);
+        _mSetOpacity(midori,'1',180); await _mDelay(220);
+        if(!container.isConnected) return;
+        _mFace(midori,'right');
+        await _mWalkTo(midori,PX.midoriX,sc,110);
+        if(!container.isConnected) return;
+        _mFace(midori,'left');
+      } finally {
+        st._midoriPhase='idle';
+      }
+    } else {
+      foodEl.style.opacity='1';
+    }
+  }
+
+  async function _clearTerrace(foodEl){
+    if(!container.isConnected||!tWrap||!tWrap.isConnected) return;
+    if(showStaff.midori&&staffT){
+      while(st._midoriPhase!=='idle'){ await _mDelay(200); if(!container.isConnected||!tWrap.isConnected) return; }
+      st._midoriPhase='clearing';
+      try{
+        _mFace(midori,'left');
+        await _mWalkTo(midori,PX.doorCX_char+10,sc,110); if(!container.isConnected||!tWrap.isConnected) return;
+        _mSetOpacity(midori,'0',180); await _mDelay(220);
+        if(!container.isConnected||!tWrap.isConnected) return;
+        staffT.style.transition='none';
+        staffT.style.left=(TPX.buildingExit*sc)+'px';
+        staffT.style.bottom=flB+'px';
+        _mSetOpacity(staffT,'1',180); await _mDelay(220);
+        if(!tWrap.isConnected||!container.isConnected) return;
+        _mFace(staffT,'right');
+        await _mWalkTo(staffT,tblServeX,sc,85); if(!tWrap.isConnected||!container.isConnected) return;
+        foodEl.style.opacity='0';
+        await _mDelay(300); if(!tWrap.isConnected||!container.isConnected) return;
+        _mFace(staffT,'left');
+        await _mWalkTo(staffT,TPX.buildingExit,sc,85); if(!tWrap.isConnected||!container.isConnected) return;
+        _mSetOpacity(staffT,'0',180); await _mDelay(220);
+        st._midoriPhase='return';
+        if(!container.isConnected) return;
+        midori.style.transition='none';
+        _mSetPos(midori,PX.doorCX_char+10,50,sc);
+        _mSetOpacity(midori,'1',180); await _mDelay(220);
+        if(!container.isConnected) return;
+        _mFace(midori,'right');
+        await _mWalkTo(midori,PX.midoriX,sc,110);
+        if(!container.isConnected) return;
+        _mFace(midori,'left');
+      } finally {
+        _setFoodClass(foodEl,null);
+        st._midoriPhase='idle';
+      }
+    } else {
+      foodEl.style.opacity='0';
+      _setFoodClass(foodEl,null);
+    }
+  }
+
+  async function _runIndoorVisit(){
+    custB.style.transition='none';
+    _mSetPos(custB,PX.doorCX_char,PY.entryOutside,sc);
+    custB.style.opacity='0'; custB.style.zIndex='11';
+    _mFace(custB,'right'); _mSit(custB,false);
+    if(ch1) ch1.style.zIndex='';
+    st._bAtReg=false;
+    await _mDelay(4000+Math.random()*4000); if(!container.isConnected) return;
+    await _mEnterDoor(custB,PY.floor,'11'); if(!container.isConnected) return;
+    await _mWalkTo(custB,PX.counterCust-8,sc,88); if(!container.isConnected) return;
+    _mFace(custB,'right');
+    if(showStaff.midori){
+      while(st._midoriPhase!=='idle'){ await _mDelay(200); if(!container.isConnected) return; }
+      st._midoriPhase='checkout';
+    }
+    try{
+      const gPh=['いらっしゃいませ！','ようこそ！','いらっしゃい♪'];
+      _regBubble(gPh[Math.floor(Math.random()*gPh.length)]);
+      st._bAtReg=true; await _mDelay(1200); if(!container.isConnected) return;
+      st._bAtReg=false; bubble.style.opacity='0';
+    } finally {
+      if(showStaff.midori) st._midoriPhase='idle';
+    }
+    custB.style.zIndex='14';
+    await _mWalkTo(custB,PX.custBSeatX-8,sc,88); if(!container.isConnected) return;
+    await _mWalkTo(custB,PX.custBSeatX,sc,40); if(!container.isConnected) return;
+    if(ch1) ch1.style.zIndex='14';
+    custB.classList.remove('mini-walking');
+    custB.style.zIndex='8'; _mFace(custB,'left');
+    _mSit(custB,true); _mSetBottom(custB,PY.eatinSit,250);
+    await _mDelay(350); if(!container.isConnected) return;
+    const _indoorFoodCls=_pickFoodClasses(st.store&&st.store.menu);
+    if(_indoorFoodCls) _setFoodClass(foodIn,_indoorFoodCls[0]);
+    await _serveIndoor(); if(!container.isConnected) return;
+    await _mDelay(3200+Math.random()*2500); if(!container.isConnected) return;
+    if(_indoorFoodCls) _setFoodClass(foodIn,_indoorFoodCls[1]);
+    _mSit(custB,false); _mSetBottom(custB,PY.floor,300);
+    await _mDelay(250); if(!container.isConnected) return;
+    if(ch1) ch1.style.zIndex='';
+    custB.style.zIndex='14'; await _mDelay(150);
+    await _mWalkTo(custB,PX.custBSeatX-8,sc,50); if(!container.isConnected) return;
+    await _mWalkTo(custB,PX.doorCX_char,sc,90); if(!container.isConnected) return;
+    await _mLeaveDoor(custB,PY.entryOutside); if(!container.isConnected) return;
+    await _clearIndoor();
+  }
+
+  async function _runTerraceVisit(){
+    if(!tWrap||!custT) return;
+    const useL=Math.random()>0.5;
+    const seatX=useL?TPX.chairL:TPX.chairR;
+    const foodEl=useL?foodTL:foodTR;
+    custB.style.transition='none';
+    _mSetPos(custB,PX.doorCX_char,PY.entryOutside,sc);
+    custB.style.opacity='0'; custB.style.zIndex='11';
+    _mFace(custB,'right'); _mSit(custB,false);
+    st._bAtReg=false;
+    await _mDelay(4000+Math.random()*4000); if(!container.isConnected) return;
+    await _mEnterDoor(custB,PY.floor,'11'); if(!container.isConnected) return;
+    await _mWalkTo(custB,PX.counterCust-8,sc,88); if(!container.isConnected) return;
+    _mFace(custB,'right');
+    if(showStaff.midori){
+      while(st._midoriPhase!=='idle'){ await _mDelay(200); if(!container.isConnected) return; }
+      st._midoriPhase='checkout';
+    }
+    try{
+      const gPh=['いらっしゃいませ！','テラスへどうぞ♪','いらっしゃい♪'];
+      _regBubble(gPh[Math.floor(Math.random()*gPh.length)]);
+      st._bAtReg=true; await _mDelay(1200); if(!container.isConnected) return;
+      st._bAtReg=false; bubble.style.opacity='0';
+    } finally {
+      if(showStaff.midori) st._midoriPhase='idle';
+    }
+    await _mWalkTo(custB,PX.doorCX_char,sc,90); if(!container.isConnected) return;
+    await _mLeaveDoor(custB,PY.entryOutside); if(!container.isConnected) return;
+    if(!tWrap.isConnected) return;
+    custT.style.transition='none';
+    custT.style.left=(TPX.buildingExit*sc)+'px';
+    custT.style.bottom=flB+'px';
+    _mSit(custT,false); _mFace(custT,'right');
+    _mSetOpacity(custT,'1',150); await _mDelay(200);
+    if(!container.isConnected||!tWrap.isConnected) return;
+    await _mWalkTo(custT,seatX,sc,80); if(!container.isConnected||!tWrap.isConnected) return;
+    custT.classList.remove('mini-walking');
+    _mFace(custT,'left'); _mSit(custT,true); _mSetBottom(custT,sitB,220);
+    await _mDelay(350); if(!container.isConnected) return;
+    const _terraceFoodCls=_pickFoodClasses(st.store&&st.store.menu);
+    if(_terraceFoodCls) _setFoodClass(foodEl,_terraceFoodCls[0]);
+    await _serveTerrace(foodEl); if(!container.isConnected) return;
+    await _mDelay(3000+Math.random()*3000); if(!container.isConnected) return;
+    if(_terraceFoodCls) _setFoodClass(foodEl,_terraceFoodCls[1]);
+    if(tWrap.isConnected){
+      _mSit(custT,false); _mSetBottom(custT,flB,220);
+      await _mDelay(300); if(!container.isConnected) return;
+      await _mWalkTo(custT,TPX.buildingExit,sc,80); if(!container.isConnected) return;
+      _mSetOpacity(custT,'0',150); await _mDelay(200);
+    }
+    await _clearTerrace(foodEl);
+  }
+
+  async function _runCustAVisit(){
+    custA.style.transition='none';
+    _mSetPos(custA,PX.doorCX_char,PY.entryOutside,sc);
+    custA.style.opacity='0'; custA.style.zIndex='14';
+    _mFace(custA,'right'); _mSit(custA,false);
+    st._aAtReg=false;
+    await _mDelay(1500+Math.random()*3000); if(!container.isConnected) return;
+    await _mEnterDoor(custA,PY.floor,'14'); if(!container.isConnected) return;
+    await _mWalkTo(custA,Math.random()>.5?PX.shelfB:PX.shelfA,sc,90); if(!container.isConnected) return;
+    await _mDelay(1500+Math.random()*1500); if(!container.isConnected) return;
+    await _mWalkTo(custA,PX.counterCust,sc,85); if(!container.isConnected) return;
+    _mFace(custA,'right');
+    const _aPh=['いらっしゃいませ！','ようこそ！','いらっしゃい♪'];
+    _regBubble(_aPh[Math.floor(Math.random()*_aPh.length)]);
+    st._aAtReg=true; await _mDelay(1800); if(!container.isConnected) return;
+    st._aAtReg=false;
+    bubble.style.opacity='0';
+    await _mWalkTo(custA,PX.doorCX_char,sc,100); if(!container.isConnected) return;
+    await _mLeaveDoor(custA,PY.entryOutside);
+  }
+
+  try{
+    while(container.isConnected){
+      const canTerrace=!!(tWrap&&tWrap.isConnected);
+      if(!showStaff.midori){
+        if(Math.random()<0.5){
+          st._seatStats.custA=(st._seatStats.custA||0)+1;
+          await _runCustAVisit();
+        } else {
+          const goTerrace=false; // v1.1第1弾: テラス新演出は未完成のため無効化
+          if(goTerrace){
+            st._seatStats.terrace=(st._seatStats.terrace||0)+1;
+            await _runTerraceVisit();
+          } else {
+            st._seatStats.indoor=(st._seatStats.indoor||0)+1;
+            await _runIndoorVisit();
+          }
+        }
+      } else {
+        const goTerrace=false; // v1.1第1弾: テラス新演出は未完成のため無効化
+        if(goTerrace){
+          st._seatStats.terrace=(st._seatStats.terrace||0)+1;
+          await _runTerraceVisit();
+        } else {
+          st._seatStats.indoor=(st._seatStats.indoor||0)+1;
+          await _runIndoorVisit();
+        }
+      }
+    }
+  } finally {
+    if(custT&&custT.parentNode) custT.remove();
+    if(staffT&&staffT.parentNode) staffT.remove();
+    if(foodTL&&foodTL.parentNode) foodTL.remove();
+    if(foodTR&&foodTR.parentNode) foodTR.remove();
+    foodIn.style.opacity='0';
+    bubble.style.opacity='0';
+    if((showStaff.midori||showStaff.owner)&&midori.isConnected){
+      _mSetPos(midori,PX.midoriX,50,sc);
+      midori.style.opacity='1';
+      _mFace(midori,'left');
+    }
+  }
+}
+
+function _startMiniAnimation(container,s){
+  const unavail=G.staffUnavailableToday||[];
+  const assigned=(G.staff||[]).filter(st=>st.store===s.name&&!unavail.includes(st.name));
+  const midoriStaff=assigned.find(st=>st.name==='佐々木みどり');
+  const ownerHere=isOwnerPresentAtStore(s);
+  const showMidori=!!midoriStaff;
+  const showOwner=ownerHere&&(s.policy==='owner'||!showMidori);
+  const showStaff={midori:showMidori,owner:showOwner&&!showMidori};
+
+  const isClosed=!s.isOpen||s.policy==='closed'||s._tempClosed;
+  const bustle=isClosed?0:_bustleLevel(s);
+  const hasEatIn=!isClosed&&_hasEatInMenu(s);
+  const hasTerrace=!isClosed&&((s.upgrades)||[]).includes('テラス席設置');
+
+  if(isClosed){
+    const ov=_mMkEl(container,'div','');
+    Object.assign(ov.style,{position:'absolute',inset:'0',zIndex:'50',
+      background:s.isOpen?'rgba(0,0,0,.35)':'rgba(0,0,0,.6)',
+      display:'flex',alignItems:'center',justifyContent:'center',borderRadius:'6px'});
+    ov.innerHTML=`<span style="color:#fff;font-size:11px;opacity:.9">${s.isOpen?'🔒 本日休業':'🔒 閉店中'}</span>`;
+  }
+
+  const st=_buildMiniScene(container,showStaff,s);
+  // hasEatIn=true 時は _loopSeatRoute が midori DOM を管理するため _loopMidoriMini を起動しない
+  if(showStaff.midori && !hasEatIn) _loopMidoriMini(st).catch(()=>{});
+  if(hasEatIn){
+    if(showStaff.midori){
+      if(bustle>=1) _loopCustAMidori(st,0).catch(()=>{});
+      setTimeout(()=>{ if(container.isConnected) _loopSeatRoute(st).catch(()=>{}); },2500);
+    } else {
+      setTimeout(()=>{ if(container.isConnected) _loopSeatRoute(st).catch(()=>{}); },2500);
+    }
+  } else {
+    if(bustle>=1) _loopCustAMini(st,0).catch(()=>{});
+  }
+}
+
+// Entry point — returns HTML string; schedules animation after DOM insertion.
+function _renderStoreMiniature(s){
+  if(!s) return '';
+  _ensureMiniCss();
+  const uid='mini_'+(s.id||0)+'_'+G.day;
+  setTimeout(()=>{
+    const c=document.getElementById(uid);
+    if(c){
+      const _oldT=c.parentNode&&c.parentNode.querySelector('.mini-terrace-wrap');
+      if(_oldT) _oldT.remove();
+      _startMiniAnimation(c,s);
+    }
+  },60);
+  return `<div id="${uid}" class="mini-container" style="height:180px;background:#f2e8d6"></div>`;
+}
+
+// ══════════════════════════════════════════════════════════════
+
 function _renderStoreScene(s){
   if(!s) return '';
   if(!s.isOpen) return '<div class="scene-box" style="height:110px;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:12px">🔒 閉店中</div>';
@@ -16444,7 +17329,7 @@ function renderStore(){
       </button>
     </div>` : ''}
     <div class="card">
-      ${_renderStoreScene(s)}
+      ${DEV_MODE ? _renderStoreMiniature(s) : _renderStoreScene(s)}
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px">
         <div>
           <div style="font-size:16px;font-weight:700">${s.name}</div>
