@@ -4761,7 +4761,7 @@ const SEASON_STORE_THEME = {
 // ══════════════════════════════════════════════════════════════
 //  STORE MINIATURE  (feature/store-miniature)
 //  READ-ONLY rendering — zero game-state mutations.
-//  DEV_MODE only; production falls through to _renderStoreScene.
+//  Rendered in all modes (DEV_MODE gate removed in hotfix/mini-devmode-gate).
 // ══════════════════════════════════════════════════════════════
 
 function _ensureMiniCss(){
@@ -17329,7 +17329,7 @@ function renderStore(){
       </button>
     </div>` : ''}
     <div class="card">
-      ${DEV_MODE ? _renderStoreMiniature(s) : _renderStoreScene(s)}
+      ${_renderStoreMiniature(s)}
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px">
         <div>
           <div style="font-size:16px;font-weight:700">${s.name}</div>
