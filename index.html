@@ -4808,12 +4808,13 @@ function _ensureMiniCss(){
 .mini-shelf-row{position:absolute;left:2px;right:2px;display:flex;gap:2px;align-items:flex-end}
 
 /* === 商品 === */
-.mini-si-bottle,.mini-si-jar,.mini-si-bag,.mini-si-box,.mini-si-gift{flex-shrink:0;image-rendering:pixelated;background-image:url(assets/miniature/products/products.png);background-repeat:no-repeat;background-size:52px 11px;height:11px}
-.mini-si-bag   {width:6px;background-position:0 0}
-.mini-si-gift  {width:8px;background-position:-8px 0}
-.mini-si-box   {width:9px;background-position:-17px 0}
-.mini-si-bottle{width:6px;background-position:-33px 0}
-.mini-si-jar   {width:7px;background-position:-40px 0}
+.mini-si-img{flex-shrink:0;display:block;image-rendering:pixelated}
+.mini-si-akafuji  {height:15px;width:10px}
+.mini-si-dashipack{height:15px;width:12px}
+.mini-si-dashisoy {height:18px;width:9px}
+.mini-si-giftbox  {height:12px;width:12px}
+.mini-si-gift     {height:14px;width:14px}
+.mini-si-kombu    {height:15px;width:13px}
 
 /* === カウンター === */
 .mini-counter-top{position:absolute;z-index:13;background:linear-gradient(to right,#a87840,#c8a860,#c4a468,#b88848,#a87840);border-radius:2px 2px 0 0;border-top:1px solid #d8b878;box-shadow:0 -1px 0 #d8b868,0 2px 4px rgba(0,0,0,.18)}
@@ -4858,6 +4859,25 @@ function _ensureMiniCss(){
 .mini-wall-deco{position:absolute;z-index:3;width:18px;height:22px;background:#7a5428;border:2px solid #5a3a18;border-radius:1px;box-shadow:1px 2px 4px rgba(0,0,0,.25)}
 .mini-wall-deco::before{content:'';position:absolute;inset:2px;background:#f8f0d8;border-radius:1px}
 .mini-wall-deco::after{content:'';position:absolute;top:5px;left:4px;right:4px;height:1px;background:#907050;box-shadow:0 3px 0 #907050,0 6px 0 rgba(144,112,80,.5),1px 9px 0 rgba(144,112,80,.38),-1px 12px 0 rgba(144,112,80,.28)}
+/* 食器（配膳演出）— 湯飲み＋小皿 */
+.mini-food{position:absolute;opacity:0;transition:opacity 0.45s;pointer-events:none;z-index:7;width:14px;height:12px}
+/* 湯飲み本体（茶筒形） */
+.mini-food::before{content:'';position:absolute;top:0;left:3px;width:8px;height:9px;background:linear-gradient(to right,#a06030 0%,#c87840 40%,#e8a860 55%,#c07030 80%,#8a4820 100%);border-radius:1px 1px 3px 3px;box-shadow:0 1px 3px rgba(0,0,0,.35)}
+/* 小皿（楕円形・乳白） */
+.mini-food::after{content:'';position:absolute;bottom:0;left:0;width:14px;height:4px;background:linear-gradient(to bottom,#f5ede0 0%,#d4c4a0 100%);border-radius:40%;box-shadow:0 1px 2px rgba(0,0,0,.3)}
+/* PNG食器（背景画像）— mini-food-img クラスが付いた場合に適用 */
+.mini-food.mini-food-img{width:32px;height:32px;background-repeat:no-repeat;background-position:center bottom;background-size:32px 32px;image-rendering:pixelated}
+.mini-food::before,.mini-food::after{display:none}
+.mini-food-onigiri{background-image:url(assets/miniature/food/onigiri.png)}
+.mini-food-ochazuke{background-image:url(assets/miniature/food/ochazuke.png)}
+.mini-food-konbucha{background-image:url(assets/miniature/food/konbucha.png)}
+.mini-food-lunchplate{background-image:url(assets/miniature/food/lunch_plate.png)}
+.mini-food-breakfast{background-image:url(assets/miniature/food/breakfast.png)}
+.mini-food-empty-onigiri{background-image:url(assets/miniature/food/empty_onigiri.png)}
+.mini-food-empty-ochazuke{background-image:url(assets/miniature/food/empty_ochazuke.png)}
+.mini-food-empty-konbucha{background-image:url(assets/miniature/food/empty_konbucha.png)}
+.mini-food-empty-lunchplate{background-image:url(assets/miniature/food/empty_lunch_plate.png)}
+.mini-food-empty-breakfast{background-image:url(assets/miniature/food/empty_breakfast.png)}
 `;
   document.head.appendChild(st);
 }
@@ -4932,7 +4952,7 @@ function _mBob(el,on){ on?el.classList.add('mini-bobbing'):el.classList.remove('
 function _mSit(el,on){ on?el.classList.add('mini-sitting'):el.classList.remove('mini-sitting'); }
 
 // Build all DOM elements inside container. Returns state object for loops.
-function _buildMiniScene(container,showStaff){
+function _buildMiniScene(container,showStaff,store){
   const W=container.offsetWidth||339;
   const sc=W/339;
   const S=n=>(n*sc)+'px';
@@ -4953,25 +4973,39 @@ function _buildMiniScene(container,showStaff){
     '<div class="mini-noren-strips"><div class="mini-noren-strip"></div><div class="mini-noren-strip"></div></div>';
   _mMkEl(container,'div','mini-wall-deco',{left:S(170),top:'30px'});
 
-  function _addItem(row,type,_color){
-    const el=document.createElement('div');
-    el.className='mini-si-'+type;
+  const _miniProdSrc={akafuji:'akafuji_bag.png',dashipack:'dashi_pack.png',dashisoy:'dashi_shoyu.png',kombu:'shiofuki_kombu.png'};
+  function _addItem(row,type){
+    const el=document.createElement('img');
+    el.src='assets/miniature/products/'+(_miniProdSrc[type]||'');
+    el.className='mini-si-img mini-si-'+type;
+    el.draggable=false;
     row.appendChild(el);
   }
+  const _uProds=G.unlockedProducts||[];
+  const _prodCount=_uProds.length;
+  const _tier=_prodCount<=2?1:_prodCount===3?'1b':_prodCount===4?2:_prodCount<=6?3:4;
+  const _shelfLayouts={
+    '1': [['akafuji','dashipack'],['dashisoy'],[],[]],
+    '1b':[['akafuji','dashipack','dashisoy'],['kombu','akafuji'],[],[]],
+    '2': [['akafuji','dashipack','dashisoy'],['kombu','akafuji'],['dashipack','kombu'],['dashisoy']],
+    '3': [['akafuji','dashipack','dashisoy'],['kombu','akafuji','dashipack'],['dashisoy','kombu','akafuji'],['dashipack','dashisoy']],
+    '4': [['dashisoy','akafuji','dashipack'],['akafuji','kombu','dashisoy'],['dashipack','kombu','dashisoy'],['akafuji','kombu','dashipack']],
+  };
+  const _rows=_shelfLayouts[_tier]||_shelfLayouts['1'];
 
   const sA=_mMkEl(container,'div','mini-shelf-unit',{left:S(50),bottom:'38px',width:S(50),height:'70px'});
   _mMkEl(sA,'div','mini-shelf-board',{top:'35px'});
-  const rA1=_mMkEl(sA,'div','mini-shelf-row',{bottom:'40px'});
-  _addItem(rA1,'bottle','#9848b0');_addItem(rA1,'jar','#d06028');_addItem(rA1,'bottle','#4878b8');_addItem(rA1,'jar','#c08030');
-  const rA2=_mMkEl(sA,'div','mini-shelf-row',{bottom:'6px'});
-  _addItem(rA2,'bag','#d85030');_addItem(rA2,'box','#50a050');_addItem(rA2,'gift','#e07030');_addItem(rA2,'bag','#5060c0');
+  const rA1=_mMkEl(sA,'div','mini-shelf-row',{bottom:'35px'});
+  _rows[0].forEach(t=>_addItem(rA1,t));
+  const rA2=_mMkEl(sA,'div','mini-shelf-row',{bottom:'0px'});
+  _rows[1].forEach(t=>_addItem(rA2,t));
 
   const sB=_mMkEl(container,'div','mini-shelf-unit',{left:S(114),bottom:'38px',width:S(46),height:'62px'});
   _mMkEl(sB,'div','mini-shelf-board',{top:'30px'});
-  const rB1=_mMkEl(sB,'div','mini-shelf-row',{bottom:'36px'});
-  _addItem(rB1,'jar','#e04040');_addItem(rB1,'bottle','#40a860');_addItem(rB1,'jar','#7040c0');
-  const rB2=_mMkEl(sB,'div','mini-shelf-row',{bottom:'6px'});
-  _addItem(rB2,'gift','#c84040');_addItem(rB2,'box','#4880d0');_addItem(rB2,'bag','#c0a030');
+  const rB1=_mMkEl(sB,'div','mini-shelf-row',{bottom:'32px'});
+  _rows[2].forEach(t=>_addItem(rB1,t));
+  const rB2=_mMkEl(sB,'div','mini-shelf-row',{bottom:'0px'});
+  _rows[3].forEach(t=>_addItem(rB2,t));
 
   const cL=196,cW=64;
   _mMkEl(container,'div','mini-counter-top',  {left:S(cL-2),bottom:'56px',width:S(cW+4),height:'6px'});
@@ -5020,7 +5054,10 @@ function _buildMiniScene(container,showStaff){
 
   const bubble=_mMkEl(container,'div','mini-bubble',{left:S(MPX.midoriX-16),bottom:'98px'});
 
-  return {container,sc,midori,custA,custB,bubble,ch1,MPX,MPY,_aAtReg:false,_bAtReg:false};
+  // 食器（配膳演出用）— 着席後の配膳タイミングで表示
+  const foodIn=_mMkEl(container,'div','mini-food mini-food-in',{left:S(MPX.eatinTable+6),bottom:'65px'});
+
+  return {container,sc,midori,custA,custB,bubble,ch1,MPX,MPY,showStaff,foodIn,store,_aAtReg:false,_bAtReg:false,_midoriPhase:'idle'};
 }
 
 // ── animation loops — exit when container leaves DOM ──
@@ -5089,6 +5126,43 @@ async function _loopCustAMini(st,startDelay){
   }
 }
 
+// みどり在勤+hasEatIn 時、_loopCustAMini の代替。みどりが空くまでレジ前で待機してから会計演出を行う
+async function _loopCustAMidori(st, startDelay){
+  const {container,custA,bubble,sc}=st;
+  const PX=st.MPX, PY=st.MPY;
+  await _mDelay(startDelay||0);
+  while(container.isConnected){
+    custA.style.transition='none';
+    _mSetPos(custA,PX.doorCX_char,PY.entryOutside,sc);
+    custA.style.opacity='0'; custA.style.zIndex='14';
+    _mFace(custA,'right'); _mSit(custA,false);
+    st._aAtReg=false;
+    await _mDelay(1500+Math.random()*3000); if(!container.isConnected) break;
+    await _mEnterDoor(custA,PY.floor,'14'); if(!container.isConnected) break;
+    await _mWalkTo(custA,Math.random()>.5?PX.shelfB:PX.shelfA,sc,90); if(!container.isConnected) break;
+    await _mDelay(1500+Math.random()*1500); if(!container.isConnected) break;
+    await _mWalkTo(custA,PX.counterCust,sc,85); if(!container.isConnected) break;
+    _mFace(custA,'right');
+    while(st._midoriPhase!=='idle'){ await _mDelay(200); if(!container.isConnected) break; }
+    if(!container.isConnected) break;
+    st._midoriPhase='checkout';
+    try{
+      const _aPh=['いらっしゃいませ！','ようこそ！','いらっしゃい♪'];
+      bubble.style.left=((PX.midoriX-16)*sc)+'px';
+      bubble.style.bottom='98px';
+      bubble.textContent=_aPh[Math.floor(Math.random()*_aPh.length)];
+      bubble.style.opacity='1';
+      st._aAtReg=true; await _mDelay(2000); if(!container.isConnected) break;
+      st._aAtReg=false;
+      bubble.style.opacity='0';
+    } finally {
+      st._midoriPhase='idle';
+    }
+    await _mWalkTo(custA,PX.doorCX_char,sc,100); if(!container.isConnected) break;
+    await _mLeaveDoor(custA,PY.entryOutside); if(!container.isConnected) break;
+  }
+}
+
 async function _loopCustBMini(st){
   const {container,custB,ch1,sc}=st;
   const PX=st.MPX,PY=st.MPY;
@@ -5127,6 +5201,393 @@ async function _loopCustBMini(st){
   }
 }
 
+// _loopCustBMini(凍結) は定義保持・変更なし・起動しない。
+// _loopCustTerraceA は定義保持・変更なし・起動しない。
+// 1来客ごとに _runIndoorVisit を逐次実行する（テラス演出は v1.1第1弾では無効）。
+// 料理PNG クラス対応表（ミニチュア表示専用・経営ロジック非連動）
+const _FOOD_CLASS_MAP={
+  '黒舞昆おにぎり':       ['mini-food-onigiri',    'mini-food-empty-onigiri'],
+  '梅舞昆茶漬け':         ['mini-food-ochazuke',   'mini-food-empty-ochazuke'],
+  '昆布茶セット':         ['mini-food-konbucha',   'mini-food-empty-konbucha'],
+  '発酵ランチプレート':   ['mini-food-lunchplate', 'mini-food-empty-lunchplate'],
+  '朝定食（高齢者向け）': ['mini-food-breakfast',  'mini-food-empty-breakfast'],
+};
+function _pickFoodClasses(menu){
+  const hits=(menu||[]).filter(n=>_FOOD_CLASS_MAP[n]);
+  if(!hits.length) return null;
+  return _FOOD_CLASS_MAP[hits[Math.floor(Math.random()*hits.length)]];
+}
+const _PNG_CLASSES=['mini-food-img','mini-food-onigiri','mini-food-ochazuke','mini-food-konbucha',
+  'mini-food-lunchplate','mini-food-breakfast','mini-food-empty-onigiri','mini-food-empty-ochazuke',
+  'mini-food-empty-konbucha','mini-food-empty-lunchplate','mini-food-empty-breakfast'];
+function _setFoodClass(el,cls){
+  _PNG_CLASSES.forEach(c=>el.classList.remove(c));
+  if(cls){ el.classList.add('mini-food-img'); el.classList.add(cls); }
+}
+
+async function _loopSeatRoute(st){
+  const {container,custA,custB,ch1,sc,midori,bubble,foodIn,showStaff}=st;
+  const PX=st.MPX,PY=st.MPY;
+  const tWrap=container.parentNode&&container.parentNode.querySelector('.mini-terrace-wrap');
+
+  const flB=42,sitB=48;
+  const TPX={chairL:108,chairR:192,buildingExit:5};
+  const tblServeX=125;
+
+  let custT=null,staffT=null,foodTL=null,foodTR=null;
+  if(tWrap){
+    custT=document.createElement('div');
+    custT.className='mini-char mini-col-custb';
+    custT.innerHTML='<div class="mini-ch-sprite mini-sp-custb"></div>';
+    custT.style.cssText=`position:absolute;z-index:5;opacity:0;bottom:${flB}px;left:0`;
+    tWrap.appendChild(custT);
+
+    if(showStaff.midori){
+      staffT=document.createElement('div');
+      staffT.className='mini-char mini-col-midori';
+      staffT.innerHTML='<div class="mini-ch-sprite mini-sp-midori"></div>';
+      staffT.style.cssText=`position:absolute;z-index:7;opacity:0;bottom:${flB}px;left:${TPX.buildingExit*sc}px`;
+      tWrap.appendChild(staffT);
+    }
+
+    foodTL=document.createElement('div');
+    foodTL.className='mini-food';
+    foodTL.style.cssText=`bottom:70px;left:${(TPX.chairL+10)*sc}px`;
+    tWrap.appendChild(foodTL);
+
+    foodTR=document.createElement('div');
+    foodTR.className='mini-food';
+    foodTR.style.cssText=`bottom:70px;left:${(TPX.chairR-10)*sc}px`;
+    tWrap.appendChild(foodTR);
+  }
+
+  if(showStaff.midori){
+    _mSetPos(midori,PX.midoriX,50,sc);
+    midori.style.opacity='1';
+    _mFace(midori,'left');
+  }
+
+  st._seatStats={indoor:0,terrace:0};
+
+  function _regBubble(text){
+    bubble.style.left=((PX.midoriX-16)*sc)+'px';
+    bubble.style.bottom='98px';
+    bubble.textContent=text;
+    bubble.style.opacity='1';
+  }
+
+  function _tblBubble(text){
+    bubble.style.left=((PX.eatinTable-12)*sc)+'px';
+    bubble.style.bottom='82px';
+    bubble.textContent=text;
+    bubble.style.opacity='1';
+  }
+
+  async function _serveIndoor(){
+    if(!container.isConnected) return;
+    if(showStaff.midori){
+      while(st._midoriPhase!=='idle'){ await _mDelay(200); if(!container.isConnected) return; }
+      st._midoriPhase='serving';
+      try{
+        _mFace(midori,'right');
+        await _mWalkTo(midori,248,sc,90); if(!container.isConnected) return;
+        midori.style.zIndex='15'; // 客席へ: 着席中ch1(14)・カウンター(13)・客B(8)より手前
+        _mSetBottom(midori,PY.floor,260); await _mDelay(300); if(!container.isConnected) return;
+        await _mWalkTo(midori,286,sc,80); if(!container.isConnected) return;
+        _mFace(midori,'left');
+        foodIn.style.opacity='1';
+        await _mDelay(350); if(!container.isConnected) return;
+        st._midoriPhase='return';
+        await _mWalkTo(midori,248,sc,80); if(!container.isConnected) return;
+        midori.style.zIndex='10';
+        _mSetBottom(midori,50,260); await _mDelay(300); if(!container.isConnected) return;
+        _mFace(midori,'left');
+        await _mWalkTo(midori,PX.midoriX,sc,90); if(!container.isConnected) return;
+        _mFace(midori,'left');
+      } finally {
+        midori.style.zIndex='10';
+        st._midoriPhase='idle';
+      }
+    } else {
+      await _mDelay(400); if(!container.isConnected) return;
+      foodIn.style.opacity='1';
+    }
+  }
+
+  async function _clearIndoor(){
+    if(!container.isConnected) return;
+    if(showStaff.midori){
+      while(st._midoriPhase!=='idle'){ await _mDelay(200); if(!container.isConnected) return; }
+      st._midoriPhase='clearing';
+      try{
+        _mFace(midori,'right');
+        await _mWalkTo(midori,248,sc,90); if(!container.isConnected) return;
+        _mSetBottom(midori,PY.floor,260); await _mDelay(300); if(!container.isConnected) return;
+        await _mWalkTo(midori,258,sc,80); if(!container.isConnected) return;
+        foodIn.style.opacity='0';
+        await _mDelay(300); if(!container.isConnected) return;
+        st._midoriPhase='return';
+        await _mWalkTo(midori,248,sc,80); if(!container.isConnected) return;
+        _mSetBottom(midori,50,260); await _mDelay(300); if(!container.isConnected) return;
+        _mFace(midori,'left');
+        await _mWalkTo(midori,PX.midoriX,sc,90); if(!container.isConnected) return;
+        _mFace(midori,'left');
+      } finally {
+        _setFoodClass(foodIn,null);
+        st._midoriPhase='idle';
+      }
+    } else {
+      foodIn.style.opacity='0';
+      await _mDelay(500); if(!container.isConnected) return;
+      _setFoodClass(foodIn,null);
+    }
+  }
+
+  async function _serveTerrace(foodEl){
+    if(!container.isConnected||!tWrap||!tWrap.isConnected) return;
+    if(showStaff.midori&&staffT){
+      while(st._midoriPhase!=='idle'){ await _mDelay(200); if(!container.isConnected||!tWrap.isConnected) return; }
+      st._midoriPhase='serving';
+      try{
+        _mFace(midori,'left');
+        await _mWalkTo(midori,PX.doorCX_char+10,sc,110); if(!container.isConnected||!tWrap.isConnected) return;
+        _mSetOpacity(midori,'0',180); await _mDelay(220);
+        if(!container.isConnected||!tWrap.isConnected) return;
+        staffT.style.transition='none';
+        staffT.style.left=(TPX.buildingExit*sc)+'px';
+        staffT.style.bottom=flB+'px';
+        _mSetOpacity(staffT,'1',180); await _mDelay(220);
+        if(!tWrap.isConnected||!container.isConnected) return;
+        _mFace(staffT,'right');
+        await _mWalkTo(staffT,tblServeX,sc,85); if(!tWrap.isConnected||!container.isConnected) return;
+        foodEl.style.opacity='1';
+        await _mDelay(350); if(!tWrap.isConnected||!container.isConnected) return;
+        _mFace(staffT,'left');
+        await _mWalkTo(staffT,TPX.buildingExit,sc,85); if(!tWrap.isConnected||!container.isConnected) return;
+        _mSetOpacity(staffT,'0',180); await _mDelay(220);
+        st._midoriPhase='return';
+        if(!container.isConnected) return;
+        midori.style.transition='none';
+        _mSetPos(midori,PX.doorCX_char+10,50,sc);
+        _mSetOpacity(midori,'1',180); await _mDelay(220);
+        if(!container.isConnected) return;
+        _mFace(midori,'right');
+        await _mWalkTo(midori,PX.midoriX,sc,110);
+        if(!container.isConnected) return;
+        _mFace(midori,'left');
+      } finally {
+        st._midoriPhase='idle';
+      }
+    } else {
+      foodEl.style.opacity='1';
+    }
+  }
+
+  async function _clearTerrace(foodEl){
+    if(!container.isConnected||!tWrap||!tWrap.isConnected) return;
+    if(showStaff.midori&&staffT){
+      while(st._midoriPhase!=='idle'){ await _mDelay(200); if(!container.isConnected||!tWrap.isConnected) return; }
+      st._midoriPhase='clearing';
+      try{
+        _mFace(midori,'left');
+        await _mWalkTo(midori,PX.doorCX_char+10,sc,110); if(!container.isConnected||!tWrap.isConnected) return;
+        _mSetOpacity(midori,'0',180); await _mDelay(220);
+        if(!container.isConnected||!tWrap.isConnected) return;
+        staffT.style.transition='none';
+        staffT.style.left=(TPX.buildingExit*sc)+'px';
+        staffT.style.bottom=flB+'px';
+        _mSetOpacity(staffT,'1',180); await _mDelay(220);
+        if(!tWrap.isConnected||!container.isConnected) return;
+        _mFace(staffT,'right');
+        await _mWalkTo(staffT,tblServeX,sc,85); if(!tWrap.isConnected||!container.isConnected) return;
+        foodEl.style.opacity='0';
+        await _mDelay(300); if(!tWrap.isConnected||!container.isConnected) return;
+        _mFace(staffT,'left');
+        await _mWalkTo(staffT,TPX.buildingExit,sc,85); if(!tWrap.isConnected||!container.isConnected) return;
+        _mSetOpacity(staffT,'0',180); await _mDelay(220);
+        st._midoriPhase='return';
+        if(!container.isConnected) return;
+        midori.style.transition='none';
+        _mSetPos(midori,PX.doorCX_char+10,50,sc);
+        _mSetOpacity(midori,'1',180); await _mDelay(220);
+        if(!container.isConnected) return;
+        _mFace(midori,'right');
+        await _mWalkTo(midori,PX.midoriX,sc,110);
+        if(!container.isConnected) return;
+        _mFace(midori,'left');
+      } finally {
+        _setFoodClass(foodEl,null);
+        st._midoriPhase='idle';
+      }
+    } else {
+      foodEl.style.opacity='0';
+      _setFoodClass(foodEl,null);
+    }
+  }
+
+  async function _runIndoorVisit(){
+    custB.style.transition='none';
+    _mSetPos(custB,PX.doorCX_char,PY.entryOutside,sc);
+    custB.style.opacity='0'; custB.style.zIndex='11';
+    _mFace(custB,'right'); _mSit(custB,false);
+    if(ch1) ch1.style.zIndex='';
+    st._bAtReg=false;
+    await _mDelay(4000+Math.random()*4000); if(!container.isConnected) return;
+    await _mEnterDoor(custB,PY.floor,'11'); if(!container.isConnected) return;
+    await _mWalkTo(custB,PX.counterCust-8,sc,88); if(!container.isConnected) return;
+    _mFace(custB,'right');
+    if(showStaff.midori){
+      while(st._midoriPhase!=='idle'){ await _mDelay(200); if(!container.isConnected) return; }
+      st._midoriPhase='checkout';
+    }
+    try{
+      const gPh=['いらっしゃいませ！','ようこそ！','いらっしゃい♪'];
+      _regBubble(gPh[Math.floor(Math.random()*gPh.length)]);
+      st._bAtReg=true; await _mDelay(1200); if(!container.isConnected) return;
+      st._bAtReg=false; bubble.style.opacity='0';
+    } finally {
+      if(showStaff.midori) st._midoriPhase='idle';
+    }
+    custB.style.zIndex='14';
+    await _mWalkTo(custB,PX.custBSeatX-8,sc,88); if(!container.isConnected) return;
+    await _mWalkTo(custB,PX.custBSeatX,sc,40); if(!container.isConnected) return;
+    if(ch1) ch1.style.zIndex='14';
+    custB.classList.remove('mini-walking');
+    custB.style.zIndex='8'; _mFace(custB,'left');
+    _mSit(custB,true); _mSetBottom(custB,PY.eatinSit,250);
+    await _mDelay(350); if(!container.isConnected) return;
+    const _indoorFoodCls=_pickFoodClasses(st.store&&st.store.menu);
+    if(_indoorFoodCls) _setFoodClass(foodIn,_indoorFoodCls[0]);
+    await _serveIndoor(); if(!container.isConnected) return;
+    await _mDelay(3200+Math.random()*2500); if(!container.isConnected) return;
+    if(_indoorFoodCls) _setFoodClass(foodIn,_indoorFoodCls[1]);
+    _mSit(custB,false); _mSetBottom(custB,PY.floor,300);
+    await _mDelay(250); if(!container.isConnected) return;
+    if(ch1) ch1.style.zIndex='';
+    custB.style.zIndex='14'; await _mDelay(150);
+    await _mWalkTo(custB,PX.custBSeatX-8,sc,50); if(!container.isConnected) return;
+    await _mWalkTo(custB,PX.doorCX_char,sc,90); if(!container.isConnected) return;
+    await _mLeaveDoor(custB,PY.entryOutside); if(!container.isConnected) return;
+    await _clearIndoor();
+  }
+
+  async function _runTerraceVisit(){
+    if(!tWrap||!custT) return;
+    const useL=Math.random()>0.5;
+    const seatX=useL?TPX.chairL:TPX.chairR;
+    const foodEl=useL?foodTL:foodTR;
+    custB.style.transition='none';
+    _mSetPos(custB,PX.doorCX_char,PY.entryOutside,sc);
+    custB.style.opacity='0'; custB.style.zIndex='11';
+    _mFace(custB,'right'); _mSit(custB,false);
+    st._bAtReg=false;
+    await _mDelay(4000+Math.random()*4000); if(!container.isConnected) return;
+    await _mEnterDoor(custB,PY.floor,'11'); if(!container.isConnected) return;
+    await _mWalkTo(custB,PX.counterCust-8,sc,88); if(!container.isConnected) return;
+    _mFace(custB,'right');
+    if(showStaff.midori){
+      while(st._midoriPhase!=='idle'){ await _mDelay(200); if(!container.isConnected) return; }
+      st._midoriPhase='checkout';
+    }
+    try{
+      const gPh=['いらっしゃいませ！','テラスへどうぞ♪','いらっしゃい♪'];
+      _regBubble(gPh[Math.floor(Math.random()*gPh.length)]);
+      st._bAtReg=true; await _mDelay(1200); if(!container.isConnected) return;
+      st._bAtReg=false; bubble.style.opacity='0';
+    } finally {
+      if(showStaff.midori) st._midoriPhase='idle';
+    }
+    await _mWalkTo(custB,PX.doorCX_char,sc,90); if(!container.isConnected) return;
+    await _mLeaveDoor(custB,PY.entryOutside); if(!container.isConnected) return;
+    if(!tWrap.isConnected) return;
+    custT.style.transition='none';
+    custT.style.left=(TPX.buildingExit*sc)+'px';
+    custT.style.bottom=flB+'px';
+    _mSit(custT,false); _mFace(custT,'right');
+    _mSetOpacity(custT,'1',150); await _mDelay(200);
+    if(!container.isConnected||!tWrap.isConnected) return;
+    await _mWalkTo(custT,seatX,sc,80); if(!container.isConnected||!tWrap.isConnected) return;
+    custT.classList.remove('mini-walking');
+    _mFace(custT,'left'); _mSit(custT,true); _mSetBottom(custT,sitB,220);
+    await _mDelay(350); if(!container.isConnected) return;
+    const _terraceFoodCls=_pickFoodClasses(st.store&&st.store.menu);
+    if(_terraceFoodCls) _setFoodClass(foodEl,_terraceFoodCls[0]);
+    await _serveTerrace(foodEl); if(!container.isConnected) return;
+    await _mDelay(3000+Math.random()*3000); if(!container.isConnected) return;
+    if(_terraceFoodCls) _setFoodClass(foodEl,_terraceFoodCls[1]);
+    if(tWrap.isConnected){
+      _mSit(custT,false); _mSetBottom(custT,flB,220);
+      await _mDelay(300); if(!container.isConnected) return;
+      await _mWalkTo(custT,TPX.buildingExit,sc,80); if(!container.isConnected) return;
+      _mSetOpacity(custT,'0',150); await _mDelay(200);
+    }
+    await _clearTerrace(foodEl);
+  }
+
+  async function _runCustAVisit(){
+    custA.style.transition='none';
+    _mSetPos(custA,PX.doorCX_char,PY.entryOutside,sc);
+    custA.style.opacity='0'; custA.style.zIndex='14';
+    _mFace(custA,'right'); _mSit(custA,false);
+    st._aAtReg=false;
+    await _mDelay(1500+Math.random()*3000); if(!container.isConnected) return;
+    await _mEnterDoor(custA,PY.floor,'14'); if(!container.isConnected) return;
+    await _mWalkTo(custA,Math.random()>.5?PX.shelfB:PX.shelfA,sc,90); if(!container.isConnected) return;
+    await _mDelay(1500+Math.random()*1500); if(!container.isConnected) return;
+    await _mWalkTo(custA,PX.counterCust,sc,85); if(!container.isConnected) return;
+    _mFace(custA,'right');
+    const _aPh=['いらっしゃいませ！','ようこそ！','いらっしゃい♪'];
+    _regBubble(_aPh[Math.floor(Math.random()*_aPh.length)]);
+    st._aAtReg=true; await _mDelay(1800); if(!container.isConnected) return;
+    st._aAtReg=false;
+    bubble.style.opacity='0';
+    await _mWalkTo(custA,PX.doorCX_char,sc,100); if(!container.isConnected) return;
+    await _mLeaveDoor(custA,PY.entryOutside);
+  }
+
+  try{
+    while(container.isConnected){
+      const canTerrace=!!(tWrap&&tWrap.isConnected);
+      if(!showStaff.midori){
+        if(Math.random()<0.5){
+          st._seatStats.custA=(st._seatStats.custA||0)+1;
+          await _runCustAVisit();
+        } else {
+          const goTerrace=false; // v1.1第1弾: テラス新演出は未完成のため無効化
+          if(goTerrace){
+            st._seatStats.terrace=(st._seatStats.terrace||0)+1;
+            await _runTerraceVisit();
+          } else {
+            st._seatStats.indoor=(st._seatStats.indoor||0)+1;
+            await _runIndoorVisit();
+          }
+        }
+      } else {
+        const goTerrace=false; // v1.1第1弾: テラス新演出は未完成のため無効化
+        if(goTerrace){
+          st._seatStats.terrace=(st._seatStats.terrace||0)+1;
+          await _runTerraceVisit();
+        } else {
+          st._seatStats.indoor=(st._seatStats.indoor||0)+1;
+          await _runIndoorVisit();
+        }
+      }
+    }
+  } finally {
+    if(custT&&custT.parentNode) custT.remove();
+    if(staffT&&staffT.parentNode) staffT.remove();
+    if(foodTL&&foodTL.parentNode) foodTL.remove();
+    if(foodTR&&foodTR.parentNode) foodTR.remove();
+    foodIn.style.opacity='0';
+    bubble.style.opacity='0';
+    if((showStaff.midori||showStaff.owner)&&midori.isConnected){
+      _mSetPos(midori,PX.midoriX,50,sc);
+      midori.style.opacity='1';
+      _mFace(midori,'left');
+    }
+  }
+}
+
 function _startMiniAnimation(container,s){
   const unavail=G.staffUnavailableToday||[];
   const assigned=(G.staff||[]).filter(st=>st.store===s.name&&!unavail.includes(st.name));
@@ -5139,6 +5600,7 @@ function _startMiniAnimation(container,s){
   const isClosed=!s.isOpen||s.policy==='closed'||s._tempClosed;
   const bustle=isClosed?0:_bustleLevel(s);
   const hasEatIn=!isClosed&&_hasEatInMenu(s);
+  const hasTerrace=!isClosed&&((s.upgrades)||[]).includes('テラス席設置');
 
   if(isClosed){
     const ov=_mMkEl(container,'div','');
@@ -5148,10 +5610,19 @@ function _startMiniAnimation(container,s){
     ov.innerHTML=`<span style="color:#fff;font-size:11px;opacity:.9">${s.isOpen?'🔒 本日休業':'🔒 閉店中'}</span>`;
   }
 
-  const st=_buildMiniScene(container,showStaff);
-  if(showStaff.midori) _loopMidoriMini(st).catch(()=>{});
-  if(bustle>=1) _loopCustAMini(st,0).catch(()=>{});
-  if(bustle>=2&&hasEatIn) setTimeout(()=>{ if(container.isConnected) _loopCustBMini(st).catch(()=>{}); },2500);
+  const st=_buildMiniScene(container,showStaff,s);
+  // hasEatIn=true 時は _loopSeatRoute が midori DOM を管理するため _loopMidoriMini を起動しない
+  if(showStaff.midori && !hasEatIn) _loopMidoriMini(st).catch(()=>{});
+  if(hasEatIn){
+    if(showStaff.midori){
+      if(bustle>=1) _loopCustAMidori(st,0).catch(()=>{});
+      setTimeout(()=>{ if(container.isConnected) _loopSeatRoute(st).catch(()=>{}); },2500);
+    } else {
+      setTimeout(()=>{ if(container.isConnected) _loopSeatRoute(st).catch(()=>{}); },2500);
+    }
+  } else {
+    if(bustle>=1) _loopCustAMini(st,0).catch(()=>{});
+  }
 }
 
 // Entry point — returns HTML string; schedules animation after DOM insertion.
@@ -5161,7 +5632,11 @@ function _renderStoreMiniature(s){
   const uid='mini_'+(s.id||0)+'_'+G.day;
   setTimeout(()=>{
     const c=document.getElementById(uid);
-    if(c) _startMiniAnimation(c,s);
+    if(c){
+      const _oldT=c.parentNode&&c.parentNode.querySelector('.mini-terrace-wrap');
+      if(_oldT) _oldT.remove();
+      _startMiniAnimation(c,s);
+    }
   },60);
   return `<div id="${uid}" class="mini-container" style="height:180px;background:#f2e8d6"></div>`;
 }
