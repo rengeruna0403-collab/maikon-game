@@ -1828,6 +1828,7 @@ function _nextTutScene(){
     if(sc.type==='tut3_step3' || sc.action==='start_playing'){
       markTutDone();
       G.tut.phase='done'; G.started=true;
+      _post({ ..._basePayload(), action:'tutorial_complete', playerName:G.playerName||'' });
       updateHeader(); setTab('home');
       startBgm();
     }
@@ -2449,7 +2450,18 @@ function getNaritaAgeComment(){
 function startGame(){
   document.getElementById('intro-modal').style.display='none';
   // 新規ゲーム: 前周回の状態が引き継がれないようにリセット
+  G._playerId = null;  // 新規ゲームごとに新しいplayerIdを生成する
+  G.year = 1; G.month = 4; G.day = 1;  // 日付を新規ゲーム初期値に戻す
   G.totalRevenue = 0;
+  // 案件クールダウン・季節イベント・季節弁当・メニュー展開を初期値に戻す
+  G.caseCooldowns = {};
+  G.seasonalEventStatus = {};
+  G.seasonalBentoStatus = {};
+  G.launchedMenus = [];
+  G.pendingMenuLaunches = [];
+  G._menuSeasonProposed = {};
+  // 月次集計（月末処理で参照→_monthSnapへ退避→0リセットの順。新規の月初は0）
+  G.monthRevenue = 0; G.monthExpense = 0;
   G.mainStory = null;  // ensureMainStoryState() が再生成する
   G.tut.phase = 'opening';
   G.characters = {
@@ -2482,6 +2494,7 @@ function startGame(){
   G.tut.stepsDone=[false,false,false,false,false];
   // 新規ゲームでは常にチュートリアルを開始（startFresh()でresetTutDone()済み）
   // ※ isTutDone()が残存している場合の安全弁（通常は到達しない）
+  _post({ playerId:_getPlayerId(), day:0, cash:G.money, ap:G.ap, fatigue:0, pendingCases:0, action:'game_start', playerName:G.playerName||'' });
   showTutModal(buildTutOpening(),'はじめに','ようこそ');
 }
 
@@ -18504,7 +18517,7 @@ function renderFinance(){
 }
 
 // ─────────── ANALYTICS ───────────
-const GAME_VERSION = 'v0.9.x'; // ← バージョン更新時はここだけ変える
+const GAME_VERSION = 'v1.1.0'; // ← バージョン更新時はここだけ変える
 
 // GASのウェブアプリURLをここに設定（空欄ならconsole出力のみ）
 const GAS_URL = 'https://script.google.com/macros/s/AKfycbxM8XA5eI_-DMsLW8iqRnFcu5afp_5c5V7Ltz-PhX4_7pHK4_eXJLO1kgZWudUXApPH/exec';
@@ -18537,6 +18550,7 @@ function _post(payload){
     else if(t === 'lead')    console.log('[Analytics lead]',    'pid:' + payload.playerId + ' / name:' + payload.playerName + ' / email:' + (payload.email?'あり':'なし') + ' / LINE:' + (payload.line?'あり':'なし') + ' / apt:' + payload.interestApartment + ' / maikon:' + payload.interestMaikon + ' / type:' + payload.ownerType);
     else console.log('[Analytics ' + t + ']', payload);
   }
+  if(location.hostname==='localhost'||location.hostname==='127.0.0.1') payload.testMode=true;
   fetch(GAS_URL, { method:'POST', mode:'no-cors', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) })
     .then(() => { G._aLog.sent++; })
     .catch(e  => { G._aLog.fail++; if(DEV_MODE) console.warn('[Analytics error]', t, e.message||String(e)); });
