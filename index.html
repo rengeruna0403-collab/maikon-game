@@ -223,6 +223,10 @@ body{font-family:'Noto Sans JP',sans-serif;background:var(--bg);color:var(--text
 @keyframes setupPulse{0%,100%{box-shadow:0 0 0 0 rgba(58,107,69,.35)}60%{box-shadow:0 0 0 10px rgba(58,107,69,0)}}
 .setup-spotlight{animation:setupPulse 1.5s ease-in-out 3;outline:2.5px solid var(--gr);outline-offset:3px;border-radius:14px}
 .scene-box{position:relative;width:100%;height:72px;overflow:hidden;border-radius:10px;background:var(--bg2);margin-bottom:12px}
+/* アパート外観(桜橋ハイツ専用・3階建て)。基準340x230を縦横比固定で縮尺。要素は%配置、文字は cqw(未対応環境は px 固定) */
+.apt3f{position:relative;width:100%;aspect-ratio:340/230;overflow:hidden;border-radius:10px;margin-bottom:12px;background:#d6e8ee;container-type:inline-size}
+.apt3f i{position:absolute;display:block}
+.apt3f-t{position:absolute;display:flex;align-items:center;justify-content:center;white-space:nowrap;font-weight:400;line-height:1}
 .scene-char{position:absolute;font-size:20px;bottom:4px;animation-fill-mode:forwards}
 .day-flash-overlay{position:fixed;inset:0;z-index:500;display:flex;align-items:center;justify-content:center;pointer-events:none;animation:dayFlash .8s ease forwards}
 @keyframes buyPop{0%{opacity:0;transform:translateY(0)}15%{opacity:1}70%{opacity:1}100%{opacity:0;transform:translateY(-22px)}}
@@ -5867,8 +5871,155 @@ function _renderStoreScene(s){
     + '</div>';
 }
 
+// 店舗併設アパート(桜橋ハイツ)かどうか: 店舗と同じ baseId を持つ6室の建物のみ。追加物件(baseId なし)は従来外観のまま
+function _isStoreAptBuilding(b){
+  return !!(b && b.baseId && b.rooms && b.rooms.length === 6 && (G.stores||[]).some(s => s.baseId === b.baseId));
+}
+
+// 桜橋ハイツ外観: 3階建て(1階=店舗+共用入口、2階=101〜103、3階=104〜106)。静止・昼景。
+// 窓の中身(入居中/募集中/空室)は描画のたびに r.tenant / r.seeking から作る。建物本体(静的部分)だけを建物名ごとにキャッシュ(セーブには含めない)
+const _APT3F_CACHE = {};
+// 生活小物の配置表(部屋番号で固定。入居中の部屋だけに表示。102・106 は無し)
+const _APT3F_LIFE = {
+  '101': {t:'laundry', v:0},   // 2階左: 洗濯物(白タオル+淡青Tシャツ)
+  '103': {t:'plant'},          // 2階右: 植木鉢
+  '104': {t:'plant'},          // 3階左: 植木鉢
+  '105': {t:'laundry', v:1}    // 3階中: 洗濯物(淡青タオル+白Tシャツ)
+};
+// 窓スロット(左から右)と部屋番号の対応。2階=下段(T0=84)、3階=上段(T0=28)
+const _APT3F_SLOTS = [
+  {num:'101', x:42,  T0:84}, {num:'102', x:150, T0:84}, {num:'103', x:258, T0:84},
+  {num:'104', x:42,  T0:28}, {num:'105', x:150, T0:28}, {num:'106', x:258, T0:28}
+];
+// 入居中のカーテン色(落ち着いた4色)。部屋番号で固定(101→0, 102→1, …)。住人の属性・満足度では変えない
+const _APT3F_CURTAINS = ['#d4958a', '#9fb88a', '#b3a3cc', '#c58a4a'];
+// 部屋の窓状態: 入居中(tenant) > 募集中(seeking が真) > 空室。seeking は既存カードと同じく真偽で判定(未定義は募集扱いにしない)
+function _aptWindowState(r){
+  if(!r) return 'vac';
+  if(r.tenant) return 'occ';
+  return r.seeking ? 'seek' : 'vac';
+}
+// 窓スロット→部屋。101〜106 が揃っていれば部屋番号で対応(配列順が変わっても追従)、揃っていなければ配列順
+function _aptRoomsBySlot(b){
+  const byNum = {};
+  (b.rooms||[]).forEach(r => { byNum[String(r.num)] = r; });
+  const allNums = _APT3F_SLOTS.every(s => byNum[s.num]);
+  return _APT3F_SLOTS.map((s,i) => allNums ? byNum[s.num] : b.rooms[i]);
+}
+
+function _renderAptFacade3F(b){
+  const nm = String(b.name || '');
+  const cr='#f5ead0', woodM='#8c6030', wood='#a87840', woodD='#6a4820', woodX='#5f3f1e', roof='#7a5228';
+  const glass='#bcd6dd', glassD='#a0c0c8', warm='#f7d98a', warm2='#f3d58a';
+  const red='#7a1a1a', red2='#721818', green='#4f7f63', greenD='#35604a', stone='#8a8478';
+  let h='';
+  const R=(x,y,w,hh,c)=>{ h+='<i style="left:'+(x/3.4).toFixed(3)+'%;top:'+(y/2.3).toFixed(3)+'%;width:'+(w/3.4).toFixed(3)+'%;height:'+(hh/2.3).toFixed(3)+'%;background:'+c+'"></i>'; };
+  // 文字: 枠内中央。font-size は px を先に書き、cqw 対応環境で縮尺に追従。mn: 狭い画面でも読めるよう最小文字サイズ(px)を保証
+  const T=(x,y,w,hh,fs,mn,c,fam,ls,txt)=>{
+    h+='<span class="apt3f-t" style="left:'+(x/3.4).toFixed(3)+'%;top:'+(y/2.3).toFixed(3)+'%;width:'+(w/3.4).toFixed(3)+'%;height:'+(hh/2.3).toFixed(3)+'%;color:'+c+';font-family:'+fam+';font-size:'+fs+'px;font-size:max('+mn+'px,calc(100cqw*'+fs+'/340));letter-spacing:'+ls+'px;letter-spacing:calc(100cqw*'+ls+'/340)">'+txt+'</span>';
+  };
+  // 窓(40x28)。枠・ガラス・桟・窓台は共通、ガラスの中身だけ状態で変える
+  const win=(x,y,state,ci)=>{
+    R(x,y,40,28,woodM);
+    if(state==='occ'){
+      R(x+3,y+3,34,22,'#f8e4a8');                    // 暖色の室内
+      R(x+3,y+3,34,3,'#fff0c4');                     // 照明の明るみ
+      R(x+3,y+23,34,2,'#e4c880');
+      R(x+19,y+3,2,22,woodM);
+      R(x+3,y+3,8,22,_APT3F_CURTAINS[ci]);           // 左カーテン
+      R(x+29,y+3,8,22,_APT3F_CURTAINS[ci]);          // 右カーテン
+      R(x+3,y+3,8,2,'rgba(0,0,0,.12)'); R(x+29,y+3,8,2,'rgba(0,0,0,.12)');
+    } else {
+      R(x+3,y+3,34,22,glass);                        // 寒色の窓(カーテンなし)
+      R(x+5,y+5,6,1,'#e6f1f5'); R(x+5,y+7,3,1,'#e6f1f5');
+      R(x+19,y+3,2,22,woodM);
+      R(x+3,y+23,34,2,glassD);
+      if(state==='seek'){                            // 募集中: 右の窓ガラスに貼り紙(掲示マーク)。窓枠・ベランダに掛からない位置
+        R(x+23,y+6,10,13,'#fdf6dc'); R(x+23,y+6,10,3,'#c4452f');
+        R(x+25,y+11,6,1,'#9a8f78'); R(x+25,y+14,6,1,'#9a8f78');
+      }
+    }
+    R(x-2,y+28,44,3,wood);                           // 窓台
+  };
+  const rail=(x,T0)=>{ R(x-6,T0+45,52,2,woodD); R(x-6,T0+48,52,1,woodD); R(x-4,T0+41,2,8,woodD); R(x+20,T0+41,2,8,woodD); R(x+42,T0+41,2,8,woodD); };
+
+  // ── 生活感(Phase A3): ベランダの構造+入居中の部屋だけの小物。位置は部屋番号で固定(乱数・住人属性とは無関係) ──
+  // deckBack: 手すりより奥。庇の裏の影・床の天面(全6室)と、植木鉢(手すりの内側=手すりが鉢の手前に重なる)
+  const deckBack=(num,x,T0,occ)=>{
+    R(x-6,T0+1,52,2,'rgba(70,45,20,.10)');                 // 上階の床/庇の裏の影(奥行きの手掛かり)
+    R(x-6,T0+49,52,1,'#d2b27a');                           // ベランダの床の天面(手すりが載る面)
+    const d=occ&&_APT3F_LIFE[num]; if(!d||d.t!=='plant') return;
+    const cx=x+32;                                          // 植木鉢: 右の手すりの隙間の中央。葉は上段の横木の上へ出る
+    R(cx-1,T0+38,2,2,'#86b84a'); R(cx-3,T0+40,6,3,'#6aa032'); R(cx-4,T0+41,8,3,'#6aa032'); R(cx-2,T0+43,4,2,'#86b84a'); R(cx,T0+44,1,3,'#3f6a22');
+    R(cx-3,T0+46,7,1,'#cf8f58'); R(cx-2,T0+47,5,3,'#b87040');
+  };
+  // deckFront: 洗濯物。物干しざおは床上42px(T0+8)。窓枠(茶)と区別できる暗いグレーの2pxのさおを窓枠の左右8pxずつ越えて渡し、両端を壁付けの金具で支える
+  const deckFront=(num,x,T0,occ)=>{
+    const d=occ&&_APT3F_LIFE[num]; if(!d||d.t!=='laundry') return;
+    const py=8, y=T0+py+1;
+    R(x-8,T0+py,56,1,'#8a8a94'); R(x-8,T0+py+1,56,1,'#41414a');                                   // さお(上辺ハイライト+下辺の影)
+    R(x-9,T0+py-2,3,8,'#33333b'); R(x-9,T0+py-2,1,8,'#5c5c66'); R(x-8,T0+py-1,1,1,'#b6b6c0');     // 左の金具
+    R(x+46,T0+py-2,3,8,'#33333b'); R(x+46,T0+py-2,1,8,'#5c5c66'); R(x+47,T0+py-1,1,1,'#b6b6c0');  // 右の金具
+    const tow=(c,e,ln)=>{ R(x+5,y,6,11,c); R(x+4,y,1,11,e); R(x+11,y,1,11,e); R(x+5,y+3,6,1,ln); R(x+5,y+6,6,1,ln); R(x+5,y+11,6,1,'rgba(0,0,0,.12)'); R(x+7,y-1,2,1,'#6a4820'); };   // タオル 6×11
+    const tee=(c,e,cd)=>{ R(x+17,y,10,3,c); R(x+19,y+3,6,7,c); R(x+16,y,1,3,e); R(x+27,y,1,3,e); R(x+18,y+3,1,7,e); R(x+25,y+3,1,7,e); R(x+19,y+10,6,1,e);
+      R(x+21,y,2,1,'#f0e4cc'); R(x+17,y+2,10,1,cd); R(x+19,y+10,6,1,'rgba(0,0,0,.12)'); R(x+18,y-1,1,1,'#6a4820'); R(x+25,y-1,1,1,'#6a4820'); };                                 // Tシャツ 10×10(袖付き)
+    if(!d.v){ tow('#f6f3ea','#cdbf9c','#8fb6d4'); tee('#8fb6d4','#7aa2c2','#7aa2c2'); }   // 白タオル(青ライン)+淡青Tシャツ
+    else    { tow('#9cc4dc','#86b0cb','#86b0cb'); tee('#f6f3ea','#cdbf9c','#e3dccb'); }   // 淡青タオル+白Tシャツ
+  };
+
+  // ── 静的部分(キャッシュ): 空・外壁・帯・屋根 ──
+  let c = _APT3F_CACHE[nm];
+  if(!c){
+    R(0,0,340,230,'#d6e8ee'); R(0,130,340,72,'#e4ecd8');
+    R(20,28,300,110,'#f0e4cc'); R(20,140,300,62,'#ecdfc0');
+    R(20,78,300,6,wood); R(20,83,300,2,woodD); R(20,134,300,6,wood); R(20,139,300,2,woodD);
+    R(60,0,8,8,stone); R(30,4,280,6,roof); R(30,4,280,1,wood); R(12,10,316,6,wood);
+    R(16,16,308,12,roof); R(16,21,308,1,woodX); R(16,26,308,2,woodX);
+    const top = h; h='';
+    // 1階左: 舞昆店舗(木の看板・ショーウィンドウと商品棚・赤い暖簾の入口)
+    R(24,142,182,14,woodM); R(24,142,182,2,wood); R(24,154,182,2,woodX);
+    T(24,142,182,14,12,10,cr,"'Noto Serif JP',serif",3,'舞昆茶屋');
+    R(28,158,100,40,woodM); R(31,161,94,34,warm); R(31,178,94,2,wood);
+    [[38,166,8,12,red],[50,168,8,10,wood],[62,165,8,13,'#4e3010'],[74,167,8,11,red],[86,166,8,12,wood],[98,168,8,10,'#4e3010'],[110,166,8,12,red],
+     [38,183,9,12,wood],[51,185,9,10,red],[64,183,9,12,wood],[77,184,9,11,'#4e3010'],[90,183,9,12,wood],[103,185,9,10,red]].forEach(a=>R(a[0],a[1],a[2],a[3],a[4]));
+    R(31,161,47,3,'#fff4cc'); R(26,198,104,4,woodD);
+    R(134,158,70,44,woodX); R(137,161,64,41,warm2); R(134,158,70,4,'#5a3808');
+    R(139,162,28,31,red); R(169,162,28,31,red2); R(150,169,5,5,cr); R(180,169,5,5,cr); R(137,193,64,9,'#c09448');
+    R(206,142,6,60,woodM); R(206,142,2,60,wood);
+    // 1階右: アパート共用入口(緑の扉・庇・表札・郵便受け)
+    R(218,142,74,11,cr); R(218,142,74,1,wood); R(218,152,74,1,wood);
+    T(218,142,74,11,9,8,greenD,"'Noto Sans JP',sans-serif",0,nm.replace(/[&<>"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch])));
+    R(222,154,66,9,green); R(222,154,66,2,'#6f9f83'); R(220,162,70,3,greenD);
+    R(226,165,58,37,greenD); R(230,168,50,34,green); R(238,172,34,16,glass); R(254,172,2,16,greenD);
+    R(238,192,34,2,greenD); R(272,194,3,3,warm2);
+    R(296,174,9,13,stone); R(297,177,7,1,'#d6e8ee'); R(297,181,7,1,'#d6e8ee');
+    // 歩道・道路・植木
+    R(224,202,62,3,'#b8a888'); R(0,202,340,5,'#d8c9a3'); R(220,205,70,2,'#a89878');
+    R(0,207,340,23,'#8f8a7e'); R(0,207,340,2,'#6f6a5e');
+    [20,70,120,170,220,270].forEach(x=>R(x,219,26,2,'#e4dcc0'));
+    [4,316].forEach(x=>{ R(x,180,14,16,'#508030'); R(x-2,182,18,10,'#639922'); R(x+1,194,12,9,'#b87040'); });
+    c = _APT3F_CACHE[nm] = {top, bottom:h};
+    h='';
+  }
+
+  // ── 動的部分(毎回): 6室の窓。入居状況は描画のたびに b.rooms から読む ──
+  const rooms = _aptRoomsBySlot(b);
+  const cnt = {occ:0, seek:0, vac:0};
+  _APT3F_SLOTS.forEach((s,i)=>{
+    const state = _aptWindowState(rooms[i]);
+    cnt[state]++;
+    win(s.x, s.T0+7, state, (parseInt(s.num,10)-101) % _APT3F_CURTAINS.length);
+    deckBack(s.num, s.x, s.T0, state==='occ');       // ベランダの構造(全6室)+植木(入居中・手すりの後ろ)
+    rail(s.x, s.T0);
+    deckFront(s.num, s.x, s.T0, state==='occ');      // 洗濯物(入居中・手すりより手前の物干し設備)
+  });
+  const label = nm.replace(/[&<>"]/g,'') + ' 外観（3階建て・1階に舞昆茶屋と共用入口）入居' + cnt.occ + '室・募集中' + cnt.seek + '室・空室' + cnt.vac + '室';
+  return '<div class="apt3f" role="img" aria-label="'+label+'">'+c.top+h+c.bottom+'</div>';
+}
+
 function _renderAptFacade(b){
   if(!b || !b.rooms || !b.rooms.length) return '';
+  if(_isStoreAptBuilding(b)) return _renderAptFacade3F(b);
   const total = b.rooms.length;
   const floors = Math.min(4, Math.ceil(total / 3));
   const cols = Math.ceil(total / floors);
